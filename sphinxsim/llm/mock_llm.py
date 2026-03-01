@@ -123,10 +123,10 @@ def _apply_overrides(template: Dict[str, Any], description: str) -> Dict[str, An
     """Apply simple numeric overrides extracted from *description* to *template*.
 
     Recognised patterns:
-    - ``<N> m/s``  → sets inlet velocity magnitude
-    - ``<N> s``    → sets end_time
-    - ``<N> m``    → sets domain size (square/cubic domain)
-    - ``<N> mm``   → sets resolution
+    - ``<N> m/s``          → sets inlet velocity magnitude (e.g. ``"2 m/s"``)
+    - ``<N> s``            → sets end_time (e.g. ``"5 s"``)
+    - ``<N> m domain``     → sets domain size (e.g. ``"2 m domain"``)
+    - ``<N> mm resolution``→ sets particle spacing (e.g. ``"5 mm resolution"``)
     """
     import copy
 
@@ -197,6 +197,8 @@ class MockLLM:
 
         Raises
         ------
+        ValueError
+            If *description* is empty or contains only whitespace.
         pydantic.ValidationError
             If the generated configuration fails schema validation
             (should not happen with well-formed templates, but protects

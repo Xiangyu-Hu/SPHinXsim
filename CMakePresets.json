@@ -11,7 +11,6 @@
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_TOOLCHAIN_FILE": "$env{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
                 "CMAKE_CXX_STANDARD": "17",
-                "Python3_EXECUTABLE": "/usr/bin/python3.10",
                 "BUILD_SIMPLE_BINDING": "OFF",
                 "SPHINXSYS_BUILD_TESTS": "OFF",
                 "SPHINXSYS_DEVELOPER_MODE": "OFF",
@@ -84,14 +83,13 @@
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_TOOLCHAIN_FILE": "$env{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
                 "CMAKE_CXX_STANDARD": "17",
-                "Python3_EXECUTABLE": "/usr/bin/python3.10",
                 "BUILD_SIMPLE_BINDING": "OFF",
                 "SPHINXSYS_BUILD_TESTS": "OFF",
                 "SPHINXSYS_DEVELOPER_MODE": "OFF", 
                 "SPHINXSYS_USE_SYCL": "OFF",
                 "SPHINXSYS_MODULE_OPENCASCADE": "ON",
                 "SPHINXSYS_2D": "ON",
-                "SPHINXSYS_3D": "ON"
+                "SPHINXSYS_3D": "OFF"
             }
         }
     ],

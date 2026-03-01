@@ -50,7 +50,7 @@ else()
     set(SPHINXSYS_USE_SYCL OFF CACHE BOOL "Disable SYCL")
     set(SPHINXSYS_MODULE_OPENCASCADE ON CACHE BOOL "Enable OpenCASCADE")
     set(SPHINXSYS_2D ON CACHE BOOL "Build 2D library")
-    set(SPHINXSYS_3D ON CACHE BOOL "Build 3D library")
+    set(SPHINXSYS_3D OFF CACHE BOOL "Don't build 3D library to avoid conflicts")
     
     # Include SPHinXsys as subdirectory - this will build the libraries
     add_subdirectory(sphinxsim/sphinxsys)
@@ -60,10 +60,9 @@ else()
         sphinxsim/bindings/sphinxsys_python.cpp
     )
     
-    # Link with SPHinXsys libraries (these targets are now available)
+    # Link with only 2D library to avoid Vecd type conflicts
     target_link_libraries(_sphinxsys_core PRIVATE 
         sphinxsys_2d
-        sphinxsys_3d
     )
     
     # The include directories are automatically handled by the targets

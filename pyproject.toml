@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sphinxsim"
+version = "0.1.0"
+description = "Python UI for the SPHinXsys multi-physics C++ library"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
+
+[project.scripts]
+sphinxsim = "sphinxsim.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sphinxsim*"]

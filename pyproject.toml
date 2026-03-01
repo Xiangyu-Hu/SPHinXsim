@@ -24,3 +24,4 @@ sphinxsim = "sphinxsim.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["sphinxsim*"]
+exclude = ["sphinxsim.sphinxsys*"]

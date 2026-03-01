@@ -15,6 +15,14 @@ htmlcov/
 venv/
 env/
 
+# C++ build artifacts
+sphinxsim/sphinxsys/build/
+sphinxsim/sphinxsys/install/
+sphinxsim/sphinxsys/cmake-build-*/
+*.so
+*.dll
+*.dylib
+
 # Editor
 .idea/
 .vscode/

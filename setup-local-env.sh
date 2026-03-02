@@ -1,6 +1,9 @@
 # Local development environment setup
 # Source this file to set up vcpkg environment for local development
 
+# Prevent Python from creating __pycache__ directories
+export PYTHONDONTWRITEBYTECODE=1
+
 # Set VCPKG_ROOT for local development
 export VCPKG_ROOT="$HOME/vcpkg"
 

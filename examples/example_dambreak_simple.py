@@ -134,6 +134,7 @@ if __name__ == "__main__":
     if "--direct" not in sys.argv:
         project_root = Path(__file__).parent.parent
         basetemp_path = project_root / ".build-temp" / ".pytest_tmp"
+        basetemp_path.mkdir(parents=True, exist_ok=True)
         pytest_args = [__file__, "-k", "test_example_dambreak_simple", f"--basetemp={basetemp_path}"]
         print(f"📁 Pytest temp files will be kept under: {basetemp_path}")
         raise SystemExit(pytest.main(pytest_args))

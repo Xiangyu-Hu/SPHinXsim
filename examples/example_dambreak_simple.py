@@ -7,6 +7,10 @@ Based on the C++ dambreak_chi.cpp example
 
 import sys
 import os
+
+# Prevent Python from creating __pycache__ directories
+sys.dont_write_bytecode = True
+
 import time
 import math
 import tempfile
@@ -26,8 +30,10 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True, keep_temp_dir=Fa
     original_cwd = Path.cwd()
     temporary_work_dir = None
     if work_dir is None and use_temp_dir:
-        temp_base = Path("./.pytest_tmp")
-        temp_base.mkdir(exist_ok=True)
+        # Create temp directory in project root, not relative to cwd
+        project_root = Path(__file__).parent.parent
+        temp_base = project_root / ".build-temp" / ".pytest_tmp"
+        temp_base.mkdir(exist_ok=True, parents=True)
         temporary_work_dir = tempfile.TemporaryDirectory(prefix="sphinxsim_dambreak_", dir=temp_base)
         work_dir = temporary_work_dir.name
     if work_dir is not None:
@@ -126,8 +132,10 @@ def test_example_dambreak_simple(tmp_path):
 if __name__ == "__main__":
     # Default: run pytest test (cleanly isolated in temp folder)
     if "--direct" not in sys.argv:
-        pytest_args = [__file__, "-k", "test_example_dambreak_simple", "--basetemp=.pytest_tmp"]
-        print("📁 Pytest temp files will be kept under: ./.pytest_tmp")
+        project_root = Path(__file__).parent.parent
+        basetemp_path = project_root / ".build-temp" / ".pytest_tmp"
+        pytest_args = [__file__, "-k", "test_example_dambreak_simple", f"--basetemp={basetemp_path}"]
+        print(f"📁 Pytest temp files will be kept under: {basetemp_path}")
         raise SystemExit(pytest.main(pytest_args))
 
     # Direct mode: run simulation without pytest

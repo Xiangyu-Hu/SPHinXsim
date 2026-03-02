@@ -1,3 +1,6 @@
+# Build and temporary files
+.build-temp/
+
 # Python build artefacts
 __pycache__/
 *.py[cod]

@@ -25,3 +25,7 @@ sphinxsim = "sphinxsim.cli:main"
 where = ["."]
 include = ["sphinxsim*"]
 exclude = ["sphinxsim.sphinxsys*"]
+
+[tool.pytest.ini_options]
+cache_dir = ".build-temp/.pytest_cache"
+tmp_path_retention_policy = "none"

@@ -40,6 +40,8 @@
 
 namespace SPH
 {
+class SPHSystem;
+
 /**
  * @class FluidBlockBuilder
  * @brief Builder for configuring a fluid body in a 2D or 3D simulation.
@@ -164,10 +166,19 @@ class SPHSimulation
 {
   public:
     SPHSimulation() = default;
+    ~SPHSimulation();
+
+    /** Set the domain dimensions and reference particle spacing.
+     *  Use Vec2d for 2D or Vec3d for 3D builds. */
+    void defineDomain(Vecd domain_dimensions, Real particle_spacing);
 
     /** Set the domain dimensions and reference particle spacing.
      *  Use Vec2d for 2D or Vec3d for 3D builds. */
     void createDomain(Vecd domain_dimensions, Real particle_spacing);
+
+    /** Set folder prefix for output, restart and reload.
+     *  Empty prefix keeps default folders in current run location. */
+    void setOutputPrefix(const std::string &output_prefix);
 
     /** Add a named fluid block; configure it with the returned builder. */
     FluidBlockBuilder &addFluidBlock(const std::string &name);
@@ -208,6 +219,13 @@ class SPHSimulation
     std::vector<ObserverEntry> observers_;
 
     std::unique_ptr<SolverConfig> solver_config_;
+    std::unique_ptr<SPHSystem> sph_system_;
+    std::string output_prefix_;
+
+    std::string outputFolderName() const;
+    std::string restartFolderName() const;
+    std::string reloadFolderName() const;
+    void applyOutputPrefix();
 };
 
 } // namespace SPH

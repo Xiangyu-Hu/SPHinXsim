@@ -51,6 +51,11 @@ void safe_createDomain(SPHSimulation& sim, const py::object& domain_dimensions, 
     sim.createDomain(dims, particle_spacing);
 }
 
+void safe_defineDomain(SPHSimulation& sim, const py::object& domain_dimensions, Real particle_spacing) {
+     Vecd dims = convert_to_vecd(domain_dimensions);
+     sim.defineDomain(dims, particle_spacing);
+}
+
 void safe_enableGravity(SPHSimulation& sim, const py::object& gravity) {
     Vecd grav = convert_to_vecd(gravity);
     sim.enableGravity(grav);
@@ -83,9 +88,15 @@ PYBIND11_MODULE(_sphinxsys_core, m) {
     // Bind the main SPHSimulation class
     py::class_<SPHSimulation>(m, "SPHSimulation")
         .def(py::init<>())
+        .def("defineDomain", &safe_defineDomain,
+             py::arg("domain_dimensions"), py::arg("particle_spacing"),
+             "Set domain dimensions and reference particle spacing")
         .def("createDomain", &safe_createDomain,
              py::arg("domain_dimensions"), py::arg("particle_spacing"),
              "Set domain dimensions and reference particle spacing")
+        .def("setOutputPrefix", &SPHSimulation::setOutputPrefix,
+             py::arg("output_prefix"),
+             "Set output/restart/reload folder prefix; empty prefix keeps current run location defaults")
         .def("addFluidBlock", &SPHSimulation::addFluidBlock, 
              py::return_value_policy::reference,
              py::arg("name"),

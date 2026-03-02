@@ -32,9 +32,15 @@
 
 #include <iomanip>
 #include <iostream>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 namespace SPH
 {
+//=================================================================================================//
+SPHSimulation::~SPHSimulation() = default;
+//=================================================================================================//
 //=================================================================================================//
 FluidBlockBuilder::FluidBlockBuilder(const std::string &name)
     : name_(name) {}
@@ -76,8 +82,69 @@ SolverConfig &SolverConfig::freeSurfaceCorrection()
 //=================================================================================================//
 void SPHSimulation::createDomain(Vecd domain_dimensions, Real particle_spacing)
 {
+    defineDomain(domain_dimensions, particle_spacing);
+}
+//=================================================================================================//
+void SPHSimulation::defineDomain(Vecd domain_dimensions, Real particle_spacing)
+{
     domain_dims_ = domain_dimensions;
     dp_ref_ = particle_spacing;
+}
+//=================================================================================================//
+void SPHSimulation::setOutputPrefix(const std::string &output_prefix)
+{
+    output_prefix_ = output_prefix;
+    applyOutputPrefix();
+}
+//=================================================================================================//
+std::string SPHSimulation::outputFolderName() const
+{
+    if (output_prefix_.empty())
+        return "./output";
+
+    return "./" + output_prefix_ + "_output";
+}
+//=================================================================================================//
+std::string SPHSimulation::restartFolderName() const
+{
+    if (output_prefix_.empty())
+        return "./restart";
+
+    return "./" + output_prefix_ + "_restart";
+}
+//=================================================================================================//
+std::string SPHSimulation::reloadFolderName() const
+{
+    if (output_prefix_.empty())
+        return "./reload";
+
+    return "./" + output_prefix_ + "_reload";
+}
+//=================================================================================================//
+void SPHSimulation::applyOutputPrefix()
+{
+    if (sph_system_ == nullptr)
+        return;
+
+    IOEnvironment &io_environment = sph_system_->getIOEnvironment();
+    io_environment.resetOutputFolder(outputFolderName());
+    io_environment.resetRestartFolder(restartFolderName());
+    io_environment.resetReloadFolder(reloadFolderName());
+
+    // Clean up default folders if they differ from the prefixed ones
+    if (!output_prefix_.empty())
+    {
+        std::string default_output = "./output";
+        std::string default_restart = "./restart";
+        std::string default_reload = "./reload";
+
+        if (fs::exists(default_output) && default_output != outputFolderName())
+            fs::remove_all(default_output);
+        if (fs::exists(default_restart) && default_restart != restartFolderName())
+            fs::remove_all(default_restart);
+        if (fs::exists(default_reload) && default_reload != reloadFolderName())
+            fs::remove_all(default_reload);
+    }
 }
 //=================================================================================================//
 FluidBlockBuilder &SPHSimulation::addFluidBlock(const std::string &name)
@@ -130,6 +197,11 @@ void SPHSimulation::run(Real end_time)
         std::cerr << "SPHSimulation::run: no wall defined.\n";
         return;
     }
+    if (dp_ref_ <= 0.0)
+    {
+        std::cerr << "SPHSimulation::run: domain is not defined. Call defineDomain() or createDomain() first.\n";
+        return;
+    }
 
     //----------------------------------------------------------------------
     // Derive geometry parameters
@@ -142,7 +214,9 @@ void SPHSimulation::run(Real end_time)
     // Build the SPH system
     //----------------------------------------------------------------------
     BoundingBoxd system_domain_bounds(-BW * Vecd::Ones(), domain_dims_ + BW * Vecd::Ones());
-    SPHSystem sph_system(system_domain_bounds, dp_ref_);
+    sph_system_ = std::make_unique<SPHSystem>(system_domain_bounds, dp_ref_);
+    applyOutputPrefix();
+    SPHSystem &sph_system = *sph_system_;
 
     //----------------------------------------------------------------------
     // Create fluid body (rectangular block starting at the coordinate origin)

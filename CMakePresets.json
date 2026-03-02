@@ -77,15 +77,15 @@
             "name": "integrated-build",
             "displayName": "Integrated SPHinXsys + Python Build",
             "description": "Build SPHinXsys libraries and Python bindings together",
-            "generator": "Ninja", 
+            "generator": "Ninja",
             "binaryDir": "${sourceDir}/build-integrated",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_TOOLCHAIN_FILE": "$env{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
                 "CMAKE_CXX_STANDARD": "17",
                 "BUILD_SIMPLE_BINDING": "OFF",
-                "SPHINXSYS_BUILD_TESTS": "OFF",
-                "SPHINXSYS_DEVELOPER_MODE": "OFF", 
+                "SPHINXSYS_BUILD_TESTS": "ON",
+                "SPHINXSYS_DEVELOPER_MODE": "OFF",
                 "SPHINXSYS_USE_SYCL": "OFF",
                 "SPHINXSYS_MODULE_OPENCASCADE": "ON",
                 "SPHINXSYS_2D": "ON",
@@ -98,31 +98,41 @@
             "name": "python-binding-release",
             "displayName": "Build Python Binding Release",
             "configurePreset": "python-binding-release",
-            "targets": ["_sphinxsys_core"]
+            "targets": [
+                "_sphinxsys_core"
+            ]
         },
         {
             "name": "python-binding-debug",
-            "displayName": "Build Python Binding Debug", 
+            "displayName": "Build Python Binding Debug",
             "configurePreset": "python-binding-debug",
-            "targets": ["_sphinxsys_core"]
+            "targets": [
+                "_sphinxsys_core"
+            ]
         },
         {
             "name": "simple-binding",
             "displayName": "Build Simple Binding",
             "configurePreset": "simple-binding",
-            "targets": ["_sphinxsys_core"]
+            "targets": [
+                "_sphinxsys_core"
+            ]
         },
         {
             "name": "sycl-binding",
             "displayName": "Build SYCL Binding",
             "configurePreset": "sycl-binding",
-            "targets": ["_sphinxsys_core"]
+            "targets": [
+                "_sphinxsys_core"
+            ]
         },
         {
             "name": "integrated-build",
             "displayName": "Build Integrated SPHinXsys + Python",
             "configurePreset": "integrated-build",
-            "targets": ["_sphinxsys_core"]
+            "targets": [
+                "_sphinxsys_core"
+            ]
         }
     ]
 }

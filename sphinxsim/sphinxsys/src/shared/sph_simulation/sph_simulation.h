@@ -42,6 +42,8 @@ namespace SPH
 {
 class SPHSystem;
 
+using VecdRef = Eigen::Ref<const Vecd>;
+
 /**
  * @class FluidBlockBuilder
  * @brief Builder for configuring a fluid body in a 2D or 3D simulation.
@@ -62,7 +64,7 @@ class FluidBlockBuilder
 
     /** Define the fluid block dimensions (starting at the coordinate origin).
      *  Use Vec2d for 2D or Vec3d for 3D builds. */
-    FluidBlockBuilder &block(Vecd dimensions);
+    FluidBlockBuilder &block(VecdRef dimensions);
     /** Set the weakly-compressible fluid material parameters. */
     FluidBlockBuilder &material(Real rho0, Real c);
 
@@ -99,7 +101,7 @@ class WallBuilder
     /** Define the wall as a hollow rectangular box aligned with the origin.
      *  @param domain_dimensions Inner domain dimensions (Vecd for 2D/3D).
      *  @param wall_width Thickness of the wall. */
-    WallBuilder &hollowBox(Vecd domain_dimensions, Real wall_width);
+    WallBuilder &hollowBox(VecdRef domain_dimensions, Real wall_width);
 
     const std::string &getName() const { return name_; }
     const Vecd &getDomainDimensions() const { return domain_dims_; }
@@ -170,11 +172,11 @@ class SPHSimulation
 
     /** Set the domain dimensions and reference particle spacing.
      *  Use Vec2d for 2D or Vec3d for 3D builds. */
-    void defineDomain(Vecd domain_dimensions, Real particle_spacing);
+    void defineDomain(VecdRef domain_dimensions, Real particle_spacing);
 
     /** Set the domain dimensions and reference particle spacing.
      *  Use Vec2d for 2D or Vec3d for 3D builds. */
-    void createDomain(Vecd domain_dimensions, Real particle_spacing);
+    void createDomain(VecdRef domain_dimensions, Real particle_spacing);
 
     /** Add a named fluid block; configure it with the returned builder. */
     FluidBlockBuilder &addFluidBlock(const std::string &name);
@@ -184,7 +186,7 @@ class SPHSimulation
 
     /** Enable uniform gravitational acceleration.
      *  Use Vec2d for 2D or Vec3d for 3D builds. */
-    void enableGravity(Vecd gravity);
+    void enableGravity(VecdRef gravity);
 
     /** Add a single-point observer at the given position. */
     void addObserver(const std::string &name, const Vecd &position);

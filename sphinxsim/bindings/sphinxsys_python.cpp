@@ -4,18 +4,14 @@
  * @details This file creates the _sphinxsys_core module that bridges
  *          Python and the SPHinXsys C++ library
  */
+#include <pybind11/eigen.h> // For Eigen matrix/vector support
+#include <pybind11/pybind11.h>
 
 // Include SPHinXsys headers FIRST to ensure proper type definitions
 #include "sph_simulation.h" // High-level user API
 #include "sphinxsys.h"      // Core SPH functionality - must be first
 
-// Standard library headers
-#include <memory>
-#include <string>
-
 // Include pybind11 headers AFTER SPHinXsys to avoid type conflicts
-#include <pybind11/eigen.h> // For Eigen matrix/vector support
-#include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
 namespace py = pybind11;
@@ -94,11 +90,11 @@ PYBIND11_MODULE(_sphinxsys_core, m) {
   // Bind the main SPHSimulation class
   py::class_<SPHSimulation>(m, "SPHSimulation")
       .def(py::init<>())
-      .def("defineDomain", &safe_defineDomain, py::arg("domain_dimensions"),
-           py::arg("particle_spacing"),
+      .def("defineDomain", &SPHSimulation::defineDomain,
+           py::arg("domain_dimensions"), py::arg("particle_spacing"),
            "Set domain dimensions and reference particle spacing")
-      .def("createDomain", &safe_createDomain, py::arg("domain_dimensions"),
-           py::arg("particle_spacing"),
+      .def("createDomain", &SPHSimulation::createDomain,
+           py::arg("domain_dimensions"), py::arg("particle_spacing"),
            "Set domain dimensions and reference particle spacing")
       .def("addFluidBlock", &SPHSimulation::addFluidBlock,
            py::return_value_policy::reference, py::arg("name"),
@@ -106,7 +102,7 @@ PYBIND11_MODULE(_sphinxsys_core, m) {
       .def("addWall", &SPHSimulation::addWall,
            py::return_value_policy::reference, py::arg("name"),
            "Add a named solid wall; configure with returned builder")
-      .def("enableGravity", &safe_enableGravity, py::arg("gravity"),
+      .def("enableGravity", &SPHSimulation::enableGravity, py::arg("gravity"),
            "Enable uniform gravitational acceleration")
       .def("addObserver", &safe_addObserver_single, py::arg("name"),
            py::arg("position"),
@@ -119,8 +115,8 @@ PYBIND11_MODULE(_sphinxsys_core, m) {
 
   // Bind the FluidBlockBuilder class
   py::class_<FluidBlockBuilder>(m, "FluidBlockBuilder")
-      .def("block", &safe_block, py::return_value_policy::reference,
-           py::arg("dimensions"),
+      .def("block", &FluidBlockBuilder::block,
+           py::return_value_policy::reference, py::arg("dimensions"),
            "Define fluid block dimensions from coordinate origin")
       .def("material", &FluidBlockBuilder::material,
            py::return_value_policy::reference, py::arg("rho0"), py::arg("c"),
@@ -134,8 +130,9 @@ PYBIND11_MODULE(_sphinxsys_core, m) {
 
   // Bind the WallBuilder class
   py::class_<WallBuilder>(m, "WallBuilder")
-      .def("hollowBox", &safe_hollowBox, py::return_value_policy::reference,
-           py::arg("domain_dimensions"), py::arg("wall_width"),
+      .def("hollowBox", &WallBuilder::hollowBox,
+           py::return_value_policy::reference, py::arg("domain_dimensions"),
+           py::arg("wall_width"),
            "Define wall as hollow rectangular box aligned with origin")
       .def("getName", &WallBuilder::getName, "Get the wall name")
       .def("getDomainDimensions", &WallBuilder::getDomainDimensions,

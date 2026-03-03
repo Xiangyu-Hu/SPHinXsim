@@ -63,8 +63,7 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
         sim = sph.SPHSimulation()
         
         # Domain setup
-        v = np.array([1.0, 2.0])
-        sim.createDomain(v, particle_spacing_ref)
+        sim.createDomain(np.array([1.0, 2.0]), particle_spacing_ref)
         print("✅ Domain created")
         
         # Fluid block setup

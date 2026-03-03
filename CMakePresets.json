@@ -88,7 +88,7 @@
                 "SPHINXSYS_BUILD_TESTS": "ON",
                 "SPHINXSYS_DEVELOPER_MODE": "OFF",
                 "SPHINXSYS_USE_SYCL": "OFF",
-                "SPHINXSYS_MODULE_OPENCASCADE": "ON",
+                "SPHINXSYS_MODULE_OPENCASCADE": "OFF",
                 "SPHINXSYS_2D": "ON",
                 "SPHINXSYS_3D": "OFF"
             }

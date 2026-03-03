@@ -39,7 +39,7 @@ SPHSimulation::~SPHSimulation() = default;
 FluidBlockBuilder::FluidBlockBuilder(const std::string &name)
     : name_(name) {}
 //=================================================================================================//
-FluidBlockBuilder &FluidBlockBuilder::block(Vecd dimensions)
+FluidBlockBuilder &FluidBlockBuilder::block(VecdRef dimensions)
 {
     dimensions_ = dimensions;
     return *this;
@@ -55,7 +55,7 @@ FluidBlockBuilder &FluidBlockBuilder::material(Real rho0, Real c)
 WallBuilder::WallBuilder(const std::string &name)
     : name_(name) {}
 //=================================================================================================//
-WallBuilder &WallBuilder::hollowBox(Vecd domain_dimensions, Real wall_width)
+WallBuilder &WallBuilder::hollowBox(VecdRef domain_dimensions, Real wall_width)
 {
     domain_dims_ = domain_dimensions;
     BW_ = wall_width;
@@ -74,12 +74,12 @@ SolverConfig &SolverConfig::freeSurfaceCorrection()
     return *this;
 }
 //=================================================================================================//
-void SPHSimulation::createDomain(Vecd domain_dimensions, Real particle_spacing)
+void SPHSimulation::createDomain(VecdRef domain_dimensions, Real particle_spacing)
 {
     defineDomain(domain_dimensions, particle_spacing);
 }
 //=================================================================================================//
-void SPHSimulation::defineDomain(Vecd domain_dimensions, Real particle_spacing)
+void SPHSimulation::defineDomain(VecdRef domain_dimensions, Real particle_spacing)
 {
     domain_dims_ = domain_dimensions;
     dp_ref_ = particle_spacing;
@@ -97,7 +97,7 @@ WallBuilder &SPHSimulation::addWall(const std::string &name)
     return *walls_.back();
 }
 //=================================================================================================//
-void SPHSimulation::enableGravity(Vecd gravity)
+void SPHSimulation::enableGravity(VecdRef gravity)
 {
     gravity_ = gravity;
     gravity_enabled_ = true;

@@ -189,7 +189,7 @@ class SPHSimulation
     void enableGravity(VecdRef gravity);
 
     /** Add a single-point observer at the given position. */
-    void addObserver(const std::string &name, const Vecd &position);
+    void addObserver(const std::string &name, VecdRef position);
 
     /** Add a multi-point observer at the given positions. */
     void addObserver(const std::string &name, const StdVec<Vecd> &positions);

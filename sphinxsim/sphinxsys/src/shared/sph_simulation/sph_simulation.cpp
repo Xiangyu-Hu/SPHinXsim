@@ -103,7 +103,7 @@ void SPHSimulation::enableGravity(VecdRef gravity)
     gravity_enabled_ = true;
 }
 //=================================================================================================//
-void SPHSimulation::addObserver(const std::string &name, const Vecd &position)
+void SPHSimulation::addObserver(const std::string &name, VecdRef position)
 {
     observers_.push_back({name, {position}});
 }

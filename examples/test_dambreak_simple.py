@@ -35,7 +35,7 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
     print("=" * 45)
 
     try:
-        import _sphinxsys_core as sph
+        import _sphinxsim_2d as sph
         print("✅ SPHinXsys module imported")
         import numpy as np
                 
@@ -63,7 +63,7 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
         sim = sph.SPHSimulation()
         
         # Domain setup
-        sim.createDomain(np.array([1.0, 2.0]), particle_spacing_ref)
+        sim.createDomain([1.0, 2.0], particle_spacing_ref)
         print("✅ Domain created")
         
         # Fluid block setup
@@ -120,8 +120,10 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
         print(f"❌ Simulation failed: {e}")
         return False
 
-def test_example_dambreak_simple(tmp_path):
-    assert main()
+def test_example_dambreak_simple():
+    basetemp_path = PROJECT_ROOT / ".build-temp" / ".pytest_tmp"
+    basetemp_path.mkdir(parents=True, exist_ok=True)
+    assert main(basetemp_path)
 
 if __name__ == "__main__":
 

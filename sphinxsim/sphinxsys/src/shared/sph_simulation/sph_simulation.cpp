@@ -30,12 +30,6 @@
 
 #include "sphinxsys.h"
 
-#include <iomanip>
-#include <iostream>
-#include <filesystem>
-
-namespace fs = std::filesystem;
-
 namespace SPH
 {
 //=================================================================================================//
@@ -89,62 +83,6 @@ void SPHSimulation::defineDomain(Vecd domain_dimensions, Real particle_spacing)
 {
     domain_dims_ = domain_dimensions;
     dp_ref_ = particle_spacing;
-}
-//=================================================================================================//
-void SPHSimulation::setOutputPrefix(const std::string &output_prefix)
-{
-    output_prefix_ = output_prefix;
-    applyOutputPrefix();
-}
-//=================================================================================================//
-std::string SPHSimulation::outputFolderName() const
-{
-    if (output_prefix_.empty())
-        return "./output";
-
-    return "./" + output_prefix_ + "_output";
-}
-//=================================================================================================//
-std::string SPHSimulation::restartFolderName() const
-{
-    if (output_prefix_.empty())
-        return "./restart";
-
-    return "./" + output_prefix_ + "_restart";
-}
-//=================================================================================================//
-std::string SPHSimulation::reloadFolderName() const
-{
-    if (output_prefix_.empty())
-        return "./reload";
-
-    return "./" + output_prefix_ + "_reload";
-}
-//=================================================================================================//
-void SPHSimulation::applyOutputPrefix()
-{
-    if (sph_system_ == nullptr)
-        return;
-
-    IOEnvironment &io_environment = sph_system_->getIOEnvironment();
-    io_environment.resetOutputFolder(outputFolderName());
-    io_environment.resetRestartFolder(restartFolderName());
-    io_environment.resetReloadFolder(reloadFolderName());
-
-    // Clean up default folders if they differ from the prefixed ones
-    if (!output_prefix_.empty())
-    {
-        std::string default_output = "./output";
-        std::string default_restart = "./restart";
-        std::string default_reload = "./reload";
-
-        if (fs::exists(default_output) && default_output != outputFolderName())
-            fs::remove_all(default_output);
-        if (fs::exists(default_restart) && default_restart != restartFolderName())
-            fs::remove_all(default_restart);
-        if (fs::exists(default_reload) && default_reload != reloadFolderName())
-            fs::remove_all(default_reload);
-    }
 }
 //=================================================================================================//
 FluidBlockBuilder &SPHSimulation::addFluidBlock(const std::string &name)
@@ -215,7 +153,6 @@ void SPHSimulation::run(Real end_time)
     //----------------------------------------------------------------------
     BoundingBoxd system_domain_bounds(-BW * Vecd::Ones(), domain_dims_ + BW * Vecd::Ones());
     sph_system_ = std::make_unique<SPHSystem>(system_domain_bounds, dp_ref_);
-    applyOutputPrefix();
     SPHSystem &sph_system = *sph_system_;
 
     //----------------------------------------------------------------------

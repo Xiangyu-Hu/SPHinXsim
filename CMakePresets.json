@@ -82,6 +82,7 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_TOOLCHAIN_FILE": "$env{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "Python3_EXECUTABLE": "/usr/bin/python3.11",
                 "CMAKE_CXX_STANDARD": "17",
                 "BUILD_SIMPLE_BINDING": "OFF",
                 "SPHINXSYS_BUILD_TESTS": "ON",

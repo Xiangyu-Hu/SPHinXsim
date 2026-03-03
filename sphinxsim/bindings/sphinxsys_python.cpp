@@ -15,8 +15,6 @@
 
 // Include pybind11 headers AFTER SPHinXsys to avoid type conflicts
 #include <pybind11/eigen.h> // For Eigen matrix/vector support
-#include <pybind11/numpy.h>
-#include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 

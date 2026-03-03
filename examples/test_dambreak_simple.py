@@ -37,7 +37,8 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
     try:
         import _sphinxsys_core as sph
         print("✅ SPHinXsys module imported")
-        
+        import numpy as np
+                
         # Simulation parameters (from dambreak_chi.cpp)
         DL = 5.366                    # Water tank length
         DH = 5.366                    # Water tank height  
@@ -62,7 +63,8 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
         sim = sph.SPHSimulation()
         
         # Domain setup
-        sim.createDomain([DL, DH], particle_spacing_ref)
+        v = np.array([1.0, 2.0])
+        sim.createDomain(v, particle_spacing_ref)
         print("✅ Domain created")
         
         # Fluid block setup

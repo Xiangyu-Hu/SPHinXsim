@@ -7,13 +7,8 @@ Based on the C++ dambreak_chi.cpp example
 
 import sys
 import os
-
-# Prevent Python from creating __pycache__ directories
-sys.dont_write_bytecode = True
-
 import time
 import math
-import tempfile
 from pathlib import Path
 
 def find_project_root(start: Path | None = None):
@@ -35,7 +30,7 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
     print("=" * 45)
 
     try:
-        import _sphinxsim_2d as sph
+        import _sphinxsys_core_2d as sph
         print("✅ SPHinXsys module imported")
         import numpy as np
                 

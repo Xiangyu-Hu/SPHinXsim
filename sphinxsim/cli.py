@@ -1,4 +1,4 @@
-source setup-local-env.sh"""Command-line interface for SPHinXsys.
+"""Command-line interface for SPHinXsys.
 
 Usage examples
 --------------

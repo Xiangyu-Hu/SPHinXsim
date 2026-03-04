@@ -10,14 +10,22 @@ This example shows the complete workflow:
 """
 
 import sys
+import os
 from pathlib import Path
 
-# Prevent Python bytecode generation
-sys.dont_write_bytecode = True
+def find_project_root(start: Path | None = None):
+    start = start or Path.cwd()
+    for path in [start] + list(start.parents):
+        if (path / "pyproject.toml").exists():
+            return path
+    raise RuntimeError("Project root not found")
+
+PROJECT_ROOT = find_project_root()
 
 # Add parent directory for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent / "build-integrated"))
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "build-integrated"))
+original_dir = Path.cwd()
 
 
 def main():
@@ -112,9 +120,8 @@ def main():
             print(f"     - {name} at position {pos}")
         
         # Show output location
-        project_root = Path(__file__).parent.parent
         safe_name = config.name.replace(' ', '_').replace('/', '_')[:50]
-        output_dir = project_root / ".build-temp" / "simulations" / safe_name
+        output_dir = PROJECT_ROOT / ".build-temp" / "simulations" / safe_name
         print(f"\n📁 Simulation output saved to:")
         print(f"   {output_dir}")
         
@@ -142,7 +149,12 @@ def main():
         import traceback
         traceback.print_exc()
         return False
+    finally:
+        # Restore original directory
+        os.chdir(original_dir)
 
+def test_nlp_to_simulation():
+    assert main()
 
 if __name__ == "__main__":
     print()

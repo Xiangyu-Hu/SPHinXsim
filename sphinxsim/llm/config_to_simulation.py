@@ -84,8 +84,7 @@ def config_to_builder(
     # Create base simulation builder
     builder = SimulationBuilder(
         domain_size=domain_size,
-        particle_spacing=particle_spacing,
-        output_prefix=None  # Will set working directory instead
+        particle_spacing=particle_spacing
     )
     
     # Handle different physics types

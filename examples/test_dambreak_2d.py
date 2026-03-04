@@ -22,6 +22,7 @@ PROJECT_ROOT = find_project_root()
 
 # Add the build directory to Python path (relative to examples folder)
 sys.path.insert(0, str(PROJECT_ROOT / "build-integrated"))
+original_dir = Path.cwd()
 
 def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
     """Run the dam break simulation"""
@@ -114,8 +115,11 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
     except Exception as e:
         print(f"❌ Simulation failed: {e}")
         return False
+    finally:
+        # Restore original directory
+        os.chdir(original_dir)
 
-def test_example_dambreak_simple():
+def test_example_dambreak_2d():
     basetemp_path = PROJECT_ROOT / ".build-temp" / ".pytest_tmp"
     basetemp_path.mkdir(parents=True, exist_ok=True)
     assert main(basetemp_path)

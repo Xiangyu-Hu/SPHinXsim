@@ -32,7 +32,7 @@ from typing import Optional, List, Tuple, Union
 from pathlib import Path
 
 try:
-    import _sphinxsys_core as _core
+    import _sphinxsys_core_2d as _core
     _CPP_AVAILABLE = True
 except ImportError:
     _core = None
@@ -174,7 +174,6 @@ class SimulationBuilder:
         self,
         domain_size: Union[List[float], Tuple[float, float]],
         particle_spacing: float,
-        output_prefix: Optional[str] = None,
     ) -> None:
         """Initialize a simulation builder.
         
@@ -184,8 +183,6 @@ class SimulationBuilder:
             Domain dimensions [width, height] in meters.
         particle_spacing : float
             Reference particle spacing in meters.
-        output_prefix : str, optional
-            Prefix for output directories. If None, uses default location.
         
         Raises
         ------
@@ -200,9 +197,6 @@ class SimulationBuilder:
         
         self._sim = _core.SPHSimulation()
         self._sim.createDomain(list(domain_size), float(particle_spacing))
-        
-        if output_prefix:
-            self._sim.setOutputPrefix(output_prefix)
         
         self._fluid_blocks: List[FluidBlock] = []
         self._walls: List[WallBoundary] = []

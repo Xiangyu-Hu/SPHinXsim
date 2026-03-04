@@ -9,14 +9,20 @@ using the fluent builder interface.
 import sys
 from pathlib import Path
 
-# Prevent Python bytecode generation
-sys.dont_write_bytecode = True
+def find_project_root(start: Path | None = None):
+    start = start or Path.cwd()
+    for path in [start] + list(start.parents):
+        if (path / "pyproject.toml").exists():
+            return path
+    raise RuntimeError("Project root not found")
+
+PROJECT_ROOT = find_project_root()
 
 # Add parent directory for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(PROJECT_ROOT))
 
 # Add build directory for C++ bindings
-sys.path.insert(0, str(Path(__file__).parent.parent / "build-integrated"))
+sys.path.insert(0, str(PROJECT_ROOT / "build-integrated"))
 
 from sphinxsim.bindings import SimulationBuilder
 
@@ -32,8 +38,7 @@ def main():
     
     try:
         # Output directory in .build-temp (relative to project root)
-        project_root = Path(__file__).parent.parent
-        output_dir = project_root / ".build-temp" / "dambreak_output"
+        output_dir = PROJECT_ROOT / ".build-temp" / "dambreak_output"
         output_dir.mkdir(exist_ok=True, parents=True)
         
         # Change to output directory for simulation
@@ -43,8 +48,7 @@ def main():
         builder = (
             SimulationBuilder(
                 domain_size=[5.366, 5.366],
-                particle_spacing=0.025,
-                output_prefix="dambreak"
+                particle_spacing=0.025
             )
             # Add water fluid block
             .add_fluid_block(
@@ -105,6 +109,8 @@ def main():
         # Restore original directory
         os.chdir(original_dir)
 
+def test_build_api():
+    assert main()
 
 if __name__ == "__main__":
     success = main()

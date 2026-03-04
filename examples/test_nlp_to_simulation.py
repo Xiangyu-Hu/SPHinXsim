@@ -36,7 +36,7 @@ def main():
     
     # Import modules
     try:
-        from sphinxsim.llm import MockLLM, run_from_config
+        from sphinxsim.llm import get_llm, run_from_config
         from sphinxsim.config.schemas import SimulationConfig
     except ImportError as e:
         print(f"❌ Import failed: {e}")
@@ -74,7 +74,7 @@ def main():
     print("Step 1: Natural Language → SimulationConfig")
     print("=" * 60)
     
-    llm = MockLLM()
+    llm = get_llm()
     config = llm.generate(description)
     
     print(f"✅ Generated configuration:")

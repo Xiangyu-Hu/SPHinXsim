@@ -96,13 +96,27 @@ def main():
     print(f"\n📄 Configuration as JSON ({len(config_json)} bytes)")
     print(config_json[:200] + "..." if len(config_json) > 200 else config_json)
     
+    # Save config to JSON file
+    import json
+    config_file = PROJECT_ROOT / ".build-temp" / "config.json"
+    config_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_file, "w") as f:
+        f.write(config_json)
+    print(f"✅ Config saved to: {config_file}")
+    
+    # Test loading from JSON file (round-trip validation)
+    with open(config_file, "r") as f:
+        loaded_json = f.read()
+    config_reloaded = SimulationConfig.model_validate_json(loaded_json)
+    print("✅ Config successfully loaded and validated from JSON file")
+    
     # Step 2: Config → Executable Simulation
     print("\n" + "=" * 60)
     print("Step 2: SimulationConfig → Executable Simulation")
     print("=" * 60)
     
     try:
-        builder, result = run_from_config(config)
+        builder, result = run_from_config(config_reloaded)
         
         print("✅ Simulation completed successfully!")
         print(f"\n📊 Results:")

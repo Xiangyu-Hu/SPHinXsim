@@ -1,19 +1,17 @@
 """sphinxsim.bindings – thin C++ bindings for SPHinXsys."""
 
-from sphinxsim.bindings.cpp_bridge import SPHinXsysBridge
-from sphinxsim.bindings.simulation_builder import (
-    SimulationBuilder,
-    SimulationResult,
-    FluidBlock,
-    WallBoundary,
-    SolverConfiguration,
-)
-
 __all__ = [
-    "SPHinXsysBridge",
     "SimulationBuilder",
     "SimulationResult",
     "FluidBlock",
     "WallBoundary",
     "SolverConfiguration",
 ]
+
+
+def __getattr__(name):
+    if name in __all__:
+        from sphinxsim.bindings import simulation_builder
+
+        return getattr(simulation_builder, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

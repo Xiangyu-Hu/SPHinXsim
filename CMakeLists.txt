@@ -27,51 +27,31 @@ endif()
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 
-# Option: Build with full SPHinXsys features (recommended for actual simulations)
-# This links against sphinxsys_2d and sphinxsys_3d libraries
-option(BUILD_SIMPLE_BINDING "Build simple binding without full SPHinXsys" OFF)
+# Set SPHinXsys options to minimal for Python binding
+set(SPHINXSYS_BUILD_TESTS OFF CACHE BOOL "Don't build tests")
+set(SPHINXSYS_DEVELOPER_MODE OFF CACHE BOOL "Disable developer mode") 
+set(SPHINXSYS_USE_SYCL OFF CACHE BOOL "Disable SYCL")
+set(SPHINXSYS_2D ON CACHE BOOL "Build 2D library")
+set(SPHINXSYS_3D ON CACHE BOOL "Build 3D library")
+    
+# Include SPHinXsys as subdirectory - this will build the libraries
+add_subdirectory(sphinxsim/sphinxsys)
 
-if(BUILD_SIMPLE_BINDING)
-    # Create a simple Python module for testing
-    pybind11_add_module(_sphinxsys_core 
-        sphinxsim/bindings/sphinxsys_python.cpp
-    )
-    
-    # Set properties
-    target_compile_definitions(_sphinxsys_core PRIVATE VERSION_INFO="0.1.0")
-    target_compile_features(_sphinxsys_core PRIVATE cxx_std_17)
-    
-else()
-    # Full SPHinXsys build - build libraries as part of this project
-    
-    # Set SPHinXsys options to minimal for Python binding
-    set(SPHINXSYS_BUILD_TESTS OFF CACHE BOOL "Don't build tests")
-    set(SPHINXSYS_DEVELOPER_MODE OFF CACHE BOOL "Disable developer mode") 
-    set(SPHINXSYS_USE_SYCL OFF CACHE BOOL "Disable SYCL")
-    set(SPHINXSYS_MODULE_OPENCASCADE ON CACHE BOOL "Enable OpenCASCADE")
-    set(SPHINXSYS_2D ON CACHE BOOL "Build 2D library")
-    set(SPHINXSYS_3D OFF CACHE BOOL "Don't build 3D library to avoid conflicts")
-    
-    # Include SPHinXsys as subdirectory - this will build the libraries
-    add_subdirectory(sphinxsim/sphinxsys)
-    
-    # Create the Python module
-    pybind11_add_module(_sphinxsys_core 
-        sphinxsim/bindings/sphinxsys_python.cpp
-    )
-    
-    # Link with only 2D library to avoid Vecd type conflicts
-    target_link_libraries(_sphinxsys_core PRIVATE 
-        sphinxsys_2d
-    )
-    
-    # The include directories are automatically handled by the targets
-    
-    # Set properties
-    target_compile_definitions(_sphinxsys_core PRIVATE VERSION_INFO="0.1.0")
-    target_compile_features(_sphinxsys_core PRIVATE cxx_std_17)
-    
+# Define the source file
+set(BIND_SOURCE_FILES sphinxsim/bindings/sphinxsys_python.cpp)
+
+if(SPHINXSYS_2D)
+    pybind11_add_module(_sphinxsys_core_2d ${BIND_SOURCE_FILES})
+    target_link_libraries(_sphinxsys_core_2d PRIVATE sphinxsys_2d)
+    target_compile_definitions(_sphinxsys_core_2d PRIVATE SPHINXSYS_2D VERSION_INFO="0.1.0")
+    target_compile_features(_sphinxsys_core_2d PRIVATE cxx_std_17)
+    install(TARGETS _sphinxsys_core_2d  DESTINATION .)
 endif()
 
-# Install the module where Python can find it
-install(TARGETS _sphinxsys_core DESTINATION .)
+if(SPHINXSYS_3D)
+    pybind11_add_module(_sphinxsys_core_3d ${BIND_SOURCE_FILES})
+    target_link_libraries(_sphinxsys_core_3d PRIVATE sphinxsys_3d)
+    target_compile_definitions(_sphinxsys_core_3d PRIVATE SPHINXSYS_3D VERSION_INFO="0.1.0")
+    target_compile_features(_sphinxsys_core_3d PRIVATE cxx_std_17)
+    install(TARGETS _sphinxsys_core_3d  DESTINATION .)
+endif()

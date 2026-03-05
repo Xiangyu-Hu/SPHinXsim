@@ -122,8 +122,10 @@ class TestSimulationBuilder:
         assert solver is not None
         assert repr(solver).startswith("<SolverConfiguration")
     
-    def test_run_creates_result(self):
+    def test_run_creates_result(self, build_temp_path):
         """Test that run() returns a SimulationResult."""
+        import os
+        
         builder = (
             SimulationBuilder(
                 domain_size=[10.0, 5.0],
@@ -143,7 +145,13 @@ class TestSimulationBuilder:
             .set_gravity([0.0, -9.81])
         )
         
-        result = builder.run(end_time=0.1)
+        # Change to temp directory to capture SPHinXsys outputs
+        original_dir = os.getcwd()
+        try:
+            os.chdir(build_temp_path)
+            result = builder.run(end_time=0.1)
+        finally:
+            os.chdir(original_dir)
         
         assert isinstance(result, SimulationResult)
         assert result.end_time == pytest.approx(0.1)

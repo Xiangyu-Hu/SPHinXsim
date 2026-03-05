@@ -5,7 +5,9 @@
 export PYTHONDONTWRITEBYTECODE=1
 
 # Set LLM provider and API keys for local development
-export SPHINXSIM_LLM_PROVIDER=mock
+export SPHINXSIM_LLM_PROVIDER=openai
+export OPENAI_API_KEY="..."
+export OPENAI_MODEL="gpt-4.1-mini"
 
 # Set VCPKG_ROOT for local development
 export VCPKG_ROOT="$HOME/vcpkg"

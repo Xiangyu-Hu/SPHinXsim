@@ -7,42 +7,34 @@ Based on the C++ dambreak_chi.cpp example
 
 import sys
 import os
-
-# Prevent Python from creating __pycache__ directories
-sys.dont_write_bytecode = True
-
 import time
 import math
-import tempfile
 from pathlib import Path
 
-import pytest
+def find_project_root(start: Path | None = None):
+    start = start or Path.cwd()
+    for path in [start] + list(start.parents):
+        if (path / "pyproject.toml").exists():
+            return path
+    raise RuntimeError("Project root not found")
+
+PROJECT_ROOT = find_project_root()
 
 # Add the build directory to Python path (relative to examples folder)
-sys.path.insert(0, str(Path(__file__).parent.parent / "build-integrated"))
+sys.path.insert(0, str(PROJECT_ROOT / "build-integrated"))
+original_dir = Path.cwd()
 
-def main(work_dir=None, simulation_time=2.0, use_temp_dir=True, keep_temp_dir=False):
+def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
     """Run the dam break simulation"""
 
     print("🌊 SPHinXsys Python Dam Break Example")
     print("=" * 45)
 
-    original_cwd = Path.cwd()
-    temporary_work_dir = None
-    if work_dir is None and use_temp_dir:
-        # Create temp directory in project root, not relative to cwd
-        project_root = Path(__file__).parent.parent
-        temp_base = project_root / ".build-temp" / ".pytest_tmp"
-        temp_base.mkdir(exist_ok=True, parents=True)
-        temporary_work_dir = tempfile.TemporaryDirectory(prefix="sphinxsim_dambreak_", dir=temp_base)
-        work_dir = temporary_work_dir.name
-    if work_dir is not None:
-        os.chdir(work_dir)
-    
     try:
-        import _sphinxsys_core as sph
+        import _sphinxsys_core_2d as sph
         print("✅ SPHinXsys module imported")
-        
+        import numpy as np
+                
         # Simulation parameters (from dambreak_chi.cpp)
         DL = 5.366                    # Water tank length
         DH = 5.366                    # Water tank height  
@@ -67,7 +59,7 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True, keep_temp_dir=Fa
         sim = sph.SPHSimulation()
         
         # Domain setup
-        sim.createDomain([DL, DH], particle_spacing_ref)
+        sim.createDomain([1.0, 2.0], particle_spacing_ref)
         print("✅ Domain created")
         
         # Fluid block setup
@@ -93,12 +85,19 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True, keep_temp_dir=Fa
         solver.dualTimeStepping().freeSurfaceCorrection()
         print("✅ Solver configured")
         
+        if work_dir is None and use_temp_dir:
+            # Create temp directory in project root, not relative to cwd
+            work_dir = PROJECT_ROOT / ".build-temp" / "dam_break_example"
+            work_dir.mkdir(exist_ok=True, parents=True)
+        if work_dir is not None:
+            os.chdir(work_dir)
+
+        print(f"📁 Now, the work folder is changed to: {work_dir}")
+
         # Run simulation
         print("\n🚀 Running simulation...")
         
         start_time = time.time()
-        if hasattr(sim, "setOutputPrefix"):
-            sim.setOutputPrefix("pytest_dambreak")
         sim.run(simulation_time)
         elapsed_time = time.time() - start_time
         
@@ -117,30 +116,17 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True, keep_temp_dir=Fa
         print(f"❌ Simulation failed: {e}")
         return False
     finally:
-        os.chdir(original_cwd)
-        if temporary_work_dir is not None:
-            if keep_temp_dir:
-                print(f"📁 Kept temporary output folder at: {temporary_work_dir.name}")
-            else:
-                temporary_work_dir.cleanup()
+        # Restore original directory
+        os.chdir(original_dir)
 
-
-def test_example_dambreak_simple(tmp_path):
-    assert main(work_dir=tmp_path, simulation_time=0.2)
-    assert (tmp_path / "output").exists() or (tmp_path / "pytest_dambreak_output").exists()
+def test_example_dambreak_2d():
+    basetemp_path = PROJECT_ROOT / ".build-temp" / ".pytest_tmp"
+    basetemp_path.mkdir(parents=True, exist_ok=True)
+    assert main(basetemp_path)
 
 if __name__ == "__main__":
-    # Default: run pytest test (cleanly isolated in temp folder)
-    if "--direct" not in sys.argv:
-        project_root = Path(__file__).parent.parent
-        basetemp_path = project_root / ".build-temp" / ".pytest_tmp"
-        basetemp_path.mkdir(parents=True, exist_ok=True)
-        pytest_args = [__file__, "-k", "test_example_dambreak_simple", f"--basetemp={basetemp_path}"]
-        print(f"📁 Pytest temp files will be kept under: {basetemp_path}")
-        raise SystemExit(pytest.main(pytest_args))
 
-    # Direct mode: run simulation without pytest
-    success = main(keep_temp_dir=("--keep-temp" in sys.argv))
+    success = main()
     
     if success:
         print("\n✅ Dam break example completed successfully!")

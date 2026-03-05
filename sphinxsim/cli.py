@@ -17,32 +17,39 @@ Run a simulation from a JSON config file::
 
 from __future__ import annotations
 
+import os
+import sys
+
+# Set up sys.path FIRST, before any sphinxsim imports
+def _find_project_root(start=None):
+    start = start or os.getcwd()
+    current = start
+    while current != os.path.dirname(current):  # Not at root
+        if os.path.exists(os.path.join(current, "pyproject.toml")):
+            return current
+        current = os.path.dirname(current)
+    raise RuntimeError("Project root not found")
+
+PROJECT_ROOT = _find_project_root()
+sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, os.path.join(PROJECT_ROOT, "build-integrated"))
+original_dir = os.getcwd()
+
+# NOW import everything else
 import argparse
 import json
-import sys
-import os
 from pathlib import Path
 from typing import Tuple
 
 from pydantic import ValidationError
 
-import sphinxsim
 from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.llm import get_llm, run_from_config
 
-def find_project_root(start: Path | None = None):
-    start = start or Path.cwd()
-    for path in [start] + list(start.parents):
-        if (path / "pyproject.toml").exists():
-            return path
-    raise RuntimeError("Project root not found")
+# Convert PROJECT_ROOT to Path after imports
+PROJECT_ROOT = Path(PROJECT_ROOT)
 
-PROJECT_ROOT = find_project_root()
-
-# Add parent directory for imports
-sys.path.insert(0, str(PROJECT_ROOT))
-sys.path.insert(0, str(PROJECT_ROOT / "build-integrated"))
-original_dir = Path.cwd()
+__version__ = "0.1.0"  # Keep in sync with sphinxsim/__init__.py
 
 # ---------------------------------------------------------------------------
 # Shared helper
@@ -55,6 +62,10 @@ def _load_config(path: Path) -> Tuple[SimulationConfig | None, int]:
     Returns ``(config, 0)`` on success or ``(None, 1)`` after printing an
     error message to stderr.
     """
+    # If path is relative, resolve it under.build-temp directory
+    if not path.is_absolute():
+        path = PROJECT_ROOT / ".build-temp" / path
+    
     if not path.exists():
         print(f"File not found: {path}", file=sys.stderr)
         return None, 1
@@ -132,7 +143,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         return rc
 
     try:
-        builder, result = run_from_config(config_reloaded)
+        builder, result = run_from_config(config)
         
         print("✅ Simulation completed successfully!")
         print(f"\n📊 Results:")
@@ -155,7 +166,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"\n📁 Simulation output saved to:")
         print(f"   {output_dir}")
         
-        return True
+        return 0
         
     except RuntimeError as e:
         if "C++ extension" in str(e):
@@ -164,7 +175,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             print("   cd sphinxsim/sphinxsys")
             print("   cmake --preset integrated-build")
             print("   ninja -C ../../build-integrated")
-            return False
+            return 1
         else:
             raise
     
@@ -172,13 +183,13 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"❌ Feature not yet implemented: {e}")
         print("\n💡 Tip: Try a fluid-only simulation like:")
         print('   "water dam break for 1 second"')
-        return False
+        return 1
     
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        return 1
     finally:
         # Restore original directory
         os.chdir(original_dir)
@@ -193,7 +204,7 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="sphinxsim",
         description="Python UI for the SPHinXsys multi-physics C++ library.",
     )
-    parser.add_argument("--version", action="version", version=f"sphinxsim {sphinxsim.__version__}")
+    parser.add_argument("--version", action="version", version=f"sphinxsim {__version__}")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -212,12 +223,12 @@ def _build_parser() -> argparse.ArgumentParser:
     val = subparsers.add_parser(
         "validate", help="Validate a JSON simulation config against the schema."
     )
-    val.add_argument("config_file", help="Path to JSON config file.")
+    val.add_argument("config_file", nargs='?', default="config.json", help="Path to JSON config file.")
     val.set_defaults(func=cmd_validate)
 
     # run
     run = subparsers.add_parser("run", help="Run a simulation from a JSON config file.")
-    run.add_argument("config_file", help="Path to JSON config file.")
+    run.add_argument("config_file", nargs='?', default="config.json", help="Path to JSON config file.")
     run.set_defaults(func=cmd_run)
 
     return parser

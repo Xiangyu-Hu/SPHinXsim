@@ -22,7 +22,7 @@ class TestLoadConfigHelper:
             "name": "helper test",
             "physics": "fluid",
             "domain": {"bounds_min": [0.0, 0.0], "bounds_max": [1.0, 1.0], "resolution": 0.05},
-            "materials": [{"name": "water", "density": 1000.0}],
+            "materials": [{"name": "water", "density": 1000.0, "dynamic_viscosity": 0.001}],
             "boundary_conditions": [],
             "time_stepping": {"end_time": 1.0, "output_interval": 0.1},
         }
@@ -105,7 +105,7 @@ class TestCLIValidate:
                 "bounds_max": [1.0, 1.0],
                 "resolution": 0.05,
             },
-            "materials": [{"name": "water", "density": 1000.0}],
+            "materials": [{"name": "water", "density": 1000.0, "dynamic_viscosity": 0.001}],
             "boundary_conditions": [],
             "time_stepping": {"end_time": 1.0, "output_interval": 0.1},
         }
@@ -114,7 +114,9 @@ class TestCLIValidate:
         p = self._write_config(tmp_path, self._valid_data())
         rc = main(["validate", str(p)])
         assert rc == 0
-        assert "valid" in capsys.readouterr().out
+        output = capsys.readouterr().out
+        assert "Generated configuration" in output
+        assert "test" in output
 
     def test_invalid_config(self, tmp_path):
         bad = self._valid_data()
@@ -144,7 +146,7 @@ class TestCLIRun:
                 "bounds_max": [1.0, 1.0],
                 "resolution": 0.1,
             },
-            "materials": [{"name": "water", "density": 1000.0}],
+            "materials": [{"name": "water", "density": 1000.0, "dynamic_viscosity": 0.001}],
             "boundary_conditions": [],
             "time_stepping": {"end_time": 0.5, "output_interval": 0.1},
         }

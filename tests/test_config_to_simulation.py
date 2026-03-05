@@ -194,7 +194,7 @@ class TestConfigToBuilder:
 class TestRunFromConfig:
     """Tests for run_from_config wrapper."""
     
-    def test_run_simple_simulation(self, tmp_path):
+    def test_run_simple_simulation(self, build_temp_path):
         """Test running a complete simulation from config."""
         config = SimulationConfig(
             name="test_run",
@@ -214,10 +214,10 @@ class TestRunFromConfig:
                 end_time=0.1,
                 output_interval=0.1
             ),
-            output=OutputConfig(directory=str(tmp_path), format="vtp")
+            output=OutputConfig(directory=str(build_temp_path), format="vtp")
         )
         
-        builder, result = run_from_config(config, output_dir=tmp_path)
+        builder, result = run_from_config(config, output_dir=build_temp_path)
         
         assert builder is not None
         assert result is not None

@@ -215,7 +215,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     gen.add_argument("description", help="Natural-language simulation description.")
     gen.add_argument(
-        "-o", "--output", metavar="FILE", default=None, help="Write JSON config to FILE instead of stdout."
+        "-o", "--output", metavar="FILE", default="config.json", help="Write JSON config to FILE instead of stdout."
     )
     gen.set_defaults(func=cmd_generate)
 

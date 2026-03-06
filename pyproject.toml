@@ -11,6 +11,7 @@ license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.0",
+    "numpy>=1.21",
 ]
 
 [project.optional-dependencies]

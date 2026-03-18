@@ -26,6 +26,7 @@ endif()
 # Use the system Python version (3.11)
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
+find_package(VTK REQUIRED COMPONENTS CommonCore CommonDataModel IOXML)
 
 # Set SPHinXsys options to minimal for Python binding
 set(SPHINXSYS_BUILD_TESTS OFF CACHE BOOL "Don't build tests")
@@ -42,6 +43,7 @@ set(BIND_SOURCE_FILES sphinxsim/bindings/sphinxsys_python.cpp)
 
 if(SPHINXSYS_2D)
     pybind11_add_module(_sphinxsys_core_2d ${BIND_SOURCE_FILES})
+    target_link_libraries(_sphinxsys_core_2d INTERFACE VTK::CommonCore VTK::CommonDataModel VTK::IOXML)
     target_link_libraries(_sphinxsys_core_2d PRIVATE sphinxsys_2d)
     target_compile_definitions(_sphinxsys_core_2d PRIVATE SPHINXSYS_2D VERSION_INFO="0.1.0")
     target_compile_features(_sphinxsys_core_2d PRIVATE cxx_std_17)
@@ -50,6 +52,7 @@ endif()
 
 if(SPHINXSYS_3D)
     pybind11_add_module(_sphinxsys_core_3d ${BIND_SOURCE_FILES})
+    target_link_libraries(_sphinxsys_core_3d INTERFACE VTK::CommonCore VTK::CommonDataModel VTK::IOXML)
     target_link_libraries(_sphinxsys_core_3d PRIVATE sphinxsys_3d)
     target_compile_definitions(_sphinxsys_core_3d PRIVATE SPHINXSYS_3D VERSION_INFO="0.1.0")
     target_compile_features(_sphinxsys_core_3d PRIVATE cxx_std_17)

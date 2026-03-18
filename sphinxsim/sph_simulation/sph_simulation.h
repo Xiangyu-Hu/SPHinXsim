@@ -195,9 +195,43 @@ public:
   /** Build all SPH objects and run the simulation until end_time. */
   void run(Real end_time);
 
+  /** Run using the end_time loaded from JSON (requires prior loadFromJson()
+   * call). */
+  void run();
+
+  /**
+   * @brief Configure the simulation from a JSON object.
+   *
+   * Expected schema:
+   * @code
+   * {
+   *   "domain": { "dimensions": [DL, DH], "particle_spacing": 0.02 },
+   *   "fluid_blocks": [{ "name": "Water", "dimensions": [LL, LH],
+   *                      "density": 1000.0, "sound_speed": 20.0 }],
+   *   "walls": [{ "name": "Tank", "wall_width": 0.06,
+   *               "domain_dimensions": [DL, DH] }],
+   *   "gravity": [0.0, -9.81],
+   *   "observers": [{ "name": "Probe", "positions": [[0.5, 0.2]] }],
+   *   "solver": { "dual_time_stepping": true, "free_surface_correction": true
+   * }, "end_time": 5.0
+   * }
+   * @endcode
+   * The "domain_dimensions" key in walls is optional and defaults to the
+   * simulation domain dimensions.
+   */
+  void loadFromJson(const json &config);
+
+  /**
+   * @brief Load JSON configuration from a file and call loadFromJson().
+   * @param filepath Path to the JSON configuration file.
+   * @throws std::runtime_error if the file cannot be opened.
+   */
+  void loadFromFile(const std::string &filepath);
+
 private:
   Vecd domain_dims_{Vecd::Zero()};
   Real dp_ref_{0.0};
+  Real end_time_{0.0};
   Vecd gravity_{Vecd::Zero()};
   bool gravity_enabled_{false};
 

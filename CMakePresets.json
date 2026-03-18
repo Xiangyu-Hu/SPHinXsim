@@ -14,8 +14,7 @@
                 "BUILD_SIMPLE_BINDING": "OFF",
                 "SPHINXSYS_BUILD_TESTS": "OFF",
                 "SPHINXSYS_DEVELOPER_MODE": "OFF",
-                "SPHINXSYS_USE_SYCL": "OFF",
-                "SPHINXSYS_MODULE_OPENCASCADE": "ON"
+                "SPHINXSYS_USE_SYCL": "OFF"
             }
         },
         {
@@ -31,8 +30,7 @@
                 "BUILD_SIMPLE_BINDING": "OFF",
                 "SPHINXSYS_BUILD_TESTS": "OFF",
                 "SPHINXSYS_DEVELOPER_MODE": "ON",
-                "SPHINXSYS_USE_SYCL": "OFF",
-                "SPHINXSYS_MODULE_OPENCASCADE": "ON"
+                "SPHINXSYS_USE_SYCL": "OFF"
             }
         },
         {
@@ -69,8 +67,7 @@
                 "SPHINXSYS_BUILD_TESTS": "OFF",
                 "SPHINXSYS_DEVELOPER_MODE": "OFF",
                 "SPHINXSYS_USE_SYCL": "ON",
-                "SPHINXSYS_USE_FLOAT": "ON",
-                "SPHINXSYS_MODULE_OPENCASCADE": "OFF"
+                "SPHINXSYS_USE_FLOAT": "ON"
             }
         },
         {

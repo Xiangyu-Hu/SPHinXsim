@@ -39,10 +39,10 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
         sim = sph.SPHSimulation("input/test_simulation_2d/config.json")
         sim.loadConfig()
         print("✅ Simulation configuration loaded")
-        
+
         if work_dir is None and use_temp_dir:
             # Create temp directory in project root, not relative to cwd
-            work_dir = PROJECT_ROOT / ".build-temp" / "dam_break_example"
+            work_dir = PROJECT_ROOT / ".build-temp" / "test_simulation_2d"
             work_dir.mkdir(exist_ok=True, parents=True)
         if work_dir is not None:
             os.chdir(work_dir)

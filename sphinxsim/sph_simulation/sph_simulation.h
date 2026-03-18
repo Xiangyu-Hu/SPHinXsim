@@ -33,104 +33,11 @@
 #define SPH_SIMULATION_H
 
 #include "base_data_type_package.h"
+#include "sph_simulation_json.h"
+#include "sph_simulation_builder.h"
 
-#include <nlohmann/json.hpp>
-using json = nlohmann::json;
-
-namespace SPH {
-class SPHSystem;
-
-using VecdRef = Eigen::Ref<const Vecd>;
-
-/**
- * @class FluidBlockBuilder
- * @brief Builder for configuring a fluid body in a 2D or 3D simulation.
- *
- * Fluent interface example (2D):
- * @code
- *   sim.addFluidBlock("Water").block(Vec2d(LL, LH)).material(rho0_f, c_f);
- * @endcode
- * Fluent interface example (3D):
- * @code
- *   sim.addFluidBlock("Water").block(Vec3d(LL, LH, LW)).material(rho0_f, c_f);
- * @endcode
- */
-class FluidBlockBuilder {
-public:
-  explicit FluidBlockBuilder(const std::string &name);
-
-  /** Define the fluid block dimensions (starting at the coordinate origin).
-   *  Use Vec2d for 2D or Vec3d for 3D builds. */
-  FluidBlockBuilder &block(VecdRef dimensions);
-  /** Set the weakly-compressible fluid material parameters. */
-  FluidBlockBuilder &material(Real rho0, Real c);
-
-  const std::string &getName() const { return name_; }
-  const Vecd &getDimensions() const { return dimensions_; }
-  Real getRho0() const { return rho0_; }
-  Real getC() const { return c_; }
-
-private:
-  std::string name_;
-  Vecd dimensions_{Vecd::Zero()};
-  Real rho0_{1.0};
-  Real c_{10.0};
-};
-
-/**
- * @class WallBuilder
- * @brief Builder for configuring a solid wall body in a 2D or 3D simulation.
- *
- * Fluent interface example (2D):
- * @code
- *   sim.addWall("Tank").hollowBox(Vec2d(DL, DH), BW);
- * @endcode
- * Fluent interface example (3D):
- * @code
- *   sim.addWall("Tank").hollowBox(Vec3d(DL, DH, DW), BW);
- * @endcode
- */
-class WallBuilder {
-public:
-  explicit WallBuilder(const std::string &name);
-
-  /** Define the wall as a hollow rectangular box aligned with the origin.
-   *  @param domain_dimensions Inner domain dimensions (Vecd for 2D/3D).
-   *  @param wall_width Thickness of the wall. */
-  WallBuilder &hollowBox(VecdRef domain_dimensions, Real wall_width);
-
-  const std::string &getName() const { return name_; }
-  const Vecd &getDomainDimensions() const { return domain_dims_; }
-  Real getWallWidth() const { return BW_; }
-
-private:
-  std::string name_;
-  Vecd domain_dims_{Vecd::Zero()};
-  Real BW_{0.0};
-};
-
-/**
- * @class SolverConfig
- * @brief Fluent configuration object for the SPH solver algorithm choices.
- *        Supports: useSolver().dualTimeStepping().freeSurfaceCorrection()
- */
-class SolverConfig {
-public:
-  SolverConfig() = default;
-
-  /** Enable dual time stepping (advection + acoustic sub-stepping). */
-  SolverConfig &dualTimeStepping();
-  /** Enable density summation with free-surface correction. */
-  SolverConfig &freeSurfaceCorrection();
-
-  bool isDualTimeStepping() const { return dual_time_stepping_; }
-  bool isFreeSurfaceCorrection() const { return free_surface_correction_; }
-
-private:
-  bool dual_time_stepping_{false};
-  bool free_surface_correction_{false};
-};
-
+namespace SPH
+{
 /**
  * @class SPHSimulation
  * @brief High-level facade for a 2D or 3D SPH simulation using the CK execution
@@ -160,93 +67,94 @@ private:
  *   sim.run(20.0);
  * @endcode
  */
-class SPHSimulation {
-public:
-  SPHSimulation() = default;
-  ~SPHSimulation();
+class SPHSimulation
+{
+  public:
+    SPHSimulation() = default;
+    ~SPHSimulation();
 
-  /** Set the domain dimensions and reference particle spacing.
-   *  Use Vec2d for 2D or Vec3d for 3D builds. */
-  void defineDomain(VecdRef domain_dimensions, Real particle_spacing);
+    /** Set the domain dimensions and reference particle spacing.
+     *  Use Vec2d for 2D or Vec3d for 3D builds. */
+    void defineDomain(VecdRef domain_dimensions, Real particle_spacing);
 
-  /** Set the domain dimensions and reference particle spacing.
-   *  Use Vec2d for 2D or Vec3d for 3D builds. */
-  void createDomain(VecdRef domain_dimensions, Real particle_spacing);
+    /** Set the domain dimensions and reference particle spacing.
+     *  Use Vec2d for 2D or Vec3d for 3D builds. */
+    void createDomain(VecdRef domain_dimensions, Real particle_spacing);
 
-  /** Add a named fluid block; configure it with the returned builder. */
-  FluidBlockBuilder &addFluidBlock(const std::string &name);
+    /** Add a named fluid block; configure it with the returned builder. */
+    FluidBlockBuilder &addFluidBlock(const std::string &name);
 
-  /** Add a named solid wall; configure it with the returned builder. */
-  WallBuilder &addWall(const std::string &name);
+    /** Add a named solid wall; configure it with the returned builder. */
+    WallBuilder &addWall(const std::string &name);
 
-  /** Enable uniform gravitational acceleration.
-   *  Use Vec2d for 2D or Vec3d for 3D builds. */
-  void enableGravity(VecdRef gravity);
+    /** Enable uniform gravitational acceleration.
+     *  Use Vec2d for 2D or Vec3d for 3D builds. */
+    void enableGravity(VecdRef gravity);
 
-  /** Add a single-point observer at the given position. */
-  void addObserver(const std::string &name, VecdRef position);
+    /** Add a single-point observer at the given position. */
+    void addObserver(const std::string &name, VecdRef position);
 
-  /** Add a multi-point observer at the given positions. */
-  void addObserver(const std::string &name, const StdVec<Vecd> &positions);
+    /** Add a multi-point observer at the given positions. */
+    void addObserver(const std::string &name, const StdVec<Vecd> &positions);
 
-  /** Return the solver configuration object for fluent setup. */
-  SolverConfig &useSolver();
+    /** Return the solver configuration object for fluent setup. */
+    SolverConfig &useSolver();
 
-  /** Build all SPH objects and run the simulation until end_time. */
-  void run(Real end_time);
+    /** Build all SPH objects and run the simulation until end_time. */
+    void run(Real end_time);
 
-  /** Run using the end_time loaded from JSON (requires prior loadFromJson()
-   * call). */
-  void run();
+    /** Run using the end_time loaded from JSON (requires prior loadFromJson()
+     * call). */
+    void run();
 
-  /**
-   * @brief Configure the simulation from a JSON object.
-   *
-   * Expected schema:
-   * @code
-   * {
-   *   "domain": { "dimensions": [DL, DH], "particle_spacing": 0.02 },
-   *   "fluid_blocks": [{ "name": "Water", "dimensions": [LL, LH],
-   *                      "density": 1000.0, "sound_speed": 20.0 }],
-   *   "walls": [{ "name": "Tank", "wall_width": 0.06,
-   *               "domain_dimensions": [DL, DH] }],
-   *   "gravity": [0.0, -9.81],
-   *   "observers": [{ "name": "Probe", "positions": [[0.5, 0.2]] }],
-   *   "solver": { "dual_time_stepping": true, "free_surface_correction": true
-   * }, "end_time": 5.0
-   * }
-   * @endcode
-   * The "domain_dimensions" key in walls is optional and defaults to the
-   * simulation domain dimensions.
-   */
-  void loadFromJson(const json &config);
+    /**
+     * @brief Configure the simulation from a JSON object.
+     *
+     * Expected schema:
+     * @code
+     * {
+     *   "domain": { "dimensions": [DL, DH], "particle_spacing": 0.02 },
+     *   "fluid_blocks": [{ "name": "Water", "dimensions": [LL, LH],
+     *                      "density": 1000.0, "sound_speed": 20.0 }],
+     *   "walls": [{ "name": "Tank", "wall_width": 0.06,
+     *               "domain_dimensions": [DL, DH] }],
+     *   "gravity": [0.0, -9.81],
+     *   "observers": [{ "name": "Probe", "positions": [[0.5, 0.2]] }],
+     *   "solver": { "dual_time_stepping": true, "free_surface_correction": true
+     * }, "end_time": 5.0
+     * }
+     * @endcode
+     * The "domain_dimensions" key in walls is optional and defaults to the
+     * simulation domain dimensions.
+     */
+    void loadFromJson(const json &config);
 
-  /**
-   * @brief Load JSON configuration from a file and call loadFromJson().
-   * @param filepath Path to the JSON configuration file.
-   * @throws std::runtime_error if the file cannot be opened.
-   */
-  void loadFromFile(const std::string &filepath);
+    /**
+     * @brief Load JSON configuration from a file and call loadFromJson().
+     * @param filepath Path to the JSON configuration file.
+     * @throws std::runtime_error if the file cannot be opened.
+     */
+    void loadFromFile(const std::string &filepath);
 
-private:
-  Vecd domain_dims_{Vecd::Zero()};
-  Real dp_ref_{0.0};
-  Real end_time_{0.0};
-  Vecd gravity_{Vecd::Zero()};
-  bool gravity_enabled_{false};
+  private:
+    Vecd domain_dims_{Vecd::Zero()};
+    Real dp_ref_{0.0};
+    Real end_time_{0.0};
+    Vecd gravity_{Vecd::Zero()};
+    bool gravity_enabled_{false};
 
-  std::vector<std::unique_ptr<FluidBlockBuilder>> fluid_blocks_;
-  std::vector<std::unique_ptr<WallBuilder>> walls_;
+    std::vector<std::unique_ptr<FluidBlockBuilder>> fluid_blocks_;
+    std::vector<std::unique_ptr<WallBuilder>> walls_;
 
-  struct ObserverEntry {
-    std::string name;
-    StdVec<Vecd> positions;
-  };
-  std::vector<ObserverEntry> observers_;
+    struct ObserverEntry
+    {
+        std::string name;
+        StdVec<Vecd> positions;
+    };
+    std::vector<ObserverEntry> observers_;
 
-  std::unique_ptr<SolverConfig> solver_config_;
-  std::unique_ptr<SPHSystem> sph_system_;
+    std::unique_ptr<SolverConfig> solver_config_;
+    std::unique_ptr<SPHSystem> sph_system_;
 };
-
 } // namespace SPH
 #endif // SPH_SIMULATION_H

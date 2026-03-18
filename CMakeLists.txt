@@ -72,7 +72,6 @@ if(SPHINXSYS_3D)
     target_link_libraries(sph_simulation_3d PUBLIC sphinxsys_3d)
 
     pybind11_add_module(_sphinxsys_core_3d ${BIND_SOURCE_FILES})
-    target_link_libraries(_sphinxsys_core_3d INTERFACE VTK::CommonCore VTK::CommonDataModel VTK::IOXML)
     target_link_libraries(_sphinxsys_core_3d PRIVATE sph_simulation_3d)
     target_compile_definitions(_sphinxsys_core_3d PRIVATE SPHINXSYS_3D VERSION_INFO="0.1.0")
     target_compile_features(_sphinxsys_core_3d PRIVATE cxx_std_17)

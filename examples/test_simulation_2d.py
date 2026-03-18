@@ -35,55 +35,10 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
         print("✅ SPHinXsys module imported")
         import numpy as np
                 
-        # Simulation parameters (from dambreak_chi.cpp)
-        DL = 5.366                    # Water tank length
-        DH = 5.366                    # Water tank height  
-        LL = 2.0                      # Water column length
-        LH = 1.0                      # Water column height
-        particle_spacing_ref = 0.025  # Initial reference particle spacing
-        BW = particle_spacing_ref * 4 # Thickness of tank wall
-        
-        # Material parameters
-        rho0_f = 1.0                       # Reference density of fluid
-        gravity_g = 1.0                    # Gravity
-        U_ref = 2.0 * math.sqrt(gravity_g * LH)  # Characteristic velocity
-        c_f = 10.0 * U_ref                 # Artificial sound speed
-        
-        print(f"📋 Parameters:")
-        print(f"   Domain: {DL}×{DH}")
-        print(f"   Water column: {LL}×{LH}")
-        print(f"   Particle spacing: {particle_spacing_ref}")
-        print(f"   Material: ρ₀={rho0_f}, c={c_f:.1f}")
-        
-        # Create and configure simulation
-        sim = sph.SPHSimulation()
-        
-        # Domain setup
-        sim.createDomain([1.0, 2.0], particle_spacing_ref)
-        print("✅ Domain created")
-        
-        # Fluid block setup
-        fluid = sim.addFluidBlock("WaterBody")
-        fluid.block([LL, LH]).material(rho0_f, c_f)
-        print("✅ Fluid block configured")
-        
-        # Wall boundary setup
-        wall = sim.addWall("WallBoundary")
-        wall.hollowBox([DL, DH], BW)
-        print("✅ Wall boundary configured")
-        
-        # Physics setup
-        sim.enableGravity([0.0, -gravity_g])
-        print("✅ Gravity enabled")
-        
-        # Observer for monitoring
-        sim.addObserver("FluidObserver", [DL, 0.2])
-        print("✅ Observer added")
-        
-        # Solver configuration
-        solver = sim.useSolver()
-        solver.dualTimeStepping().freeSurfaceCorrection()
-        print("✅ Solver configured")
+        # Create a simulation with the specified configuration file
+        sim = sph.SPHSimulation("input/test_simulation_2d/config.json")
+        sim.loadConfig()
+        print("✅ Simulation configuration loaded")
         
         if work_dir is None and use_temp_dir:
             # Create temp directory in project root, not relative to cwd

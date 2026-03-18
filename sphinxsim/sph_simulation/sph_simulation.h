@@ -71,7 +71,7 @@ class SPHSimulation
 {
   public:
     SPHSimulation(const std::string &config_path);
-    ~SPHSimulation(){};
+    ~SPHSimulation() {};
 
     /** Set the domain dimensions and reference particle spacing.
      *  Use Vec2d for 2D or Vec3d for 3D builds. */
@@ -123,13 +123,7 @@ class SPHSimulation
      * simulation domain dimensions.
      */
     void loadFromJson(const json &config);
-
-    /**
-     * @brief Load JSON configuration from a file and call loadFromJson().
-     * @param filepath Path to the JSON configuration file.
-     * @throws std::runtime_error if the file cannot be opened.
-     */
-    void loadFromFile(const std::string &filepath);
+    void loadConfig();
 
   private:
     std::string config_path_;

@@ -14,6 +14,7 @@ using namespace SPH;
 int main()
 {
     SPHSimulation sim("input/config.json");
+    sim.loadConfig();
     sim.run(20.0);
 
     return 0;

@@ -137,12 +137,12 @@ void SPHSimulation::loadFromJson(const json &config)
         end_time_ = config["end_time"].get<Real>();
 }
 //=================================================================================================//
-void SPHSimulation::loadFromFile(const std::string &filepath)
+void SPHSimulation::loadConfig()
 {
-    std::ifstream file(filepath);
+    std::ifstream file(config_path_);
     if (!file.is_open())
-        throw std::runtime_error("SPHSimulation::loadFromFile: cannot open \"" +
-                                 filepath + "\"");
+        throw std::runtime_error("SPHSimulation::loadConfig: cannot open \"" +
+                                 config_path_ + "\"");
     json config;
     file >> config;
     loadFromJson(config);
@@ -150,8 +150,7 @@ void SPHSimulation::loadFromFile(const std::string &filepath)
 //=================================================================================================//
 void SPHSimulation::run(Real end_time)
 {
-    loadFromFile(config_path_);
-    //----------------------------------------------------------------------
+     //----------------------------------------------------------------------
     // Validate configuration
     //----------------------------------------------------------------------
     if (fluid_blocks_.empty())

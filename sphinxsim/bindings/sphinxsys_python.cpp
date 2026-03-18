@@ -55,7 +55,7 @@ PYBIND11_MODULE(MODULE_NAME, m) {
 
   // Bind the main SPHSimulation class
   py::class_<SPHSimulation>(m, "SPHSimulation")
-      .def(py::init<>())
+      .def(py::init<const std::string &>())
       .def("defineDomain", &SPHSimulation::defineDomain,
            py::arg("domain_dimensions"), py::arg("particle_spacing"),
            "Set domain dimensions and reference particle spacing")

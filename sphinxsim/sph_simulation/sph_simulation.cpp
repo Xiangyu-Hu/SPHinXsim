@@ -8,7 +8,7 @@
 namespace SPH
 {
 //=================================================================================================//
-SPHSimulation::~SPHSimulation() = default;
+SPHSimulation::SPHSimulation(const std::string &config_path) : config_path_(config_path) {}
 //=================================================================================================//
 void SPHSimulation::createDomain(VecdRef domain_dimensions,
                                  Real particle_spacing)
@@ -148,20 +148,9 @@ void SPHSimulation::loadFromFile(const std::string &filepath)
     loadFromJson(config);
 }
 //=================================================================================================//
-void SPHSimulation::run()
-{
-    if (end_time_ <= 0.0)
-    {
-        std::cerr << "SPHSimulation::run: end_time not set. "
-                     "Provide an \"end_time\" field in the JSON config or call "
-                     "run(end_time).\n";
-        return;
-    }
-    run(end_time_);
-}
-//=================================================================================================//
 void SPHSimulation::run(Real end_time)
 {
+    loadFromFile(config_path_);
     //----------------------------------------------------------------------
     // Validate configuration
     //----------------------------------------------------------------------

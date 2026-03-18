@@ -11,10 +11,10 @@
 
 using namespace SPH;
 
-int main() {
-  SPHSimulation sim;
-  sim.loadFromFile("input/config.json");
-  sim.run();
+int main()
+{
+    SPHSimulation sim("input/config.json");
+    sim.run(20.0);
 
-  return 0;
+    return 0;
 }

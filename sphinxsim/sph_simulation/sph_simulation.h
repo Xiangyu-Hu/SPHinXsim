@@ -33,8 +33,8 @@
 #define SPH_SIMULATION_H
 
 #include "base_data_type_package.h"
-#include "sph_simulation_json.h"
 #include "sph_simulation_builder.h"
+#include "sph_simulation_json.h"
 
 namespace SPH
 {
@@ -70,8 +70,8 @@ namespace SPH
 class SPHSimulation
 {
   public:
-    SPHSimulation() = default;
-    ~SPHSimulation();
+    SPHSimulation(const std::string &config_path);
+    ~SPHSimulation(){};
 
     /** Set the domain dimensions and reference particle spacing.
      *  Use Vec2d for 2D or Vec3d for 3D builds. */
@@ -103,10 +103,6 @@ class SPHSimulation
     /** Build all SPH objects and run the simulation until end_time. */
     void run(Real end_time);
 
-    /** Run using the end_time loaded from JSON (requires prior loadFromJson()
-     * call). */
-    void run();
-
     /**
      * @brief Configure the simulation from a JSON object.
      *
@@ -120,8 +116,7 @@ class SPHSimulation
      *               "domain_dimensions": [DL, DH] }],
      *   "gravity": [0.0, -9.81],
      *   "observers": [{ "name": "Probe", "positions": [[0.5, 0.2]] }],
-     *   "solver": { "dual_time_stepping": true, "free_surface_correction": true
-     * }, "end_time": 5.0
+     *   "solver": { "dual_time_stepping": true, "free_surface_correction": true }
      * }
      * @endcode
      * The "domain_dimensions" key in walls is optional and defaults to the
@@ -137,6 +132,7 @@ class SPHSimulation
     void loadFromFile(const std::string &filepath);
 
   private:
+    std::string config_path_;
     Vecd domain_dims_{Vecd::Zero()};
     Real dp_ref_{0.0};
     Real end_time_{0.0};

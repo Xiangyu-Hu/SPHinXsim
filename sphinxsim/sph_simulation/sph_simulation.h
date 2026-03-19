@@ -35,7 +35,6 @@
 #include "base_data_type_package.h"
 #include "sph_simulation_builder.h"
 #include "sph_simulation_json.h"
-
 namespace SPH
 {
 /**
@@ -70,7 +69,7 @@ namespace SPH
 class SPHSimulation
 {
   public:
-    SPHSimulation(const std::string &config_path);
+    SPHSimulation(const std::filesystem::path &config_path);
     ~SPHSimulation() {};
 
     /** Set the domain dimensions and reference particle spacing.
@@ -126,7 +125,7 @@ class SPHSimulation
     void loadConfig();
 
   private:
-    std::string config_path_;
+    std::filesystem::path config_path_;
     Vecd domain_dims_{Vecd::Zero()};
     Real dp_ref_{0.0};
     Real end_time_{0.0};

@@ -31,6 +31,7 @@
 
 #include "base_data_type_package.h"
 
+#include <filesystem>
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 

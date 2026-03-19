@@ -8,7 +8,7 @@
 namespace SPH
 {
 //=================================================================================================//
-SPHSimulation::SPHSimulation(const std::string &config_path) : config_path_(config_path) {}
+SPHSimulation::SPHSimulation(const std::filesystem::path &config_path) : config_path_(config_path) {}
 //=================================================================================================//
 void SPHSimulation::createDomain(VecdRef domain_dimensions,
                                  Real particle_spacing)
@@ -141,8 +141,10 @@ void SPHSimulation::loadConfig()
 {
     std::ifstream file(config_path_);
     if (!file.is_open())
-        throw std::runtime_error("SPHSimulation::loadConfig: cannot open \"" +
-                                 config_path_ + "\"");
+    {
+        throw std::runtime_error(
+            "SPHSimulation::loadConfig: unable to open config file " + config_path_.string());
+    }
     json config;
     file >> config;
     loadFromJson(config);
@@ -150,7 +152,7 @@ void SPHSimulation::loadConfig()
 //=================================================================================================//
 void SPHSimulation::run(Real end_time)
 {
-     //----------------------------------------------------------------------
+    //----------------------------------------------------------------------
     // Validate configuration
     //----------------------------------------------------------------------
     if (fluid_blocks_.empty())

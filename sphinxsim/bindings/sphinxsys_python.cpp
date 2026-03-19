@@ -13,6 +13,7 @@
 
 // Include pybind11 headers AFTER SPHinXsys to avoid type conflicts
 #include <pybind11/stl.h>
+#include <pybind11/stl/filesystem.h>
 
 namespace py = pybind11;
 using namespace SPH;
@@ -61,7 +62,8 @@ PYBIND11_MODULE(MODULE_NAME, m)
 
     // Bind the main SPHSimulation class
     py::class_<SPHSimulation>(m, "SPHSimulation")
-        .def(py::init<const std::string &>())
+        .def(py::init<const std::filesystem::path &>(), py::arg("config_path"),
+             "Initialize SPHSimulation with path to JSON config file")
         .def("defineDomain", &SPHSimulation::defineDomain,
              py::arg("domain_dimensions"), py::arg("particle_spacing"),
              "Set domain dimensions and reference particle spacing")

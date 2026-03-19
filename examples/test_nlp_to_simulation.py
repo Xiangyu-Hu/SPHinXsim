@@ -5,7 +5,7 @@ End-to-end demonstration: Natural Language → Simulation
 This example shows the complete workflow:
 1. Natural language input → LLM
 2. LLM → SimulationConfig (validated schema)
-3. SimulationConfig → SimulationBuilder (executable)
+3. SimulationConfig JSON → SPHSimulation
 4. Run simulation and get results
 """
 
@@ -27,6 +27,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(PROJECT_ROOT / "build-integrated"))
 original_dir = Path.cwd()
 
+import _sphinxsys_core_2d as sph
+
 
 def main():
     """Run natural language to simulation demo."""
@@ -36,7 +38,7 @@ def main():
     
     # Import modules
     try:
-        from sphinxsim.llm import get_llm, run_from_config
+        from sphinxsim.llm import get_llm
         from sphinxsim.config.schemas import SimulationConfig
     except ImportError as e:
         print(f"❌ Import failed: {e}")
@@ -78,18 +80,18 @@ def main():
     config = llm.generate(description)
     
     print(f"✅ Generated configuration:")
-    print(f"   Name: {config.name}")
-    print(f"   Physics: {config.physics.value}")
-    print(f"   Domain: {config.domain.bounds_min} → {config.domain.bounds_max}")
-    print(f"   Resolution: {config.domain.resolution}")
-    print(f"   Materials: {len(config.materials)} material(s)")
-    for mat in config.materials:
-        print(f"     - {mat.name}: ρ={mat.density} kg/m³")
-    print(f"   Boundary conditions: {len(config.boundary_conditions)}")
-    for bc in config.boundary_conditions:
-        print(f"     - {bc.name} ({bc.type.value})")
-    print(f"   End time: {config.time_stepping.end_time}s")
-    print(f"   Output interval: {config.time_stepping.output_interval}s")
+    print(f"   Domain dimensions: {config.domain.dimensions}")
+    print(f"   Particle spacing: {config.domain.particle_spacing}")
+    print(f"   Fluid blocks: {len(config.fluid_blocks)}")
+    for block in config.fluid_blocks:
+        print(f"     - {block.name}: dims={block.dimensions}, rho={block.density}, c={block.sound_speed}")
+    print(f"   Walls: {len(config.walls)}")
+    for wall in config.walls:
+        print(f"     - {wall.name}: width={wall.wall_width}")
+    if config.gravity is not None:
+        print(f"   Gravity: {config.gravity}")
+    print(f"   Observers: {len(config.observers)}")
+    print(f"   End time: {config.end_time if config.end_time is not None else '(set at runtime)'}")
     
     # Validate config can round-trip through JSON
     config_json = config.model_dump_json(indent=2)
@@ -112,29 +114,24 @@ def main():
     
     # Step 2: Config → Executable Simulation
     print("\n" + "=" * 60)
-    print("Step 2: SimulationConfig → Executable Simulation")
+    print("Step 2: SimulationConfig JSON → SPHSimulation")
     print("=" * 60)
     
     try:
-        builder, result = run_from_config(config_reloaded)
+        sim = sph.SPHSimulation(str(config_file))
+        sim.loadConfig()
+        print("✅ Simulation created and configuration loaded")
+
+        sim.run(config_reloaded.end_time if config_reloaded.end_time is not None else 1.0)
         
         print("✅ Simulation completed successfully!")
-        print(f"\n📊 Results:")
-        print(f"   End time: {result.end_time}s")
-        print(f"   Fluid blocks: {len(result.fluid_blocks)}")
-        for fluid in result.fluid_blocks:
-            print(f"     - {fluid}")
-        print(f"   Wall boundaries: {len(result.walls)}")
-        for wall in result.walls:
-            print(f"     - {wall}")
-        if result.gravity:
-            print(f"   Gravity: {result.gravity}")
-        print(f"   Observers: {len(result.observers)}")
-        for name, pos in result.observers:
-            print(f"     - {name} at position {pos}")
+        print(f"\n📊 Summary:")
+        print(f"   End time: {config_reloaded.end_time if config_reloaded.end_time is not None else 1.0}s")
+        print(f"   Fluid block: {config_reloaded.fluid_blocks[0].name}")
+        print(f"   Domain dimensions: {config_reloaded.domain.dimensions}")
         
         # Show output location
-        safe_name = config.name.replace(' ', '_').replace('/', '_')[:50]
+        safe_name = config_reloaded.fluid_blocks[0].name.replace(' ', '_').replace('/', '_')[:50]
         output_dir = PROJECT_ROOT / ".build-temp" / "simulations" / safe_name
         print(f"\n📁 Simulation output saved to:")
         print(f"   {output_dir}")

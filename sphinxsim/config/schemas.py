@@ -1,4 +1,4 @@
-"""Pydantic schemas for SPHinXsys simulation configuration."""
+"""Pydantic schemas for SPHSimulation JSON configuration."""
 
 from __future__ import annotations
 
@@ -8,135 +8,107 @@ from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
-# ---------------------------------------------------------------------------
-# Enumerations
-# ---------------------------------------------------------------------------
-
-
 class PhysicsType(str, Enum):
-    """High-level physics category for the simulation."""
+    """Heuristic physics category used by the NLP mock layer."""
 
     FLUID = "fluid"
     SOLID = "solid"
-    FSI = "fsi"  # Fluid-Structure Interaction
-
-
-class BoundaryType(str, Enum):
-    """Type of a boundary condition."""
-
-    INLET = "inlet"
-    OUTLET = "outlet"
-    WALL = "wall"
-    SYMMETRY = "symmetry"
-
-
-class OutputFormat(str, Enum):
-    """File format for simulation output."""
-
-    VTP = "vtp"
-    VTU = "vtu"
-    PLT = "plt"
-
-
-# ---------------------------------------------------------------------------
-# Sub-models
-# ---------------------------------------------------------------------------
+    FSI = "fsi"
 
 
 class DomainConfig(BaseModel):
-    """Spatial domain and particle resolution."""
+    """Spatial domain and particle spacing used by SPHSimulation."""
 
-    bounds_min: List[float] = Field(
-        ..., min_length=2, max_length=3, description="Minimum corner [x, y] or [x, y, z]"
+    dimensions: List[float] = Field(
+        ..., min_length=2, max_length=3, description="Domain size [Lx, Ly] or [Lx, Ly, Lz]"
     )
-    bounds_max: List[float] = Field(
-        ..., min_length=2, max_length=3, description="Maximum corner [x, y] or [x, y, z]"
-    )
-    resolution: float = Field(..., gt=0, description="Particle spacing (m)")
+    particle_spacing: float = Field(..., gt=0, description="Reference particle spacing")
 
-    @model_validator(mode="after")
-    def _bounds_consistent(self) -> "DomainConfig":
-        if len(self.bounds_min) != len(self.bounds_max):
-            raise ValueError("bounds_min and bounds_max must have the same dimensionality")
-        for lo, hi in zip(self.bounds_min, self.bounds_max):
-            if lo >= hi:
-                raise ValueError("Each component of bounds_min must be less than bounds_max")
-        return self
-
-
-class MaterialConfig(BaseModel):
-    """Material properties for a body in the simulation."""
-
-    name: str = Field(..., min_length=1, description="Unique material/body name")
-    density: float = Field(..., gt=0, description="Reference density (kg/m³)")
-    # Fluid properties
-    dynamic_viscosity: Optional[float] = Field(
-        None, gt=0, description="Dynamic viscosity (Pa·s) – fluids only"
-    )
-    # Solid properties
-    youngs_modulus: Optional[float] = Field(
-        None, gt=0, description="Young's modulus (Pa) – solids only"
-    )
-    poisson_ratio: Optional[float] = Field(
-        None, ge=0.0, lt=0.5, description="Poisson ratio – solids only"
-    )
-
-
-class BoundaryCondition(BaseModel):
-    """A single boundary condition applied to the domain."""
-
-    name: str = Field(..., min_length=1, description="Boundary name / identifier")
-    type: BoundaryType
-    velocity: Optional[List[float]] = Field(
-        None, description="Prescribed velocity vector (m/s)"
-    )
-    pressure: Optional[float] = Field(None, description="Prescribed pressure (Pa)")
-
-    @field_validator("velocity")
+    @field_validator("dimensions")
     @classmethod
-    def _velocity_nonzero_length(cls, v: Optional[List[float]]) -> Optional[List[float]]:
-        if v is not None and len(v) == 0:
-            raise ValueError("velocity must have at least one component")
-        return v
+    def _positive_dimensions(cls, dims: List[float]) -> List[float]:
+        if any(v <= 0.0 for v in dims):
+            raise ValueError("All domain dimensions must be positive")
+        return dims
 
 
-class TimeSteppingConfig(BaseModel):
-    """Time-integration parameters."""
+class FluidBlockConfig(BaseModel):
+    """Fluid block definition accepted by SPHSimulation."""
 
-    end_time: float = Field(..., gt=0, description="Physical end time of simulation (s)")
-    dt: Optional[float] = Field(
-        None, gt=0, description="Fixed time-step (s); auto-computed when None"
-    )
-    output_interval: float = Field(
-        ..., gt=0, description="Interval between output snapshots (s)"
-    )
+    name: str = Field(..., min_length=1)
+    dimensions: List[float] = Field(..., min_length=2, max_length=3)
+    density: float = Field(..., gt=0)
+    sound_speed: float = Field(..., gt=0)
 
-    @model_validator(mode="after")
-    def _interval_not_larger_than_end(self) -> "TimeSteppingConfig":
-        if self.output_interval > self.end_time:
-            raise ValueError("output_interval must not exceed end_time")
-        return self
+    @field_validator("dimensions")
+    @classmethod
+    def _positive_dimensions(cls, dims: List[float]) -> List[float]:
+        if any(v <= 0.0 for v in dims):
+            raise ValueError("All fluid block dimensions must be positive")
+        return dims
 
 
-class OutputConfig(BaseModel):
-    """Output settings."""
+class WallConfig(BaseModel):
+    """Wall boundary definition accepted by SPHSimulation."""
 
-    directory: str = Field("./output", description="Directory for output files")
-    format: OutputFormat = Field(OutputFormat.VTP, description="Output file format")
+    name: str = Field(..., min_length=1)
+    wall_width: float = Field(..., gt=0)
+    domain_dimensions: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
+
+    @field_validator("domain_dimensions")
+    @classmethod
+    def _positive_domain_dimensions(cls, dims: Optional[List[float]]) -> Optional[List[float]]:
+        if dims is not None and any(v <= 0.0 for v in dims):
+            raise ValueError("All wall domain dimensions must be positive")
+        return dims
 
 
-# ---------------------------------------------------------------------------
-# Top-level config
-# ---------------------------------------------------------------------------
+class ObserverConfig(BaseModel):
+    """Observer points used for sampling flow quantities."""
+
+    name: str = Field(..., min_length=1)
+    positions: List[List[float]] = Field(..., min_length=1)
+
+    @field_validator("positions")
+    @classmethod
+    def _positions_non_empty_vectors(cls, positions: List[List[float]]) -> List[List[float]]:
+        for pos in positions:
+            if len(pos) < 2 or len(pos) > 3:
+                raise ValueError("Each observer position must have 2 or 3 components")
+        return positions
+
+
+class SolverConfig(BaseModel):
+    """Numerical solver toggles accepted by SPHSimulation."""
+
+    dual_time_stepping: bool = True
+    free_surface_correction: bool = True
 
 
 class SimulationConfig(BaseModel):
-    """Complete configuration for a SPHinXsys simulation."""
+    """Top-level JSON payload accepted by SPHSimulation.loadConfig()."""
 
-    name: str = Field(..., min_length=1, description="Human-readable simulation name")
-    physics: PhysicsType
     domain: DomainConfig
-    materials: List[MaterialConfig] = Field(..., min_length=1)
-    boundary_conditions: List[BoundaryCondition] = Field(default_factory=list)
-    time_stepping: TimeSteppingConfig
-    output: OutputConfig = Field(default_factory=OutputConfig)
+    fluid_blocks: List[FluidBlockConfig] = Field(..., min_length=1)
+    walls: List[WallConfig] = Field(..., min_length=1)
+    gravity: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
+    observers: List[ObserverConfig] = Field(default_factory=list)
+    solver: SolverConfig = Field(default_factory=SolverConfig)
+    end_time: Optional[float] = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def _dimensionality_consistent(self) -> "SimulationConfig":
+        dim = len(self.domain.dimensions)
+        for fb in self.fluid_blocks:
+            if len(fb.dimensions) != dim:
+                raise ValueError("Fluid block dimensionality must match domain dimensionality")
+        if self.gravity is not None and len(self.gravity) != dim:
+            raise ValueError("Gravity dimensionality must match domain dimensionality")
+        for wall in self.walls:
+            if wall.domain_dimensions is not None and len(wall.domain_dimensions) != dim:
+                raise ValueError("Wall domain_dimensions must match domain dimensionality")
+        for observer in self.observers:
+            for pos in observer.positions:
+                if len(pos) != dim:
+                    raise ValueError("Observer dimensionality must match domain dimensionality")
+        return self

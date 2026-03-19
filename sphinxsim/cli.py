@@ -44,7 +44,8 @@ from typing import Tuple
 from pydantic import ValidationError
 
 from sphinxsim.config.schemas import SimulationConfig
-from sphinxsim.llm import get_llm, run_from_config
+from sphinxsim.llm import get_llm
+import _sphinxsys_core_2d as sph
 
 # Convert PROJECT_ROOT to Path after imports
 PROJECT_ROOT = Path(PROJECT_ROOT)
@@ -116,18 +117,18 @@ def cmd_validate(args: argparse.Namespace) -> int:
     if rc != 0:
         return rc
     print(f"✅ Generated configuration:")
-    print(f"   Name: {config.name}")
-    print(f"   Physics: {config.physics.value}")
-    print(f"   Domain: {config.domain.bounds_min} → {config.domain.bounds_max}")
-    print(f"   Resolution: {config.domain.resolution}")
-    print(f"   Materials: {len(config.materials)} material(s)")
-    for mat in config.materials:
-        print(f"     - {mat.name}: ρ={mat.density} kg/m³")
-    print(f"   Boundary conditions: {len(config.boundary_conditions)}")
-    for bc in config.boundary_conditions:
-        print(f"     - {bc.name} ({bc.type.value})")
-    print(f"   End time: {config.time_stepping.end_time}s")
-    print(f"   Output interval: {config.time_stepping.output_interval}s")
+    print(f"   Domain dimensions: {config.domain.dimensions}")
+    print(f"   Particle spacing: {config.domain.particle_spacing}")
+    print(f"   Fluid blocks: {len(config.fluid_blocks)}")
+    for block in config.fluid_blocks:
+        print(f"     - {block.name}: dims={block.dimensions}, rho={block.density}, c={block.sound_speed}")
+    print(f"   Walls: {len(config.walls)}")
+    for wall in config.walls:
+        print(f"     - {wall.name}: width={wall.wall_width}")
+    if config.gravity is not None:
+        print(f"   Gravity: {config.gravity}")
+    print(f"   Observers: {len(config.observers)}")
+    print(f"   End time: {config.end_time if config.end_time is not None else '(set at runtime)'}")
     
     # Validate config can round-trip through JSON
     config_json = config.model_dump_json(indent=2)
@@ -138,30 +139,29 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Run a simulation defined by a JSON config file."""
-    config, rc = _load_config(Path(args.config_file))
+    config_path = Path(args.config_file)
+    config, rc = _load_config(config_path)
     if rc != 0:
         return rc
 
+    if not config_path.is_absolute():
+        config_path = PROJECT_ROOT / ".build-temp" / config_path
+
     try:
-        builder, result = run_from_config(config)
+        sim = sph.SPHSimulation(str(config_path))
+        sim.loadConfig()
+        print("✅ Simulation created and configuration loaded")
+        
+        sim.run(config.end_time if config.end_time is not None else 1.0)
         
         print("✅ Simulation completed successfully!")
-        print(f"\n📊 Results:")
-        print(f"   End time: {result.end_time}s")
-        print(f"   Fluid blocks: {len(result.fluid_blocks)}")
-        for fluid in result.fluid_blocks:
-            print(f"     - {fluid}")
-        print(f"   Wall boundaries: {len(result.walls)}")
-        for wall in result.walls:
-            print(f"     - {wall}")
-        if result.gravity:
-            print(f"   Gravity: {result.gravity}")
-        print(f"   Observers: {len(result.observers)}")
-        for name, pos in result.observers:
-            print(f"     - {name} at position {pos}")
+        print(f"\n📊 Run summary:")
+        print(f"   End time: {config.end_time if config.end_time is not None else 1.0}s")
+        print(f"   Fluid block: {config.fluid_blocks[0].name}")
+        print(f"   Run config: {config_path}")
         
         # Show output location
-        safe_name = config.name.replace(' ', '_').replace('/', '_')[:50]
+        safe_name = config.fluid_blocks[0].name.replace(' ', '_').replace('/', '_')[:50]
         output_dir = PROJECT_ROOT / ".build-temp" / "simulations" / safe_name
         print(f"\n📁 Simulation output saved to:")
         print(f"   {output_dir}")

@@ -15,7 +15,7 @@ def get_llm():
 
     return MockLLM()
 
-__all__ = ["MockLLM", "OpenAILLM", "config_to_builder", "run_from_config"]
+__all__ = ["MockLLM", "OpenAILLM", "get_llm"]
 
 
 def __getattr__(name):
@@ -27,11 +27,4 @@ def __getattr__(name):
         from sphinxsim.llm.openai_llm import OpenAILLM
 
         return OpenAILLM
-    if name in {"config_to_builder", "run_from_config"}:
-        from sphinxsim.llm.config_to_simulation import config_to_builder, run_from_config
-
-        return {
-            "config_to_builder": config_to_builder,
-            "run_from_config": run_from_config,
-        }[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

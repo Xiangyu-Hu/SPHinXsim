@@ -36,8 +36,6 @@ namespace SPH
 {
 class SPHSystem;
 
-using VecdRef = Eigen::Ref<const Vecd>;
-
 /**
  * @class FluidBlockBuilder
  * @brief Builder for configuring a fluid body in a 2D or 3D simulation.
@@ -58,7 +56,7 @@ class FluidBlockBuilder
 
     /** Define the fluid block dimensions (starting at the coordinate origin).
      *  Use Vec2d for 2D or Vec3d for 3D builds. */
-    FluidBlockBuilder &block(VecdRef dimensions);
+    FluidBlockBuilder &block(const Vecd &dimensions);
     /** Set the weakly-compressible fluid material parameters. */
     FluidBlockBuilder &material(Real rho0, Real c);
 
@@ -95,7 +93,7 @@ class WallBuilder
     /** Define the wall as a hollow rectangular box aligned with the origin.
      *  @param domain_dimensions Inner domain dimensions (Vecd for 2D/3D).
      *  @param wall_width Thickness of the wall. */
-    WallBuilder &hollowBox(VecdRef domain_dimensions, Real wall_width);
+    WallBuilder &hollowBox(const Vecd &domain_dimensions, Real wall_width);
 
     const std::string &getName() const { return name_; }
     const Vecd &getDomainDimensions() const { return domain_dims_; }

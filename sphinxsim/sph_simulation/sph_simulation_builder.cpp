@@ -10,7 +10,7 @@ namespace SPH
 //=================================================================================================//
 FluidBlockBuilder::FluidBlockBuilder(const std::string &name) : name_(name) {}
 //=================================================================================================//
-FluidBlockBuilder &FluidBlockBuilder::block(VecdRef dimensions)
+FluidBlockBuilder &FluidBlockBuilder::block(const Vecd &dimensions)
 {
     dimensions_ = dimensions;
     return *this;
@@ -25,8 +25,7 @@ FluidBlockBuilder &FluidBlockBuilder::material(Real rho0, Real c)
 //=================================================================================================//
 WallBuilder::WallBuilder(const std::string &name) : name_(name) {}
 //=================================================================================================//
-WallBuilder &WallBuilder::hollowBox(VecdRef domain_dimensions,
-                                    Real wall_width)
+WallBuilder &WallBuilder::hollowBox(const Vecd &domain_dimensions, Real wall_width)
 {
     domain_dims_ = domain_dimensions;
     BW_ = wall_width;

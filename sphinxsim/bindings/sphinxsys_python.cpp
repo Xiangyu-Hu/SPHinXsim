@@ -17,29 +17,6 @@
 
 namespace py = pybind11;
 using namespace SPH;
-using VecdRef = Eigen::Ref<const Vecd>;
-
-// Helper functions to safely convert Python lists/arrays to Eigen vectors
-Vecd convert_to_vecd(const py::object &input)
-{
-    Vecd result = Vecd::Zero();
-    if (py::isinstance<py::array>(input))
-    {
-        // Handle numpy arrays
-        auto arr = input.cast<py::array_t<double>>();
-        if (arr.size() != Dimensions)
-        {
-            throw py::value_error("Vector must have exactly " +
-                                  std::to_string(Dimensions) + " elements!");
-        }
-        auto buf = arr.unchecked<1>();
-        for (size_t i = 0; i < Dimensions; ++i)
-        {
-            result[i] = buf(i);
-        }
-    }
-    return result;
-}
 
 #ifdef SPHINXSYS_2D
 #define MODULE_NAME _sphinxsys_core_2d

@@ -42,28 +42,25 @@ namespace SPH
  * @brief High-level facade for a 2D or 3D SPH simulation using the CK execution
  * backend.
  *
- * Typical 2D usage:
+ * Typical usage:
  * @code
- *   SPHSimulation sim;
- *   sim.createDomain(Vec2d(DL, DH), dp_ref);
- *   sim.addFluidBlock("Water").block(Vec2d(LL, LH)).material(rho0_f, c_f);
- *   sim.addWall("Tank").hollowBox(Vec2d(DL, DH), BW);
- *   sim.enableGravity(Vec2d(0.0, -gravity_g));
- *   sim.addObserver("PressureProbe", Vec2d(DL, 0.2));
- *   sim.useSolver().dualTimeStepping().freeSurfaceCorrection();
+ *   SPHSimulation sim("config.json");
+ *   sim.loadConfig();
  *   sim.run(20.0);
  * @endcode
  *
- * Typical 3D usage:
+ * The JSON config schema is:
  * @code
- *   SPHSimulation sim;
- *   sim.createDomain(Vec3d(DL, DH, DW), dp_ref);
- *   sim.addFluidBlock("Water").block(Vec3d(LL, LH, LW)).material(rho0_f, c_f);
- *   sim.addWall("Tank").hollowBox(Vec3d(DL, DH, DW), BW);
- *   sim.enableGravity(Vec3d(0.0, -gravity_g, 0.0));
- *   sim.addObserver("Probe", {Vec3d(DL, 0.2, 0.5*DW), Vec3d(DL, 0.1, 0.5*DW)});
- *   sim.useSolver().dualTimeStepping().freeSurfaceCorrection();
- *   sim.run(20.0);
+ * {
+ *   "domain"      : { "dimensions": [DL, DH], "particle_spacing": 0.02 },
+ *   "fluid_blocks": [{ "name": "Water", "dimensions": [LL, LH],
+ *                      "density": 1000.0, "sound_speed": 20.0 }],
+ *   "walls"       : [{ "name": "Tank", "wall_width": 0.06 }],
+ *   "gravity"     : [0.0, -9.81],
+ *   "observers"   : [{ "name": "Probe", "positions": [[0.5, 0.2]] }],
+ *   "solver"      : { "dual_time_stepping": true, "free_surface_correction": true },
+ *   "end_time"    : 20.0
+ * }
  * @endcode
  */
 class SPHSimulation
@@ -72,59 +69,23 @@ class SPHSimulation
     SPHSimulation(const std::filesystem::path &config_path);
     ~SPHSimulation() {};
 
-    /** Set the domain dimensions and reference particle spacing.
-     *  Use Vec2d for 2D or Vec3d for 3D builds. */
-    void defineDomain(VecdRef domain_dimensions, Real particle_spacing);
-
-    /** Set the domain dimensions and reference particle spacing.
-     *  Use Vec2d for 2D or Vec3d for 3D builds. */
-    void createDomain(VecdRef domain_dimensions, Real particle_spacing);
-
-    /** Add a named fluid block; configure it with the returned builder. */
-    FluidBlockBuilder &addFluidBlock(const std::string &name);
-
-    /** Add a named solid wall; configure it with the returned builder. */
-    WallBuilder &addWall(const std::string &name);
-
-    /** Enable uniform gravitational acceleration.
-     *  Use Vec2d for 2D or Vec3d for 3D builds. */
-    void enableGravity(VecdRef gravity);
-
-    /** Add a single-point observer at the given position. */
-    void addObserver(const std::string &name, VecdRef position);
-
-    /** Add a multi-point observer at the given positions. */
-    void addObserver(const std::string &name, const StdVec<Vecd> &positions);
-
-    /** Return the solver configuration object for fluent setup. */
-    SolverConfig &useSolver();
-
     /** Build all SPH objects and run the simulation until end_time. */
     void run(Real end_time);
 
-    /**
-     * @brief Configure the simulation from a JSON object.
-     *
-     * Expected schema:
-     * @code
-     * {
-     *   "domain": { "dimensions": [DL, DH], "particle_spacing": 0.02 },
-     *   "fluid_blocks": [{ "name": "Water", "dimensions": [LL, LH],
-     *                      "density": 1000.0, "sound_speed": 20.0 }],
-     *   "walls": [{ "name": "Tank", "wall_width": 0.06,
-     *               "domain_dimensions": [DL, DH] }],
-     *   "gravity": [0.0, -9.81],
-     *   "observers": [{ "name": "Probe", "positions": [[0.5, 0.2]] }],
-     *   "solver": { "dual_time_stepping": true, "free_surface_correction": true }
-     * }
-     * @endcode
-     * The "domain_dimensions" key in walls is optional and defaults to the
-     * simulation domain dimensions.
-     */
+    /** Configure the simulation from a JSON object (see class docstring). */
     void loadFromJson(const json &config);
+
+    /** Load JSON config from the path given at construction, then call loadFromJson. */
     void loadConfig();
 
   private:
+    void defineDomain(const json &config);
+    FluidBlockBuilder &addFluidBlock(const json &config);
+    WallBuilder &addWall(const json &config);
+    void enableGravity(const json &config);
+    void addObserver(const json &config);
+    SolverConfig &useSolver(const json &config);
+
     std::filesystem::path config_path_;
     Vecd domain_dims_{Vecd::Zero()};
     Real dp_ref_{0.0};

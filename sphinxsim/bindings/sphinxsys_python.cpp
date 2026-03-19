@@ -41,12 +41,6 @@ Vecd convert_to_vecd(const py::object &input)
     return result;
 }
 
-void addObserver_single(SPHSimulation &sim, const std::string &name,
-                        VecdRef position)
-{
-    sim.addObserver(name, position);
-}
-
 #ifdef SPHINXSYS_2D
 #define MODULE_NAME _sphinxsys_core_2d
 #else

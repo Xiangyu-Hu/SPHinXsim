@@ -10,131 +10,91 @@ namespace SPH
 //=================================================================================================//
 SPHSimulation::SPHSimulation(const std::filesystem::path &config_path) : config_path_(config_path) {}
 //=================================================================================================//
-void SPHSimulation::createDomain(VecdRef domain_dimensions,
-                                 Real particle_spacing)
+void SPHSimulation::defineDomain(const json &config)
 {
-    defineDomain(domain_dimensions, particle_spacing);
+    domain_dims_ = jsonToVecd(config.at("dimensions"));
+    dp_ref_ = config.at("particle_spacing").get<Real>();
 }
 //=================================================================================================//
-void SPHSimulation::defineDomain(VecdRef domain_dimensions,
-                                 Real particle_spacing)
+FluidBlockBuilder &SPHSimulation::addFluidBlock(const json &config)
 {
-    domain_dims_ = domain_dimensions;
-    dp_ref_ = particle_spacing;
+    fluid_blocks_.push_back(
+        std::make_unique<FluidBlockBuilder>(config.at("name").get<std::string>()));
+    auto &builder = *fluid_blocks_.back();
+    if (config.contains("dimensions"))
+        builder.block(jsonToVecd(config.at("dimensions")));
+    if (config.contains("density") && config.contains("sound_speed"))
+        builder.material(config.at("density").get<Real>(),
+                         config.at("sound_speed").get<Real>());
+    return builder;
 }
 //=================================================================================================//
-FluidBlockBuilder &SPHSimulation::addFluidBlock(const std::string &name)
+WallBuilder &SPHSimulation::addWall(const json &config)
 {
-    fluid_blocks_.push_back(std::make_unique<FluidBlockBuilder>(name));
-    return *fluid_blocks_.back();
+    walls_.push_back(
+        std::make_unique<WallBuilder>(config.at("name").get<std::string>()));
+    auto &builder = *walls_.back();
+    Vecd dims = config.contains("domain_dimensions")
+                    ? jsonToVecd(config.at("domain_dimensions"))
+                    : domain_dims_;
+    if (config.contains("wall_width"))
+        builder.hollowBox(dims, config.at("wall_width").get<Real>());
+    return builder;
 }
 //=================================================================================================//
-WallBuilder &SPHSimulation::addWall(const std::string &name)
+void SPHSimulation::enableGravity(const json &config)
 {
-    walls_.push_back(std::make_unique<WallBuilder>(name));
-    return *walls_.back();
-}
-//=================================================================================================//
-void SPHSimulation::enableGravity(VecdRef gravity)
-{
-    gravity_ = gravity;
+    gravity_ = jsonToVecd(config);
     gravity_enabled_ = true;
 }
 //=================================================================================================//
-void SPHSimulation::addObserver(const std::string &name, VecdRef position)
+void SPHSimulation::addObserver(const json &config)
 {
-    observers_.push_back({name, {position}});
+    std::string name = config.at("name").get<std::string>();
+    if (config.contains("positions"))
+    {
+        StdVec<Vecd> positions;
+        for (const auto &p : config.at("positions"))
+            positions.push_back(jsonToVecd(p));
+        observers_.push_back({name, positions});
+    }
+    else if (config.contains("position"))
+    {
+        observers_.push_back({name, {jsonToVecd(config.at("position"))}});
+    }
 }
 //=================================================================================================//
-void SPHSimulation::addObserver(const std::string &name,
-                                const StdVec<Vecd> &positions)
-{
-    observers_.push_back({name, positions});
-}
-//=================================================================================================//
-SolverConfig &SPHSimulation::useSolver()
+SolverConfig &SPHSimulation::useSolver(const json &config)
 {
     if (!solver_config_)
         solver_config_ = std::make_unique<SolverConfig>();
-    return *solver_config_;
+    auto &sc = *solver_config_;
+    if (config.value("dual_time_stepping", false))
+        sc.dualTimeStepping();
+    if (config.value("free_surface_correction", false))
+        sc.freeSurfaceCorrection();
+    return sc;
 }
 //=================================================================================================//
 void SPHSimulation::loadFromJson(const json &config)
 {
-    // Domain
     if (config.contains("domain"))
-    {
-        const auto &dom = config["domain"];
-        defineDomain(jsonToVecd(dom["dimensions"]),
-                     dom["particle_spacing"].get<Real>());
-    }
-
-    // Fluid blocks
+        defineDomain(config.at("domain"));
     if (config.contains("fluid_blocks"))
-    {
-        for (const auto &fb : config["fluid_blocks"])
-        {
-            auto &builder = addFluidBlock(fb["name"].get<std::string>());
-            if (fb.contains("dimensions"))
-                builder.block(jsonToVecd(fb["dimensions"]));
-            if (fb.contains("density") && fb.contains("sound_speed"))
-                builder.material(fb["density"].get<Real>(),
-                                 fb["sound_speed"].get<Real>());
-        }
-    }
-
-    // Walls — "domain_dimensions" defaults to the simulation domain
+        for (const auto &fb : config.at("fluid_blocks"))
+            addFluidBlock(fb);
     if (config.contains("walls"))
-    {
-        for (const auto &w : config["walls"])
-        {
-            auto &builder = addWall(w["name"].get<std::string>());
-            Vecd dims = w.contains("domain_dimensions")
-                            ? jsonToVecd(w["domain_dimensions"])
-                            : domain_dims_;
-            if (w.contains("wall_width"))
-                builder.hollowBox(dims, w["wall_width"].get<Real>());
-        }
-    }
-
-    // Gravity
+        for (const auto &w : config.at("walls"))
+            addWall(w);
     if (config.contains("gravity"))
-        enableGravity(jsonToVecd(config["gravity"]));
-
-    // Observers
+        enableGravity(config.at("gravity"));
     if (config.contains("observers"))
-    {
-        for (const auto &obs : config["observers"])
-        {
-            std::string name = obs["name"].get<std::string>();
-            if (obs.contains("positions"))
-            {
-                StdVec<Vecd> positions;
-                for (const auto &p : obs["positions"])
-                    positions.push_back(jsonToVecd(p));
-                addObserver(name, positions);
-            }
-            else if (obs.contains("position"))
-            {
-                addObserver(name, jsonToVecd(obs["position"]));
-            }
-        }
-    }
-
-    // Solver
+        for (const auto &obs : config.at("observers"))
+            addObserver(obs);
     if (config.contains("solver"))
-    {
-        const auto &solver = config["solver"];
-        auto &sc = useSolver();
-        if (solver.value("dual_time_stepping", false))
-            sc.dualTimeStepping();
-        if (solver.value("free_surface_correction", false))
-            sc.freeSurfaceCorrection();
-    }
-
-    // End time (stored for the no-arg run() overload)
+        useSolver(config.at("solver"));
     if (config.contains("end_time"))
-        end_time_ = config["end_time"].get<Real>();
+        end_time_ = config.at("end_time").get<Real>();
 }
 //=================================================================================================//
 void SPHSimulation::loadConfig()
@@ -167,8 +127,8 @@ void SPHSimulation::run(Real end_time)
     }
     if (dp_ref_ <= 0.0)
     {
-        std::cerr << "SPHSimulation::run: domain is not defined. Call "
-                     "defineDomain() or createDomain() first.\n";
+        std::cerr << "SPHSimulation::run: domain is not defined. "
+                     "Call loadConfig() or loadFromJson() first.\n";
         return;
     }
 

@@ -1,0 +1,45 @@
+{
+  "domain": {
+    "dimensions": [
+      5.366,
+      5.366
+    ],
+    "particle_spacing": 0.025
+  },
+  "fluid_blocks": [
+    {
+      "name": "WaterBody",
+      "dimensions": [
+        2.0,
+        1.0
+      ],
+      "density": 1.0,
+      "sound_speed": 20.0
+    }
+  ],
+  "walls": [
+    {
+      "name": "WallBoundary",
+      "wall_width": 0.1
+    }
+  ],
+  "gravity": [
+    0.0,
+    -1.0
+  ],
+  "observers": [
+    {
+      "name": "FluidObserver",
+      "positions": [
+        [
+          5.366,
+          0.2
+        ]
+      ]
+    }
+  ],
+  "solver": {
+    "dual_time_stepping": true,
+    "free_surface_correction": true
+  }
+}

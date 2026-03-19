@@ -71,7 +71,9 @@ jobs:
             simbody \
             spdlog \
             gtest \
-            pybind11
+            pybind11 \
+            nlohmann-json \
+            vtk
 
       - name: Configure CMake (integrated build)
         run: |

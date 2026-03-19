@@ -45,7 +45,8 @@ jobs:
             pkg-config \
             git \
             ninja-build \
-            autoconf automake autoconf-archive
+            autoconf automake autoconf-archive \
+            libxmu-dev libxi-dev libgl-dev
 
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2

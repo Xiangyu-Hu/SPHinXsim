@@ -47,7 +47,7 @@ jobs:
             git \
             ninja-build \
           sudo apt-get install autoconf automake autoconf-archive
-          sudo apt-get libxmu-dev libxi-dev libgl-dev libxt-dev
+          sudo apt-get install libxmu-dev libxi-dev libgl-dev libxt-dev
 
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2

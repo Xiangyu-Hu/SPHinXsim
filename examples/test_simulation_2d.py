@@ -35,8 +35,9 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
         print("✅ SPHinXsys module imported")
         import numpy as np
                 
-        # Create a simulation with the specified configuration file
-        sim = sph.SPHSimulation("input/test_simulation_2d/config.json")
+        # Use an absolute path so tests are independent of current working directory.
+        config_path = PROJECT_ROOT / "examples" / "input" / "test_simulation_2d" / "config.json"
+        sim = sph.SPHSimulation(str(config_path))
         sim.loadConfig()
         print("✅ Simulation configuration loaded")
 

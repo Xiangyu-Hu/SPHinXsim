@@ -36,7 +36,7 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
         import numpy as np
                 
         # Create a simulation with the specified configuration file
-        sim = sph.SPHSimulation(Path("input/test_simulation_2d/config.json"))
+        sim = sph.SPHSimulation("input/test_simulation_2d/config.json")
         sim.loadConfig()
         print("✅ Simulation configuration loaded")
 

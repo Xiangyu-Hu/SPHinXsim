@@ -38,15 +38,15 @@ jobs:
 
       - name: Install system dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt update
+          sudo apt install -y \
             build-essential \
             curl zip unzip tar \
             pkg-config \
             git \
             ninja-build \
-            autoconf automake autoconf-archive \
-            libxmu-dev libxi-dev libgl-dev libxt-dev
+          sudo apt-get install autoconf automake autoconf-archive
+          sudo apt-get libxmu-dev libxi-dev libgl-dev libxt-dev
 
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2

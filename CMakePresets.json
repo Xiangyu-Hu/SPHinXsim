@@ -34,16 +34,20 @@
             }
         },
         {
-            "name": "simple-binding",
-            "displayName": "Simple Python Binding",
-            "description": "Minimal Python binding without full SPHinXsys (for testing)",
+            "name": "integrated-build-debug",
+            "displayName": "Integrated SPHinXsys + Python Debug Build",
+            "description": "Build SPHinXsys libraries and Python bindings together",
             "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build-simple",
+            "binaryDir": "${sourceDir}/build-integrated",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_TOOLCHAIN_FILE": "$env{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "Python3_EXECUTABLE": "/usr/bin/python3.11",
                 "CMAKE_CXX_STANDARD": "17",
-                "BUILD_SIMPLE_BINDING": "ON"
+                "BUILD_SIMPLE_BINDING": "OFF",
+                "SPHINXSYS_BUILD_TESTS": "OFF",
+                "SPHINXSYS_DEVELOPER_MODE": "OFF",
+                "SPHINXSYS_USE_SYCL": "OFF"
             }
         },
         {
@@ -71,8 +75,8 @@
             }
         },
         {
-            "name": "integrated-build",
-            "displayName": "Integrated SPHinXsys + Python Build",
+            "name": "integrated-build-release",
+            "displayName": "Integrated SPHinXsys + Python Release Build",
             "description": "Build SPHinXsys libraries and Python bindings together",
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/build-integrated",
@@ -100,9 +104,9 @@
             "configurePreset": "python-binding-debug"
         },
         {
-            "name": "simple-binding",
-            "displayName": "Build Simple Binding",
-            "configurePreset": "simple-binding"
+            "name": "integrated-build-debug",
+            "displayName": "Build Integrated SPHinXsys + Python Debug",
+            "configurePreset": "integrated-build-debug"
         },
         {
             "name": "sycl-binding",
@@ -110,9 +114,9 @@
             "configurePreset": "sycl-binding"
         },
         {
-            "name": "integrated-build",
-            "displayName": "Build Integrated SPHinXsys + Python",
-            "configurePreset": "integrated-build"
+            "name": "integrated-build-release",
+            "displayName": "Build Integrated SPHinXsys + Python Release",
+            "configurePreset": "integrated-build-release"
         }
     ]
 }

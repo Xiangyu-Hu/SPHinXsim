@@ -52,7 +52,7 @@ class TestMockLLM:
 
     def test_physics_solid(self):
         cfg = self.llm.generate("elastic beam bending under load")
-        assert cfg.domain.particle_spacing > 0
+        assert cfg.particle_spacing > 0
 
     def test_physics_fsi(self):
         cfg = self.llm.generate("hydroelastic fluid-structure interaction")
@@ -76,7 +76,7 @@ class TestMockLLM:
 
     def test_resolution_override(self):
         cfg = self.llm.generate("water flow with 5 mm resolution")
-        assert cfg.domain.particle_spacing == pytest.approx(0.005)
+        assert cfg.particle_spacing == pytest.approx(0.005)
 
     def test_empty_description_raises(self):
         with pytest.raises(ValueError, match="description must not be empty"):

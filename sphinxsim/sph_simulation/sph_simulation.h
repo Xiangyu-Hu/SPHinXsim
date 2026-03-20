@@ -52,7 +52,8 @@ namespace SPH
  * The JSON config schema is:
  * @code
  * {
- *   "domain"      : { "dimensions": [DL, DH], "particle_spacing": 0.02 },
+ *   "domain"      : { "dimensions": [DL, DH] },
+ *   "particle_spacing": 0.02,
  *   "fluid_blocks": [{ "name": "Water", "dimensions": [LL, LH],
  *                      "density": 1000.0, "sound_speed": 20.0 }],
  *   "walls"       : [{ "name": "Tank", "wall_width": 0.06 }],

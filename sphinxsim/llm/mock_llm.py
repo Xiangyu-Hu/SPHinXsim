@@ -21,7 +21,8 @@ from sphinxsim.config.schemas import (
 # ---------------------------------------------------------------------------
 
 _FLUID_TEMPLATE: Dict[str, Any] = {
-    "domain": {"dimensions": [5.366, 5.366], "particle_spacing": 0.025},
+    "domain": {"dimensions": [5.366, 5.366]},
+    "particle_spacing": 0.025,
     "fluid_blocks": [
         {"name": "WaterBody", "dimensions": [2.0, 1.0], "density": 1.0, "sound_speed": 20.0}
     ],
@@ -37,7 +38,8 @@ _FLUID_TEMPLATE: Dict[str, Any] = {
 }
 
 _SOLID_TEMPLATE: Dict[str, Any] = {
-    "domain": {"dimensions": [1.0, 0.2], "particle_spacing": 0.01},
+    "domain": {"dimensions": [1.0, 0.2]},
+    "particle_spacing": 0.01,
     "fluid_blocks": [
         {"name": "ReferenceBody", "dimensions": [0.5, 0.1], "density": 7850.0, "sound_speed": 50.0}
     ],
@@ -51,7 +53,8 @@ _SOLID_TEMPLATE: Dict[str, Any] = {
 }
 
 _FSI_TEMPLATE: Dict[str, Any] = {
-    "domain": {"dimensions": [2.0, 1.0], "particle_spacing": 0.02},
+    "domain": {"dimensions": [2.0, 1.0]},
+    "particle_spacing": 0.02,
     "fluid_blocks": [
         {"name": "WaterBody", "dimensions": [0.8, 0.4], "density": 1000.0, "sound_speed": 20.0}
     ],
@@ -162,7 +165,7 @@ def _apply_overrides(template: Dict[str, Any], description: str) -> Dict[str, An
     # Resolution override (e.g. "5 mm resolution")
     res_match = re.search(r"(\d+(?:\.\d+)?)\s*mm\s+resolution", description, re.IGNORECASE)
     if res_match:
-        cfg["domain"]["particle_spacing"] = float(res_match.group(1)) / 1000.0
+        cfg["particle_spacing"] = float(res_match.group(1)) / 1000.0
 
     _sync_geometry(cfg)
 

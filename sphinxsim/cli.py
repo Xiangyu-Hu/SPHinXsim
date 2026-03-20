@@ -118,7 +118,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
         return rc
     print(f"✅ Generated configuration:")
     print(f"   Domain dimensions: {config.domain.dimensions}")
-    print(f"   Particle spacing: {config.domain.particle_spacing}")
+    print(f"   Particle spacing: {config.particle_spacing}")
     print(f"   Fluid blocks: {len(config.fluid_blocks)}")
     for block in config.fluid_blocks:
         print(f"     - {block.name}: dims={block.dimensions}, rho={block.density}, c={block.sound_speed}")

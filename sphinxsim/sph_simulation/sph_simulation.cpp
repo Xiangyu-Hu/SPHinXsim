@@ -13,7 +13,6 @@ SPHSimulation::SPHSimulation(const std::filesystem::path &config_path) : config_
 void SPHSimulation::defineDomain(const json &config)
 {
     domain_dims_ = jsonToVecd(config.at("dimensions"));
-    dp_ref_ = config.at("particle_spacing").get<Real>();
 }
 //=================================================================================================//
 FluidBlockBuilder &SPHSimulation::addFluidBlock(const json &config)
@@ -80,6 +79,8 @@ void SPHSimulation::loadFromJson(const json &config)
 {
     if (config.contains("domain"))
         defineDomain(config.at("domain"));
+    if (config.contains("particle_spacing"))
+        dp_ref_ = config.at("particle_spacing").get<Real>();
     if (config.contains("fluid_blocks"))
         for (const auto &fb : config.at("fluid_blocks"))
             addFluidBlock(fb);

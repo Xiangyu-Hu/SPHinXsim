@@ -21,7 +21,8 @@ from sphinxsim.config.schemas import (
 def _make_minimal_config(**overrides) -> SimulationConfig:
     """Return a minimal valid SimulationConfig, applying optional *overrides*."""
     data = {
-        "domain": {"dimensions": [1.0, 1.0], "particle_spacing": 0.05},
+        "domain": {"dimensions": [1.0, 1.0]},
+        "particle_spacing": 0.05,
         "fluid_blocks": [
             {
                 "name": "WaterBody",
@@ -47,20 +48,20 @@ def _make_minimal_config(**overrides) -> SimulationConfig:
 
 class TestDomainConfig:
     def test_valid_2d(self):
-        d = DomainConfig(dimensions=[1.0, 1.0], particle_spacing=0.01)
-        assert d.particle_spacing == 0.01
+        d = DomainConfig(dimensions=[1.0, 1.0])
+        assert d.dimensions == [1.0, 1.0]
 
     def test_valid_3d(self):
-        d = DomainConfig(dimensions=[2.0, 1.0, 0.5], particle_spacing=0.02)
+        d = DomainConfig(dimensions=[2.0, 1.0, 0.5])
         assert len(d.dimensions) == 3
 
     def test_negative_spacing_rejected(self):
         with pytest.raises(ValidationError):
-            DomainConfig(dimensions=[1.0, 1.0], particle_spacing=-0.01)
+            _make_minimal_config(particle_spacing=-0.01)
 
     def test_non_positive_dimensions_rejected(self):
         with pytest.raises(ValidationError):
-            DomainConfig(dimensions=[1.0, 0.0], particle_spacing=0.01)
+            DomainConfig(dimensions=[1.0, 0.0])
 
 
 # ---------------------------------------------------------------------------

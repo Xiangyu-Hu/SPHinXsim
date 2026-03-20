@@ -19,7 +19,8 @@ class TestLoadConfigHelper:
 
     def _valid_data(self) -> dict:
         return {
-            "domain": {"dimensions": [1.0, 1.0], "particle_spacing": 0.05},
+            "domain": {"dimensions": [1.0, 1.0]},
+            "particle_spacing": 0.05,
             "fluid_blocks": [
                 {
                     "name": "helper test",
@@ -56,7 +57,7 @@ class TestLoadConfigHelper:
 
     def test_invalid_schema_returns_none_and_nonzero(self, build_temp_path):
         bad = self._valid_data()
-        bad["domain"]["particle_spacing"] = -1
+        bad["particle_spacing"] = -1
         p = self._write(build_temp_path, bad)
         config, rc = _load_config(p)
         assert config is None
@@ -107,7 +108,8 @@ class TestCLIValidate:
 
     def _valid_data(self) -> dict:
         return {
-            "domain": {"dimensions": [1.0, 1.0], "particle_spacing": 0.05},
+            "domain": {"dimensions": [1.0, 1.0]},
+            "particle_spacing": 0.05,
             "fluid_blocks": [
                 {
                     "name": "test",
@@ -133,7 +135,7 @@ class TestCLIValidate:
 
     def test_invalid_config(self, build_temp_path):
         bad = self._valid_data()
-        bad["domain"]["particle_spacing"] = -1  # invalid
+        bad["particle_spacing"] = -1  # invalid
         p = self._write_config(build_temp_path, bad)
         rc = main(["validate", str(p)])
         assert rc != 0
@@ -152,7 +154,8 @@ class TestCLIValidate:
 class TestCLIRun:
     def _write_valid(self, build_temp_path: Path) -> Path:
         data = {
-            "domain": {"dimensions": [1.0, 1.0], "particle_spacing": 0.1},
+            "domain": {"dimensions": [1.0, 1.0]},
+            "particle_spacing": 0.1,
             "fluid_blocks": [
                 {
                     "name": "quick run",

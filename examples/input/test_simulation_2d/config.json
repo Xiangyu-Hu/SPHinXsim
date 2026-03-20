@@ -3,9 +3,9 @@
     "dimensions": [
       5.366,
       5.366
-    ],
-    "particle_spacing": 0.025
+    ]
   },
+  "particle_spacing": 0.025,
   "fluid_blocks": [
     {
       "name": "WaterBody",

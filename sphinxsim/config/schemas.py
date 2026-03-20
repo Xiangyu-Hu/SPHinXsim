@@ -17,12 +17,11 @@ class PhysicsType(str, Enum):
 
 
 class DomainConfig(BaseModel):
-    """Spatial domain and particle spacing used by SPHSimulation."""
+    """Spatial domain geometry used by SPHSimulation."""
 
     dimensions: List[float] = Field(
         ..., min_length=2, max_length=3, description="Domain size [Lx, Ly] or [Lx, Ly, Lz]"
     )
-    particle_spacing: float = Field(..., gt=0, description="Reference particle spacing")
 
     @field_validator("dimensions")
     @classmethod
@@ -89,6 +88,7 @@ class SimulationConfig(BaseModel):
     """Top-level JSON payload accepted by SPHSimulation.loadConfig()."""
 
     domain: DomainConfig
+    particle_spacing: float = Field(..., gt=0, description="Reference particle spacing")
     fluid_blocks: List[FluidBlockConfig] = Field(..., min_length=1)
     walls: List[WallConfig] = Field(..., min_length=1)
     gravity: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)

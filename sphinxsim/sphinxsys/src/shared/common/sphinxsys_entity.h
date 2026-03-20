@@ -53,22 +53,19 @@ class Entity
 
 class EntityManager
 {
-    std::unordered_map<std::type_index, std::unordered_map<size_t, Entity *>> all_entities_;
-    size_t entity_count_ = 0;
+    std::unordered_map<std::type_index, std::unordered_map<std::string, void *>> all_entities_;
 
   public:
     EntityManager() = default;
     ~EntityManager() {};
 
     template <typename T>
-    T *addEntity(T *entity)
+    T *addEntity(const std::string &name, T *entity)
     {
-        static_assert(std::is_base_of<Entity, T>::value, "T must derive from Entity");
-        T *existing_entity = findEntityByName<T>(entity->Name());
+        T *existing_entity = findEntityByName<T>(name);
         if (existing_entity == nullptr)
         {
-            entity_count_++;
-            all_entities_[typeid(T)][entity_count_] = entity;
+            all_entities_[typeid(T)][name] = entity;
         }
         return entity;
     }
@@ -88,7 +85,7 @@ class EntityManager
     std::vector<T *> entitiesWith()
     {
         std::vector<T *> result;
-        for (const auto &[entity_id, entity] : all_entities_[typeid(T)])
+        for (const auto &[name, entity] : all_entities_[typeid(T)])
         {
             result.push_back(static_cast<T *>(entity));
         }
@@ -99,9 +96,9 @@ class EntityManager
     template <typename T>
     T *findEntityByName(const std::string &name)
     {
-        for (const auto &[entity_id, entity] : all_entities_[typeid(T)])
+        for (const auto &[entity_name, entity] : all_entities_[typeid(T)])
         {
-            if (entity->Name() == name)
+            if (entity_name == name)
             {
                 return static_cast<T *>(entity);
             }

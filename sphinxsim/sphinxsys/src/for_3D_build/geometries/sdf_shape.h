@@ -31,9 +31,9 @@
 #define SDF_SHAPE_H
 
 #include "base_geometry.h"
-#include "sdf_primitive.h"
 #include "sdf_extension.hpp"
 #include "sdf_operation.hpp"
+#include "sdf_primitive.h"
 
 namespace SPH
 {
@@ -79,7 +79,7 @@ class SDFShape : public Shape
     {
         SDFEntity<SDFPrimitive> *sdf_entity = sdf_ptrs_.createPtr<
             SDFEntity<SDFPrimitive>>(primitive_name, sdf_primitive);
-        sdf_manager_.addEntity<SDFEntity<SDFPrimitive>>(sdf_entity);
+        sdf_manager_.addEntity<SDFEntity<SDFPrimitive>>(sdf_entity->Name(), sdf_entity);
         primitives_and_ops_.push_back(SDFPrimitiveAndOp(sdf_entity, op));
         return *this;
     };

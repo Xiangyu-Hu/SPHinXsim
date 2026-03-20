@@ -23,6 +23,7 @@ def _make_minimal_config(**overrides) -> SimulationConfig:
     data = {
         "domain": {"dimensions": [1.0, 1.0]},
         "particle_spacing": 0.05,
+        "particle_boundary_buffer": 4,
         "fluid_blocks": [
             {
                 "name": "WaterBody",
@@ -31,7 +32,7 @@ def _make_minimal_config(**overrides) -> SimulationConfig:
                 "sound_speed": 20.0,
             }
         ],
-        "walls": [{"name": "WallBoundary", "wall_width": 0.05}],
+        "walls": [{"name": "WallBoundary"}],
         "gravity": [0.0, -1.0],
         "observers": [{"name": "Obs", "positions": [[0.5, 0.2]]}],
         "solver": {"dual_time_stepping": True, "free_surface_correction": True},
@@ -92,16 +93,16 @@ class TestFluidBlockConfig:
 
 class TestWallConfig:
     def test_valid_wall(self):
-        wall = WallConfig(name="WallBoundary", wall_width=0.05)
-        assert wall.wall_width == pytest.approx(0.05)
+        wall = WallConfig(name="WallBoundary")
+        assert wall.name == "WallBoundary"
 
-    def test_negative_wall_width_rejected(self):
+    def test_invalid_wall_name_rejected(self):
         with pytest.raises(ValidationError):
-            WallConfig(name="WallBoundary", wall_width=-0.01)
+            WallConfig(name="")
 
     def test_invalid_wall_domain_dimensions_rejected(self):
         with pytest.raises(ValidationError):
-            WallConfig(name="WallBoundary", wall_width=0.01, domain_dimensions=[1.0, 0.0])
+            WallConfig(name="WallBoundary", domain_dimensions=[1.0, 0.0])
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +148,7 @@ class TestSimulationConfig:
 
     def test_dimensionality_mismatch_rejected_wall(self):
         with pytest.raises(ValidationError, match="Wall domain_dimensions"):
-            _make_minimal_config(walls=[{"name": "WallBoundary", "wall_width": 0.1, "domain_dimensions": [1.0, 1.0, 1.0]}])
+            _make_minimal_config(walls=[{"name": "WallBoundary", "domain_dimensions": [1.0, 1.0, 1.0]}])
 
     def test_dimensionality_mismatch_rejected_observer(self):
         with pytest.raises(ValidationError, match="Observer dimensionality"):
@@ -156,6 +157,10 @@ class TestSimulationConfig:
     def test_end_time_must_be_positive(self):
         with pytest.raises(ValidationError):
             _make_minimal_config(end_time=0.0)
+
+    def test_particle_boundary_buffer_must_be_positive(self):
+        with pytest.raises(ValidationError):
+            _make_minimal_config(particle_boundary_buffer=0)
 
     def test_roundtrip_json(self):
         cfg = _make_minimal_config(

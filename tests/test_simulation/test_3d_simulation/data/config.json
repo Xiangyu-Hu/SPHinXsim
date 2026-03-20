@@ -7,6 +7,7 @@
     ]
   },
   "particle_spacing": 0.05,
+  "particle_boundary_buffer": 4,
   "fluid_blocks": [
     {
       "name": "WaterBody",
@@ -21,8 +22,7 @@
   ],
   "walls": [
     {
-      "name": "WallBoundary",
-      "wall_width": 0.2
+      "name": "WallBoundary"
     }
   ],
   "gravity": [

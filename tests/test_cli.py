@@ -21,6 +21,7 @@ class TestLoadConfigHelper:
         return {
             "domain": {"dimensions": [1.0, 1.0]},
             "particle_spacing": 0.05,
+            "particle_boundary_buffer": 4,
             "fluid_blocks": [
                 {
                     "name": "helper test",
@@ -29,7 +30,7 @@ class TestLoadConfigHelper:
                     "sound_speed": 20.0,
                 }
             ],
-            "walls": [{"name": "WallBoundary", "wall_width": 0.05}],
+            "walls": [{"name": "WallBoundary"}],
             "gravity": [0.0, -1.0],
             "observers": [{"name": "Observer", "positions": [[0.5, 0.2]]}],
             "solver": {"dual_time_stepping": True, "free_surface_correction": True},
@@ -110,6 +111,7 @@ class TestCLIValidate:
         return {
             "domain": {"dimensions": [1.0, 1.0]},
             "particle_spacing": 0.05,
+            "particle_boundary_buffer": 4,
             "fluid_blocks": [
                 {
                     "name": "test",
@@ -118,7 +120,7 @@ class TestCLIValidate:
                     "sound_speed": 20.0,
                 }
             ],
-            "walls": [{"name": "WallBoundary", "wall_width": 0.05}],
+            "walls": [{"name": "WallBoundary"}],
             "gravity": [0.0, -1.0],
             "observers": [{"name": "Observer", "positions": [[0.5, 0.2]]}],
             "solver": {"dual_time_stepping": True, "free_surface_correction": True},
@@ -156,6 +158,7 @@ class TestCLIRun:
         data = {
             "domain": {"dimensions": [1.0, 1.0]},
             "particle_spacing": 0.1,
+            "particle_boundary_buffer": 4,
             "fluid_blocks": [
                 {
                     "name": "quick run",
@@ -164,7 +167,7 @@ class TestCLIRun:
                     "sound_speed": 20.0,
                 }
             ],
-            "walls": [{"name": "WallBoundary", "wall_width": 0.05}],
+            "walls": [{"name": "WallBoundary"}],
             "gravity": [0.0, -1.0],
             "observers": [{"name": "Observer", "positions": [[0.5, 0.2]]}],
             "solver": {"dual_time_stepping": True, "free_surface_correction": True},

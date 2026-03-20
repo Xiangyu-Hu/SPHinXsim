@@ -23,11 +23,12 @@ from sphinxsim.config.schemas import (
 _FLUID_TEMPLATE: Dict[str, Any] = {
     "domain": {"dimensions": [5.366, 5.366]},
     "particle_spacing": 0.025,
+    "particle_boundary_buffer": 4,
     "fluid_blocks": [
         {"name": "WaterBody", "dimensions": [2.0, 1.0], "density": 1.0, "sound_speed": 20.0}
     ],
     "walls": [
-        {"name": "WallBoundary", "wall_width": 0.1},
+        {"name": "WallBoundary"},
     ],
     "gravity": [0.0, -1.0],
     "observers": [
@@ -40,11 +41,12 @@ _FLUID_TEMPLATE: Dict[str, Any] = {
 _SOLID_TEMPLATE: Dict[str, Any] = {
     "domain": {"dimensions": [1.0, 0.2]},
     "particle_spacing": 0.01,
+    "particle_boundary_buffer": 4,
     "fluid_blocks": [
         {"name": "ReferenceBody", "dimensions": [0.5, 0.1], "density": 7850.0, "sound_speed": 50.0}
     ],
     "walls": [
-        {"name": "WallBoundary", "wall_width": 0.02},
+        {"name": "WallBoundary"},
     ],
     "gravity": [0.0, -1.0],
     "observers": [],
@@ -55,11 +57,12 @@ _SOLID_TEMPLATE: Dict[str, Any] = {
 _FSI_TEMPLATE: Dict[str, Any] = {
     "domain": {"dimensions": [2.0, 1.0]},
     "particle_spacing": 0.02,
+    "particle_boundary_buffer": 4,
     "fluid_blocks": [
         {"name": "WaterBody", "dimensions": [0.8, 0.4], "density": 1000.0, "sound_speed": 20.0}
     ],
     "walls": [
-        {"name": "WallBoundary", "wall_width": 0.04},
+        {"name": "WallBoundary"},
     ],
     "gravity": [0.0, -1.0],
     "observers": [

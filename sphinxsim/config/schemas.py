@@ -51,7 +51,6 @@ class WallConfig(BaseModel):
     """Wall boundary definition accepted by SPHSimulation."""
 
     name: str = Field(..., min_length=1)
-    wall_width: float = Field(..., gt=0)
     domain_dimensions: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
 
     @field_validator("domain_dimensions")
@@ -89,6 +88,9 @@ class SimulationConfig(BaseModel):
 
     domain: DomainConfig
     particle_spacing: float = Field(..., gt=0, description="Reference particle spacing")
+    particle_boundary_buffer: int = Field(
+        ..., gt=0, description="Number of particle spacings used for boundary padding"
+    )
     fluid_blocks: List[FluidBlockConfig] = Field(..., min_length=1)
     walls: List[WallConfig] = Field(..., min_length=1)
     gravity: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)

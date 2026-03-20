@@ -10,9 +10,11 @@ namespace SPH
 //=================================================================================================//
 SPHSimulation::SPHSimulation(const std::filesystem::path &config_path) : config_path_(config_path) {}
 //=================================================================================================//
-void SPHSimulation::defineDomain(const json &config)
+void SPHSimulation::defineSPHSystem(const json &config, Real particle_spacing, const Vecd &domain_dims, Real boundary_width)
 {
-    domain_dims_ = jsonToVecd(config.at("dimensions"));
+    BoundingBoxd system_domain_bounds(-boundary_width * Vecd::Ones(),
+                                      domain_dims + boundary_width * Vecd::Ones());
+    sph_system_ptr_ = std::make_unique<SPHSystem>(system_domain_bounds, particle_spacing);
 }
 //=================================================================================================//
 FluidBlockBuilder &SPHSimulation::addFluidBlock(const json &config)
@@ -28,16 +30,15 @@ FluidBlockBuilder &SPHSimulation::addFluidBlock(const json &config)
     return builder;
 }
 //=================================================================================================//
-WallBuilder &SPHSimulation::addWall(const json &config)
+WallBuilder &SPHSimulation::addWall(const json &config, const Vecd &domain_dims, Real boundary_width)
 {
     walls_.push_back(
         std::make_unique<WallBuilder>(config.at("name").get<std::string>()));
     auto &builder = *walls_.back();
     Vecd dims = config.contains("domain_dimensions")
                     ? jsonToVecd(config.at("domain_dimensions"))
-                    : domain_dims_;
-    if (config.contains("wall_width"))
-        builder.hollowBox(dims, config.at("wall_width").get<Real>());
+                    : domain_dims;
+    builder.hollowBox(dims, boundary_width);
     return builder;
 }
 //=================================================================================================//
@@ -77,16 +78,26 @@ SolverConfig &SPHSimulation::useSolver(const json &config)
 //=================================================================================================//
 void SPHSimulation::loadFromJson(const json &config)
 {
-    if (config.contains("domain"))
-        defineDomain(config.at("domain"));
+    // Extract simulation parameters from config
+    Real particle_spacing = 0.0;
+    int particle_boundary_buffer = 0;
+    Vecd domain_dims = Vecd::Zero();
     if (config.contains("particle_spacing"))
-        dp_ref_ = config.at("particle_spacing").get<Real>();
+        particle_spacing = config.at("particle_spacing").get<Real>();
+    if (config.contains("particle_boundary_buffer"))
+        particle_boundary_buffer = config.at("particle_boundary_buffer").get<int>();
+    if (config.contains("domain"))
+        domain_dims = jsonToVecd(config.at("domain").at("dimensions"));
+    const Real boundary_width = particle_spacing * static_cast<Real>(particle_boundary_buffer);
+
+    if (!domain_dims.isZero() && particle_spacing > 0 && particle_boundary_buffer > 0)
+        defineSPHSystem(config, particle_spacing, domain_dims, boundary_width);
     if (config.contains("fluid_blocks"))
         for (const auto &fb : config.at("fluid_blocks"))
             addFluidBlock(fb);
     if (config.contains("walls"))
         for (const auto &w : config.at("walls"))
-            addWall(w);
+            addWall(w, domain_dims, boundary_width);
     if (config.contains("gravity"))
         enableGravity(config.at("gravity"));
     if (config.contains("observers"))
@@ -126,27 +137,19 @@ void SPHSimulation::run(Real end_time)
         std::cerr << "SPHSimulation::run: no wall defined.\n";
         return;
     }
-    if (dp_ref_ <= 0.0)
+    if (!sph_system_ptr_)
     {
-        std::cerr << "SPHSimulation::run: domain is not defined. "
+        std::cerr << "SPHSimulation::run: SPH system is not defined. "
                      "Call loadConfig() or loadFromJson() first.\n";
         return;
     }
-
+    SPHSystem &sph_system = getSPHSystem();
     //----------------------------------------------------------------------
     // Derive geometry parameters
     //----------------------------------------------------------------------
     const FluidBlockBuilder &fluid_cfg = *fluid_blocks_[0];
     const WallBuilder &wall_cfg = *walls_[0];
     const Real BW = wall_cfg.getWallWidth();
-
-    //----------------------------------------------------------------------
-    // Build the SPH system
-    //----------------------------------------------------------------------
-    BoundingBoxd system_domain_bounds(-BW * Vecd::Ones(),
-                                      domain_dims_ + BW * Vecd::Ones());
-    sph_system_ = std::make_unique<SPHSystem>(system_domain_bounds, dp_ref_);
-    SPHSystem &sph_system = *sph_system_;
 
     //----------------------------------------------------------------------
     // Create fluid body (rectangular block starting at the coordinate origin)
@@ -178,6 +181,7 @@ void SPHSimulation::run(Real end_time)
     // Create observer bodies and contacts (kept alive for the entire run)
     //----------------------------------------------------------------------
     std::vector<std::unique_ptr<Contact<>>> observer_contacts;
+    observer_contacts.reserve(observers_.size());
     for (const auto &obs : observers_)
     {
         ObserverBody &obs_body = sph_system.addBody<ObserverBody>(obs.name);
@@ -210,6 +214,7 @@ void SPHSimulation::run(Real end_time)
         main_methods.addRelationDynamics(water_block_inner, water_wall_contact);
 
     std::vector<BaseDynamics<void> *> observer_relation_dynamics;
+    observer_relation_dynamics.reserve(observers_.size());
     for (auto &obs_contact : observer_contacts)
     {
         observer_relation_dynamics.push_back(
@@ -289,6 +294,7 @@ void SPHSimulation::run(Real end_time)
     // Observer output (pressure at observation points)
     //----------------------------------------------------------------------
     std::vector<BaseIO *> observer_pressure_outputs;
+    observer_pressure_outputs.reserve(observers_.size());
     for (auto &obs_contact : observer_contacts)
     {
         auto &recorder =

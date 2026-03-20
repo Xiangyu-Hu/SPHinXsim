@@ -54,9 +54,10 @@ namespace SPH
  * {
  *   "domain"      : { "dimensions": [DL, DH] },
  *   "particle_spacing": 0.02,
+ *   "particle_boundary_buffer": 4,
  *   "fluid_blocks": [{ "name": "Water", "dimensions": [LL, LH],
  *                      "density": 1000.0, "sound_speed": 20.0 }],
- *   "walls"       : [{ "name": "Tank", "wall_width": 0.06 }],
+ *   "walls"       : [{ "name": "Tank" }],
  *   "gravity"     : [0.0, -9.81],
  *   "observers"   : [{ "name": "Probe", "positions": [[0.5, 0.2]] }],
  *   "solver"      : { "dual_time_stepping": true, "free_surface_correction": true },
@@ -80,16 +81,14 @@ class SPHSimulation
     void loadConfig();
 
   private:
-    void defineDomain(const json &config);
+    void defineSPHSystem(const json &config, Real particle_spacing, const Vecd &domain_dims, Real boundary_width);
     FluidBlockBuilder &addFluidBlock(const json &config);
-    WallBuilder &addWall(const json &config);
+    WallBuilder &addWall(const json &config, const Vecd &domain_dims, Real boundary_width);
     void enableGravity(const json &config);
     void addObserver(const json &config);
     SolverConfig &useSolver(const json &config);
 
     std::filesystem::path config_path_;
-    Vecd domain_dims_{Vecd::Zero()};
-    Real dp_ref_{0.0};
     Real end_time_{0.0};
     Vecd gravity_{Vecd::Zero()};
     bool gravity_enabled_{false};
@@ -105,7 +104,8 @@ class SPHSimulation
     std::vector<ObserverEntry> observers_;
 
     std::unique_ptr<SolverConfig> solver_config_;
-    std::unique_ptr<SPHSystem> sph_system_;
+    SPHSystem &getSPHSystem() { return *sph_system_ptr_.get(); };
+    std::unique_ptr<SPHSystem> sph_system_ptr_;
 };
 } // namespace SPH
 #endif // SPH_SIMULATION_H

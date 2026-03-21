@@ -8,11 +8,39 @@ namespace SPH
 //=================================================================================================//
 SPHSimulation::SPHSimulation(const std::filesystem::path &config_path) : config_path_(config_path) {}
 //=================================================================================================//
+void SPHSimulation::setOutputRoot(const std::filesystem::path &output_root)
+{
+    if (output_root.empty())
+    {
+        throw std::invalid_argument("SPHSimulation::setOutputRoot: output_root cannot be empty.");
+    }
+
+    output_root_override_ = std::filesystem::absolute(output_root);
+    applyOutputRootOverride();
+}
+//=================================================================================================//
+void SPHSimulation::applyOutputRootOverride()
+{
+    if (!output_root_override_.has_value() || !sph_system_ptr_)
+    {
+        return;
+    }
+
+    const std::filesystem::path root = *output_root_override_;
+    std::filesystem::create_directories(root);
+    IOEnvironment &io_env = sph_system_ptr_->getIOEnvironment();
+    io_env.resetOutputFolder((root / "output").string());
+    io_env.resetRestartFolder((root / "restart").string());
+    io_env.resetReloadFolder((root / "reload").string());
+}
+//=================================================================================================//
 void SPHSimulation::defineSPHSystem(const json &config, Real particle_spacing, const Vecd &domain_dims, Real boundary_width)
 {
     BoundingBoxd system_domain_bounds(-boundary_width * Vecd::Ones(),
                                       domain_dims + boundary_width * Vecd::Ones());
     sph_system_ptr_ = std::make_unique<SPHSystem>(system_domain_bounds, particle_spacing);
+
+    applyOutputRootOverride();
 }
 //=================================================================================================//
 FluidBody &SPHSimulation::addFluidBody(const json &config)

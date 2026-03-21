@@ -126,9 +126,10 @@ def main():
         print("✅ Simulation built")
         
         # Create temp directory in project root, not relative to cwd
-        work_dir = PROJECT_ROOT / ".build-temp" / "test_simulation"
-        work_dir.mkdir(exist_ok=True, parents=True)
-        os.chdir(work_dir)
+        output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation"
+        output_dir.mkdir(exist_ok=True, parents=True)
+        sim.setOutputRoot(str(output_dir))
+        print(f"📁 Now, the output folder is changed to: {output_dir}")
 
         sim.initializeSimulation()
         print("✅ Simulation initialized")

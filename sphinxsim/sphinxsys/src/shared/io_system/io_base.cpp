@@ -22,6 +22,11 @@ bool BaseIO::isBodyIncluded(const SPHBodyVector &bodies, SPHBody *sph_body)
                                { return body == sph_body; });
     return result != bodies.end();
 }
+//=============================================================================================/
+void BaseIO::ensureOutputFolder()
+{
+    io_environment_.ensureOutputFolder();
+}
 //=============================================================================================//
 BodyStatesRecording::BodyStatesRecording(SPHSystem &sph_system)
     : BaseIO(sph_system), bodies_(sph_system.getRealBodies()),
@@ -37,6 +42,7 @@ void BodyStatesRecording::writeToFile()
     {
         derived_variable->exec();
     }
+    ensureOutputFolder();
     writeWithFileName(convertPhysicalTimeToString(sv_physical_time_->getValue()));
 }
 //=============================================================================================//
@@ -46,6 +52,7 @@ void BodyStatesRecording::writeToFile(size_t iteration_step)
     {
         derived_variable->exec();
     }
+    ensureOutputFolder();
     writeWithFileName("ite_" + padValueWithZeros(iteration_step));
 };
 //=============================================================================================//
@@ -66,6 +73,7 @@ RestartIO::RestartIO(SPHSystem &sph_system)
 //=============================================================================================//
 void RestartIO::writeToFile(size_t iteration_step)
 {
+    ensureOutputFolder();
     std::string overall_filefullpath = overall_file_path_ + padValueWithZeros(iteration_step) + ".xml";
     if (fs::exists(overall_filefullpath))
     {
@@ -74,7 +82,7 @@ void RestartIO::writeToFile(size_t iteration_step)
 
     // Create a new XML document for restart
     XmlParser restart_xml("xml_restart", "restart_data");
-    
+
     // Add restart time as an attribute to the root element
     restart_xml.setAttributeToElement(restart_xml.first_element_, "restart_time", sv_physical_time_->getValue());
 
@@ -83,23 +91,23 @@ void RestartIO::writeToFile(size_t iteration_step)
     {
         BaseParticles &base_particles = real_bodies_[i]->getBaseParticles();
         std::string body_name = real_bodies_[i]->getName();
-        
+
         std::cout << "\n Total real particles of body " << body_name
                   << " written to restart: " << base_particles.TotalRealParticles() << "\n";
-        
+
         // Add a body element
         restart_xml.addNewElement(restart_xml.first_element_, "body");
-        
+
         // Get the last added body element
         tinyxml2::XMLElement *body_element = restart_xml.first_element_->LastChildElement("body");
-        
+
         // Set body name attribute
         restart_xml.setAttributeToElement(body_element, "name", body_name);
-        
+
         // Write particles to this body element
         base_particles.writeParticlesToXmlForRestart(restart_xml, body_element);
     }
-    
+
     // Write the consolidated XML file
     restart_xml.writeToXmlFile(overall_filefullpath);
 }
@@ -107,18 +115,18 @@ void RestartIO::writeToFile(size_t iteration_step)
 Real RestartIO::readRestartTime(size_t restart_step)
 {
     std::string overall_filefullpath = overall_file_path_ + padValueWithZeros(restart_step) + ".xml";
-    
+
     // Check for new format first
     if (fs::exists(overall_filefullpath))
     {
         XmlParser restart_xml("xml_restart");
         restart_xml.loadXmlFile(overall_filefullpath);
-        
+
         Real restart_time;
         restart_xml.queryAttributeValue(restart_xml.first_element_, "restart_time", restart_time);
         return restart_time;
     }
-    
+
     // Fallback to old format for backward compatibility
     std::string old_filefullpath = io_environment_.RestartFolder() + "/Restart_time_" + padValueWithZeros(restart_step) + ".dat";
     if (!fs::exists(old_filefullpath))
@@ -138,29 +146,29 @@ Real RestartIO::readRestartTime(size_t restart_step)
 void RestartIO::readFromFile(size_t restart_step)
 {
     std::cout << "\n Reading restart files from the restart step = " << restart_step << std::endl;
-    
+
     std::string overall_filefullpath = overall_file_path_ + padValueWithZeros(restart_step) + ".xml";
-    
+
     // Check for new consolidated format first
     if (fs::exists(overall_filefullpath))
     {
         XmlParser restart_xml("xml_restart");
         restart_xml.loadXmlFile(overall_filefullpath);
-        
+
         // Iterate through all body elements in the XML
         for (size_t i = 0; i < real_bodies_.size(); ++i)
         {
             std::string body_name = real_bodies_[i]->getName();
             BaseParticles &base_particles = real_bodies_[i]->getBaseParticles();
-            
+
             // Find the body element by iterating through child elements
             tinyxml2::XMLElement *body_element = restart_xml.first_element_->FirstChildElement("body");
             bool found = false;
-            
+
             while (body_element != nullptr)
             {
                 const char *name_attr = body_element->Attribute("name");
-                
+
                 if (name_attr != nullptr && std::string(name_attr) == body_name)
                 {
                     found = true;
@@ -169,13 +177,13 @@ void RestartIO::readFromFile(size_t restart_step)
                               << " read from restart: " << base_particles.TotalRealParticles() << "\n";
                     break;
                 }
-                
+
                 body_element = body_element->NextSiblingElement("body");
             }
-            
+
             if (!found)
             {
-                std::cout << "\n Error: body " << body_name << " not found in restart file: " 
+                std::cout << "\n Error: body " << body_name << " not found in restart file: "
                           << overall_filefullpath << std::endl;
                 std::cout << __FILE__ << ':' << __LINE__ << std::endl;
                 exit(1);
@@ -224,6 +232,7 @@ ReloadParticleIO::ReloadParticleIO(SPHBody &sph_body)
 //=============================================================================================//
 void ReloadParticleIO::writeToFile(size_t iteration_step)
 {
+    ensureOutputFolder();
     for (size_t i = 0; i < bodies_.size(); ++i)
     {
         std::string filefullpath = file_names_[i];
@@ -243,6 +252,7 @@ ParticleGenerationRecording::ParticleGenerationRecording(SPHBody &sph_body)
 //=============================================================================================//
 void ParticleGenerationRecording::writeToFile(size_t iteration_step)
 {
+    ensureOutputFolder();
     writeWithFileName(padValueWithZeros(iteration_step));
 }
 //=================================================================================================//

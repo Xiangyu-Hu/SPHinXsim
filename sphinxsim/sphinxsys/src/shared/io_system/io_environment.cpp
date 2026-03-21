@@ -11,10 +11,13 @@ IOEnvironment::IOEnvironment(SPHSystem &sph_system)
       input_folder_("./input"), output_folder_("./output"),
       restart_folder_("./restart"), reload_folder_("./reload")
 {
-    if (!fs::exists(input_folder_))
-    {
-        fs::create_directory(input_folder_);
-    }
+    sph_system.io_environment_ = this;
+}
+//=================================================================================================//
+void IOEnvironment::ensureOutputFolder()
+{
+    if (output_folder_ready_)
+        return;
 
     if (!fs::exists(output_folder_))
     {
@@ -34,17 +37,7 @@ IOEnvironment::IOEnvironment(SPHSystem &sph_system)
         fs::create_directory(output_folder_);
     }
 
-    if (!fs::exists(restart_folder_))
-    {
-        fs::create_directory(restart_folder_);
-    }
-
-    if (!fs::exists(reload_folder_))
-    {
-        fs::create_directory(reload_folder_);
-    }
-
-    sph_system.io_environment_ = this;
+    output_folder_ready_ = true;
 }
 //=================================================================================================//
 void IOEnvironment::resetForRestart()

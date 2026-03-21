@@ -77,6 +77,7 @@ class BaseIO
     }
 
     bool isBodyIncluded(const SPHBodyVector &bodies, SPHBody *sph_body);
+    void ensureOutputFolder();
 };
 
 /**

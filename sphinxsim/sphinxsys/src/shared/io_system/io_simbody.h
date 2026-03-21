@@ -49,6 +49,7 @@ class WriteSimBodyStates : public BaseIO
   protected:
     SimTK::RungeKuttaMersonIntegrator &integ_;
     MobilizedBodyType &mobody_;
+    bool header_written_{false};
 };
 
 /**

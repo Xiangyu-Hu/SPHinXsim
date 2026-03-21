@@ -50,6 +50,9 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
 
         print(f"📁 Now, the work folder is changed to: {work_dir}")
 
+        sim.initializeSimulation()
+        print("✅ Simulation initialized")
+
         # Run simulation
         print("\n🚀 Running simulation...")
         

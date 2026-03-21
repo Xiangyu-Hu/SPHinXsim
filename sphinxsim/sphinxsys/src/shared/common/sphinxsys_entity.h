@@ -34,6 +34,7 @@
 #include "ownership.h"
 
 #include <memory>
+#include <algorithm>
 #include <typeindex>
 #include <unordered_map>
 
@@ -59,6 +60,9 @@ class EntityManager
     EntityManager() = default;
     ~EntityManager() {};
 
+    /** Remove all registered entities (non-owning registry reset). */
+    void clear() { all_entities_.clear(); }
+
     template <typename T>
     T *addEntity(const std::string &name, T *entity)
     {
@@ -66,14 +70,55 @@ class EntityManager
         if (existing_entity == nullptr)
         {
             all_entities_[typeid(T)][name] = entity;
+            return entity;
         }
+        return existing_entity;
+    }
+
+    template <typename T>
+    T *addEntityOrThrow(const std::string &name, T *entity)
+    {
+        T *existing_entity = findEntityByName<T>(name);
+        if (existing_entity != nullptr)
+        {
+            throw std::runtime_error(std::string(type_name<T>()) + ": duplicated entity name '" + name + "'");
+        }
+        all_entities_[typeid(T)][name] = entity;
         return entity;
+    }
+
+    template <typename T>
+    bool removeEntity(const std::string &name)
+    {
+        auto type_it = all_entities_.find(typeid(T));
+        if (type_it == all_entities_.end())
+            return false;
+
+        return type_it->second.erase(name) > 0;
+    }
+
+    template <typename T>
+    bool hasEntity(const std::string &name) const
+    {
+        return findEntityByName<T>(name) != nullptr;
+    }
+
+    template <typename T>
+    T *tryGetEntityByName(const std::string &name)
+    {
+        return findEntityByName<T>(name);
+    }
+
+    template <typename T>
+    const T *tryGetEntityByName(const std::string &name) const
+    {
+        return findEntityByName<T>(name);
     }
 
     template <typename T>
     T &getEntityByName(const std::string &name)
     {
-        T *entity = findEntityByName<T>(name);
+        T *entity = tryGetEntityByName<T>(name);
         if (entity != nullptr)
         {
             return *entity;
@@ -85,9 +130,39 @@ class EntityManager
     std::vector<T *> entitiesWith()
     {
         std::vector<T *> result;
-        for (const auto &[name, entity] : all_entities_[typeid(T)])
+        auto type_it = all_entities_.find(typeid(T));
+        if (type_it == all_entities_.end())
+            return result;
+
+        for (const auto &[name, entity] : type_it->second)
         {
             result.push_back(static_cast<T *>(entity));
+        }
+        return result;
+    }
+
+    template <typename T>
+    std::vector<T *> entitiesWithSorted()
+    {
+        std::vector<std::pair<std::string, T *>> named_entities;
+        auto type_it = all_entities_.find(typeid(T));
+        if (type_it == all_entities_.end())
+            return {};
+
+        named_entities.reserve(type_it->second.size());
+        for (const auto &[name, entity] : type_it->second)
+        {
+            named_entities.emplace_back(name, static_cast<T *>(entity));
+        }
+
+        std::sort(named_entities.begin(), named_entities.end(),
+                  [](const auto &a, const auto &b) { return a.first < b.first; });
+
+        std::vector<T *> result;
+        result.reserve(named_entities.size());
+        for (const auto &entry : named_entities)
+        {
+            result.push_back(entry.second);
         }
         return result;
     }
@@ -96,14 +171,29 @@ class EntityManager
     template <typename T>
     T *findEntityByName(const std::string &name)
     {
-        for (const auto &[entity_name, entity] : all_entities_[typeid(T)])
-        {
-            if (entity_name == name)
-            {
-                return static_cast<T *>(entity);
-            }
-        }
-        return nullptr;
+        auto type_it = all_entities_.find(typeid(T));
+        if (type_it == all_entities_.end())
+            return nullptr;
+
+        auto entity_it = type_it->second.find(name);
+        if (entity_it == type_it->second.end())
+            return nullptr;
+
+        return static_cast<T *>(entity_it->second);
+    }
+
+    template <typename T>
+    const T *findEntityByName(const std::string &name) const
+    {
+        auto type_it = all_entities_.find(typeid(T));
+        if (type_it == all_entities_.end())
+            return nullptr;
+
+        auto entity_it = type_it->second.find(name);
+        if (entity_it == type_it->second.end())
+            return nullptr;
+
+        return static_cast<const T *>(entity_it->second);
     }
 };
 } // namespace SPH

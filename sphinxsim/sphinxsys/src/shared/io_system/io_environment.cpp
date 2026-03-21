@@ -11,14 +11,6 @@ IOEnvironment::IOEnvironment(SPHSystem &sph_system)
       input_folder_("./input"), output_folder_("./output"),
       restart_folder_("./restart"), reload_folder_("./reload")
 {
-    sph_system.io_environment_ = this;
-}
-//=================================================================================================//
-void IOEnvironment::ensureOutputFolder()
-{
-    if (output_folder_ready_)
-        return;
-
     if (!fs::exists(output_folder_))
     {
         fs::create_directory(output_folder_);
@@ -37,7 +29,17 @@ void IOEnvironment::ensureOutputFolder()
         fs::create_directory(output_folder_);
     }
 
-    output_folder_ready_ = true;
+    if (!fs::exists(restart_folder_))
+    {
+        fs::create_directory(restart_folder_);
+    }
+
+    if (!fs::exists(reload_folder_))
+    {
+        fs::create_directory(reload_folder_);
+    }
+
+    sph_system.io_environment_ = this;
 }
 //=================================================================================================//
 void IOEnvironment::resetForRestart()
@@ -68,6 +70,11 @@ void IOEnvironment::appendOutputFolder(const std::string &append_name)
 //=================================================================================================//
 void IOEnvironment::resetOutputFolder(const std::string &new_name)
 {
+    if (fs::exists(output_folder_))
+    {
+        fs::remove_all(output_folder_);
+    }
+
     output_folder_ = new_name;
     if (!fs::exists(output_folder_))
     {
@@ -82,6 +89,11 @@ void IOEnvironment::resetOutputFolder(const std::string &new_name)
 //=================================================================================================//
 void IOEnvironment::resetRestartFolder(const std::string &new_name)
 {
+    if (fs::exists(restart_folder_))
+    {
+        fs::remove_all(restart_folder_);
+    }
+
     restart_folder_ = new_name;
     if (!fs::exists(restart_folder_))
     {
@@ -96,6 +108,11 @@ void IOEnvironment::resetRestartFolder(const std::string &new_name)
 //=================================================================================================//
 void IOEnvironment::resetReloadFolder(const std::string &new_name)
 {
+    if (fs::exists(reload_folder_))
+    {
+        fs::remove_all(reload_folder_);
+    }
+
     reload_folder_ = new_name;
     if (!fs::exists(reload_folder_))
     {

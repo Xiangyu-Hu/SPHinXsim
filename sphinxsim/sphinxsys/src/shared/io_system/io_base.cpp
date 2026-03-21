@@ -22,11 +22,6 @@ bool BaseIO::isBodyIncluded(const SPHBodyVector &bodies, SPHBody *sph_body)
                                { return body == sph_body; });
     return result != bodies.end();
 }
-//=============================================================================================/
-void BaseIO::ensureOutputFolder()
-{
-    io_environment_.ensureOutputFolder();
-}
 //=============================================================================================//
 BodyStatesRecording::BodyStatesRecording(SPHSystem &sph_system)
     : BaseIO(sph_system), bodies_(sph_system.getRealBodies()),
@@ -42,7 +37,6 @@ void BodyStatesRecording::writeToFile()
     {
         derived_variable->exec();
     }
-    ensureOutputFolder();
     writeWithFileName(convertPhysicalTimeToString(sv_physical_time_->getValue()));
 }
 //=============================================================================================//
@@ -52,7 +46,6 @@ void BodyStatesRecording::writeToFile(size_t iteration_step)
     {
         derived_variable->exec();
     }
-    ensureOutputFolder();
     writeWithFileName("ite_" + padValueWithZeros(iteration_step));
 };
 //=============================================================================================//
@@ -73,7 +66,6 @@ RestartIO::RestartIO(SPHSystem &sph_system)
 //=============================================================================================//
 void RestartIO::writeToFile(size_t iteration_step)
 {
-    ensureOutputFolder();
     std::string overall_filefullpath = overall_file_path_ + padValueWithZeros(iteration_step) + ".xml";
     if (fs::exists(overall_filefullpath))
     {
@@ -232,7 +224,6 @@ ReloadParticleIO::ReloadParticleIO(SPHBody &sph_body)
 //=============================================================================================//
 void ReloadParticleIO::writeToFile(size_t iteration_step)
 {
-    ensureOutputFolder();
     for (size_t i = 0; i < bodies_.size(); ++i)
     {
         std::string filefullpath = file_names_[i];
@@ -252,7 +243,6 @@ ParticleGenerationRecording::ParticleGenerationRecording(SPHBody &sph_body)
 //=============================================================================================//
 void ParticleGenerationRecording::writeToFile(size_t iteration_step)
 {
-    ensureOutputFolder();
     writeWithFileName(padValueWithZeros(iteration_step));
 }
 //=================================================================================================//

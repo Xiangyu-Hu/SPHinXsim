@@ -66,7 +66,6 @@ class IOEnvironment
     std::string OutputFolder() const { return output_folder_; }
     std::string RestartFolder() const { return restart_folder_; }
     std::string ReloadFolder() const { return reload_folder_; }
-    void ensureOutputFolder();
 
   protected:
     SPHSystem &sph_system_;
@@ -74,9 +73,6 @@ class IOEnvironment
     std::string output_folder_;
     std::string restart_folder_;
     std::string reload_folder_;
-
-  private:
-    bool output_folder_ready_{false};
 };
 } // namespace SPH
 #endif // IO_ENVIRONMENT_H

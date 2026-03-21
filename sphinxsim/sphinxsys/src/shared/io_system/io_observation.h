@@ -82,7 +82,6 @@ class ObservedQuantityRecording<DataType> : public BaseQuantityRecording
 
     virtual void writeToFile(size_t iteration_step = 0) override
     {
-        ensureOutputFolder();
         if (!header_written_)
         {
           std::ofstream out_file(filefullpath_output_.c_str(), std::ios::out);
@@ -152,8 +151,6 @@ class ReducedQuantityRecording<LocalReduceMethodType> : public BaseQuantityRecor
 
     virtual void writeToFile(size_t iteration_step = 0) override
     {
-      ensureOutputFolder();
-      
       if (!header_written_)
       {
         std::ofstream out_file(filefullpath_output_.c_str(), std::ios::out);
@@ -204,7 +201,6 @@ class SingularVariableRecording : public BaseQuantityRecording
 
     virtual void writeToFile(size_t iteration_step = 0) override
     {
-        ensureOutputFolder();
         if (!header_written_)
         {
           std::ofstream out_file(filefullpath_output_.c_str(), std::ios::out);

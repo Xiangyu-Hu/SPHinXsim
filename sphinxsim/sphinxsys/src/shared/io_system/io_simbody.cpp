@@ -13,7 +13,6 @@ WriteSimBodyPinData::
 //=============================================================================================//
 void WriteSimBodyPinData::writeToFile(size_t iteration_step)
 {
-    ensureOutputFolder();
     if (!header_written_)
     {
         std::ofstream out_file(filefullpath_.c_str(), std::ios::app);
@@ -50,7 +49,6 @@ WriteSimBodyCableData::
 //=============================================================================================//
 void WriteSimBodyCableData::writeToFile(size_t iteration_step)
 {
-    ensureOutputFolder();
     if (!header_written_)
     {
         std::ofstream out_file(filefullpath_.c_str(), std::ios::app);
@@ -105,7 +103,6 @@ WriteSimBodyPlanarData::
 //=============================================================================================//
 void WriteSimBodyPlanarData::writeToFile(size_t iteration_step)
 {
-    ensureOutputFolder();
     if (!header_written_)
     {
         std::ofstream out_file(filefullpath_.c_str(), std::ios::app);
@@ -146,7 +143,6 @@ WriteSimBodyFreeRotationMatrix::
 //=============================================================================================//
 void WriteSimBodyFreeRotationMatrix::writeToFile(size_t iteration_step)
 {
-    ensureOutputFolder();
     if (!header_written_)
     {
         std::ofstream out_file(filefullpath_.c_str(), std::ios::app);
@@ -212,7 +208,6 @@ WriteSimBodyVelocity::
 //=============================================================================================//
 void WriteSimBodyVelocity::writeToFile(size_t iteration_step)
 {
-    ensureOutputFolder();
     if (!header_written_)
     {
         std::ofstream out_file(filefullpath_.c_str(), std::ios::app);

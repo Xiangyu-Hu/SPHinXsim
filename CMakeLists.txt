@@ -3,6 +3,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(sphinxsim_python_binding)
 
+include(CTest)
+option(SPHINXSIM_BUILD_SIMULATION_TESTS "Build and register simulation class C++ tests" ON)
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -60,7 +63,9 @@ if(SPHINXSYS_2D)
     target_compile_features(_sphinxsys_core_2d PRIVATE cxx_std_17)
     install(TARGETS _sphinxsys_core_2d  DESTINATION .)
 
-    add_subdirectory(tests/test_simulation/test_2d_simulation)
+    if(SPHINXSIM_BUILD_SIMULATION_TESTS)
+        add_subdirectory(tests/test_simulation/test_2d_simulation)
+    endif()
 endif()
 
 if(SPHINXSYS_3D)
@@ -77,5 +82,7 @@ if(SPHINXSYS_3D)
     target_compile_features(_sphinxsys_core_3d PRIVATE cxx_std_17)
     install(TARGETS _sphinxsys_core_3d  DESTINATION .)
 
-    add_subdirectory(tests/test_simulation/test_3d_simulation)    
+    if(SPHINXSIM_BUILD_SIMULATION_TESTS)
+        add_subdirectory(tests/test_simulation/test_3d_simulation)
+    endif()
 endif()

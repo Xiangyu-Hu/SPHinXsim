@@ -99,6 +99,12 @@ jobs:
             --config Release \
             --parallel $(nproc)
 
+      - name: Run C++ simulation class tests (ctest)
+        run: |
+          ctest --test-dir ${{ github.workspace }}/build-integrated/tests \
+            --output-on-failure \
+            -R "test_(2d|3d)_simulation$"
+
       - name: Install Python package (editable with dev dependencies)
         run: |
           pip install -e ".[dev]"

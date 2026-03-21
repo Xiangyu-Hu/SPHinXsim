@@ -20,3 +20,4 @@ target_link_libraries(${PROJECT_NAME} sph_simulation_2d)
 
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME}
     WORKING_DIRECTORY ${EXECUTABLE_OUTPUT_PATH})
+set_tests_properties(${PROJECT_NAME} PROPERTIES LABELS "simulation_class")

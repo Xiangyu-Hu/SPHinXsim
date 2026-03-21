@@ -98,13 +98,7 @@ class SPHSimulation
 
     std::vector<std::string> fluid_body_names_;
     std::vector<std::string> wall_body_names_;
-
-    struct ObserverEntry
-    {
-        std::string name;
-        StdVec<Vecd> positions;
-    };
-    std::vector<ObserverEntry> observers_;
+    std::vector<std::string> observer_body_names_;
 
     std::unique_ptr<SolverConfig> solver_config_;
     SPHSystem &getSPHSystem() { return *sph_system_ptr_.get(); };

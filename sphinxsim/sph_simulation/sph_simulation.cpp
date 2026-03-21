@@ -79,18 +79,35 @@ void SPHSimulation::enableGravity(const json &config)
 //=================================================================================================//
 void SPHSimulation::addObserver(const json &config)
 {
-    std::string name = config.at("name").get<std::string>();
+    if (!sph_system_ptr_)
+    {
+        throw std::runtime_error(
+            "SPHSimulation::addObserver: SPH system is not defined. "
+            "Ensure domain and particle parameters are configured first.");
+    }
+
+    const std::string name = config.at("name").get<std::string>();
+    StdVec<Vecd> positions;
     if (config.contains("positions"))
     {
-        StdVec<Vecd> positions;
         for (const auto &p : config.at("positions"))
             positions.push_back(jsonToVecd(p));
-        observers_.push_back({name, positions});
     }
     else if (config.contains("position"))
     {
-        observers_.push_back({name, {jsonToVecd(config.at("position"))}});
+        positions.push_back(jsonToVecd(config.at("position")));
     }
+    else
+    {
+        throw std::runtime_error(
+            "SPHSimulation::addObserver: observer must define either 'position' or 'positions'.");
+    }
+
+    ObserverBody &observer_body = sph_system_ptr_->addBody<ObserverBody>(name);
+    observer_body.generateParticles<ObserverParticles>(positions);
+
+    entity_manager_.addEntity<ObserverBody>(name, &observer_body);
+    observer_body_names_.push_back(name);
 }
 //=================================================================================================//
 SolverConfig &SPHSimulation::useSolver(const json &config)
@@ -183,11 +200,10 @@ void SPHSimulation::run(Real end_time)
     // Create observer bodies and contacts (kept alive for the entire run)
     //----------------------------------------------------------------------
     std::vector<std::unique_ptr<Contact<>>> observer_contacts;
-    observer_contacts.reserve(observers_.size());
-    for (const auto &obs : observers_)
+    observer_contacts.reserve(observer_body_names_.size());
+    for (const auto &observer_name : observer_body_names_)
     {
-        ObserverBody &obs_body = sph_system.addBody<ObserverBody>(obs.name);
-        obs_body.generateParticles<ObserverParticles>(obs.positions);
+        ObserverBody &obs_body = entity_manager_.getEntityByName<ObserverBody>(observer_name);
         observer_contacts.push_back(std::make_unique<Contact<>>(
             obs_body, StdVec<RealBody *>{&water_block}));
     }
@@ -216,7 +232,7 @@ void SPHSimulation::run(Real end_time)
         main_methods.addRelationDynamics(water_block_inner, water_wall_contact);
 
     std::vector<BaseDynamics<void> *> observer_relation_dynamics;
-    observer_relation_dynamics.reserve(observers_.size());
+    observer_relation_dynamics.reserve(observer_body_names_.size());
     for (auto &obs_contact : observer_contacts)
     {
         observer_relation_dynamics.push_back(
@@ -297,7 +313,7 @@ void SPHSimulation::run(Real end_time)
     // Observer output (pressure at observation points)
     //----------------------------------------------------------------------
     std::vector<BaseIO *> observer_pressure_outputs;
-    observer_pressure_outputs.reserve(observers_.size());
+    observer_pressure_outputs.reserve(observer_body_names_.size());
     for (auto &obs_contact : observer_contacts)
     {
         auto &recorder =

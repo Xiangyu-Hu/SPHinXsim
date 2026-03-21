@@ -23,15 +23,6 @@ FluidBlockBuilder &FluidBlockBuilder::material(Real rho0, Real c)
     return *this;
 }
 //=================================================================================================//
-WallBuilder::WallBuilder(const std::string &name) : name_(name) {}
-//=================================================================================================//
-WallBuilder &WallBuilder::hollowBox(const Vecd &domain_dimensions, Real wall_width)
-{
-    domain_dims_ = domain_dimensions;
-    BW_ = wall_width;
-    return *this;
-}
-//=================================================================================================//
 SolverConfig &SolverConfig::dualTimeStepping()
 {
     dual_time_stepping_ = true;

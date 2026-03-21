@@ -73,39 +73,6 @@ class FluidBlockBuilder
 };
 
 /**
- * @class WallBuilder
- * @brief Builder for configuring a solid wall body in a 2D or 3D simulation.
- *
- * Fluent interface example (2D):
- * @code
- *   sim.addWall("Tank").hollowBox(Vec2d(DL, DH), BW);
- * @endcode
- * Fluent interface example (3D):
- * @code
- *   sim.addWall("Tank").hollowBox(Vec3d(DL, DH, DW), BW);
- * @endcode
- */
-class WallBuilder
-{
-  public:
-    explicit WallBuilder(const std::string &name);
-
-    /** Define the wall as a hollow rectangular box aligned with the origin.
-     *  @param domain_dimensions Inner domain dimensions (Vecd for 2D/3D).
-     *  @param wall_width Thickness of the wall. */
-    WallBuilder &hollowBox(const Vecd &domain_dimensions, Real wall_width);
-
-    const std::string &getName() const { return name_; }
-    const Vecd &getDomainDimensions() const { return domain_dims_; }
-    Real getWallWidth() const { return BW_; }
-
-  private:
-    std::string name_;
-    Vecd domain_dims_{Vecd::Zero()};
-    Real BW_{0.0};
-};
-
-/**
  * @class SolverConfig
  * @brief Fluent configuration object for the SPH solver algorithm choices.
  *        Supports: useSolver().dualTimeStepping().freeSurfaceCorrection()

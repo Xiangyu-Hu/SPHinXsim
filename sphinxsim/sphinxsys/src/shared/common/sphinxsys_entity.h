@@ -78,7 +78,7 @@ class EntityManager
         {
             return *entity;
         }
-        throw std::runtime_error(type_name<T>() + ": " + name + " not found");
+        throw std::runtime_error(std::string(type_name<T>()) + ": " + name + " not found");
     }
 
     template <typename T>

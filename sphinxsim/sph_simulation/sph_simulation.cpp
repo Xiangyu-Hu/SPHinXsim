@@ -1,7 +1,5 @@
 #include "sph_simulation.h"
 
-#include "sphinxsys.h"
-
 #include <fstream>
 #include <stdexcept>
 
@@ -17,29 +15,60 @@ void SPHSimulation::defineSPHSystem(const json &config, Real particle_spacing, c
     sph_system_ptr_ = std::make_unique<SPHSystem>(system_domain_bounds, particle_spacing);
 }
 //=================================================================================================//
-FluidBlockBuilder &SPHSimulation::addFluidBlock(const json &config)
+FluidBody &SPHSimulation::addFluidBody(const json &config)
 {
-    fluid_blocks_.push_back(
-        std::make_unique<FluidBlockBuilder>(config.at("name").get<std::string>()));
-    auto &builder = *fluid_blocks_.back();
-    if (config.contains("dimensions"))
-        builder.block(jsonToVecd(config.at("dimensions")));
-    if (config.contains("density") && config.contains("sound_speed"))
-        builder.material(config.at("density").get<Real>(),
-                         config.at("sound_speed").get<Real>());
-    return builder;
+    if (!sph_system_ptr_)
+    {
+        throw std::runtime_error(
+            "SPHSimulation::addFluidBody: SPH system is not defined. "
+            "Ensure domain and particle parameters are configured first.");
+    }
+
+    const std::string name = config.at("name").get<std::string>();
+    const Vecd dimensions = jsonToVecd(config.at("dimensions"));
+    const Real rho0 = config.value("density", Real(1.0));
+    const Real c = config.value("sound_speed", Real(10.0));
+
+    Vecd fluid_halfsize = 0.5 * dimensions;
+    auto &fluid_shape = sph_system_ptr_->addShape<GeometricShapeBox>(
+        Transform(fluid_halfsize), fluid_halfsize, name);
+
+    auto &fluid_body = sph_system_ptr_->addBody<FluidBody>(fluid_shape, name);
+    fluid_body.defineMaterial<WeaklyCompressibleFluid>(rho0, c);
+    fluid_body.generateParticles<BaseParticles, Lattice>();
+
+    entity_manager_.addEntity<FluidBody>(name, &fluid_body);
+    fluid_body_names_.push_back(name);
+    return fluid_body;
 }
 //=================================================================================================//
-WallBuilder &SPHSimulation::addWall(const json &config, const Vecd &domain_dims, Real boundary_width)
+SolidBody &SPHSimulation::addWall(const json &config, const Vecd &domain_dims, Real boundary_width)
 {
-    walls_.push_back(
-        std::make_unique<WallBuilder>(config.at("name").get<std::string>()));
-    auto &builder = *walls_.back();
-    Vecd dims = config.contains("domain_dimensions")
-                    ? jsonToVecd(config.at("domain_dimensions"))
-                    : domain_dims;
-    builder.hollowBox(dims, boundary_width);
-    return builder;
+    if (!sph_system_ptr_)
+    {
+        throw std::runtime_error(
+            "SPHSimulation::addWall: SPH system is not defined. "
+            "Ensure domain and particle parameters are configured first.");
+    }
+
+    const std::string name = config.at("name").get<std::string>();
+    const Vecd dims = config.contains("domain_dimensions")
+                          ? jsonToVecd(config.at("domain_dimensions"))
+                          : domain_dims;
+
+    Vecd inner_halfsize = 0.5 * dims;
+    Vecd outer_halfsize = inner_halfsize + boundary_width * Vecd::Ones();
+    auto &wall_shape = sph_system_ptr_->addShape<ComplexShape>(name);
+    wall_shape.add<GeometricShapeBox>(Transform(inner_halfsize), outer_halfsize);
+    wall_shape.subtract<GeometricShapeBox>(Transform(inner_halfsize), inner_halfsize);
+
+    auto &wall_body = sph_system_ptr_->addBody<SolidBody>(wall_shape, name);
+    wall_body.defineMaterial<Solid>();
+    wall_body.generateParticles<BaseParticles, Lattice>();
+
+    entity_manager_.addEntity<SolidBody>(name, &wall_body);
+    wall_body_names_.push_back(name);
+    return wall_body;
 }
 //=================================================================================================//
 void SPHSimulation::enableGravity(const json &config)
@@ -94,7 +123,7 @@ void SPHSimulation::loadFromJson(const json &config)
         defineSPHSystem(config, particle_spacing, domain_dims, boundary_width);
     if (config.contains("fluid_blocks"))
         for (const auto &fb : config.at("fluid_blocks"))
-            addFluidBlock(fb);
+            addFluidBody(fb);
     if (config.contains("walls"))
         for (const auto &w : config.at("walls"))
             addWall(w, domain_dims, boundary_width);
@@ -127,12 +156,12 @@ void SPHSimulation::run(Real end_time)
     //----------------------------------------------------------------------
     // Validate configuration
     //----------------------------------------------------------------------
-    if (fluid_blocks_.empty())
+    if (fluid_body_names_.empty())
     {
-        std::cerr << "SPHSimulation::run: no fluid block defined.\n";
+        std::cerr << "SPHSimulation::run: no fluid body defined.\n";
         return;
     }
-    if (walls_.empty())
+    if (wall_body_names_.empty())
     {
         std::cerr << "SPHSimulation::run: no wall defined.\n";
         return;
@@ -144,38 +173,11 @@ void SPHSimulation::run(Real end_time)
         return;
     }
     SPHSystem &sph_system = getSPHSystem();
-    //----------------------------------------------------------------------
-    // Derive geometry parameters
-    //----------------------------------------------------------------------
-    const FluidBlockBuilder &fluid_cfg = *fluid_blocks_[0];
-    const WallBuilder &wall_cfg = *walls_[0];
-    const Real BW = wall_cfg.getWallWidth();
 
-    //----------------------------------------------------------------------
-    // Create fluid body (rectangular block starting at the coordinate origin)
-    //----------------------------------------------------------------------
-    Vecd water_halfsize = 0.5 * fluid_cfg.getDimensions();
-    GeometricShapeBox initial_water_block(Transform(water_halfsize),
-                                          water_halfsize, fluid_cfg.getName());
-    FluidBody water_block(sph_system, initial_water_block);
-    water_block.defineMaterial<WeaklyCompressibleFluid>(fluid_cfg.getRho0(),
-                                                        fluid_cfg.getC());
-    water_block.generateParticles<BaseParticles, Lattice>();
-
-    //----------------------------------------------------------------------
-    // Create wall body (hollow box aligned with the domain origin)
-    //----------------------------------------------------------------------
-    Vecd inner_halfsize = 0.5 * wall_cfg.getDomainDimensions();
-    Vecd outer_halfsize = inner_halfsize + BW * Vecd::Ones();
-    // Both inner and outer box are centered at inner_halfsize
-    ComplexShape wall_complex_shape(wall_cfg.getName());
-    wall_complex_shape.add<GeometricShapeBox>(Transform(inner_halfsize),
-                                              outer_halfsize);
-    wall_complex_shape.subtract<GeometricShapeBox>(Transform(inner_halfsize),
-                                                   inner_halfsize);
-    SolidBody wall_boundary(sph_system, wall_complex_shape);
-    wall_boundary.defineMaterial<Solid>();
-    wall_boundary.generateParticles<BaseParticles, Lattice>();
+    const std::string &fluid_name = fluid_body_names_.front();
+    FluidBody &water_block = entity_manager_.getEntityByName<FluidBody>(fluid_name);
+    const std::string &wall_name = wall_body_names_.front();
+    SolidBody &wall_boundary = entity_manager_.getEntityByName<SolidBody>(wall_name);
 
     //----------------------------------------------------------------------
     // Create observer bodies and contacts (kept alive for the entire run)
@@ -273,8 +275,9 @@ void SPHSimulation::run(Real end_time)
     //----------------------------------------------------------------------
     // Time step estimators
     //----------------------------------------------------------------------
+    Fluid &fluid_material = DynamicCast<Fluid>(this, water_block.getBaseMaterial());
     const Real U_ref =
-        fluid_cfg.getC() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
+        fluid_material.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
     auto &fluid_advection_time_step =
         main_methods.addReduceDynamics<fluid_dynamics::AdvectionTimeStepCK>(
             water_block, U_ref);

@@ -35,6 +35,8 @@
 #include "base_data_type_package.h"
 #include "sph_simulation_builder.h"
 #include "sph_simulation_json.h"
+#include "sphinxsys.h"
+
 namespace SPH
 {
 /**
@@ -82,19 +84,20 @@ class SPHSimulation
 
   private:
     void defineSPHSystem(const json &config, Real particle_spacing, const Vecd &domain_dims, Real boundary_width);
-    FluidBlockBuilder &addFluidBlock(const json &config);
-    WallBuilder &addWall(const json &config, const Vecd &domain_dims, Real boundary_width);
+    FluidBody &addFluidBody(const json &config);
+    SolidBody &addWall(const json &config, const Vecd &domain_dims, Real boundary_width);
     void enableGravity(const json &config);
     void addObserver(const json &config);
     SolverConfig &useSolver(const json &config);
 
     std::filesystem::path config_path_;
+    EntityManager entity_manager_;
     Real end_time_{0.0};
     Vecd gravity_{Vecd::Zero()};
     bool gravity_enabled_{false};
 
-    std::vector<std::unique_ptr<FluidBlockBuilder>> fluid_blocks_;
-    std::vector<std::unique_ptr<WallBuilder>> walls_;
+    std::vector<std::string> fluid_body_names_;
+    std::vector<std::string> wall_body_names_;
 
     struct ObserverEntry
     {

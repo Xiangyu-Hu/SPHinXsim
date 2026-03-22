@@ -1,4 +1,4 @@
-# ![SPHinXsys Logo](../assets/images/logo.png) SPHinXsim Documentation
+# ![SPHinXsys Logo](assets/images/logo.png) SPHinXsim Documentation
 
 ## Introduction
 

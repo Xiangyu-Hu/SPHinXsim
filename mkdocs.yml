@@ -2,6 +2,8 @@ site_name: SPHinXsim
 
 theme:
   name: material
+  favicon: images/logo-16x16.ico
+  logo: images/logo.png
 
   features:
     - navigation.tabs

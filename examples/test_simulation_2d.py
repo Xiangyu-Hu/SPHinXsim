@@ -76,9 +76,7 @@ def main(simulation_time=2.0):
         os.chdir(original_dir)
 
 def test_example_dambreak_2d():
-    basetemp_path = PROJECT_ROOT / ".build-temp" / ".pytest_tmp"
-    basetemp_path.mkdir(parents=True, exist_ok=True)
-    assert main(basetemp_path)
+    assert main()
 
 if __name__ == "__main__":
 

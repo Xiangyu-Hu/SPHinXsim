@@ -3,6 +3,7 @@ site_name: SPHinXsim
 theme:
   name: material
   favicon: assets/logo.png
+  logo: assets/logo.png        # header + social / pinned icons
 
   features:
     - navigation.tabs

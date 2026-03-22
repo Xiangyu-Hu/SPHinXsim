@@ -19,12 +19,22 @@ class TestLoadConfigHelper:
 
     def _valid_data(self) -> dict:
         return {
-            "name": "helper test",
-            "physics": "fluid",
-            "domain": {"bounds_min": [0.0, 0.0], "bounds_max": [1.0, 1.0], "resolution": 0.05},
-            "materials": [{"name": "water", "density": 1000.0, "dynamic_viscosity": 0.001}],
-            "boundary_conditions": [],
-            "time_stepping": {"end_time": 1.0, "output_interval": 0.1},
+            "domain": {"dimensions": [1.0, 1.0]},
+            "particle_spacing": 0.05,
+            "particle_boundary_buffer": 4,
+            "fluid_blocks": [
+                {
+                    "name": "helper test",
+                    "dimensions": [0.4, 0.2],
+                    "density": 1000.0,
+                    "sound_speed": 20.0,
+                }
+            ],
+            "walls": [{"name": "WallBoundary"}],
+            "gravity": [0.0, -1.0],
+            "observers": [{"name": "Observer", "positions": [[0.5, 0.2]]}],
+            "solver": {"dual_time_stepping": True, "free_surface_correction": True},
+            "end_time": 1.0,
         }
 
     def test_valid_returns_config_and_zero(self, build_temp_path):
@@ -32,7 +42,7 @@ class TestLoadConfigHelper:
         config, rc = _load_config(p)
         assert rc == 0
         assert config is not None
-        assert config.name == "helper test"
+        assert config.fluid_blocks[0].name == "helper test"
 
     def test_missing_file_returns_none_and_nonzero(self, build_temp_path):
         config, rc = _load_config(build_temp_path / "missing.json")
@@ -48,7 +58,7 @@ class TestLoadConfigHelper:
 
     def test_invalid_schema_returns_none_and_nonzero(self, build_temp_path):
         bad = self._valid_data()
-        bad["domain"]["resolution"] = -1
+        bad["particle_spacing"] = -1
         p = self._write(build_temp_path, bad)
         config, rc = _load_config(p)
         assert config is None
@@ -61,8 +71,9 @@ class TestCLIGenerate:
         assert rc == 0
         captured = capsys.readouterr()
         data = json.loads(captured.out)
-        assert "physics" in data
-        assert data["physics"] == "fluid"
+        assert "domain" in data
+        assert "fluid_blocks" in data
+        assert data["fluid_blocks"]
 
     def test_generate_to_file(self, build_temp_path, capsys):
         out_file = build_temp_path / "cfg.json"
@@ -70,7 +81,7 @@ class TestCLIGenerate:
         assert rc == 0
         assert out_file.exists()
         data = json.loads(out_file.read_text())
-        assert data["physics"] == "solid"
+        assert data["fluid_blocks"][0]["name"]
 
     def test_generate_creates_parent_dirs(self, build_temp_path):
         out_file = build_temp_path / "nested" / "dir" / "cfg.json"
@@ -98,16 +109,22 @@ class TestCLIValidate:
 
     def _valid_data(self) -> dict:
         return {
-            "name": "test",
-            "physics": "fluid",
-            "domain": {
-                "bounds_min": [0.0, 0.0],
-                "bounds_max": [1.0, 1.0],
-                "resolution": 0.05,
-            },
-            "materials": [{"name": "water", "density": 1000.0, "dynamic_viscosity": 0.001}],
-            "boundary_conditions": [],
-            "time_stepping": {"end_time": 1.0, "output_interval": 0.1},
+            "domain": {"dimensions": [1.0, 1.0]},
+            "particle_spacing": 0.05,
+            "particle_boundary_buffer": 4,
+            "fluid_blocks": [
+                {
+                    "name": "test",
+                    "dimensions": [0.4, 0.2],
+                    "density": 1000.0,
+                    "sound_speed": 20.0,
+                }
+            ],
+            "walls": [{"name": "WallBoundary"}],
+            "gravity": [0.0, -1.0],
+            "observers": [{"name": "Observer", "positions": [[0.5, 0.2]]}],
+            "solver": {"dual_time_stepping": True, "free_surface_correction": True},
+            "end_time": 1.0,
         }
 
     def test_valid_config(self, build_temp_path, capsys):
@@ -116,11 +133,11 @@ class TestCLIValidate:
         assert rc == 0
         output = capsys.readouterr().out
         assert "Generated configuration" in output
-        assert "test" in output
+        assert "Domain dimensions" in output
 
     def test_invalid_config(self, build_temp_path):
         bad = self._valid_data()
-        bad["domain"]["resolution"] = -1  # invalid
+        bad["particle_spacing"] = -1  # invalid
         p = self._write_config(build_temp_path, bad)
         rc = main(["validate", str(p)])
         assert rc != 0
@@ -139,16 +156,22 @@ class TestCLIValidate:
 class TestCLIRun:
     def _write_valid(self, build_temp_path: Path) -> Path:
         data = {
-            "name": "quick run",
-            "physics": "fluid",
-            "domain": {
-                "bounds_min": [0.0, 0.0],
-                "bounds_max": [1.0, 1.0],
-                "resolution": 0.1,
-            },
-            "materials": [{"name": "water", "density": 1000.0, "dynamic_viscosity": 0.001}],
-            "boundary_conditions": [],
-            "time_stepping": {"end_time": 0.5, "output_interval": 0.1},
+            "domain": {"dimensions": [1.0, 1.0]},
+            "particle_spacing": 0.1,
+            "particle_boundary_buffer": 4,
+            "fluid_blocks": [
+                {
+                    "name": "quick run",
+                    "dimensions": [0.4, 0.2],
+                    "density": 1000.0,
+                    "sound_speed": 20.0,
+                }
+            ],
+            "walls": [{"name": "WallBoundary"}],
+            "gravity": [0.0, -1.0],
+            "observers": [{"name": "Observer", "positions": [[0.5, 0.2]]}],
+            "solver": {"dual_time_stepping": True, "free_surface_correction": True},
+            "end_time": 0.5,
         }
         p = build_temp_path / "config.json"
         p.write_text(json.dumps(data))

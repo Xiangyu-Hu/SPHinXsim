@@ -1,25 +1,21 @@
 """sphinxsim.config – simulation configuration schemas."""
 
 from sphinxsim.config.schemas import (
-    BoundaryCondition,
-    BoundaryType,
     DomainConfig,
-    MaterialConfig,
-    OutputConfig,
-    OutputFormat,
+    FluidBlockConfig,
+    ObserverConfig,
     PhysicsType,
     SimulationConfig,
-    TimeSteppingConfig,
+    SolverConfig,
+    WallConfig,
 )
 
 __all__ = [
-    "BoundaryCondition",
-    "BoundaryType",
     "DomainConfig",
-    "MaterialConfig",
-    "OutputConfig",
-    "OutputFormat",
+    "FluidBlockConfig",
+    "ObserverConfig",
     "PhysicsType",
     "SimulationConfig",
-    "TimeSteppingConfig",
+    "SolverConfig",
+    "WallConfig",
 ]

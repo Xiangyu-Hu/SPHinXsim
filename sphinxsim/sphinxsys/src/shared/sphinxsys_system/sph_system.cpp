@@ -40,12 +40,7 @@ void SPHSystem::setLogLevel(size_t log_level)
 //=================================================================================================//
 IOEnvironment &SPHSystem::getIOEnvironment()
 {
-    if (io_environment_ == nullptr)
-    {
-        std::cout << "\n Error: IO Environment not setup yet! \n";
-        std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-        exit(1);
-    }
+    checkPointer(io_environment_, "io_environment_", "SPHSystem");
     return *io_environment_;
 }
 //=================================================================================================//

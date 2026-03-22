@@ -11,14 +11,8 @@ import re
 from typing import Any, Dict
 
 from sphinxsim.config.schemas import (
-    BoundaryCondition,
-    BoundaryType,
-    DomainConfig,
-    MaterialConfig,
-    OutputConfig,
     PhysicsType,
     SimulationConfig,
-    TimeSteppingConfig,
 )
 
 
@@ -27,47 +21,55 @@ from sphinxsim.config.schemas import (
 # ---------------------------------------------------------------------------
 
 _FLUID_TEMPLATE: Dict[str, Any] = {
-    "physics": PhysicsType.FLUID,
-    "domain": {"bounds_min": [0.0, 0.0], "bounds_max": [1.0, 1.0], "resolution": 0.02},
-    "materials": [
-        {"name": "water", "density": 1000.0, "dynamic_viscosity": 1e-3}
+    "domain": {"dimensions": [5.366, 5.366]},
+    "particle_spacing": 0.025,
+    "particle_boundary_buffer": 4,
+    "fluid_blocks": [
+        {"name": "WaterBody", "dimensions": [2.0, 1.0], "density": 1.0, "sound_speed": 20.0}
     ],
-    "boundary_conditions": [
-        {"name": "inlet", "type": BoundaryType.INLET, "velocity": [1.0, 0.0]},
-        {"name": "outlet", "type": BoundaryType.OUTLET, "pressure": 0.0},
-        {"name": "walls", "type": BoundaryType.WALL},
+    "walls": [
+        {"name": "WallBoundary"},
     ],
-    "time_stepping": {"end_time": 1.0, "output_interval": 0.1},
-    "output": {"directory": "./output", "format": "vtp"},
+    "gravity": [0.0, -1.0],
+    "observers": [
+        {"name": "FluidObserver", "positions": [[5.366, 0.2]]}
+    ],
+    "solver": {"dual_time_stepping": True, "free_surface_correction": True},
+    "end_time": 1.0,
 }
 
 _SOLID_TEMPLATE: Dict[str, Any] = {
-    "physics": PhysicsType.SOLID,
-    "domain": {"bounds_min": [0.0, 0.0], "bounds_max": [1.0, 0.2], "resolution": 0.01},
-    "materials": [
-        {"name": "steel", "density": 7850.0, "youngs_modulus": 2e11, "poisson_ratio": 0.3}
+    "domain": {"dimensions": [1.0, 0.2]},
+    "particle_spacing": 0.01,
+    "particle_boundary_buffer": 4,
+    "fluid_blocks": [
+        {"name": "ReferenceBody", "dimensions": [0.5, 0.1], "density": 7850.0, "sound_speed": 50.0}
     ],
-    "boundary_conditions": [
-        {"name": "fixed_end", "type": BoundaryType.WALL},
+    "walls": [
+        {"name": "WallBoundary"},
     ],
-    "time_stepping": {"end_time": 0.5, "output_interval": 0.05},
-    "output": {"directory": "./output", "format": "vtu"},
+    "gravity": [0.0, -1.0],
+    "observers": [],
+    "solver": {"dual_time_stepping": True, "free_surface_correction": True},
+    "end_time": 0.5,
 }
 
 _FSI_TEMPLATE: Dict[str, Any] = {
-    "physics": PhysicsType.FSI,
-    "domain": {"bounds_min": [0.0, 0.0], "bounds_max": [2.0, 1.0], "resolution": 0.02},
-    "materials": [
-        {"name": "water", "density": 1000.0, "dynamic_viscosity": 1e-3},
-        {"name": "elastic_plate", "density": 1100.0, "youngs_modulus": 1e6, "poisson_ratio": 0.4},
+    "domain": {"dimensions": [2.0, 1.0]},
+    "particle_spacing": 0.02,
+    "particle_boundary_buffer": 4,
+    "fluid_blocks": [
+        {"name": "WaterBody", "dimensions": [0.8, 0.4], "density": 1000.0, "sound_speed": 20.0}
     ],
-    "boundary_conditions": [
-        {"name": "inlet", "type": BoundaryType.INLET, "velocity": [0.5, 0.0]},
-        {"name": "outlet", "type": BoundaryType.OUTLET, "pressure": 0.0},
-        {"name": "walls", "type": BoundaryType.WALL},
+    "walls": [
+        {"name": "WallBoundary"},
     ],
-    "time_stepping": {"end_time": 2.0, "output_interval": 0.1},
-    "output": {"directory": "./output", "format": "vtp"},
+    "gravity": [0.0, -1.0],
+    "observers": [
+        {"name": "FluidObserver", "positions": [[2.0, 0.2]]}
+    ],
+    "solver": {"dual_time_stepping": True, "free_surface_correction": True},
+    "end_time": 2.0,
 }
 
 _TEMPLATES = {
@@ -119,6 +121,18 @@ def _extract_name(description: str) -> str:
     return sentence or "unnamed simulation"
 
 
+def _sync_geometry(cfg: Dict[str, Any]) -> None:
+    dims = cfg["domain"]["dimensions"]
+    domain_x = dims[0]
+    domain_y = dims[1] if len(dims) > 1 else dims[0]
+
+    if cfg.get("fluid_blocks"):
+        cfg["fluid_blocks"][0]["dimensions"] = [0.4 * domain_x, 0.2 * domain_y]
+
+    if cfg.get("observers") and cfg["observers"][0].get("positions"):
+        cfg["observers"][0]["positions"] = [[domain_x, min(0.2, domain_y)]]
+
+
 def _apply_overrides(template: Dict[str, Any], description: str) -> Dict[str, Any]:
     """Apply simple numeric overrides extracted from *description* to *template*.
 
@@ -132,36 +146,31 @@ def _apply_overrides(template: Dict[str, Any], description: str) -> Dict[str, An
 
     cfg = copy.deepcopy(template)
 
-    # Velocity override
+    # Velocity override (mapped to sound speed as c ~= 10U)
     vel_match = re.search(r"(\d+(?:\.\d+)?)\s*m/s", description, re.IGNORECASE)
     if vel_match:
         speed = float(vel_match.group(1))
-        for bc in cfg.get("boundary_conditions", []):
-            if bc.get("type") == BoundaryType.INLET and bc.get("velocity") is not None:
-                dim = len(bc["velocity"])
-                bc["velocity"] = [speed] + [0.0] * (dim - 1)
-                break
+        if cfg.get("fluid_blocks"):
+            cfg["fluid_blocks"][0]["sound_speed"] = max(20.0, 10.0 * speed)
 
     # End-time override
     time_match = re.search(r"(\d+(?:\.\d+)?)\s*s\b", description, re.IGNORECASE)
     if time_match:
-        cfg["time_stepping"]["end_time"] = float(time_match.group(1))
-        # Ensure output_interval stays ≤ end_time
-        et = cfg["time_stepping"]["end_time"]
-        if cfg["time_stepping"]["output_interval"] > et:
-            cfg["time_stepping"]["output_interval"] = et / 10.0
+        cfg["end_time"] = float(time_match.group(1))
 
     # Domain size override (e.g. "2 m domain")
     domain_match = re.search(r"(\d+(?:\.\d+)?)\s*m\s+domain", description, re.IGNORECASE)
     if domain_match:
         size = float(domain_match.group(1))
-        dim = len(cfg["domain"]["bounds_min"])
-        cfg["domain"]["bounds_max"] = [size] * dim
+        dim = len(cfg["domain"]["dimensions"])
+        cfg["domain"]["dimensions"] = [size] * dim
 
     # Resolution override (e.g. "5 mm resolution")
     res_match = re.search(r"(\d+(?:\.\d+)?)\s*mm\s+resolution", description, re.IGNORECASE)
     if res_match:
-        cfg["domain"]["resolution"] = float(res_match.group(1)) / 1000.0
+        cfg["particle_spacing"] = float(res_match.group(1)) / 1000.0
+
+    _sync_geometry(cfg)
 
     return cfg
 
@@ -209,6 +218,7 @@ class MockLLM:
 
         physics = _detect_physics(description)
         template = _apply_overrides(_TEMPLATES[physics], description)
-        template["name"] = _extract_name(description)
+        if template.get("fluid_blocks"):
+            template["fluid_blocks"][0]["name"] = _extract_name(description)
 
         return SimulationConfig(**template)

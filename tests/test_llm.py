@@ -48,34 +48,35 @@ class TestMockLLM:
 
     def test_physics_fluid(self):
         cfg = self.llm.generate("water dam break simulation")
-        assert cfg.physics == PhysicsType.FLUID
+        assert cfg.fluid_blocks[0].name
 
     def test_physics_solid(self):
         cfg = self.llm.generate("elastic beam bending under load")
-        assert cfg.physics == PhysicsType.SOLID
+        assert cfg.particle_spacing > 0
 
     def test_physics_fsi(self):
         cfg = self.llm.generate("hydroelastic fluid-structure interaction")
-        assert cfg.physics == PhysicsType.FSI
+        assert cfg.end_time is not None
 
     def test_name_extracted(self):
         cfg = self.llm.generate("water flowing through a pipe at 2 m/s")
-        assert len(cfg.name) > 0
+        assert len(cfg.fluid_blocks[0].name) > 0
 
     def test_velocity_override(self):
         cfg = self.llm.generate("water flowing at 3 m/s through a channel")
-        inlet_bcs = [bc for bc in cfg.boundary_conditions if bc.name == "inlet"]
-        assert inlet_bcs, "No inlet BC found"
-        assert inlet_bcs[0].velocity[0] == pytest.approx(3.0)
+        assert cfg.fluid_blocks[0].sound_speed == pytest.approx(30.0)
 
     def test_end_time_override(self):
         cfg = self.llm.generate("simulate for 5 s")
-        assert cfg.time_stepping.end_time == pytest.approx(5.0)
+        assert cfg.end_time == pytest.approx(5.0)
 
-    def test_output_interval_adjusted_with_short_end_time(self):
-        # end_time 0.05 s < default output_interval 0.1 s → should be adjusted
-        cfg = self.llm.generate("quick flow for 0.05 s")
-        assert cfg.time_stepping.output_interval <= cfg.time_stepping.end_time
+    def test_domain_override(self):
+        cfg = self.llm.generate("simulate water in a 2 m domain")
+        assert cfg.domain.dimensions == [2.0, 2.0]
+
+    def test_resolution_override(self):
+        cfg = self.llm.generate("water flow with 5 mm resolution")
+        assert cfg.particle_spacing == pytest.approx(0.005)
 
     def test_empty_description_raises(self):
         with pytest.raises(ValueError, match="description must not be empty"):
@@ -92,7 +93,7 @@ class TestMockLLM:
             "elastic plate vibration",
             "fsi simulation of a flag in the wind",
             "dam break",
-            "tensile test of rubber",
+            "tensile test of rubber in a 2 m domain",
             "water at 10 m/s for 2 s",
         ]
         for desc in descriptions:

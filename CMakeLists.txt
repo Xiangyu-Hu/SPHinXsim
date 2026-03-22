@@ -26,6 +26,8 @@ endif()
 # Use the system Python version (3.11)
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
+find_package(VTK REQUIRED COMPONENTS CommonCore CommonDataModel IOXML)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 # Set SPHinXsys options to minimal for Python binding
 set(SPHINXSYS_BUILD_TESTS OFF CACHE BOOL "Don't build tests")
@@ -34,24 +36,46 @@ set(SPHINXSYS_USE_SYCL OFF CACHE BOOL "Disable SYCL")
 set(SPHINXSYS_2D ON CACHE BOOL "Build 2D library")
 set(SPHINXSYS_3D ON CACHE BOOL "Build 3D library")
     
-# Include SPHinXsys as subdirectory - this will build the libraries
+# Include SPHinXsys as subdirectory - this will build the sphinxsys libraries
 add_subdirectory(sphinxsim/sphinxsys)
+
+# Include headers and sources for sph simulation library
+set(SPH_SIMULATION_INCLUDE ${CMAKE_SOURCE_DIR}/sphinxsim/sph_simulation)
+file(GLOB_RECURSE SPH_SIMULATION_SOURCES CONFIGURE_DEPENDS sphinxsim/sph_simulation/*.cpp)
 
 # Define the source file
 set(BIND_SOURCE_FILES sphinxsim/bindings/sphinxsys_python.cpp)
 
 if(SPHINXSYS_2D)
+    add_library(sph_simulation_2d)
+    target_include_directories(sph_simulation_2d PUBLIC ${SPH_SIMULATION_INCLUDE})
+    target_sources(sph_simulation_2d INTERFACE ${SPH_SIMULATION_SOURCES})
+    target_link_libraries(sph_simulation_2d INTERFACE VTK::CommonCore VTK::CommonDataModel VTK::IOXML)
+    target_link_libraries(sph_simulation_2d PRIVATE nlohmann_json::nlohmann_json)
+    target_link_libraries(sph_simulation_2d PUBLIC sphinxsys_2d)
+
     pybind11_add_module(_sphinxsys_core_2d ${BIND_SOURCE_FILES})
-    target_link_libraries(_sphinxsys_core_2d PRIVATE sphinxsys_2d)
+    target_link_libraries(_sphinxsys_core_2d PRIVATE sph_simulation_2d)
     target_compile_definitions(_sphinxsys_core_2d PRIVATE SPHINXSYS_2D VERSION_INFO="0.1.0")
     target_compile_features(_sphinxsys_core_2d PRIVATE cxx_std_17)
     install(TARGETS _sphinxsys_core_2d  DESTINATION .)
+
+    add_subdirectory(tests/test_simulation/test_2d_simulation)
 endif()
 
 if(SPHINXSYS_3D)
+    add_library(sph_simulation_3d)
+    target_include_directories(sph_simulation_3d PUBLIC ${SPH_SIMULATION_INCLUDE})
+    target_sources(sph_simulation_3d INTERFACE ${SPH_SIMULATION_SOURCES})
+    target_link_libraries(sph_simulation_3d INTERFACE VTK::CommonCore VTK::CommonDataModel VTK::IOXML)
+    target_link_libraries(sph_simulation_3d PRIVATE nlohmann_json::nlohmann_json)
+    target_link_libraries(sph_simulation_3d PUBLIC sphinxsys_3d)
+
     pybind11_add_module(_sphinxsys_core_3d ${BIND_SOURCE_FILES})
-    target_link_libraries(_sphinxsys_core_3d PRIVATE sphinxsys_3d)
+    target_link_libraries(_sphinxsys_core_3d PRIVATE sph_simulation_3d)
     target_compile_definitions(_sphinxsys_core_3d PRIVATE SPHINXSYS_3D VERSION_INFO="0.1.0")
     target_compile_features(_sphinxsys_core_3d PRIVATE cxx_std_17)
     install(TARGETS _sphinxsys_core_3d  DESTINATION .)
+
+    add_subdirectory(tests/test_simulation/test_3d_simulation)    
 endif()

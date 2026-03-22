@@ -101,7 +101,7 @@ jobs:
 
       - name: Run C++ simulation class tests (ctest)
         run: |
-          ctest --test-dir ${{ github.workspace }}/build-integrated/tests \
+          ctest --test-dir ${{ github.workspace }}/build-integrated \
             --output-on-failure \
             -R "test_(2d|3d)_simulation$"
 

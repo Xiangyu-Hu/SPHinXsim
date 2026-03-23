@@ -36,8 +36,8 @@ class FluidBlockConfig(BaseModel):
 
     name: str = Field(..., min_length=1)
     dimensions: List[float] = Field(..., min_length=2, max_length=3)
-    density: float = Field(..., gt=0)
-    sound_speed: float = Field(..., gt=0)
+    density: float = Field(default=1.0, gt=0)
+    sound_speed: float = Field(default=10.0, gt=0)
 
     @field_validator("dimensions")
     @classmethod
@@ -51,13 +51,14 @@ class WallConfig(BaseModel):
     """Wall boundary definition accepted by SPHSimulation."""
 
     name: str = Field(..., min_length=1)
-    domain_dimensions: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
+    dimensions: List[float] = Field(..., min_length=2, max_length=3)
+    boundary_width: float = Field(..., gt=0)
 
-    @field_validator("domain_dimensions")
+    @field_validator("dimensions")
     @classmethod
-    def _positive_domain_dimensions(cls, dims: Optional[List[float]]) -> Optional[List[float]]:
-        if dims is not None and any(v <= 0.0 for v in dims):
-            raise ValueError("All wall domain dimensions must be positive")
+    def _positive_dimensions(cls, dims: List[float]) -> List[float]:
+        if any(v <= 0.0 for v in dims):
+            raise ValueError("All wall dimensions must be positive")
         return dims
 
 
@@ -65,22 +66,40 @@ class ObserverConfig(BaseModel):
     """Observer points used for sampling flow quantities."""
 
     name: str = Field(..., min_length=1)
-    positions: List[List[float]] = Field(..., min_length=1)
+    position: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
+    positions: Optional[List[List[float]]] = Field(default=None, min_length=1)
+
+    @field_validator("position")
+    @classmethod
+    def _position_has_valid_dimension(cls, position: Optional[List[float]]) -> Optional[List[float]]:
+        if position is not None and (len(position) < 2 or len(position) > 3):
+            raise ValueError("Observer position must have 2 or 3 components")
+        return position
 
     @field_validator("positions")
     @classmethod
-    def _positions_non_empty_vectors(cls, positions: List[List[float]]) -> List[List[float]]:
+    def _positions_non_empty_vectors(cls, positions: Optional[List[List[float]]]) -> Optional[List[List[float]]]:
+        if positions is None:
+            return positions
         for pos in positions:
             if len(pos) < 2 or len(pos) > 3:
                 raise ValueError("Each observer position must have 2 or 3 components")
         return positions
 
+    @model_validator(mode="after")
+    def _require_exactly_one_position_source(self) -> "ObserverConfig":
+        if self.position is None and self.positions is None:
+            raise ValueError("Observer must define either position or positions")
+        if self.position is not None and self.positions is not None:
+            raise ValueError("Observer must define either position or positions, not both")
+        return self
+
 
 class SolverConfig(BaseModel):
     """Numerical solver toggles accepted by SPHSimulation."""
 
-    dual_time_stepping: bool = True
-    free_surface_correction: bool = True
+    dual_time_stepping: bool = False
+    free_surface_correction: bool = False
 
 
 class SimulationConfig(BaseModel):
@@ -107,10 +126,11 @@ class SimulationConfig(BaseModel):
         if self.gravity is not None and len(self.gravity) != dim:
             raise ValueError("Gravity dimensionality must match domain dimensionality")
         for wall in self.walls:
-            if wall.domain_dimensions is not None and len(wall.domain_dimensions) != dim:
-                raise ValueError("Wall domain_dimensions must match domain dimensionality")
+            if len(wall.dimensions) != dim:
+                raise ValueError("Wall dimensionality must match domain dimensionality")
         for observer in self.observers:
-            for pos in observer.positions:
-                if len(pos) != dim:
+            if observer.position is not None and len(observer.position) != dim:
+                raise ValueError("Observer dimensionality must match domain dimensionality")
+            if observer.positions is not None and any(len(pos) != dim for pos in observer.positions):
                     raise ValueError("Observer dimensionality must match domain dimensionality")
         return self

@@ -125,9 +125,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
         print(f"     - {block.name}: dims={block.dimensions}, rho={block.density}, c={block.sound_speed}")
     print(f"   Walls: {len(config.walls)}")
     for wall in config.walls:
-        print(
-            f"     - {wall.name}: width={config.particle_boundary_buffer * config.particle_spacing}"
-        )
+        print(f"     - {wall.name}: dims={wall.dimensions}, boundary_width={wall.boundary_width}")
     if config.gravity is not None:
         print(f"   Gravity: {config.gravity}")
     print(f"   Observers: {len(config.observers)}")

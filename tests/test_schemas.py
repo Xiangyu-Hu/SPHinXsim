@@ -32,7 +32,7 @@ def _make_minimal_config(**overrides) -> SimulationConfig:
                 "sound_speed": 20.0,
             }
         ],
-        "walls": [{"name": "WallBoundary"}],
+        "walls": [{"name": "WallBoundary", "dimensions": [1.0, 1.0], "boundary_width": 0.2}],
         "gravity": [0.0, -1.0],
         "observers": [{"name": "Obs", "positions": [[0.5, 0.2]]}],
         "solver": {"dual_time_stepping": True, "free_surface_correction": True},
@@ -85,6 +85,11 @@ class TestFluidBlockConfig:
         with pytest.raises(ValidationError):
             FluidBlockConfig(name="x", dimensions=[0.2, -0.1], density=1.0, sound_speed=20.0)
 
+    def test_density_and_sound_speed_default_to_cpp_defaults(self):
+        block = FluidBlockConfig(name="WaterBody", dimensions=[0.5, 0.2])
+        assert block.density == pytest.approx(1.0)
+        assert block.sound_speed == pytest.approx(10.0)
+
 
 # ---------------------------------------------------------------------------
 # WallConfig
@@ -93,16 +98,20 @@ class TestFluidBlockConfig:
 
 class TestWallConfig:
     def test_valid_wall(self):
-        wall = WallConfig(name="WallBoundary")
+        wall = WallConfig(name="WallBoundary", dimensions=[1.0, 1.0], boundary_width=0.2)
         assert wall.name == "WallBoundary"
 
     def test_invalid_wall_name_rejected(self):
         with pytest.raises(ValidationError):
             WallConfig(name="")
 
-    def test_invalid_wall_domain_dimensions_rejected(self):
+    def test_invalid_wall_dimensions_rejected(self):
         with pytest.raises(ValidationError):
-            WallConfig(name="WallBoundary", domain_dimensions=[1.0, 0.0])
+            WallConfig(name="WallBoundary", dimensions=[1.0, 0.0], boundary_width=0.2)
+
+    def test_missing_boundary_width_rejected(self):
+        with pytest.raises(ValidationError):
+            WallConfig(name="WallBoundary", dimensions=[1.0, 1.0])
 
 
 # ---------------------------------------------------------------------------
@@ -115,16 +124,28 @@ class TestObserverConfig:
         obs = ObserverConfig(name="Probe", positions=[[0.5, 0.2], [0.6, 0.3]])
         assert len(obs.positions) == 2
 
+    def test_valid_single_position_observer(self):
+        obs = ObserverConfig(name="Probe", position=[0.5, 0.2])
+        assert obs.position == [0.5, 0.2]
+
     def test_invalid_position_dimension_rejected(self):
         with pytest.raises(ValidationError):
             ObserverConfig(name="Probe", positions=[[1.0]])
+
+    def test_missing_position_and_positions_rejected(self):
+        with pytest.raises(ValidationError, match="either position or positions"):
+            ObserverConfig(name="Probe")
+
+    def test_both_position_and_positions_rejected(self):
+        with pytest.raises(ValidationError, match="either position or positions, not both"):
+            ObserverConfig(name="Probe", position=[0.5, 0.2], positions=[[0.6, 0.3]])
 
 
 class TestSolverConfig:
     def test_defaults(self):
         solver = SolverConfig()
-        assert solver.dual_time_stepping is True
-        assert solver.free_surface_correction is True
+        assert solver.dual_time_stepping is False
+        assert solver.free_surface_correction is False
 
 
 # ---------------------------------------------------------------------------
@@ -147,12 +168,16 @@ class TestSimulationConfig:
             _make_minimal_config(gravity=[0.0, -1.0, 0.0])
 
     def test_dimensionality_mismatch_rejected_wall(self):
-        with pytest.raises(ValidationError, match="Wall domain_dimensions"):
-            _make_minimal_config(walls=[{"name": "WallBoundary", "domain_dimensions": [1.0, 1.0, 1.0]}])
+        with pytest.raises(ValidationError, match="Wall dimensionality"):
+            _make_minimal_config(walls=[{"name": "WallBoundary", "dimensions": [1.0, 1.0, 1.0], "boundary_width": 0.2}])
 
     def test_dimensionality_mismatch_rejected_observer(self):
         with pytest.raises(ValidationError, match="Observer dimensionality"):
             _make_minimal_config(observers=[{"name": "Obs", "positions": [[0.1, 0.2, 0.3]]}])
+
+    def test_dimensionality_mismatch_rejected_single_observer_position(self):
+        with pytest.raises(ValidationError, match="Observer dimensionality"):
+            _make_minimal_config(observers=[{"name": "Obs", "position": [0.1, 0.2, 0.3]}])
 
     def test_end_time_must_be_positive(self):
         with pytest.raises(ValidationError):

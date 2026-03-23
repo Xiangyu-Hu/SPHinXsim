@@ -28,7 +28,7 @@ _FLUID_TEMPLATE: Dict[str, Any] = {
         {"name": "WaterBody", "dimensions": [2.0, 1.0], "density": 1.0, "sound_speed": 20.0}
     ],
     "walls": [
-        {"name": "WallBoundary"},
+        {"name": "WallBoundary", "dimensions": [5.366, 5.366], "boundary_width": 0.1}
     ],
     "gravity": [0.0, -1.0],
     "observers": [
@@ -46,7 +46,7 @@ _SOLID_TEMPLATE: Dict[str, Any] = {
         {"name": "ReferenceBody", "dimensions": [0.5, 0.1], "density": 7850.0, "sound_speed": 50.0}
     ],
     "walls": [
-        {"name": "WallBoundary"},
+        {"name": "WallBoundary", "dimensions": [5.366, 5.366], "boundary_width": 0.1}
     ],
     "gravity": [0.0, -1.0],
     "observers": [],
@@ -62,7 +62,7 @@ _FSI_TEMPLATE: Dict[str, Any] = {
         {"name": "WaterBody", "dimensions": [0.8, 0.4], "density": 1000.0, "sound_speed": 20.0}
     ],
     "walls": [
-        {"name": "WallBoundary"},
+        {"name": "WallBoundary", "dimensions": [5.366, 5.366], "boundary_width": 0.1}
     ],
     "gravity": [0.0, -1.0],
     "observers": [

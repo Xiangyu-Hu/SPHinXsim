@@ -17,10 +17,14 @@ void SPHSimulation::resetOutputRoot(const fs::path &output_root)
     io_env.resetReloadFolder((output_root / "reload").string());
 }
 //=================================================================================================//
-void SPHSimulation::defineSPHSystem(const json &config, Real particle_spacing, const Vecd &domain_dims, Real boundary_width)
+void SPHSimulation::defineSPHSystem(const json &config)
 {
-    BoundingBoxd system_domain_bounds(-boundary_width * Vecd::Ones(),
-                                      domain_dims + boundary_width * Vecd::Ones());
+    Real particle_spacing = config.at("particle_spacing").get<Real>();
+    Vecd domain_dims = jsonToVecd(config.at("domain").at("dimensions"));
+    int particle_boundary_buffer = config.at("particle_boundary_buffer").get<int>();
+    Real boundary_width = particle_boundary_buffer * particle_spacing;
+    BoundingBoxd system_domain_bounds(
+        Vecd::Constant(-boundary_width), domain_dims + Vecd::Constant(boundary_width));
     sph_system_ptr_ = std::make_unique<SPHSystem>(system_domain_bounds, particle_spacing);
 }
 //=================================================================================================//
@@ -344,8 +348,7 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
         domain_dims = jsonToVecd(config.at("domain").at("dimensions"));
     const Real boundary_width = particle_spacing * static_cast<Real>(particle_boundary_buffer);
 
-    if (!domain_dims.isZero() && particle_spacing > 0 && particle_boundary_buffer > 0)
-        defineSPHSystem(config, particle_spacing, domain_dims, boundary_width);
+    defineSPHSystem(config);
     if (config.contains("fluid_blocks"))
         for (const auto &fb : config.at("fluid_blocks"))
             addFluidBody(fb);

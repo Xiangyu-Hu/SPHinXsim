@@ -92,7 +92,7 @@ class SPHSimulation
     void loadConfig();
 
   private:
-    void defineSPHSystem(const json &config, Real particle_spacing, const Vecd &domain_dims, Real boundary_width);
+    void defineSPHSystem(const json &config);
     FluidBody &addFluidBody(const json &config);
     SolidBody &addWall(const json &config, const Vecd &domain_dims, Real boundary_width);
     void enableGravity(const json &config);

@@ -22,7 +22,13 @@
   ],
   "walls": [
     {
-      "name": "WallBoundary"
+      "name": "WallBoundary",
+      "dimensions": [
+        5.366,
+        2.0,
+        0.5
+      ],
+      "boundary_width": 0.1
     }
   ],
   "gravity": [

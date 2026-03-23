@@ -55,7 +55,7 @@ FluidBody &SPHSimulation::addFluidBody(const json &config)
     return fluid_body;
 }
 //=================================================================================================//
-SolidBody &SPHSimulation::addWall(const json &config, const Vecd &domain_dims, Real boundary_width)
+SolidBody &SPHSimulation::addWall(const json &config)
 {
     if (!sph_system_ptr_)
     {
@@ -65,12 +65,11 @@ SolidBody &SPHSimulation::addWall(const json &config, const Vecd &domain_dims, R
     }
 
     const std::string name = config.at("name").get<std::string>();
-    const Vecd dims = config.contains("domain_dimensions")
-                          ? jsonToVecd(config.at("domain_dimensions"))
-                          : domain_dims;
+    const Vecd dims = jsonToVecd(config.at("dimensions"));
+    const Real boundary_width = config.at("boundary_width").get<Real>();
 
     Vecd inner_halfsize = 0.5 * dims;
-    Vecd outer_halfsize = inner_halfsize + boundary_width * Vecd::Ones();
+    Vecd outer_halfsize = inner_halfsize + Vecd::Constant(boundary_width);
     auto &wall_shape = sph_system_ptr_->addShape<ComplexShape>(name);
     wall_shape.add<GeometricShapeBox>(Transform(inner_halfsize), outer_halfsize);
     wall_shape.subtract<GeometricShapeBox>(Transform(inner_halfsize), inner_halfsize);
@@ -336,25 +335,13 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
 {
     resetConfigurationState();
 
-    // Extract simulation parameters from config
-    Real particle_spacing = 0.0;
-    int particle_boundary_buffer = 0;
-    Vecd domain_dims = Vecd::Zero();
-    if (config.contains("particle_spacing"))
-        particle_spacing = config.at("particle_spacing").get<Real>();
-    if (config.contains("particle_boundary_buffer"))
-        particle_boundary_buffer = config.at("particle_boundary_buffer").get<int>();
-    if (config.contains("domain"))
-        domain_dims = jsonToVecd(config.at("domain").at("dimensions"));
-    const Real boundary_width = particle_spacing * static_cast<Real>(particle_boundary_buffer);
-
     defineSPHSystem(config);
     if (config.contains("fluid_blocks"))
         for (const auto &fb : config.at("fluid_blocks"))
             addFluidBody(fb);
     if (config.contains("walls"))
         for (const auto &w : config.at("walls"))
-            addWall(w, domain_dims, boundary_width);
+            addWall(w);
     if (config.contains("gravity"))
         enableGravity(config.at("gravity"));
     if (config.contains("observers"))

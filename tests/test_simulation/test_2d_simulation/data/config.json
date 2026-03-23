@@ -21,10 +21,11 @@
   "walls": [
     {
       "name": "WallBoundary",
-      "domain_dimensions": [
+      "dimensions": [
         5.366,
         5.366
-      ]
+      ],
+      "boundary_width": 0.1
     }
   ],
   "gravity": [

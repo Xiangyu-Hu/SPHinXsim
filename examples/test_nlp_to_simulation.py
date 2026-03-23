@@ -123,12 +123,17 @@ def main():
     try:
         sim = sph.SPHSimulation(str(config_file))
         sim.loadConfig()
-        print("✅ Simulation created and configuration loaded")
+        print("✅ Simulation built")
         
         # Create temp directory in project root, not relative to cwd
-        work_dir = PROJECT_ROOT / ".build-temp" / "test_simulation"
-        work_dir.mkdir(exist_ok=True, parents=True)
-        os.chdir(work_dir)
+        output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation"
+        output_dir.mkdir(exist_ok=True, parents=True)
+        sim.setOutputRoot(str(output_dir))
+        print(f"📁 Now, the output folder is changed to: {output_dir}")
+
+        sim.initializeSimulation()
+        print("✅ Simulation initialized")
+
         sim.run(config_reloaded.end_time if config_reloaded.end_time is not None else 1.0)
         
         print("✅ Simulation completed successfully!")

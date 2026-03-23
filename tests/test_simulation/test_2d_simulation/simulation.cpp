@@ -15,6 +15,7 @@ int main()
 {
     SPHSimulation sim("input/config.json");
     sim.loadConfig();
+    sim.initializeSimulation();
     sim.run(20.0);
 
     return 0;

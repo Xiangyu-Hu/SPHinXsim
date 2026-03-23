@@ -35,10 +35,14 @@ PYBIND11_MODULE(MODULE_NAME, m)
     py::class_<SPHSimulation>(m, "SPHSimulation")
         .def(py::init<const std::filesystem::path &>(), py::arg("config_path"),
              "Initialize SPHSimulation with path to JSON config file")
+        .def("setOutputRoot", &SPHSimulation::setOutputRoot, py::arg("output_root"),
+             "Override output/restart/reload root folder. Call before loadConfig().")
         .def("loadConfig", &SPHSimulation::loadConfig,
-             "Load simulation configuration from JSON file specified at initialization")
+             "Build simulation from JSON file specified at initialization")
+        .def("initializeSimulation", &SPHSimulation::initializeSimulation,
+             "Initialize executable simulation state after build and before run")
         .def("run", &SPHSimulation::run, py::arg("end_time"),
-             "Build all SPH objects and run simulation until end_time");
+             "Run simulation until end_time (requires initializeSimulation first)");
 
     // Module version info
     m.attr("__version__") = "0.1.0";

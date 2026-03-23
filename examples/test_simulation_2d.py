@@ -24,7 +24,7 @@ PROJECT_ROOT = find_project_root()
 sys.path.insert(0, str(PROJECT_ROOT / "build-integrated"))
 original_dir = Path.cwd()
 
-def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
+def main(simulation_time=2.0):
     """Run the dam break simulation"""
 
     print("🌊 SPHinXsys Python Dam Break Example")
@@ -41,14 +41,14 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
         sim.loadConfig()
         print("✅ Simulation configuration loaded")
 
-        if work_dir is None and use_temp_dir:
-            # Create temp directory in project root, not relative to cwd
-            work_dir = PROJECT_ROOT / ".build-temp" / "test_simulation_2d"
-            work_dir.mkdir(exist_ok=True, parents=True)
-        if work_dir is not None:
-            os.chdir(work_dir)
+        # Create temp directory in project root, not relative to cwd
+        output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation_2d"
+        output_dir.mkdir(exist_ok=True, parents=True)
+        sim.setOutputRoot(str(output_dir))
+        print(f"📁 Now, the output folder is changed to: {output_dir}")
 
-        print(f"📁 Now, the work folder is changed to: {work_dir}")
+        sim.initializeSimulation()
+        print("✅ Simulation initialized")
 
         # Run simulation
         print("\n🚀 Running simulation...")
@@ -76,9 +76,7 @@ def main(work_dir=None, simulation_time=2.0, use_temp_dir=True):
         os.chdir(original_dir)
 
 def test_example_dambreak_2d():
-    basetemp_path = PROJECT_ROOT / ".build-temp" / ".pytest_tmp"
-    basetemp_path.mkdir(parents=True, exist_ok=True)
-    assert main(basetemp_path)
+    assert main()
 
 if __name__ == "__main__":
 

@@ -44,7 +44,7 @@ def main(simulation_time=2.0):
         # Create temp directory in project root, not relative to cwd
         output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation_2d"
         output_dir.mkdir(exist_ok=True, parents=True)
-        sim.setOutputRoot(str(output_dir))
+        sim.resetOutputRoot(str(output_dir))
         print(f"📁 Now, the output folder is changed to: {output_dir}")
 
         sim.initializeSimulation()

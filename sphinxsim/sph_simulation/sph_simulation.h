@@ -73,11 +73,11 @@ namespace SPH
 class SPHSimulation
 {
   public:
-    SPHSimulation(const std::filesystem::path &config_path);
+    SPHSimulation(const fs::path &config_path);
     ~SPHSimulation() {};
 
     /** Override output/restart/reload root folder (mainly for tests). */
-    void setOutputRoot(const std::filesystem::path &output_root);
+    void resetOutputRoot(const fs::path &output_root);
 
     /** Build all SPH objects and run the simulation until end_time. */
     void run(Real end_time);
@@ -92,7 +92,6 @@ class SPHSimulation
     void loadConfig();
 
   private:
-    void applyOutputRootOverride();
     void defineSPHSystem(const json &config, Real particle_spacing, const Vecd &domain_dims, Real boundary_width);
     FluidBody &addFluidBody(const json &config);
     SolidBody &addWall(const json &config, const Vecd &domain_dims, Real boundary_width);
@@ -103,7 +102,6 @@ class SPHSimulation
     void buildExecutableState();
 
     std::filesystem::path config_path_;
-    std::optional<std::filesystem::path> output_root_override_;
     EntityManager entity_manager_;
     Real end_time_{0.0};
     Vecd gravity_{Vecd::Zero()};

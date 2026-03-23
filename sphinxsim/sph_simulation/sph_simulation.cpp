@@ -50,7 +50,7 @@ FluidBody &SPHSimulation::addFluidBody(const json &config)
     fluid_body.defineMaterial<WeaklyCompressibleFluid>(rho0, c);
     fluid_body.generateParticles<BaseParticles, Lattice>();
 
-    entity_manager_.addEntity<FluidBody>(name, &fluid_body);
+    entity_manager_.addEntity(name, &fluid_body);
     fluid_body_names_.push_back(name);
     return fluid_body;
 }
@@ -78,7 +78,7 @@ SolidBody &SPHSimulation::addWall(const json &config)
     wall_body.defineMaterial<Solid>();
     wall_body.generateParticles<BaseParticles, Lattice>();
 
-    entity_manager_.addEntity<SolidBody>(name, &wall_body);
+    entity_manager_.addEntity(name, &wall_body);
     wall_body_names_.push_back(name);
     return wall_body;
 }
@@ -118,7 +118,7 @@ void SPHSimulation::addObserver(const json &config)
     ObserverBody &observer_body = sph_system_ptr_->addBody<ObserverBody>(name);
     observer_body.generateParticles<ObserverParticles>(positions);
 
-    entity_manager_.addEntity<ObserverBody>(name, &observer_body);
+    entity_manager_.addEntity(name, &observer_body);
     observer_body_names_.push_back(name);
 }
 //=================================================================================================//
@@ -132,52 +132,6 @@ SolverConfig &SPHSimulation::useSolver(const json &config)
     if (config.value("free_surface_correction", false))
         sc.freeSurfaceCorrection();
     return sc;
-}
-//=================================================================================================//
-void SPHSimulation::resetConfigurationState()
-{
-    executable_state_ready_ = false;
-    advection_steps_ = 1;
-
-    fluid_body_names_.clear();
-    wall_body_names_.clear();
-    observer_body_names_.clear();
-
-    solver_config_.reset();
-    sph_solver_.reset();
-
-    water_block_ptr_ = nullptr;
-    wall_boundary_ptr_ = nullptr;
-    water_block_inner_.reset();
-    water_wall_contact_.reset();
-    observer_contacts_.clear();
-
-    water_cell_linked_list_ = nullptr;
-    wall_cell_linked_list_ = nullptr;
-    water_block_update_complex_relation_ = nullptr;
-    observer_relation_dynamics_.clear();
-    particle_sort_ = nullptr;
-
-    wall_boundary_normal_direction_ = nullptr;
-    water_advection_step_setup_ = nullptr;
-    water_update_particle_position_ = nullptr;
-    constant_gravity_ = nullptr;
-    fluid_linear_correction_matrix_ = nullptr;
-    fluid_acoustic_step_1st_half_ = nullptr;
-    fluid_acoustic_step_2nd_half_ = nullptr;
-    fluid_density_regularization_ = nullptr;
-
-    fluid_advection_time_step_ = nullptr;
-    fluid_acoustic_time_step_ = nullptr;
-
-    body_state_recorder_ = nullptr;
-    observer_pressure_outputs_.clear();
-
-    gravity_ = Vecd::Zero();
-    gravity_enabled_ = false;
-
-    entity_manager_.clear();
-    sph_system_ptr_.reset();
 }
 //=================================================================================================//
 void SPHSimulation::buildExecutableState()
@@ -199,107 +153,64 @@ void SPHSimulation::buildExecutableState()
     }
 
     SPHSystem &sph_system = getSPHSystem();
-    water_block_ptr_ = &entity_manager_.getEntityByName<FluidBody>(fluid_body_names_.front());
-    wall_boundary_ptr_ = &entity_manager_.getEntityByName<SolidBody>(wall_body_names_.front());
+    auto &fluid_body = entity_manager_.getEntityByName<FluidBody>(fluid_body_names_.front());
+    StdVec<SolidBody *> solid_bodies = entity_manager_.entitiesWith<SolidBody>();
+    auto &fluid_observer = entity_manager_.getEntityByName<ObserverBody>("FluidObserver");
 
-    water_block_inner_ = std::make_unique<Inner<>>(*water_block_ptr_);
-    water_wall_contact_ = std::make_unique<Contact<>>(*water_block_ptr_, StdVec<RealBody *>{wall_boundary_ptr_});
-
-    observer_contacts_.clear();
-    observer_contacts_.reserve(observer_body_names_.size());
-    for (const auto &observer_name : observer_body_names_)
-    {
-        ObserverBody &obs_body = entity_manager_.getEntityByName<ObserverBody>(observer_name);
-        observer_contacts_.push_back(std::make_unique<Contact<>>(
-            obs_body, StdVec<RealBody *>{water_block_ptr_}));
-    }
+    auto &fluid_inner = sph_system.addInnerRelation(fluid_body);
+    auto &fluid_wall_contact = sph_system.addContactRelation(fluid_body, solid_bodies);
+    auto &fluid_observer_contact = sph_system.addContactRelation(fluid_observer, fluid_body);
 
     sph_solver_ = std::make_unique<SPHSolver>(sph_system);
     auto &main_methods = sph_solver_->addParticleMethodContainer(par_ck);
     auto &host_methods = sph_solver_->addParticleMethodContainer(par_host);
 
-    water_cell_linked_list_ = &main_methods.addCellLinkedListDynamics(*water_block_ptr_);
-    wall_cell_linked_list_ = &main_methods.addCellLinkedListDynamics(*wall_boundary_ptr_);
-    water_block_update_complex_relation_ =
-        &main_methods.addRelationDynamics(*water_block_inner_, *water_wall_contact_);
+    solid_normal_direction_ = &host_methods.addStateDynamics<NormalFromBodyShapeCK>(solid_bodies);
 
-    observer_relation_dynamics_.clear();
-    observer_relation_dynamics_.reserve(observer_contacts_.size());
-    for (auto &obs_contact : observer_contacts_)
-    {
-        observer_relation_dynamics_.push_back(
-            &main_methods.addRelationDynamics(*obs_contact));
-    }
-
-    particle_sort_ = &main_methods.addSortDynamics(*water_block_ptr_);
-
-    wall_boundary_normal_direction_ =
-        &host_methods.addStateDynamics<NormalFromBodyShapeCK>(*wall_boundary_ptr_);
-    water_advection_step_setup_ =
-        &main_methods.addStateDynamics<fluid_dynamics::AdvectionStepSetup>(
-            *water_block_ptr_);
-    water_update_particle_position_ =
-        &main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(
-            *water_block_ptr_);
+    solid_cell_linked_list_ = &main_methods.addCellLinkedListDynamics(solid_bodies);
+    fluid_update_configuration_ = &main_methods.addParticleDynamicsGroup()
+                                       .add(&main_methods.addCellLinkedListDynamics(fluid_body))
+                                       .add(&main_methods.addRelationDynamics(fluid_inner, fluid_wall_contact));
+    observer_update_configuration_ = &main_methods.addRelationDynamics(fluid_observer_contact);
+    particle_sort_ = &main_methods.addSortDynamics(fluid_body);
 
     Gravity gravity_force(gravity_enabled_ ? gravity_ : Vecd::Zero());
-    constant_gravity_ =
-        &main_methods.addStateDynamics<GravityForceCK<Gravity>>(*water_block_ptr_,
-                                                                gravity_force);
+    constant_gravity_ = &main_methods.addStateDynamics<GravityForceCK<Gravity>>(fluid_body, gravity_force);
+    fluid_advection_step_setup_ = &main_methods.addStateDynamics<fluid_dynamics::AdvectionStepSetup>(fluid_body);
+    fluid_update_particle_position_ = &main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(fluid_body);
 
     fluid_linear_correction_matrix_ =
-        &main_methods
-             .addInteractionDynamics<LinearCorrectionMatrix, WithUpdate>(
-                 *water_block_inner_, 0.5)
-             .addPostContactInteraction(*water_wall_contact_);
+        &main_methods.addInteractionDynamics<LinearCorrectionMatrix, WithUpdate>(fluid_inner, 0.5)
+             .addPostContactInteraction(fluid_wall_contact);
 
     fluid_acoustic_step_1st_half_ =
-        &main_methods
-             .addInteractionDynamics<fluid_dynamics::AcousticStep1stHalf, OneLevel,
-                                     AcousticRiemannSolverCK, LinearCorrectionCK>(
-                 *water_block_inner_)
-             .addPostContactInteraction<Wall, AcousticRiemannSolverCK,
-                                        LinearCorrectionCK>(*water_wall_contact_);
+        &main_methods.addInteractionDynamics<fluid_dynamics::AcousticStep1stHalf, OneLevel,
+                                             AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_inner)
+             .addPostContactInteraction<Wall, AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_wall_contact);
 
     fluid_acoustic_step_2nd_half_ =
-        &main_methods
-             .addInteractionDynamics<fluid_dynamics::AcousticStep2ndHalf, OneLevel,
-                                     AcousticRiemannSolverCK, LinearCorrectionCK>(
-                 *water_block_inner_)
-             .addPostContactInteraction<Wall, AcousticRiemannSolverCK,
-                                        LinearCorrectionCK>(*water_wall_contact_);
+        &main_methods.addInteractionDynamics<fluid_dynamics::AcousticStep2ndHalf, OneLevel,
+                                             AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_inner)
+             .addPostContactInteraction<Wall, AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_wall_contact);
 
     fluid_density_regularization_ =
-        &main_methods
-             .addInteractionDynamics<fluid_dynamics::DensitySummationCK>(
-                 *water_block_inner_)
-             .addPostContactInteraction(*water_wall_contact_)
-             .addPostStateDynamics<fluid_dynamics::DensityRegularization,
-                                   FreeSurface>(*water_block_ptr_);
+        &main_methods.addInteractionDynamics<fluid_dynamics::DensitySummationCK>(fluid_inner)
+             .addPostContactInteraction(fluid_wall_contact)
+             .addPostStateDynamics<fluid_dynamics::DensityRegularization, FreeSurface>(fluid_body);
 
-    Fluid &fluid_material = DynamicCast<Fluid>(this, water_block_ptr_->getBaseMaterial());
-    const Real U_ref =
-        fluid_material.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
-    fluid_advection_time_step_ =
-        &main_methods.addReduceDynamics<fluid_dynamics::AdvectionTimeStepCK>(
-            *water_block_ptr_, U_ref);
-    fluid_acoustic_time_step_ =
-        &main_methods.addReduceDynamics<fluid_dynamics::AcousticTimeStepCK<>>(
-            *water_block_ptr_);
+    Fluid &fluid_material = DynamicCast<Fluid>(this, fluid_body.getBaseMaterial());
+    const Real U_ref = fluid_material.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
+    fluid_advection_time_step_ = &main_methods.addReduceDynamics<fluid_dynamics::AdvectionTimeStepCK>(fluid_body, U_ref);
+    fluid_acoustic_time_step_ = &main_methods.addReduceDynamics<fluid_dynamics::AcousticTimeStepCK<>>(fluid_body);
 
-    body_state_recorder_ =
-        &main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(sph_system);
-    body_state_recorder_->addToWrite<Vecd>(*wall_boundary_ptr_, "NormalDirection");
-    body_state_recorder_->addToWrite<Real>(*water_block_ptr_, "Density");
-
-    observer_pressure_outputs_.clear();
-    observer_pressure_outputs_.reserve(observer_contacts_.size());
-    for (auto &obs_contact : observer_contacts_)
+    body_state_recorder_ = &main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(sph_system);
+    for (auto &solid_body : solid_bodies)
     {
-        auto &recorder =
-            main_methods.addObserveRecorder<Real>("Pressure", *obs_contact);
-        observer_pressure_outputs_.push_back(&recorder);
+        body_state_recorder_->addToWrite<Vecd>(*solid_body, "NormalDirection");
     }
+    body_state_recorder_->addToWrite<Real>(fluid_body, "Density");
+
+    observer_pressure_output_ = &main_methods.addObserveRecorder<Real>("Pressure", fluid_observer_contact);
 }
 //=================================================================================================//
 void SPHSimulation::initializeSimulation()
@@ -311,30 +222,26 @@ void SPHSimulation::initializeSimulation()
             "Call loadConfig() or buildSimulationFromJson() first.");
     }
 
-    wall_boundary_normal_direction_->exec();
+    solid_normal_direction_->exec();
     constant_gravity_->exec();
 
-    water_cell_linked_list_->exec();
-    wall_cell_linked_list_->exec();
-    water_block_update_complex_relation_->exec();
-    for (auto *rel : observer_relation_dynamics_)
-        rel->exec();
+    solid_cell_linked_list_->exec();
+    fluid_update_configuration_->exec();
 
     fluid_density_regularization_->exec();
-    water_advection_step_setup_->exec();
+    fluid_advection_step_setup_->exec();
     fluid_linear_correction_matrix_->exec();
 
     body_state_recorder_->writeToFile();
-    for (auto *obs_out : observer_pressure_outputs_)
-        obs_out->writeToFile(advection_steps_);
+
+    observer_update_configuration_->exec();
+    observer_pressure_output_->writeToFile(advection_steps_);
 
     executable_state_ready_ = true;
 }
 //=================================================================================================//
 void SPHSimulation::buildSimulationFromJson(const json &config)
 {
-    resetConfigurationState();
-
     defineSPHSystem(config);
     if (config.contains("fluid_blocks"))
         for (const auto &fb : config.at("fluid_blocks"))
@@ -382,8 +289,7 @@ void SPHSimulation::run(Real end_time)
     //----------------------------------------------------------------------
     // Setup advection-step trigger
     //----------------------------------------------------------------------
-    auto &advection_step =
-        time_stepper.addTriggerByInterval(fluid_advection_time_step_->exec());
+    auto &advection_step = time_stepper.addTriggerByInterval(fluid_advection_time_step_->exec());
     const int screening_interval = 100;
     const int observation_interval = screening_interval * 2;
     auto &state_recording_trigger = time_stepper.addTriggerByInterval(0.1);
@@ -404,8 +310,7 @@ void SPHSimulation::run(Real end_time)
     {
         // Fast acoustic sub-stepping
         TickCount time_instance = TickCount::now();
-        Real acoustic_dt =
-            time_stepper.incrementPhysicalTime(*fluid_acoustic_time_step_);
+        Real acoustic_dt = time_stepper.incrementPhysicalTime(*fluid_acoustic_time_step_);
         fluid_acoustic_step_1st_half_->exec(acoustic_dt);
         fluid_acoustic_step_2nd_half_->exec(acoustic_dt);
         interval_acoustic_step += TickCount::now() - time_instance;
@@ -414,7 +319,7 @@ void SPHSimulation::run(Real end_time)
         if (advection_step(*fluid_advection_time_step_))
         {
             advection_steps_++;
-            water_update_particle_position_->exec();
+            fluid_update_particle_position_->exec();
 
             time_instance = TickCount::now();
             if (advection_steps_ % screening_interval == 0)
@@ -429,10 +334,8 @@ void SPHSimulation::run(Real end_time)
 
             if (advection_steps_ % observation_interval == 0)
             {
-                for (auto *rel : observer_relation_dynamics_)
-                    rel->exec();
-                for (auto *obs_out : observer_pressure_outputs_)
-                    obs_out->writeToFile(advection_steps_);
+                observer_update_configuration_->exec();
+                observer_pressure_output_->writeToFile(advection_steps_);
             }
 
             if (state_recording_trigger())
@@ -442,16 +345,17 @@ void SPHSimulation::run(Real end_time)
 
             // Update configuration
             time_instance = TickCount::now();
-            if (advection_steps_ % 100)
+            if (advection_steps_ % 100 == 0)
+            {
                 particle_sort_->exec();
-            water_cell_linked_list_->exec();
-            water_block_update_complex_relation_->exec();
+            }
+            fluid_update_configuration_->exec();
             interval_updating_configuration += TickCount::now() - time_instance;
 
             // Update dynamics for next advection step
             time_instance = TickCount::now();
             fluid_density_regularization_->exec();
-            water_advection_step_setup_->exec();
+            fluid_advection_step_setup_->exec();
             fluid_linear_correction_matrix_->exec();
             interval_advection_step += TickCount::now() - time_instance;
         }

@@ -99,7 +99,6 @@ class SPHSimulation
     void enableGravity(const json &config);
     void addObserver(const json &config);
     SolverConfig &useSolver(const json &config);
-    void resetConfigurationState();
     void buildExecutableState();
 
     std::filesystem::path config_path_;
@@ -115,21 +114,14 @@ class SPHSimulation
     std::unique_ptr<SolverConfig> solver_config_;
     std::unique_ptr<SPHSolver> sph_solver_;
 
-    FluidBody *water_block_ptr_{nullptr};
-    SolidBody *wall_boundary_ptr_{nullptr};
-    std::unique_ptr<Inner<>> water_block_inner_;
-    std::unique_ptr<Contact<>> water_wall_contact_;
-    std::vector<std::unique_ptr<Contact<>>> observer_contacts_;
-
-    BaseDynamics<void> *water_cell_linked_list_{nullptr};
-    BaseDynamics<void> *wall_cell_linked_list_{nullptr};
-    BaseDynamics<void> *water_block_update_complex_relation_{nullptr};
-    std::vector<BaseDynamics<void> *> observer_relation_dynamics_;
+    BaseDynamics<void> *solid_cell_linked_list_{nullptr};
+    BaseDynamics<void> *fluid_update_configuration_{nullptr};
+    BaseDynamics<void> *observer_update_configuration_{nullptr};
     BaseDynamics<void> *particle_sort_{nullptr};
 
-    BaseDynamics<void> *wall_boundary_normal_direction_{nullptr};
-    BaseDynamics<void> *water_advection_step_setup_{nullptr};
-    BaseDynamics<void> *water_update_particle_position_{nullptr};
+    BaseDynamics<void> *solid_normal_direction_{nullptr};
+    BaseDynamics<void> *fluid_advection_step_setup_{nullptr};
+    BaseDynamics<void> *fluid_update_particle_position_{nullptr};
     BaseDynamics<void> *constant_gravity_{nullptr};
     BaseDynamics<void> *fluid_linear_correction_matrix_{nullptr};
     BaseDynamics<void> *fluid_acoustic_step_1st_half_{nullptr};
@@ -140,7 +132,7 @@ class SPHSimulation
     BaseDynamics<Real> *fluid_acoustic_time_step_{nullptr};
 
     BodyStatesRecording *body_state_recorder_{nullptr};
-    std::vector<BaseIO *> observer_pressure_outputs_;
+    BaseIO *observer_pressure_output_{nullptr};
 
     size_t advection_steps_{1};
     bool executable_state_ready_{false};

@@ -93,31 +93,25 @@ class SPHSimulation
     void loadConfig();
 
   private:
-    void defineSPHSystem(const json &config);
-    FluidBody &addFluidBody(const json &config);
-    SolidBody &addWall(const json &config);
-    void enableGravity(const json &config);
-    void addObserver(const json &config);
-    SolverConfig &useSolver(const json &config);
-    void buildExecutableState();
-
     std::filesystem::path config_path_;
     EntityManager entity_manager_;
-
     StagePipeline<InitializationHookPoint> initialization_pipeline_;
     StagePipeline<SimulationHookPoint> simulation_pipeline_;
     Real end_time_{0.0};
     Vecd gravity_{Vecd::Zero()};
     bool gravity_enabled_{false};
-
     std::unique_ptr<SolverConfig> solver_config_;
     std::unique_ptr<SPHSolver> sph_solver_;
-
     size_t advection_steps_{1};
     bool executable_state_ready_{false};
-
-    SPHSystem &getSPHSystem() { return *sph_system_ptr_.get(); };
     std::unique_ptr<SPHSystem> sph_system_ptr_;
+
+    SPHSystem &defineSPHSystem(const json &config);
+    FluidBody &addFluidBody(const json &config);
+    SolidBody &addWall(const json &config);
+    void enableGravity(const json &config);
+    void addObserver(const json &config);
+    SolverConfig &useSolver(const json &config);
 };
 } // namespace SPH
 #endif // SPH_SIMULATION_H

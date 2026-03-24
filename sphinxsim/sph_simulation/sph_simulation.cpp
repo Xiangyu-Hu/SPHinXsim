@@ -17,7 +17,7 @@ void SPHSimulation::resetOutputRoot(const fs::path &output_root)
     io_env.resetReloadFolder((output_root / "reload").string());
 }
 //=================================================================================================//
-void SPHSimulation::defineSPHSystem(const json &config)
+SPHSystem &SPHSimulation::defineSPHSystem(const json &config)
 {
     Real particle_spacing = config.at("particle_spacing").get<Real>();
     Vecd domain_dims = jsonToVecd(config.at("domain").at("dimensions"));
@@ -26,6 +26,7 @@ void SPHSimulation::defineSPHSystem(const json &config)
     BoundingBoxd system_domain_bounds(
         Vecd::Constant(-boundary_width), domain_dims + Vecd::Constant(boundary_width));
     sph_system_ptr_ = std::make_unique<SPHSystem>(system_domain_bounds, particle_spacing);
+    return *sph_system_ptr_;
 }
 //=================================================================================================//
 FluidBody &SPHSimulation::addFluidBody(const json &config)
@@ -131,25 +132,36 @@ SolverConfig &SPHSimulation::useSolver(const json &config)
     return sc;
 }
 //=================================================================================================//
-void SPHSimulation::buildExecutableState()
+void SPHSimulation::buildSimulationFromJson(const json &config)
 {
-    if (!sph_system_ptr_)
-    {
-        throw std::runtime_error(
-            "SPHSimulation::buildExecutableState: SPH system is not defined.");
-    }
-    if (entity_manager_.entitiesWith<FluidBody>().empty())
-    {
-        throw std::runtime_error(
-            "SPHSimulation::buildExecutableState: no fluid body defined.");
-    }
-    if (entity_manager_.entitiesWith<SolidBody>().empty())
-    {
-        throw std::runtime_error(
-            "SPHSimulation::buildExecutableState: no wall defined.");
-    }
-
-    SPHSystem &sph_system = getSPHSystem();
+    //----------------------------------------------------------------------
+    //	Build up an SPHSystem and IO environment.
+    //----------------------------------------------------------------------
+    SPHSystem &sph_system = defineSPHSystem(config);
+    //----------------------------------------------------------------------
+    //	Creating bodies with inital shape, materials and particles.
+    //----------------------------------------------------------------------
+    if (config.contains("fluid_blocks"))
+        for (const auto &fb : config.at("fluid_blocks"))
+            addFluidBody(fb);
+    if (config.contains("walls"))
+        for (const auto &w : config.at("walls"))
+            addWall(w);
+    if (config.contains("gravity"))
+        enableGravity(config.at("gravity"));
+    if (config.contains("observers"))
+        for (const auto &obs : config.at("observers"))
+            addObserver(obs);
+    if (config.contains("solver"))
+        useSolver(config.at("solver"));
+    if (config.contains("end_time"))
+        end_time_ = config.at("end_time").get<Real>();
+    //----------------------------------------------------------------------
+    //	Define body relation map.
+    //	The relations give the topological connections within a body
+    //  or with other bodies within interaction range.
+    //  Generally, we first define all the inner relations, then the contact relations.
+    //----------------------------------------------------------------------
     auto &fluid_body = *entity_manager_.entitiesWith<FluidBody>().front(); // assume only one fluid body for now
     StdVec<SolidBody *> solid_bodies = entity_manager_.entitiesWith<SolidBody>();
     auto &fluid_observer = entity_manager_.getEntityByName<ObserverBody>("FluidObserver");
@@ -157,11 +169,24 @@ void SPHSimulation::buildExecutableState()
     auto &fluid_inner = sph_system.addInnerRelation(fluid_body);
     auto &fluid_wall_contact = sph_system.addContactRelation(fluid_body, solid_bodies);
     auto &fluid_observer_contact = sph_system.addContactRelation(fluid_observer, fluid_body);
-
+    //----------------------------------------------------------------------
+    // Define SPH solver with particle methods and execution policies.
+    // Generally, the host methods should be able to run immediately.
+    //----------------------------------------------------------------------
     sph_solver_ = std::make_unique<SPHSolver>(sph_system);
     auto &main_methods = sph_solver_->addParticleMethodContainer(par_ck);
     auto &host_methods = sph_solver_->addParticleMethodContainer(par_host);
-
+    //----------------------------------------------------------------------
+    // Define the numerical methods used in the simulation.
+    // Note that there may be data dependence on the sequence of constructions.
+    // Generally, the configuration dynamics, such as update cell linked list,
+    // update body relations, are defined first.
+    // Then the geometric models or simple objects without data dependencies,
+    // such as gravity, initialized normal direction.
+    // After that, the major physical particle dynamics model should be introduced.
+    // Finally, the auxiliary models such as time step estimator, initial condition,
+    // boundary condition and other constraints should be defined.
+    //----------------------------------------------------------------------
     auto &solid_normal_direction = host_methods.addStateDynamics<NormalFromBodyShapeCK>(solid_bodies);
 
     auto &solid_cell_linked_list = main_methods.addCellLinkedListDynamics(solid_bodies);
@@ -199,16 +224,20 @@ void SPHSimulation::buildExecutableState()
     const Real U_ref = fluid_material.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
     auto &fluid_advection_time_step = main_methods.addReduceDynamics<fluid_dynamics::AdvectionTimeStepCK>(fluid_body, U_ref);
     auto &fluid_acoustic_time_step = main_methods.addReduceDynamics<fluid_dynamics::AcousticTimeStepCK<>>(fluid_body);
-
+    //----------------------------------------------------------------------
+    //	Define the methods for I/O operations, observations
+    //	and regression tests of the simulation.
+    //----------------------------------------------------------------------
     auto &body_state_recorder = main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(sph_system);
     for (auto &solid_body : solid_bodies)
     {
         body_state_recorder.addToWrite<Vecd>(*solid_body, "NormalDirection");
     }
     body_state_recorder.addToWrite<Real>(fluid_body, "Density");
-
     auto &observer_pressure_output = main_methods.addObserveRecorder<Real>("Pressure", fluid_observer_contact);
-
+    //----------------------------------------------------------------------
+    //	Define Preparation or initialization step for the time integration loop.
+    //----------------------------------------------------------------------
     initialization_pipeline_.main_steps.push_back(
         [&]()
         {
@@ -227,14 +256,20 @@ void SPHSimulation::buildExecutableState()
             observer_update_configuration.exec();
             observer_pressure_output.writeToFile(advection_steps_);
         });
-
+    //----------------------------------------------------------------------
+    //	Define time-integration method, screen out uput and observation sample rate.
+    //----------------------------------------------------------------------
     auto &time_stepper = sph_solver_->getTimeStepper();
     auto &advection_step = time_stepper.addTriggerByInterval(fluid_advection_time_step.exec());
     auto &state_recording_trigger = time_stepper.addTriggerByInterval(0.1);
-
     int screening_interval = 100;
     int observation_interval = screening_interval * 2;
-
+    //----------------------------------------------------------------------
+    //	Define time-integration method.
+    //  Here we use dual time stepping with acoustic and advection steps.
+    //  The acoustic step is executed every physical time step, while the advection step is
+    //  executed at a lower frequency determined by the advection time step.
+    //----------------------------------------------------------------------
     simulation_pipeline_.main_steps.push_back( // acoustic step
         [&]()
         {
@@ -283,6 +318,19 @@ void SPHSimulation::buildExecutableState()
         });
 }
 //=================================================================================================//
+void SPHSimulation::loadConfig()
+{
+    std::ifstream file(config_path_);
+    if (!file.is_open())
+    {
+        throw std::runtime_error(
+            "SPHSimulation::loadConfig: unable to open config file " + config_path_.string());
+    }
+    json config;
+    file >> config;
+    buildSimulationFromJson(config);
+}
+//=================================================================================================//
 void SPHSimulation::initializeSimulation()
 {
     if (!sph_solver_)
@@ -300,49 +348,15 @@ void SPHSimulation::initializeSimulation()
     executable_state_ready_ = true;
 }
 //=================================================================================================//
-void SPHSimulation::buildSimulationFromJson(const json &config)
-{
-    defineSPHSystem(config);
-    if (config.contains("fluid_blocks"))
-        for (const auto &fb : config.at("fluid_blocks"))
-            addFluidBody(fb);
-    if (config.contains("walls"))
-        for (const auto &w : config.at("walls"))
-            addWall(w);
-    if (config.contains("gravity"))
-        enableGravity(config.at("gravity"));
-    if (config.contains("observers"))
-        for (const auto &obs : config.at("observers"))
-            addObserver(obs);
-    if (config.contains("solver"))
-        useSolver(config.at("solver"));
-    if (config.contains("end_time"))
-        end_time_ = config.at("end_time").get<Real>();
-
-    buildExecutableState();
-}
-//=================================================================================================//
-void SPHSimulation::loadConfig()
-{
-    std::ifstream file(config_path_);
-    if (!file.is_open())
-    {
-        throw std::runtime_error(
-            "SPHSimulation::loadConfig: unable to open config file " + config_path_.string());
-    }
-    json config;
-    file >> config;
-    buildSimulationFromJson(config);
-}
-//=================================================================================================//
 void SPHSimulation::run(Real end_time)
 {
-    if (!executable_state_ready_ || !sph_solver_)
+    if (!executable_state_ready_)
     {
-        std::cerr << "SPHSimulation::run: executable state is not ready. "
-                     "Call initializeSimulation() after build.\n";
+        std::cerr << "SPHSimulation::run: Simulation is not initialized. "
+                     "Call initializeSimulation() before run.\n";
         return;
     }
+
     while (!sph_solver_->getTimeStepper().isEndTime(end_time))
     {
         for (auto &step : simulation_pipeline_.main_steps)

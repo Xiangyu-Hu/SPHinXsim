@@ -8,6 +8,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GH_PAT }}
     steps:
       - uses: actions/checkout@v4
 
@@ -18,5 +20,3 @@ jobs:
       - run: pip install mkdocs mkdocs-material pymdown-extensions
 
       - run: mkdocs gh-deploy --force --remote-branch gh-pages --remote-name origin
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}

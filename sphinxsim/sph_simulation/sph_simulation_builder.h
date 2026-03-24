@@ -36,6 +36,40 @@ namespace SPH
 {
 class SPHSystem;
 
+// Enum for hook points for fast O(1) access
+enum class SimulationHookPoint
+{
+    AfterAcoustic,
+    AfterAdvection,
+    NumHooks
+};
+
+enum class InitializationHookPoint
+{
+    HostSteps,
+    InitalConditions,
+    NumHooks
+};
+
+// A staged pipeline structure
+template <typename HookPointType>
+struct StagePipeline
+{
+    std::vector<std::function<void()>> main_steps;
+    std::vector<std::function<void()>> hooks[static_cast<size_t>(HookPointType::NumHooks)];
+
+    void run_hooks(HookPointType p)
+    {
+        for (auto &f : hooks[static_cast<size_t>(p)])
+            f();
+    }
+
+    void insert_hook(HookPointType p, std::function<void()> step)
+    {
+        hooks[static_cast<size_t>(p)].push_back(std::move(step));
+    }
+};
+
 /**
  * @class FluidBlockBuilder
  * @brief Builder for configuring a fluid body in a 2D or 3D simulation.

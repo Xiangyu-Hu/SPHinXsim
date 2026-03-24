@@ -103,6 +103,8 @@ class SPHSimulation
 
     std::filesystem::path config_path_;
     EntityManager entity_manager_;
+    StagePipeline<InitializationHookPoint> initialization_pipeline_;
+    StagePipeline<InitializationHookPoint> simulation_pipeline_;
     Real end_time_{0.0};
     Vecd gravity_{Vecd::Zero()};
     bool gravity_enabled_{false};
@@ -113,26 +115,6 @@ class SPHSimulation
 
     std::unique_ptr<SolverConfig> solver_config_;
     std::unique_ptr<SPHSolver> sph_solver_;
-
-    BaseDynamics<void> *solid_cell_linked_list_{nullptr};
-    BaseDynamics<void> *fluid_update_configuration_{nullptr};
-    BaseDynamics<void> *observer_update_configuration_{nullptr};
-    BaseDynamics<void> *particle_sort_{nullptr};
-
-    BaseDynamics<void> *solid_normal_direction_{nullptr};
-    BaseDynamics<void> *fluid_advection_step_setup_{nullptr};
-    BaseDynamics<void> *fluid_update_particle_position_{nullptr};
-    BaseDynamics<void> *constant_gravity_{nullptr};
-    BaseDynamics<void> *fluid_linear_correction_matrix_{nullptr};
-    BaseDynamics<void> *fluid_acoustic_step_1st_half_{nullptr};
-    BaseDynamics<void> *fluid_acoustic_step_2nd_half_{nullptr};
-    BaseDynamics<void> *fluid_density_regularization_{nullptr};
-
-    BaseDynamics<Real> *fluid_advection_time_step_{nullptr};
-    BaseDynamics<Real> *fluid_acoustic_time_step_{nullptr};
-
-    BodyStatesRecording *body_state_recorder_{nullptr};
-    BaseIO *observer_pressure_output_{nullptr};
 
     size_t advection_steps_{1};
     bool executable_state_ready_{false};

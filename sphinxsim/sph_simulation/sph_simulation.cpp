@@ -165,52 +165,125 @@ void SPHSimulation::buildExecutableState()
     auto &main_methods = sph_solver_->addParticleMethodContainer(par_ck);
     auto &host_methods = sph_solver_->addParticleMethodContainer(par_host);
 
-    solid_normal_direction_ = &host_methods.addStateDynamics<NormalFromBodyShapeCK>(solid_bodies);
+    auto &solid_normal_direction = host_methods.addStateDynamics<NormalFromBodyShapeCK>(solid_bodies);
 
-    solid_cell_linked_list_ = &main_methods.addCellLinkedListDynamics(solid_bodies);
-    fluid_update_configuration_ = &main_methods.addParticleDynamicsGroup()
-                                       .add(&main_methods.addCellLinkedListDynamics(fluid_body))
-                                       .add(&main_methods.addRelationDynamics(fluid_inner, fluid_wall_contact));
-    observer_update_configuration_ = &main_methods.addRelationDynamics(fluid_observer_contact);
-    particle_sort_ = &main_methods.addSortDynamics(fluid_body);
+    auto &solid_cell_linked_list = main_methods.addCellLinkedListDynamics(solid_bodies);
+    auto &fluid_update_configuration = main_methods.addParticleDynamicsGroup()
+                                           .add(&main_methods.addCellLinkedListDynamics(fluid_body))
+                                           .add(&main_methods.addRelationDynamics(fluid_inner, fluid_wall_contact));
+    auto &observer_update_configuration = main_methods.addRelationDynamics(fluid_observer_contact);
+    auto &particle_sort = main_methods.addSortDynamics(fluid_body);
 
     Gravity gravity_force(gravity_enabled_ ? gravity_ : Vecd::Zero());
-    constant_gravity_ = &main_methods.addStateDynamics<GravityForceCK<Gravity>>(fluid_body, gravity_force);
-    fluid_advection_step_setup_ = &main_methods.addStateDynamics<fluid_dynamics::AdvectionStepSetup>(fluid_body);
-    fluid_update_particle_position_ = &main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(fluid_body);
+    auto &constant_gravity = main_methods.addStateDynamics<GravityForceCK<Gravity>>(fluid_body, gravity_force);
+    auto &fluid_advection_step_setup = main_methods.addStateDynamics<fluid_dynamics::AdvectionStepSetup>(fluid_body);
+    auto &fluid_update_particle_position = main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(fluid_body);
 
-    fluid_linear_correction_matrix_ =
-        &main_methods.addInteractionDynamics<LinearCorrectionMatrix, WithUpdate>(fluid_inner, 0.5)
-             .addPostContactInteraction(fluid_wall_contact);
+    auto &fluid_linear_correction_matrix =
+        main_methods.addInteractionDynamics<LinearCorrectionMatrix, WithUpdate>(fluid_inner, 0.5)
+            .addPostContactInteraction(fluid_wall_contact);
 
-    fluid_acoustic_step_1st_half_ =
-        &main_methods.addInteractionDynamics<fluid_dynamics::AcousticStep1stHalf, OneLevel,
-                                             AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_inner)
-             .addPostContactInteraction<Wall, AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_wall_contact);
+    auto &fluid_acoustic_step_1st_half =
+        main_methods.addInteractionDynamics<fluid_dynamics::AcousticStep1stHalf, OneLevel,
+                                            AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_inner)
+            .addPostContactInteraction<Wall, AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_wall_contact);
 
-    fluid_acoustic_step_2nd_half_ =
-        &main_methods.addInteractionDynamics<fluid_dynamics::AcousticStep2ndHalf, OneLevel,
-                                             AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_inner)
-             .addPostContactInteraction<Wall, AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_wall_contact);
+    auto &fluid_acoustic_step_2nd_half =
+        main_methods.addInteractionDynamics<fluid_dynamics::AcousticStep2ndHalf, OneLevel,
+                                            AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_inner)
+            .addPostContactInteraction<Wall, AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_wall_contact);
 
-    fluid_density_regularization_ =
-        &main_methods.addInteractionDynamics<fluid_dynamics::DensitySummationCK>(fluid_inner)
-             .addPostContactInteraction(fluid_wall_contact)
-             .addPostStateDynamics<fluid_dynamics::DensityRegularization, FreeSurface>(fluid_body);
+    auto &fluid_density_regularization =
+        main_methods.addInteractionDynamics<fluid_dynamics::DensitySummationCK>(fluid_inner)
+            .addPostContactInteraction(fluid_wall_contact)
+            .addPostStateDynamics<fluid_dynamics::DensityRegularization, FreeSurface>(fluid_body);
 
     Fluid &fluid_material = DynamicCast<Fluid>(this, fluid_body.getBaseMaterial());
     const Real U_ref = fluid_material.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
-    fluid_advection_time_step_ = &main_methods.addReduceDynamics<fluid_dynamics::AdvectionTimeStepCK>(fluid_body, U_ref);
-    fluid_acoustic_time_step_ = &main_methods.addReduceDynamics<fluid_dynamics::AcousticTimeStepCK<>>(fluid_body);
+    auto &fluid_advection_time_step = main_methods.addReduceDynamics<fluid_dynamics::AdvectionTimeStepCK>(fluid_body, U_ref);
+    auto &fluid_acoustic_time_step = main_methods.addReduceDynamics<fluid_dynamics::AcousticTimeStepCK<>>(fluid_body);
 
-    body_state_recorder_ = &main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(sph_system);
+    auto &body_state_recorder = main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(sph_system);
     for (auto &solid_body : solid_bodies)
     {
-        body_state_recorder_->addToWrite<Vecd>(*solid_body, "NormalDirection");
+        body_state_recorder.addToWrite<Vecd>(*solid_body, "NormalDirection");
     }
-    body_state_recorder_->addToWrite<Real>(fluid_body, "Density");
+    body_state_recorder.addToWrite<Real>(fluid_body, "Density");
 
-    observer_pressure_output_ = &main_methods.addObserveRecorder<Real>("Pressure", fluid_observer_contact);
+    auto &observer_pressure_output = main_methods.addObserveRecorder<Real>("Pressure", fluid_observer_contact);
+
+    initialization_pipeline_.main_steps.push_back(
+        [&]()
+        {
+            solid_normal_direction.exec();
+            constant_gravity.exec();
+
+            solid_cell_linked_list.exec();
+            fluid_update_configuration.exec();
+
+            fluid_density_regularization.exec();
+            fluid_advection_step_setup.exec();
+            fluid_linear_correction_matrix.exec();
+
+            body_state_recorder.writeToFile();
+
+            observer_update_configuration.exec();
+            observer_pressure_output.writeToFile(advection_steps_);
+        });
+
+    auto &time_stepper = sph_solver_->getTimeStepper();
+    auto &advection_step = time_stepper.addTriggerByInterval(fluid_advection_time_step.exec());
+    auto &state_recording_trigger = time_stepper.addTriggerByInterval(0.1);
+
+    int screening_interval = 100;
+    int observation_interval = screening_interval * 2;
+
+    simulation_pipeline_.main_steps.push_back( // acoustic step
+        [&]()
+        {
+            Real dt = time_stepper.incrementPhysicalTime(fluid_acoustic_time_step);
+            fluid_acoustic_step_1st_half.exec(dt);
+            fluid_acoustic_step_2nd_half.exec(dt);
+        });
+
+    simulation_pipeline_.main_steps.push_back( // advection step
+        [&, screening_interval, observation_interval]()
+        {
+            if (advection_step(fluid_advection_time_step))
+            {
+                advection_steps_++;
+                fluid_update_particle_position.exec();
+                fluid_density_regularization.exec();
+                fluid_advection_step_setup.exec();
+                fluid_linear_correction_matrix.exec();
+
+                if (advection_steps_ % screening_interval == 0)
+                {
+                    std::cout << std::fixed << std::setprecision(9)
+                              << "N=" << advection_steps_
+                              << "  Time = " << time_stepper.getPhysicalTime()
+                              << "  advection_dt = " << advection_step.getInterval()
+                              << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize()
+                              << "\n";
+                }
+
+                if (advection_steps_ % observation_interval == 0)
+                {
+                    observer_update_configuration.exec();
+                    observer_pressure_output.writeToFile(advection_steps_);
+                }
+
+                if (state_recording_trigger())
+                {
+                    body_state_recorder.writeToFile();
+                }
+
+                fluid_update_configuration.exec();
+                fluid_density_regularization.exec();
+                fluid_advection_step_setup.exec();
+                fluid_linear_correction_matrix.exec();
+            }
+        });
 }
 //=================================================================================================//
 void SPHSimulation::initializeSimulation()
@@ -222,20 +295,10 @@ void SPHSimulation::initializeSimulation()
             "Call loadConfig() or buildSimulationFromJson() first.");
     }
 
-    solid_normal_direction_->exec();
-    constant_gravity_->exec();
-
-    solid_cell_linked_list_->exec();
-    fluid_update_configuration_->exec();
-
-    fluid_density_regularization_->exec();
-    fluid_advection_step_setup_->exec();
-    fluid_linear_correction_matrix_->exec();
-
-    body_state_recorder_->writeToFile();
-
-    observer_update_configuration_->exec();
-    observer_pressure_output_->writeToFile(advection_steps_);
+    for (auto &step : initialization_pipeline_.main_steps)
+    {
+        step(); // each step touches all cells internally
+    }
 
     executable_state_ready_ = true;
 }
@@ -283,97 +346,13 @@ void SPHSimulation::run(Real end_time)
                      "Call initializeSimulation() after build.\n";
         return;
     }
-
-    TimeStepper &time_stepper = sph_solver_->defineTimeStepper(end_time);
-
-    //----------------------------------------------------------------------
-    // Setup advection-step trigger
-    //----------------------------------------------------------------------
-    auto &advection_step = time_stepper.addTriggerByInterval(fluid_advection_time_step_->exec());
-    const int screening_interval = 100;
-    const int observation_interval = screening_interval * 2;
-    auto &state_recording_trigger = time_stepper.addTriggerByInterval(0.1);
-
-    //----------------------------------------------------------------------
-    // Timing
-    //----------------------------------------------------------------------
-    TimeInterval interval_output;
-    TimeInterval interval_advection_step;
-    TimeInterval interval_acoustic_step;
-    TimeInterval interval_updating_configuration;
-
-    //----------------------------------------------------------------------
-    // Time integration loop
-    //----------------------------------------------------------------------
-    TickCount t0 = TickCount::now();
-    while (!time_stepper.isEndTime())
+    while (!sph_solver_->getTimeStepper().isEndTime(end_time))
     {
-        // Fast acoustic sub-stepping
-        TickCount time_instance = TickCount::now();
-        Real acoustic_dt = time_stepper.incrementPhysicalTime(*fluid_acoustic_time_step_);
-        fluid_acoustic_step_1st_half_->exec(acoustic_dt);
-        fluid_acoustic_step_2nd_half_->exec(acoustic_dt);
-        interval_acoustic_step += TickCount::now() - time_instance;
-
-        // Slower advection stepping
-        if (advection_step(*fluid_advection_time_step_))
+        for (auto &step : simulation_pipeline_.main_steps)
         {
-            advection_steps_++;
-            fluid_update_particle_position_->exec();
-
-            time_instance = TickCount::now();
-            if (advection_steps_ % screening_interval == 0)
-            {
-                std::cout << std::fixed << std::setprecision(9)
-                          << "N=" << advection_steps_
-                          << "  Time = " << time_stepper.getPhysicalTime()
-                          << "  advection_dt = " << advection_step.getInterval()
-                          << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize()
-                          << "\n";
-            }
-
-            if (advection_steps_ % observation_interval == 0)
-            {
-                observer_update_configuration_->exec();
-                observer_pressure_output_->writeToFile(advection_steps_);
-            }
-
-            if (state_recording_trigger())
-                body_state_recorder_->writeToFile();
-
-            interval_output += TickCount::now() - time_instance;
-
-            // Update configuration
-            time_instance = TickCount::now();
-            if (advection_steps_ % 100 == 0)
-            {
-                particle_sort_->exec();
-            }
-            fluid_update_configuration_->exec();
-            interval_updating_configuration += TickCount::now() - time_instance;
-
-            // Update dynamics for next advection step
-            time_instance = TickCount::now();
-            fluid_density_regularization_->exec();
-            fluid_advection_step_setup_->exec();
-            fluid_linear_correction_matrix_->exec();
-            interval_advection_step += TickCount::now() - time_instance;
+            step(); // each step touches all cells internally
         }
     }
-
-    //----------------------------------------------------------------------
-    // Summary
-    //----------------------------------------------------------------------
-    TimeInterval tt = TickCount::now() - t0 - interval_output;
-    std::cout << "Total wall time for computation: " << tt.seconds()
-              << " seconds.\n";
-    std::cout << std::fixed << std::setprecision(9)
-              << "interval_advection_step = " << interval_advection_step.seconds()
-              << "\n"
-              << "interval_acoustic_step = " << interval_acoustic_step.seconds()
-              << "\n"
-              << "interval_updating_configuration = "
-              << interval_updating_configuration.seconds() << "\n";
 }
 //=================================================================================================//
 } // namespace SPH

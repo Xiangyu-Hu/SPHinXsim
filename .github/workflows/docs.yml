@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
 
       - uses: actions/setup-python@v5
         with:
@@ -17,6 +19,9 @@ jobs:
 
       - run: pip install mkdocs mkdocs-material pymdown-extensions
 
+      - name: Configure git credentials
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
       - run: mkdocs gh-deploy --force --remote-branch gh-pages --remote-name origin
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}

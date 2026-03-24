@@ -189,6 +189,51 @@ class TestCLIRun:
         assert rc != 0
 
 
+class TestCLIUpdate:
+    def _write_valid(self, build_temp_path: Path) -> Path:
+        data = {
+            "domain": {"dimensions": [1.0, 1.0]},
+            "particle_spacing": 0.1,
+            "particle_boundary_buffer": 4,
+            "fluid_blocks": [
+                {
+                    "name": "base",
+                    "dimensions": [0.4, 0.2],
+                    "density": 1000.0,
+                    "sound_speed": 20.0,
+                }
+            ],
+            "walls": [{"name": "WallBoundary", "dimensions": [1.0, 1.0], "boundary_width": 0.2}],
+            "gravity": [0.0, -1.0],
+            "observers": [{"name": "FluidObserver", "positions": [[0.5, 0.2]]}],
+            "solver": {"dual_time_stepping": True, "free_surface_correction": True},
+            "end_time": 0.5,
+        }
+        p = build_temp_path / "config.json"
+        p.write_text(json.dumps(data))
+        return p
+
+    def test_update_in_place(self, build_temp_path):
+        p = self._write_valid(build_temp_path)
+        rc = main(["update", str(p), "simulate for 2 s"])
+        assert rc == 0
+        data = json.loads(p.read_text())
+        assert data["end_time"] == pytest.approx(2.0)
+
+    def test_update_to_output_file(self, build_temp_path):
+        p = self._write_valid(build_temp_path)
+        out = build_temp_path / "updated.json"
+        rc = main(["update", str(p), "water flow with 5 mm resolution", "-o", str(out)])
+        assert rc == 0
+        assert out.exists()
+        data = json.loads(out.read_text())
+        assert data["particle_spacing"] == pytest.approx(0.005)
+
+    def test_update_missing_file(self, build_temp_path):
+        rc = main(["update", str(build_temp_path / "missing.json"), "simulate for 1 s"])
+        assert rc != 0
+
+
 class TestCLIVersion:
     def test_version_matches_package(self, capsys):
         with pytest.raises(SystemExit) as exc_info:

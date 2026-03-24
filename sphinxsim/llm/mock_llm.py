@@ -8,7 +8,7 @@ deterministic, schema-validated configs without any network access.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from sphinxsim.config.schemas import (
     PhysicsType,
@@ -153,8 +153,12 @@ def _apply_overrides(template: Dict[str, Any], description: str) -> Dict[str, An
         if cfg.get("fluid_blocks"):
             cfg["fluid_blocks"][0]["sound_speed"] = max(20.0, 10.0 * speed)
 
-    # End-time override
-    time_match = re.search(r"(\d+(?:\.\d+)?)\s*s\b", description, re.IGNORECASE)
+    # End-time override (e.g. "5 s", "5 sec", "5 second", "5 seconds")
+    time_match = re.search(
+        r"(\d+(?:\.\d+)?)\s*(?:s|sec|secs|second|seconds)\b",
+        description,
+        re.IGNORECASE,
+    )
     if time_match:
         cfg["end_time"] = float(time_match.group(1))
 
@@ -172,6 +176,57 @@ def _apply_overrides(template: Dict[str, Any], description: str) -> Dict[str, An
 
     _sync_geometry(cfg)
 
+    return cfg
+
+
+def _extract_float_list(text: str) -> List[float]:
+    return [float(x) for x in re.findall(r"[-+]?\d*\.?\d+", text)]
+
+
+def _apply_additions(cfg: Dict[str, Any], description: str) -> None:
+    lower = description.lower()
+
+    if "add observer" in lower:
+        obs_name_match = re.search(
+            r"add\s+observer(?:\s+named\s+([\w\- ]+?)(?=\s+(?:at|position|positions)\b|$))?",
+            description,
+            re.IGNORECASE,
+        )
+        obs_name = (obs_name_match.group(1).strip() if obs_name_match and obs_name_match.group(1) else "Observer")
+        at_match = re.search(r"(?:at|position(?:s)?)\s*[:=]?\s*\(?([^\)]*)\)?", description, re.IGNORECASE)
+        if at_match:
+            coords = _extract_float_list(at_match.group(1))
+            dim = len(cfg.get("domain", {}).get("dimensions", [0.0, 0.0]))
+            if len(coords) == dim:
+                cfg.setdefault("observers", []).append({"name": obs_name, "positions": [coords]})
+
+    if "add fluid block" in lower:
+        name_match = re.search(r"add\s+fluid\s+block(?:\s+named\s+([\w\- ]+))?", description, re.IGNORECASE)
+        block_name = (name_match.group(1).strip() if name_match and name_match.group(1) else "FluidBlock")
+        dims_match = re.search(r"dimensions?\s*[:=]?\s*([^,;]+)", description, re.IGNORECASE)
+        dims = _extract_float_list(dims_match.group(1)) if dims_match else []
+        dim = len(cfg.get("domain", {}).get("dimensions", [0.0, 0.0]))
+        if len(dims) == dim:
+            density_match = re.search(r"density\s*[:=]?\s*(\d+(?:\.\d+)?)", description, re.IGNORECASE)
+            sound_speed_match = re.search(r"sound\s*speed\s*[:=]?\s*(\d+(?:\.\d+)?)", description, re.IGNORECASE)
+            density = float(density_match.group(1)) if density_match else 1.0
+            sound_speed = float(sound_speed_match.group(1)) if sound_speed_match else 20.0
+            cfg.setdefault("fluid_blocks", []).append(
+                {
+                    "name": block_name,
+                    "dimensions": dims,
+                    "density": density,
+                    "sound_speed": sound_speed,
+                }
+            )
+
+
+def _apply_updates(existing: Dict[str, Any], description: str) -> Dict[str, Any]:
+    import copy
+
+    cfg = copy.deepcopy(existing)
+    cfg = _apply_overrides(cfg, description)
+    _apply_additions(cfg, description)
     return cfg
 
 
@@ -222,3 +277,11 @@ class MockLLM:
             template["fluid_blocks"][0]["name"] = _extract_name(description)
 
         return SimulationConfig(**template)
+
+    def update(self, existing: SimulationConfig, description: str) -> SimulationConfig:
+        """Apply a natural-language update to an existing config."""
+        if not description or not description.strip():
+            raise ValueError("description must not be empty")
+
+        updated = _apply_updates(existing.model_dump(), description)
+        return SimulationConfig(**updated)

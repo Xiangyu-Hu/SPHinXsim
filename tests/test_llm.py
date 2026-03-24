@@ -101,3 +101,19 @@ class TestMockLLM:
             # round-trip through JSON to confirm schema is fully satisfied
             restored = SimulationConfig.model_validate_json(cfg.model_dump_json())
             assert restored == cfg
+
+    def test_update_changes_existing_end_time(self):
+        base = self.llm.generate("water flow")
+        updated = self.llm.update(base, "simulate for 3 s")
+        assert updated.end_time == pytest.approx(3.0)
+
+    def test_update_changes_end_time_with_second_wording(self):
+        base = self.llm.generate("water flow")
+        updated = self.llm.update(base, "the end time is 3 second.")
+        assert updated.end_time == pytest.approx(3.0)
+
+    def test_update_adds_observer(self):
+        base = self.llm.generate("water flow")
+        updated = self.llm.update(base, "add observer named outlet at (1.0, 0.5)")
+        assert len(updated.observers) == len(base.observers) + 1
+        assert updated.observers[-1].name == "outlet"

@@ -51,4 +51,36 @@ class OpenAILLM:
 
         # Final safety: schema validation on your side
         return SimulationConfig(**data)
+
+    def update(self, existing: SimulationConfig, description: str) -> SimulationConfig:
+        if not description or not description.strip():
+            raise ValueError("description must not be empty")
+
+        schema = SimulationConfig.model_json_schema()
+
+        system = (
+            "You revise simulator configurations. "
+            "Given an existing config and an update instruction, return ONLY the full updated JSON "
+            "that conforms to the provided JSON Schema. "
+            "Do not include markdown, comments, or extra keys."
+        )
+
+        user = {
+            "instruction": description,
+            "existing_config": existing.model_dump(),
+            "json_schema": schema,
+        }
+
+        resp = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": json.dumps(user)},
+            ],
+            temperature=0,
+        )
+
+        content = resp.choices[0].message.content or ""
+        data: Dict[str, Any] = json.loads(content)
+        return SimulationConfig(**data)
     

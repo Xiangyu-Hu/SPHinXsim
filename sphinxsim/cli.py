@@ -111,11 +111,54 @@ def cmd_generate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_update(args: argparse.Namespace) -> int:
+    """Update an existing SimulationConfig from a natural-language instruction."""
+    config_path = Path(args.config_file)
+    config, rc = _load_config(config_path)
+    if rc != 0:
+        return rc
+    assert config is not None
+
+    llm = get_llm()
+    try:
+        if not hasattr(llm, "update"):
+            print(
+                "The selected LLM provider does not support config updates. "
+                "Please use a provider implementing update().",
+                file=sys.stderr,
+            )
+            return 1
+        updated_config = llm.update(config, args.description)
+    except (ValueError, ValidationError) as exc:
+        print(f"Error updating config: {exc}", file=sys.stderr)
+        return 1
+
+    output_path = Path(args.output) if args.output else config_path
+    if not output_path.is_absolute():
+        output_path = PROJECT_ROOT / ".build-temp" / output_path
+
+    output = updated_config.model_dump_json(indent=2)
+    try:
+        if output_path.parent and not output_path.parent.exists():
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(output)
+    except OSError as exc:
+        print(f"Error writing updated config to {output_path}: {exc}", file=sys.stderr)
+        return 1
+
+    if args.output:
+        print(f"Updated config written to {output_path}")
+    else:
+        print(f"Updated config in place: {output_path}")
+    return 0
+
+
 def cmd_validate(args: argparse.Namespace) -> int:
     """Validate a JSON config file against the SimulationConfig schema."""
     config, rc = _load_config(Path(args.config_file))
     if rc != 0:
         return rc
+    assert config is not None
     print(f"✅ Generated configuration:")
     print(f"   Domain dimensions: {config.domain.dimensions}")
     print(f"   Particle spacing: {config.particle_spacing}")
@@ -144,6 +187,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     config, rc = _load_config(config_path)
     if rc != 0:
         return rc
+    assert config is not None
 
     if not config_path.is_absolute():
         config_path = PROJECT_ROOT / ".build-temp" / config_path
@@ -237,6 +281,22 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     val.add_argument("config_file", nargs='?', default="config.json", help="Path to JSON config file.")
     val.set_defaults(func=cmd_validate)
+
+    # update
+    upd = subparsers.add_parser(
+        "update",
+        help="Update an existing simulation config from a natural-language instruction.",
+    )
+    upd.add_argument("config_file", help="Path to an existing JSON config file.")
+    upd.add_argument("description", help="Natural-language update instruction.")
+    upd.add_argument(
+        "-o",
+        "--output",
+        metavar="FILE",
+        default=None,
+        help="Write updated JSON to FILE instead of updating in place.",
+    )
+    upd.set_defaults(func=cmd_update)
 
     # run
     run = subparsers.add_parser("run", help="Run a simulation from a JSON config file.")

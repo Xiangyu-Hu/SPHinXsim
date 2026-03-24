@@ -169,7 +169,7 @@ class TestCLIRun:
             ],
             "walls": [{"name": "WallBoundary", "dimensions": [1.0, 1.0], "boundary_width": 0.2}],
             "gravity": [0.0, -1.0],
-            "observers": [{"name": "Observer", "positions": [[0.5, 0.2]]}],
+            "observers": [{"name": "FluidObserver", "positions": [[0.5, 0.2]]}],
             "solver": {"dual_time_stepping": True, "free_surface_correction": True},
             "end_time": 0.5,
         }

@@ -29,25 +29,18 @@ SPHSystem &SPHSimulation::defineSPHSystem(const json &config)
     return *sph_system_ptr_;
 }
 //=================================================================================================//
-FluidBody &SPHSimulation::addFluidBody(const json &config)
+FluidBody &SPHSimulation::addFluidBody(SPHSystem &sph_system, const json &config)
 {
-    if (!sph_system_ptr_)
-    {
-        throw std::runtime_error(
-            "SPHSimulation::addFluidBody: SPH system is not defined. "
-            "Ensure domain and particle parameters are configured first.");
-    }
-
     const std::string name = config.at("name").get<std::string>();
     const Vecd dimensions = jsonToVecd(config.at("dimensions"));
     const Real rho0 = config.value("density", Real(1.0));
     const Real c = config.value("sound_speed", Real(10.0));
 
     Vecd fluid_halfsize = 0.5 * dimensions;
-    auto &fluid_shape = sph_system_ptr_->addShape<GeometricShapeBox>(
+    auto &fluid_shape = sph_system.addShape<GeometricShapeBox>(
         Transform(fluid_halfsize), fluid_halfsize, name);
 
-    auto &fluid_body = sph_system_ptr_->addBody<FluidBody>(fluid_shape, name);
+    auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
     fluid_body.defineMaterial<WeaklyCompressibleFluid>(rho0, c);
     fluid_body.generateParticles<BaseParticles, Lattice>();
 
@@ -55,26 +48,19 @@ FluidBody &SPHSimulation::addFluidBody(const json &config)
     return fluid_body;
 }
 //=================================================================================================//
-SolidBody &SPHSimulation::addWall(const json &config)
+SolidBody &SPHSimulation::addWall(SPHSystem &sph_system, const json &config)
 {
-    if (!sph_system_ptr_)
-    {
-        throw std::runtime_error(
-            "SPHSimulation::addWall: SPH system is not defined. "
-            "Ensure domain and particle parameters are configured first.");
-    }
-
     const std::string name = config.at("name").get<std::string>();
     const Vecd dims = jsonToVecd(config.at("dimensions"));
     const Real boundary_width = config.at("boundary_width").get<Real>();
 
     Vecd inner_halfsize = 0.5 * dims;
     Vecd outer_halfsize = inner_halfsize + Vecd::Constant(boundary_width);
-    auto &wall_shape = sph_system_ptr_->addShape<ComplexShape>(name);
+    auto &wall_shape = sph_system.addShape<ComplexShape>(name);
     wall_shape.add<GeometricShapeBox>(Transform(inner_halfsize), outer_halfsize);
     wall_shape.subtract<GeometricShapeBox>(Transform(inner_halfsize), inner_halfsize);
 
-    auto &wall_body = sph_system_ptr_->addBody<SolidBody>(wall_shape, name);
+    auto &wall_body = sph_system.addBody<SolidBody>(wall_shape, name);
     wall_body.defineMaterial<Solid>();
     wall_body.generateParticles<BaseParticles, Lattice>();
 
@@ -82,21 +68,8 @@ SolidBody &SPHSimulation::addWall(const json &config)
     return wall_body;
 }
 //=================================================================================================//
-void SPHSimulation::enableGravity(const json &config)
+ObserverBody &SPHSimulation::addObserver(SPHSystem &sph_system, const json &config)
 {
-    gravity_ = jsonToVecd(config);
-    gravity_enabled_ = true;
-}
-//=================================================================================================//
-void SPHSimulation::addObserver(const json &config)
-{
-    if (!sph_system_ptr_)
-    {
-        throw std::runtime_error(
-            "SPHSimulation::addObserver: SPH system is not defined. "
-            "Ensure domain and particle parameters are configured first.");
-    }
-
     const std::string name = config.at("name").get<std::string>();
     StdVec<Vecd> positions;
     if (config.contains("positions"))
@@ -108,16 +81,12 @@ void SPHSimulation::addObserver(const json &config)
     {
         positions.push_back(jsonToVecd(config.at("position")));
     }
-    else
-    {
-        throw std::runtime_error(
-            "SPHSimulation::addObserver: observer must define either 'position' or 'positions'.");
-    }
 
-    ObserverBody &observer_body = sph_system_ptr_->addBody<ObserverBody>(name);
+    ObserverBody &observer_body = sph_system.addBody<ObserverBody>(name);
     observer_body.generateParticles<ObserverParticles>(positions);
 
     entity_manager_.addEntity(name, &observer_body);
+    return observer_body;
 }
 //=================================================================================================//
 SolverConfig &SPHSimulation::useSolver(const json &config)
@@ -143,15 +112,13 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
     //----------------------------------------------------------------------
     if (config.contains("fluid_blocks"))
         for (const auto &fb : config.at("fluid_blocks"))
-            addFluidBody(fb);
+            addFluidBody(sph_system, fb);
     if (config.contains("walls"))
         for (const auto &w : config.at("walls"))
-            addWall(w);
-    if (config.contains("gravity"))
-        enableGravity(config.at("gravity"));
+            addWall(sph_system, w);
     if (config.contains("observers"))
         for (const auto &obs : config.at("observers"))
-            addObserver(obs);
+            addObserver(sph_system, obs);
     if (config.contains("solver"))
         useSolver(config.at("solver"));
     if (config.contains("end_time"))
@@ -196,8 +163,6 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
     auto &observer_update_configuration = main_methods.addRelationDynamics(fluid_observer_contact);
     auto &particle_sort = main_methods.addSortDynamics(fluid_body);
 
-    Gravity gravity_force(gravity_enabled_ ? gravity_ : Vecd::Zero());
-    auto &constant_gravity = main_methods.addStateDynamics<GravityForceCK<Gravity>>(fluid_body, gravity_force);
     auto &fluid_advection_step_setup = main_methods.addStateDynamics<fluid_dynamics::AdvectionStepSetup>(fluid_body);
     auto &fluid_update_particle_position = main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(fluid_body);
 
@@ -242,7 +207,7 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
         [&]()
         {
             solid_normal_direction.exec();
-            constant_gravity.exec();
+            initialization_pipeline_.run_hooks(InitializationHookPoint::InitalConditions);
 
             solid_cell_linked_list.exec();
             fluid_update_configuration.exec();
@@ -316,6 +281,18 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
                 fluid_linear_correction_matrix.exec();
             }
         });
+    //----------------------------------------------------------------------
+    // Define optional methods using hooking point in stage pipelines.
+    //----------------------------------------------------------------------
+    if (config.contains("gravity"))
+    {
+        auto &constant_gravity =
+            main_methods.addStateDynamics<GravityForceCK<Gravity>>(
+                fluid_body, Gravity(jsonToVecd(config.at("gravity"))));
+        initialization_pipeline_.insert_hook(
+            InitializationHookPoint::InitalConditions, [&]()
+            { constant_gravity.exec(); });
+    }
 }
 //=================================================================================================//
 void SPHSimulation::loadConfig()

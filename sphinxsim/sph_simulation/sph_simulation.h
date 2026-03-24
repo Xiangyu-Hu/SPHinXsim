@@ -98,8 +98,6 @@ class SPHSimulation
     StagePipeline<InitializationHookPoint> initialization_pipeline_;
     StagePipeline<SimulationHookPoint> simulation_pipeline_;
     Real end_time_{0.0};
-    Vecd gravity_{Vecd::Zero()};
-    bool gravity_enabled_{false};
     std::unique_ptr<SolverConfig> solver_config_;
     std::unique_ptr<SPHSolver> sph_solver_;
     size_t advection_steps_{1};
@@ -107,10 +105,9 @@ class SPHSimulation
     std::unique_ptr<SPHSystem> sph_system_ptr_;
 
     SPHSystem &defineSPHSystem(const json &config);
-    FluidBody &addFluidBody(const json &config);
-    SolidBody &addWall(const json &config);
-    void enableGravity(const json &config);
-    void addObserver(const json &config);
+    FluidBody &addFluidBody(SPHSystem &sph_system, const json &config);
+    SolidBody &addWall(SPHSystem &sph_system, const json &config);
+    ObserverBody &addObserver(SPHSystem &sph_system, const json &config);
     SolverConfig &useSolver(const json &config);
 };
 } // namespace SPH

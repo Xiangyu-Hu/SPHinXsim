@@ -18,6 +18,9 @@ dependencies = [
 dev = [
     "pytest>=7.0",
 ]
+llm = [
+    "openai>=1.0",
+]
 
 [project.scripts]
 sphinxsim = "sphinxsim.cli:main"

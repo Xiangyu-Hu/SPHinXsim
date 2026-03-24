@@ -103,15 +103,12 @@ class SPHSimulation
 
     std::filesystem::path config_path_;
     EntityManager entity_manager_;
+
     StagePipeline<InitializationHookPoint> initialization_pipeline_;
     StagePipeline<InitializationHookPoint> simulation_pipeline_;
     Real end_time_{0.0};
     Vecd gravity_{Vecd::Zero()};
     bool gravity_enabled_{false};
-
-    std::vector<std::string> fluid_body_names_;
-    std::vector<std::string> wall_body_names_;
-    std::vector<std::string> observer_body_names_;
 
     std::unique_ptr<SolverConfig> solver_config_;
     std::unique_ptr<SPHSolver> sph_solver_;

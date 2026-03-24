@@ -51,7 +51,6 @@ FluidBody &SPHSimulation::addFluidBody(const json &config)
     fluid_body.generateParticles<BaseParticles, Lattice>();
 
     entity_manager_.addEntity(name, &fluid_body);
-    fluid_body_names_.push_back(name);
     return fluid_body;
 }
 //=================================================================================================//
@@ -79,7 +78,6 @@ SolidBody &SPHSimulation::addWall(const json &config)
     wall_body.generateParticles<BaseParticles, Lattice>();
 
     entity_manager_.addEntity(name, &wall_body);
-    wall_body_names_.push_back(name);
     return wall_body;
 }
 //=================================================================================================//
@@ -119,7 +117,6 @@ void SPHSimulation::addObserver(const json &config)
     observer_body.generateParticles<ObserverParticles>(positions);
 
     entity_manager_.addEntity(name, &observer_body);
-    observer_body_names_.push_back(name);
 }
 //=================================================================================================//
 SolverConfig &SPHSimulation::useSolver(const json &config)
@@ -141,19 +138,19 @@ void SPHSimulation::buildExecutableState()
         throw std::runtime_error(
             "SPHSimulation::buildExecutableState: SPH system is not defined.");
     }
-    if (fluid_body_names_.empty())
+    if (entity_manager_.entitiesWith<FluidBody>().empty())
     {
         throw std::runtime_error(
             "SPHSimulation::buildExecutableState: no fluid body defined.");
     }
-    if (wall_body_names_.empty())
+    if (entity_manager_.entitiesWith<SolidBody>().empty())
     {
         throw std::runtime_error(
             "SPHSimulation::buildExecutableState: no wall defined.");
     }
 
     SPHSystem &sph_system = getSPHSystem();
-    auto &fluid_body = entity_manager_.getEntityByName<FluidBody>(fluid_body_names_.front());
+    auto &fluid_body = *entity_manager_.entitiesWith<FluidBody>().front(); // assume only one fluid body for now
     StdVec<SolidBody *> solid_bodies = entity_manager_.entitiesWith<SolidBody>();
     auto &fluid_observer = entity_manager_.getEntityByName<ObserverBody>("FluidObserver");
 

@@ -94,15 +94,15 @@ class SPHSimulation
 
   private:
     std::filesystem::path config_path_;
+    std::unique_ptr<SPHSystem> sph_system_ptr_;
     EntityManager entity_manager_;
     StagePipeline<InitializationHookPoint> initialization_pipeline_;
     StagePipeline<SimulationHookPoint> simulation_pipeline_;
-    Real end_time_{0.0};
-    std::unique_ptr<SolverConfig> solver_config_;
     std::unique_ptr<SPHSolver> sph_solver_;
+    std::unique_ptr<SolverConfig> solver_config_;
+    Real end_time_{0.0};
     size_t advection_steps_{1};
     bool executable_state_ready_{false};
-    std::unique_ptr<SPHSystem> sph_system_ptr_;
 
     SPHSystem &defineSPHSystem(const json &config);
     FluidBody &addFluidBody(SPHSystem &sph_system, const json &config);

@@ -76,5 +76,6 @@
   "solver": {
     "dual_time_stepping": true,
     "free_surface_correction": true
-  }
+  },
+  "end_time": 20.0
 }

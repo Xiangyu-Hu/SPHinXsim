@@ -57,13 +57,23 @@ namespace SPH
  * The JSON config schema is:
  * @code
  * {
- *   "domain"      : { "dimensions": [DL, DH] },
+ *   "domain"      : { "lower_bound": [0.0, 0.0], "upper_bound": [DL, DH] },
  *   "particle_spacing": 0.02,
  *   "particle_boundary_buffer": 4,
- *   "fluid_blocks": [{ "name": "Water", "dimensions": [LL, LH],
- *                      "density": 1000.0, "sound_speed": 20.0 }],
- *   "walls"       : [{ "name": "Tank", "dimensions": [DL, DH],
- *                      "boundary_width": 0.08 }],
+ *   "fluid_bodies" : [{
+ *     "name": "Water",
+ *     "geometry": { "type": "bounding_box",
+ *                   "lower_bound": [0.0, 0.0], "upper_bound": [LL, LH] },
+ *     "material": { "type": "weakly_compressible_fluid",
+ *                   "density": 1000.0, "sound_speed": 20.0 }
+ *   }],
+ *   "solid_bodies" : [{
+ *     "name": "Tank",
+ *     "geometry": { "type": "container_box",
+ *                   "inner_lower_bound": [0.0, 0.0], "inner_upper_bound": [DL, DH],
+ *                   "thickness": 0.08 },
+ *     "material": { "type": "rigid_body" }
+ *   }],
  *   "gravity"     : [0.0, -9.81],
  *   "observers"   : [{ "name": "Probe", "positions": [[0.5, 0.2]] }],
  *   "solver"      : { "dual_time_stepping": true, "free_surface_correction": true },
@@ -108,7 +118,7 @@ class SPHSimulation
     Shape &addShape(SPHSystem &sph_system, const json &config);
     void addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config);
     FluidBody &addFluidBody(SPHSystem &sph_system, const json &config);
-    SolidBody &addWall(SPHSystem &sph_system, const json &config);
+    SolidBody &addSolidBody(SPHSystem &sph_system, const json &config);
     ObserverBody &addObserver(SPHSystem &sph_system, const json &config);
     SolverConfig &useSolver(const json &config);
 };

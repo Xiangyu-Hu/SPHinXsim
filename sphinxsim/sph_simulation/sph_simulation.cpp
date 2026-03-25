@@ -92,7 +92,7 @@ FluidBody &SPHSimulation::addFluidBody(SPHSystem &sph_system, const json &config
     return fluid_body;
 }
 //=================================================================================================//
-SolidBody &SPHSimulation::addWall(SPHSystem &sph_system, const json &config)
+SolidBody &SPHSimulation::addSolidBody(SPHSystem &sph_system, const json &config)
 {
     const std::string name = config.at("name").get<std::string>();
     Shape &wall_shape = addShape(sph_system, config.at("geometry"));
@@ -148,7 +148,7 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
     for (const auto &fb : config.at("fluid_bodies"))
         addFluidBody(sph_system, fb);
     for (const auto &w : config.at("solid_bodies"))
-        addWall(sph_system, w);
+        addSolidBody(sph_system, w);
     if (config.contains("observers"))
         for (const auto &obs : config.at("observers"))
             addObserver(sph_system, obs);

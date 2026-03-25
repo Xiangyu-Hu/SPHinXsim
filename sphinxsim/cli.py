@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 
 # Set up sys.path FIRST, before any sphinxsim imports
 def _find_project_root(start=None):
@@ -208,8 +209,22 @@ def cmd_run(args: argparse.Namespace) -> int:
     if not config_path.is_absolute():
         config_path = PROJECT_ROOT / ".build-temp" / config_path
 
+    # Write the Pydantic-validated config (new-format JSON) to a temp file so
+    # the C++ engine always receives upper_bound/lower_bound, fluid_bodies and
+    # solid_bodies regardless of what the original file contained.
+    tmp_cfg = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".json", delete=False, prefix="sphinxsim_run_"
+    )
     try:
-        sim = sph.SPHSimulation(str(config_path))
+        tmp_cfg.write(config.model_dump_json(indent=2))
+        tmp_cfg.close()
+        validated_config_path = tmp_cfg.name
+    except OSError as exc:
+        print(f"Error writing validated config: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        sim = sph.SPHSimulation(validated_config_path)
         sim.loadConfig()
         print("✅ Simulation configuration loaded")
         
@@ -240,7 +255,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"   {output_dir}")
         
         return 0
-        
+
     except RuntimeError as e:
         if "C++ extension" in str(e):
             print("❌ C++ extension not available")
@@ -251,20 +266,25 @@ def cmd_run(args: argparse.Namespace) -> int:
             return 1
         else:
             raise
-    
+
     except NotImplementedError as e:
         print(f"❌ Feature not yet implemented: {e}")
         print("\n💡 Tip: Try a fluid-only simulation like:")
         print('   "water dam break for 1 second"')
         return 1
-    
+
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         import traceback
         traceback.print_exc()
         return 1
+
     finally:
-        # Restore original directory
+        # Always clean up the validated temp config and restore original directory.
+        try:
+            os.unlink(validated_config_path)
+        except OSError:
+            pass
         os.chdir(original_dir)
 
 # ---------------------------------------------------------------------------

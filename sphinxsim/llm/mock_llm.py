@@ -8,7 +8,7 @@ deterministic, schema-validated configs without any network access.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from sphinxsim.config.schemas import (
     PhysicsType,
@@ -21,14 +21,35 @@ from sphinxsim.config.schemas import (
 # ---------------------------------------------------------------------------
 
 _FLUID_TEMPLATE: Dict[str, Any] = {
-    "domain": {"dimensions": [5.366, 5.366]},
+    "domain": {"lower_bound": [0.0, 0.0], "upper_bound": [5.366, 5.366]},
     "particle_spacing": 0.025,
     "particle_boundary_buffer": 4,
-    "fluid_blocks": [
-        {"name": "WaterBody", "dimensions": [2.0, 1.0], "density": 1.0, "sound_speed": 20.0}
+    "fluid_bodies": [
+        {
+            "name": "WaterBody",
+            "geometry": {
+                "type": "bounding_box",
+                "lower_bound": [0.0, 0.0],
+                "upper_bound": [2.0, 1.0],
+            },
+            "material": {
+                "type": "weakly_compressible_fluid",
+                "density": 1.0,
+                "sound_speed": 20.0,
+            },
+        }
     ],
-    "walls": [
-        {"name": "WallBoundary"},
+    "solid_bodies": [
+        {
+            "name": "WallBoundary",
+            "geometry": {
+                "type": "container_box",
+                "inner_lower_bound": [0.0, 0.0],
+                "inner_upper_bound": [5.366, 5.366],
+                "thickness": 0.1,
+            },
+            "material": {"type": "rigid_body"},
+        }
     ],
     "gravity": [0.0, -1.0],
     "observers": [
@@ -39,14 +60,35 @@ _FLUID_TEMPLATE: Dict[str, Any] = {
 }
 
 _SOLID_TEMPLATE: Dict[str, Any] = {
-    "domain": {"dimensions": [1.0, 0.2]},
+    "domain": {"lower_bound": [0.0, 0.0], "upper_bound": [1.0, 0.2]},
     "particle_spacing": 0.01,
     "particle_boundary_buffer": 4,
-    "fluid_blocks": [
-        {"name": "ReferenceBody", "dimensions": [0.5, 0.1], "density": 7850.0, "sound_speed": 50.0}
+    "fluid_bodies": [
+        {
+            "name": "ReferenceBody",
+            "geometry": {
+                "type": "bounding_box",
+                "lower_bound": [0.0, 0.0],
+                "upper_bound": [0.5, 0.1],
+            },
+            "material": {
+                "type": "weakly_compressible_fluid",
+                "density": 7850.0,
+                "sound_speed": 50.0,
+            },
+        }
     ],
-    "walls": [
-        {"name": "WallBoundary"},
+    "solid_bodies": [
+        {
+            "name": "WallBoundary",
+            "geometry": {
+                "type": "container_box",
+                "inner_lower_bound": [0.0, 0.0],
+                "inner_upper_bound": [5.366, 5.366],
+                "thickness": 0.1,
+            },
+            "material": {"type": "rigid_body"},
+        }
     ],
     "gravity": [0.0, -1.0],
     "observers": [],
@@ -55,14 +97,35 @@ _SOLID_TEMPLATE: Dict[str, Any] = {
 }
 
 _FSI_TEMPLATE: Dict[str, Any] = {
-    "domain": {"dimensions": [2.0, 1.0]},
+    "domain": {"lower_bound": [0.0, 0.0], "upper_bound": [2.0, 1.0]},
     "particle_spacing": 0.02,
     "particle_boundary_buffer": 4,
-    "fluid_blocks": [
-        {"name": "WaterBody", "dimensions": [0.8, 0.4], "density": 1000.0, "sound_speed": 20.0}
+    "fluid_bodies": [
+        {
+            "name": "WaterBody",
+            "geometry": {
+                "type": "bounding_box",
+                "lower_bound": [0.0, 0.0],
+                "upper_bound": [0.8, 0.4],
+            },
+            "material": {
+                "type": "weakly_compressible_fluid",
+                "density": 1000.0,
+                "sound_speed": 20.0,
+            },
+        }
     ],
-    "walls": [
-        {"name": "WallBoundary"},
+    "solid_bodies": [
+        {
+            "name": "WallBoundary",
+            "geometry": {
+                "type": "container_box",
+                "inner_lower_bound": [0.0, 0.0],
+                "inner_upper_bound": [5.366, 5.366],
+                "thickness": 0.1,
+            },
+            "material": {"type": "rigid_body"},
+        }
     ],
     "gravity": [0.0, -1.0],
     "observers": [
@@ -122,12 +185,15 @@ def _extract_name(description: str) -> str:
 
 
 def _sync_geometry(cfg: Dict[str, Any]) -> None:
-    dims = cfg["domain"]["dimensions"]
+    dims = cfg["domain"]["upper_bound"]
     domain_x = dims[0]
     domain_y = dims[1] if len(dims) > 1 else dims[0]
 
-    if cfg.get("fluid_blocks"):
-        cfg["fluid_blocks"][0]["dimensions"] = [0.4 * domain_x, 0.2 * domain_y]
+    if cfg.get("fluid_bodies"):
+        cfg["fluid_bodies"][0]["geometry"]["upper_bound"] = [0.4 * domain_x, 0.2 * domain_y]
+
+    if cfg.get("solid_bodies"):
+        cfg["solid_bodies"][0]["geometry"]["inner_upper_bound"] = [domain_x, domain_y]
 
     if cfg.get("observers") and cfg["observers"][0].get("positions"):
         cfg["observers"][0]["positions"] = [[domain_x, min(0.2, domain_y)]]
@@ -150,11 +216,15 @@ def _apply_overrides(template: Dict[str, Any], description: str) -> Dict[str, An
     vel_match = re.search(r"(\d+(?:\.\d+)?)\s*m/s", description, re.IGNORECASE)
     if vel_match:
         speed = float(vel_match.group(1))
-        if cfg.get("fluid_blocks"):
-            cfg["fluid_blocks"][0]["sound_speed"] = max(20.0, 10.0 * speed)
+        if cfg.get("fluid_bodies"):
+            cfg["fluid_bodies"][0]["material"]["sound_speed"] = max(20.0, 10.0 * speed)
 
-    # End-time override
-    time_match = re.search(r"(\d+(?:\.\d+)?)\s*s\b", description, re.IGNORECASE)
+    # End-time override (e.g. "5 s", "5 sec", "5 second", "5 seconds")
+    time_match = re.search(
+        r"(\d+(?:\.\d+)?)\s*(?:s|sec|secs|second|seconds)\b",
+        description,
+        re.IGNORECASE,
+    )
     if time_match:
         cfg["end_time"] = float(time_match.group(1))
 
@@ -162,8 +232,8 @@ def _apply_overrides(template: Dict[str, Any], description: str) -> Dict[str, An
     domain_match = re.search(r"(\d+(?:\.\d+)?)\s*m\s+domain", description, re.IGNORECASE)
     if domain_match:
         size = float(domain_match.group(1))
-        dim = len(cfg["domain"]["dimensions"])
-        cfg["domain"]["dimensions"] = [size] * dim
+        dim = len(cfg["domain"]["upper_bound"])
+        cfg["domain"]["upper_bound"] = [size] * dim
 
     # Resolution override (e.g. "5 mm resolution")
     res_match = re.search(r"(\d+(?:\.\d+)?)\s*mm\s+resolution", description, re.IGNORECASE)
@@ -172,6 +242,64 @@ def _apply_overrides(template: Dict[str, Any], description: str) -> Dict[str, An
 
     _sync_geometry(cfg)
 
+    return cfg
+
+
+def _extract_float_list(text: str) -> List[float]:
+    return [float(x) for x in re.findall(r"[-+]?\d*\.?\d+", text)]
+
+
+def _apply_additions(cfg: Dict[str, Any], description: str) -> None:
+    lower = description.lower()
+
+    if "add observer" in lower:
+        obs_name_match = re.search(
+            r"add\s+observer(?:\s+named\s+([\w\- ]+?)(?=\s+(?:at|position|positions)\b|$))?",
+            description,
+            re.IGNORECASE,
+        )
+        obs_name = (obs_name_match.group(1).strip() if obs_name_match and obs_name_match.group(1) else "Observer")
+        at_match = re.search(r"(?:at|position(?:s)?)\s*[:=]?\s*\(?([^\)]*)\)?", description, re.IGNORECASE)
+        if at_match:
+            coords = _extract_float_list(at_match.group(1))
+            dim = len(cfg.get("domain", {}).get("upper_bound", [0.0, 0.0]))
+            if len(coords) == dim:
+                cfg.setdefault("observers", []).append({"name": obs_name, "positions": [coords]})
+
+    if "add fluid block" in lower:
+        name_match = re.search(r"add\s+fluid\s+block(?:\s+named\s+([\w\- ]+))?", description, re.IGNORECASE)
+        block_name = (name_match.group(1).strip() if name_match and name_match.group(1) else "FluidBlock")
+        dims_match = re.search(r"dimensions?\s*[:=]?\s*([^,;]+)", description, re.IGNORECASE)
+        dims = _extract_float_list(dims_match.group(1)) if dims_match else []
+        dim = len(cfg.get("domain", {}).get("upper_bound", [0.0, 0.0]))
+        if len(dims) == dim:
+            density_match = re.search(r"density\s*[:=]?\s*(\d+(?:\.\d+)?)", description, re.IGNORECASE)
+            sound_speed_match = re.search(r"sound\s*speed\s*[:=]?\s*(\d+(?:\.\d+)?)", description, re.IGNORECASE)
+            density = float(density_match.group(1)) if density_match else 1.0
+            sound_speed = float(sound_speed_match.group(1)) if sound_speed_match else 20.0
+            cfg.setdefault("fluid_bodies", []).append(
+                {
+                    "name": block_name,
+                    "geometry": {
+                        "type": "bounding_box",
+                        "lower_bound": [0.0] * dim,
+                        "upper_bound": dims,
+                    },
+                    "material": {
+                        "type": "weakly_compressible_fluid",
+                        "density": density,
+                        "sound_speed": sound_speed,
+                    },
+                }
+            )
+
+
+def _apply_updates(existing: Dict[str, Any], description: str) -> Dict[str, Any]:
+    import copy
+
+    cfg = copy.deepcopy(existing)
+    cfg = _apply_overrides(cfg, description)
+    _apply_additions(cfg, description)
     return cfg
 
 
@@ -218,7 +346,15 @@ class MockLLM:
 
         physics = _detect_physics(description)
         template = _apply_overrides(_TEMPLATES[physics], description)
-        if template.get("fluid_blocks"):
-            template["fluid_blocks"][0]["name"] = _extract_name(description)
+        if template.get("fluid_bodies"):
+            template["fluid_bodies"][0]["name"] = _extract_name(description)
 
         return SimulationConfig(**template)
+
+    def update(self, existing: SimulationConfig, description: str) -> SimulationConfig:
+        """Apply a natural-language update to an existing config."""
+        if not description or not description.strip():
+            raise ValueError("description must not be empty")
+
+        updated = _apply_updates(existing.model_dump(), description)
+        return SimulationConfig(**updated)

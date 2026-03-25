@@ -28,13 +28,13 @@ This structure keeps configuration explicit and reproducible while still allowin
 ## High-level architecture
 
 - `sphinxsim/cli.py`:
-	Command-line entry point for generate/validate/run.
+ Command-line entry point for generate/validate/run.
 - `sphinxsim/config/schemas.py`:
-	Pydantic models for domain, fluid blocks, walls, observers, solver options, and consistency checks.
+ Pydantic models for domain bounds, fluid bodies, solid bodies, observers, solver options, and consistency checks.
 - `sphinxsim/llm/`:
-	LLM backends (including OpenAI and mock mode) that transform natural-language prompts into schema-compliant configs.
+ LLM backends (including OpenAI and mock mode) that transform natural-language prompts into schema-compliant configs.
 - `sphinxsim/sph_simulation/` and bindings:
-	Bridge to compiled SPHinXsys C++ components used at runtime.
+ Bridge to compiled SPHinXsys C++ components used at runtime.
 
 ## Current scope and direction
 

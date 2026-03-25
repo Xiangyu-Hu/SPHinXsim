@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 
 # Set up sys.path FIRST, before any sphinxsim imports
 def _find_project_root(start=None):
@@ -111,22 +112,79 @@ def cmd_generate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_update(args: argparse.Namespace) -> int:
+    """Update an existing SimulationConfig from a natural-language instruction."""
+    config_path = Path(args.config_file)
+    config, rc = _load_config(config_path)
+    if rc != 0:
+        return rc
+    assert config is not None
+
+    llm = get_llm()
+    try:
+        if not hasattr(llm, "update"):
+            print(
+                "The selected LLM provider does not support config updates. "
+                "Please use a provider implementing update().",
+                file=sys.stderr,
+            )
+            return 1
+        updated_config = llm.update(config, args.description)
+    except (ValueError, ValidationError) as exc:
+        print(f"Error updating config: {exc}", file=sys.stderr)
+        return 1
+
+    output_path = Path(args.output) if args.output else config_path
+    if not output_path.is_absolute():
+        output_path = PROJECT_ROOT / ".build-temp" / output_path
+
+    output = updated_config.model_dump_json(indent=2)
+    try:
+        if output_path.parent and not output_path.parent.exists():
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(output)
+    except OSError as exc:
+        print(f"Error writing updated config to {output_path}: {exc}", file=sys.stderr)
+        return 1
+
+    if args.output:
+        print(f"Updated config written to {output_path}")
+    else:
+        print(f"Updated config in place: {output_path}")
+    return 0
+
+
 def cmd_validate(args: argparse.Namespace) -> int:
     """Validate a JSON config file against the SimulationConfig schema."""
     config, rc = _load_config(Path(args.config_file))
     if rc != 0:
         return rc
+    assert config is not None
     print(f"✅ Generated configuration:")
+    print(f"   Domain lower bound: {config.domain.lower_bound}")
+    print(f"   Domain upper bound: {config.domain.upper_bound}")
     print(f"   Domain dimensions: {config.domain.dimensions}")
     print(f"   Particle spacing: {config.particle_spacing}")
     print(f"   Particle boundary buffer: {config.particle_boundary_buffer}")
-    print(f"   Fluid blocks: {len(config.fluid_blocks)}")
-    for block in config.fluid_blocks:
-        print(f"     - {block.name}: dims={block.dimensions}, rho={block.density}, c={block.sound_speed}")
-    print(f"   Walls: {len(config.walls)}")
-    for wall in config.walls:
+    print(f"   Fluid bodies: {len(config.fluid_bodies)}")
+    for body in config.fluid_bodies:
+        geometry = body.get("geometry", {})
+        material = body.get("material", {})
         print(
-            f"     - {wall.name}: width={config.particle_boundary_buffer * config.particle_spacing}"
+            "     - "
+            f"{body.get('name', '(unnamed)')}: "
+            f"geometry={geometry.get('type')}, "
+            f"material={material.get('type')}"
+        )
+    print(f"   Solid bodies: {len(config.solid_bodies)}")
+    for body in config.solid_bodies:
+        geometry = body.get("geometry", {})
+        material = body.get("material", {})
+        print(
+            "     - "
+            f"{body.get('name', '(unnamed)')}: "
+            f"geometry={geometry.get('type')}, "
+            f"material={material.get('type')}"
         )
     if config.gravity is not None:
         print(f"   Gravity: {config.gravity}")
@@ -146,19 +204,34 @@ def cmd_run(args: argparse.Namespace) -> int:
     config, rc = _load_config(config_path)
     if rc != 0:
         return rc
+    assert config is not None
 
     if not config_path.is_absolute():
         config_path = PROJECT_ROOT / ".build-temp" / config_path
 
+    # Write the Pydantic-validated config (new-format JSON) to a temp file so
+    # the C++ engine always receives upper_bound/lower_bound, fluid_bodies and
+    # solid_bodies regardless of what the original file contained.
+    tmp_cfg = tempfile.NamedTemporaryFile(
+        mode="w", suffix=".json", delete=False, prefix="sphinxsim_run_"
+    )
     try:
-        sim = sph.SPHSimulation(str(config_path))
+        tmp_cfg.write(config.model_dump_json(indent=2))
+        tmp_cfg.close()
+        validated_config_path = tmp_cfg.name
+    except OSError as exc:
+        print(f"Error writing validated config: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        sim = sph.SPHSimulation(validated_config_path)
         sim.loadConfig()
         print("✅ Simulation configuration loaded")
         
         # Create temp directory in project root, not relative to cwd
         output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation"
         output_dir.mkdir(exist_ok=True, parents=True)
-        sim.setOutputRoot(str(output_dir))
+        sim.resetOutputRoot(str(output_dir))
         print(f"📁 Now, the output folder is changed to: {output_dir}")
         
         sim.initializeSimulation()
@@ -171,17 +244,18 @@ def cmd_run(args: argparse.Namespace) -> int:
         print("✅ Simulation completed successfully!")
         print(f"\n📊 Run summary:")
         print(f"   End time: {config.end_time if config.end_time is not None else 1.0}s")
-        print(f"   Fluid block: {config.fluid_blocks[0].name}")
+        first_fluid_body_name = config.fluid_bodies[0].get("name", "fluid_body") if config.fluid_bodies else "fluid_body"
+        print(f"   Fluid body: {first_fluid_body_name}")
         print(f"   Run config: {config_path}")
         
         # Show output location
-        safe_name = config.fluid_blocks[0].name.replace(' ', '_').replace('/', '_')[:50]
+        safe_name = first_fluid_body_name.replace(' ', '_').replace('/', '_')[:50]
         output_dir = PROJECT_ROOT / ".build-temp" / "simulations" / safe_name
         print(f"\n📁 Simulation output saved to:")
         print(f"   {output_dir}")
         
         return 0
-        
+
     except RuntimeError as e:
         if "C++ extension" in str(e):
             print("❌ C++ extension not available")
@@ -192,20 +266,25 @@ def cmd_run(args: argparse.Namespace) -> int:
             return 1
         else:
             raise
-    
+
     except NotImplementedError as e:
         print(f"❌ Feature not yet implemented: {e}")
         print("\n💡 Tip: Try a fluid-only simulation like:")
         print('   "water dam break for 1 second"')
         return 1
-    
+
     except Exception as e:
         print(f"❌ Unexpected error: {e}")
         import traceback
         traceback.print_exc()
         return 1
+
     finally:
-        # Restore original directory
+        # Always clean up the validated temp config and restore original directory.
+        try:
+            os.unlink(validated_config_path)
+        except OSError:
+            pass
         os.chdir(original_dir)
 
 # ---------------------------------------------------------------------------
@@ -239,6 +318,22 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     val.add_argument("config_file", nargs='?', default="config.json", help="Path to JSON config file.")
     val.set_defaults(func=cmd_validate)
+
+    # update
+    upd = subparsers.add_parser(
+        "update",
+        help="Update an existing simulation config from a natural-language instruction.",
+    )
+    upd.add_argument("config_file", help="Path to an existing JSON config file.")
+    upd.add_argument("description", help="Natural-language update instruction.")
+    upd.add_argument(
+        "-o",
+        "--output",
+        metavar="FILE",
+        default=None,
+        help="Write updated JSON to FILE instead of updating in place.",
+    )
+    upd.set_defaults(func=cmd_update)
 
     # run
     run = subparsers.add_parser("run", help="Run a simulation from a JSON config file.")

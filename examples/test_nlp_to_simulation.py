@@ -80,16 +80,26 @@ def main():
     config = llm.generate(description)
     
     print(f"✅ Generated configuration:")
+    print(f"   Domain lower bound: {config.domain.lower_bound}")
+    print(f"   Domain upper bound: {config.domain.upper_bound}")
     print(f"   Domain dimensions: {config.domain.dimensions}")
     print(f"   Particle spacing: {config.particle_spacing}")
     print(f"   Particle boundary buffer: {config.particle_boundary_buffer}")
-    print(f"   Fluid blocks: {len(config.fluid_blocks)}")
-    for block in config.fluid_blocks:
-        print(f"     - {block.name}: dims={block.dimensions}, rho={block.density}, c={block.sound_speed}")
-    print(f"   Walls: {len(config.walls)}")
-    for wall in config.walls:
+    print(f"   Fluid bodies: {len(config.fluid_bodies)}")
+    for body in config.fluid_bodies:
+        geometry = body["geometry"]
+        material = body["material"]
         print(
-            f"     - {wall.name}: width={config.particle_boundary_buffer * config.particle_spacing}"
+            f"     - {body['name']}: geometry={geometry['type']}, "
+            f"material={material['type']}"
+        )
+    print(f"   Solid bodies: {len(config.solid_bodies)}")
+    for body in config.solid_bodies:
+        geometry = body["geometry"]
+        material = body["material"]
+        print(
+            f"     - {body['name']}: geometry={geometry['type']}, "
+            f"material={material['type']}"
         )
     if config.gravity is not None:
         print(f"   Gravity: {config.gravity}")
@@ -128,7 +138,7 @@ def main():
         # Create temp directory in project root, not relative to cwd
         output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation"
         output_dir.mkdir(exist_ok=True, parents=True)
-        sim.setOutputRoot(str(output_dir))
+        sim.resetOutputRoot(str(output_dir))
         print(f"📁 Now, the output folder is changed to: {output_dir}")
 
         sim.initializeSimulation()
@@ -139,11 +149,11 @@ def main():
         print("✅ Simulation completed successfully!")
         print(f"\n📊 Summary:")
         print(f"   End time: {config_reloaded.end_time if config_reloaded.end_time is not None else 1.0}s")
-        print(f"   Fluid block: {config_reloaded.fluid_blocks[0].name}")
+        print(f"   Fluid body: {config_reloaded.fluid_bodies[0]['name']}")
         print(f"   Domain dimensions: {config_reloaded.domain.dimensions}")
         
         # Show output location
-        safe_name = config_reloaded.fluid_blocks[0].name.replace(' ', '_').replace('/', '_')[:50]
+        safe_name = config_reloaded.fluid_bodies[0]['name'].replace(' ', '_').replace('/', '_')[:50]
         output_dir = PROJECT_ROOT / ".build-temp" / "simulations" / safe_name
         print(f"\n📁 Simulation output saved to:")
         print(f"   {output_dir}")

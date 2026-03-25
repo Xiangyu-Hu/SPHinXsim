@@ -48,7 +48,7 @@ class TestMockLLM:
 
     def test_physics_fluid(self):
         cfg = self.llm.generate("water dam break simulation")
-        assert cfg.fluid_blocks[0].name
+        assert cfg.fluid_bodies[0]["name"]
 
     def test_physics_solid(self):
         cfg = self.llm.generate("elastic beam bending under load")
@@ -60,11 +60,11 @@ class TestMockLLM:
 
     def test_name_extracted(self):
         cfg = self.llm.generate("water flowing through a pipe at 2 m/s")
-        assert len(cfg.fluid_blocks[0].name) > 0
+        assert len(cfg.fluid_bodies[0]["name"]) > 0
 
     def test_velocity_override(self):
         cfg = self.llm.generate("water flowing at 3 m/s through a channel")
-        assert cfg.fluid_blocks[0].sound_speed == pytest.approx(30.0)
+        assert cfg.fluid_bodies[0]["material"]["sound_speed"] == pytest.approx(30.0)
 
     def test_end_time_override(self):
         cfg = self.llm.generate("simulate for 5 s")
@@ -101,3 +101,19 @@ class TestMockLLM:
             # round-trip through JSON to confirm schema is fully satisfied
             restored = SimulationConfig.model_validate_json(cfg.model_dump_json())
             assert restored == cfg
+
+    def test_update_changes_existing_end_time(self):
+        base = self.llm.generate("water flow")
+        updated = self.llm.update(base, "simulate for 3 s")
+        assert updated.end_time == pytest.approx(3.0)
+
+    def test_update_changes_end_time_with_second_wording(self):
+        base = self.llm.generate("water flow")
+        updated = self.llm.update(base, "the end time is 3 second.")
+        assert updated.end_time == pytest.approx(3.0)
+
+    def test_update_adds_observer(self):
+        base = self.llm.generate("water flow")
+        updated = self.llm.update(base, "add observer named outlet at (1.0, 0.5)")
+        assert len(updated.observers) == len(base.observers) + 1
+        assert updated.observers[-1].name == "outlet"

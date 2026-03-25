@@ -164,7 +164,7 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
     //----------------------------------------------------------------------
     auto &fluid_body = *entity_manager_.entitiesWith<FluidBody>().front(); // assume only one fluid body for now
     StdVec<SolidBody *> solid_bodies = entity_manager_.entitiesWith<SolidBody>();
-    auto &fluid_observer = entity_manager_.getEntityByName<ObserverBody>("FluidObserver");
+    auto &fluid_observer = entity_manager_.getEntityByName<ObserverBody>().front(); // assume only one observer body for now
 
     auto &fluid_inner = sph_system.addInnerRelation(fluid_body);
     auto &fluid_wall_contact = sph_system.addContactRelation(fluid_body, solid_bodies);
@@ -240,7 +240,7 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
         [&]()
         {
             solid_normal_direction.exec();
-            initialization_pipeline_.run_hooks(InitializationHookPoint::InitalConditions);
+            initialization_pipeline_.run_hooks(InitializationHookPoint::InitialConditions);
 
             solid_cell_linked_list.exec();
             fluid_update_configuration.exec();
@@ -308,6 +308,11 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
                     body_state_recorder.writeToFile();
                 }
 
+                if (advection_steps_ % 100)
+                {
+                    particle_sort.exec();
+                }
+
                 fluid_update_configuration.exec();
                 fluid_density_regularization.exec();
                 fluid_advection_step_setup.exec();
@@ -323,7 +328,7 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
             main_methods.addStateDynamics<GravityForceCK<Gravity>>(
                 fluid_body, Gravity(jsonToVecd(config.at("gravity"))));
         initialization_pipeline_.insert_hook(
-            InitializationHookPoint::InitalConditions, [&]()
+            InitializationHookPoint::InitialConditions, [&]()
             { constant_gravity.exec(); });
     }
 }

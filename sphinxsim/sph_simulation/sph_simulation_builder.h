@@ -47,7 +47,7 @@ enum class SimulationHookPoint
 enum class InitializationHookPoint
 {
     HostSteps,
-    InitalConditions,
+    InitialConditions,
     NumHooks
 };
 

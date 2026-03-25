@@ -20,30 +20,74 @@ void SPHSimulation::resetOutputRoot(const fs::path &output_root)
 SPHSystem &SPHSimulation::defineSPHSystem(const json &config)
 {
     Real particle_spacing = config.at("particle_spacing").get<Real>();
-    Vecd domain_dims = jsonToVecd(config.at("domain").at("dimensions"));
     int particle_boundary_buffer = config.at("particle_boundary_buffer").get<int>();
     Real boundary_width = particle_boundary_buffer * particle_spacing;
-    BoundingBoxd system_domain_bounds(
-        Vecd::Constant(-boundary_width), domain_dims + Vecd::Constant(boundary_width));
+
+    BoundingBoxd domain_bounds(
+        jsonToVecd(config.at("domain").at("lower_bound")),
+        jsonToVecd(config.at("domain").at("upper_bound")));
+
+    BoundingBoxd system_domain_bounds = domain_bounds.expand(boundary_width);
     sph_system_ptr_ = std::make_unique<SPHSystem>(system_domain_bounds, particle_spacing);
     return *sph_system_ptr_;
+}
+//=================================================================================================//
+Shape &SPHSimulation::addShape(SPHSystem &sph_system, const json &config)
+{
+    const std::string type_name = config.at("type").get<std::string>();
+
+    if (type_name == "bounding_box")
+    {
+        Vecd lower_bound = jsonToVecd(config.at("lower_bound"));
+        Vecd upper_bound = jsonToVecd(config.at("upper_bound"));
+        return sph_system.addShape<GeometricShapeBox>(
+            BoundingBoxd(lower_bound, upper_bound), "BoundingBox");
+    }
+
+    if (type_name == "container_box")
+    {
+        BoundingBoxd inner_box(
+            jsonToVecd(config.at("inner_lower_bound")), jsonToVecd(config.at("inner_upper_bound")));
+        BoundingBoxd outer_box = inner_box.expand(config.at("thickness").get<Real>());
+        auto &shape = sph_system.addShape<ComplexShape>("ContainerBox");
+        shape.add<GeometricShapeBox>(outer_box);
+        shape.subtract<GeometricShapeBox>(inner_box);
+        return shape;
+    }
+
+    throw std::runtime_error("SPHSimulation::addShape: unsupported shape type: " + type_name);
+}
+//=================================================================================================//
+void SPHSimulation::addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config)
+{
+    const std::string type_name = config.at("type").get<std::string>();
+
+    if (type_name == "weakly_compressible_fluid")
+    {
+        Real density = config.at("density").get<Real>();
+        Real sound_speed = config.at("sound_speed").get<Real>();
+        auto &material = sph_body.defineMaterial<WeaklyCompressibleFluid>(density, sound_speed);
+        entity_manager.addEntity(sph_body.getName() + material.MaterialType(), &material);
+        return;
+    }
+
+    if (type_name == "rigid_body")
+    {
+        auto &material = sph_body.defineMaterial<Solid>();
+        entity_manager.addEntity(sph_body.getName() + material.MaterialType(), &material);
+        return;
+    }
+
+    throw std::runtime_error("SPHSimulation::addMaterial: unsupported material type: " + type_name);
 }
 //=================================================================================================//
 FluidBody &SPHSimulation::addFluidBody(SPHSystem &sph_system, const json &config)
 {
     const std::string name = config.at("name").get<std::string>();
-    const Vecd dimensions = jsonToVecd(config.at("dimensions"));
-    const Real rho0 = config.value("density", Real(1.0));
-    const Real c = config.value("sound_speed", Real(10.0));
-
-    Vecd fluid_halfsize = 0.5 * dimensions;
-    auto &fluid_shape = sph_system.addShape<GeometricShapeBox>(
-        Transform(fluid_halfsize), fluid_halfsize, name);
-
+    Shape &fluid_shape = addShape(sph_system, config.at("geometry"));
     auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
-    fluid_body.defineMaterial<WeaklyCompressibleFluid>(rho0, c);
+    addMaterial(entity_manager_, fluid_body, config.at("material"));
     fluid_body.generateParticles<BaseParticles, Lattice>();
-
     entity_manager_.addEntity(name, &fluid_body);
     return fluid_body;
 }
@@ -51,19 +95,10 @@ FluidBody &SPHSimulation::addFluidBody(SPHSystem &sph_system, const json &config
 SolidBody &SPHSimulation::addWall(SPHSystem &sph_system, const json &config)
 {
     const std::string name = config.at("name").get<std::string>();
-    const Vecd dims = jsonToVecd(config.at("dimensions"));
-    const Real boundary_width = config.at("boundary_width").get<Real>();
-
-    Vecd inner_halfsize = 0.5 * dims;
-    Vecd outer_halfsize = inner_halfsize + Vecd::Constant(boundary_width);
-    auto &wall_shape = sph_system.addShape<ComplexShape>(name);
-    wall_shape.add<GeometricShapeBox>(Transform(inner_halfsize), outer_halfsize);
-    wall_shape.subtract<GeometricShapeBox>(Transform(inner_halfsize), inner_halfsize);
-
+    Shape &wall_shape = addShape(sph_system, config.at("geometry"));
     auto &wall_body = sph_system.addBody<SolidBody>(wall_shape, name);
-    wall_body.defineMaterial<Solid>();
+    addMaterial(entity_manager_, wall_body, config.at("material"));
     wall_body.generateParticles<BaseParticles, Lattice>();
-
     entity_manager_.addEntity(name, &wall_body);
     return wall_body;
 }
@@ -110,12 +145,10 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
     //----------------------------------------------------------------------
     //	Creating bodies with inital shape, materials and particles.
     //----------------------------------------------------------------------
-    if (config.contains("fluid_blocks"))
-        for (const auto &fb : config.at("fluid_blocks"))
-            addFluidBody(sph_system, fb);
-    if (config.contains("walls"))
-        for (const auto &w : config.at("walls"))
-            addWall(sph_system, w);
+    for (const auto &fb : config.at("fluid_bodies"))
+        addFluidBody(sph_system, fb);
+    for (const auto &w : config.at("solid_bodies"))
+        addWall(sph_system, w);
     if (config.contains("observers"))
         for (const auto &obs : config.at("observers"))
             addObserver(sph_system, obs);

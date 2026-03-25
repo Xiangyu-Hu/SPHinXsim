@@ -164,7 +164,7 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
     //----------------------------------------------------------------------
     auto &fluid_body = *entity_manager_.entitiesWith<FluidBody>().front(); // assume only one fluid body for now
     StdVec<SolidBody *> solid_bodies = entity_manager_.entitiesWith<SolidBody>();
-    auto &fluid_observer = entity_manager_.entitiesWith<ObserverBody>().front(); // assume only one observer body for now
+    auto &fluid_observer = *entity_manager_.entitiesWith<ObserverBody>().front(); // assume only one observer body for now
 
     auto &fluid_inner = sph_system.addInnerRelation(fluid_body);
     auto &fluid_wall_contact = sph_system.addContactRelation(fluid_body, solid_bodies);

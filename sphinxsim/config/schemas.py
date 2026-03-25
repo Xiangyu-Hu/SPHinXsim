@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_serializer, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class PhysicsType(str, Enum):
@@ -21,18 +21,6 @@ class DomainConfig(BaseModel):
 
     lower_bound: List[float] = Field(..., min_length=2, max_length=3)
     upper_bound: List[float] = Field(..., min_length=2, max_length=3)
-
-    @model_validator(mode="before")
-    @classmethod
-    def _upgrade_legacy_dimensions(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        if "dimensions" in data and ("lower_bound" not in data or "upper_bound" not in data):
-            dims = data["dimensions"]
-            data = dict(data)
-            data["lower_bound"] = [0.0] * len(dims)
-            data["upper_bound"] = dims
-        return data
 
     @field_validator("lower_bound", "upper_bound")
     @classmethod
@@ -53,14 +41,6 @@ class DomainConfig(BaseModel):
     @property
     def dimensions(self) -> List[float]:
         return [hi - lo for lo, hi in zip(self.lower_bound, self.upper_bound)]
-
-    @model_serializer(mode="plain")
-    def _serialize_domain(self) -> Dict[str, Any]:
-        return {
-            "lower_bound": self.lower_bound,
-            "upper_bound": self.upper_bound,
-            "dimensions": self.dimensions,
-        }
 
 
 class ShapeType(str, Enum):
@@ -123,37 +103,6 @@ class MaterialConfig(BaseModel):
         return self
 
 
-class FluidBlockConfig(BaseModel):
-    """Fluid block definition accepted by SPHSimulation."""
-
-    name: str = Field(..., min_length=1)
-    dimensions: List[float] = Field(..., min_length=2, max_length=3)
-    density: float = Field(default=1.0, gt=0)
-    sound_speed: float = Field(default=10.0, gt=0)
-
-    @field_validator("dimensions")
-    @classmethod
-    def _positive_dimensions(cls, dims: List[float]) -> List[float]:
-        if any(v <= 0.0 for v in dims):
-            raise ValueError("All fluid block dimensions must be positive")
-        return dims
-
-
-class WallConfig(BaseModel):
-    """Wall boundary definition accepted by SPHSimulation."""
-
-    name: str = Field(..., min_length=1)
-    dimensions: List[float] = Field(..., min_length=2, max_length=3)
-    boundary_width: float = Field(..., gt=0)
-
-    @field_validator("dimensions")
-    @classmethod
-    def _positive_dimensions(cls, dims: List[float]) -> List[float]:
-        if any(v <= 0.0 for v in dims):
-            raise ValueError("All wall dimensions must be positive")
-        return dims
-
-
 class ObserverConfig(BaseModel):
     """Observer points used for sampling flow quantities."""
 
@@ -209,49 +158,6 @@ class SimulationConfig(BaseModel):
     solver: SolverConfig = Field(default_factory=SolverConfig)
     end_time: Optional[float] = Field(default=None, gt=0)
 
-    @model_validator(mode="before")
-    @classmethod
-    def _upgrade_legacy_layout(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-
-        upgraded = dict(data)
-
-        if "fluid_bodies" not in upgraded and "fluid_blocks" in upgraded:
-            upgraded["fluid_bodies"] = [
-                {
-                    "name": block["name"],
-                    "geometry": {
-                        "type": "bounding_box",
-                        "lower_bound": [0.0] * len(block["dimensions"]),
-                        "upper_bound": block["dimensions"],
-                    },
-                    "material": {
-                        "type": "weakly_compressible_fluid",
-                        "density": block.get("density", 1.0),
-                        "sound_speed": block.get("sound_speed", 10.0),
-                    },
-                }
-                for block in upgraded["fluid_blocks"]
-            ]
-
-        if "solid_bodies" not in upgraded and "walls" in upgraded:
-            upgraded["solid_bodies"] = [
-                {
-                    "name": wall["name"],
-                    "geometry": {
-                        "type": "container_box",
-                        "inner_lower_bound": [0.0] * len(wall["dimensions"]),
-                        "inner_upper_bound": wall["dimensions"],
-                        "thickness": wall["boundary_width"],
-                    },
-                    "material": {"type": "rigid_body"},
-                }
-                for wall in upgraded["walls"]
-            ]
-
-        return upgraded
-
     @field_validator("fluid_bodies", "solid_bodies")
     @classmethod
     def _body_entries_have_required_keys(cls, entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -279,7 +185,7 @@ class SimulationConfig(BaseModel):
                 raise ValueError("Fluid body geometry type must be bounding_box")
             assert geom.lower_bound is not None and geom.upper_bound is not None
             if len(geom.lower_bound) != dim:
-                raise ValueError("Fluid block dimensionality must match domain dimensionality")
+                raise ValueError("Fluid body dimensionality must match domain dimensionality")
 
         for solid_body in self.solid_bodies:
             geom = GeometryConfig.model_validate(solid_body["geometry"])
@@ -290,7 +196,7 @@ class SimulationConfig(BaseModel):
                 raise ValueError("Solid body geometry type must be container_box")
             assert geom.inner_lower_bound is not None and geom.inner_upper_bound is not None
             if len(geom.inner_lower_bound) != dim:
-                raise ValueError("Wall dimensionality must match domain dimensionality")
+                raise ValueError("Solid body dimensionality must match domain dimensionality")
 
         if self.gravity is not None and len(self.gravity) != dim:
             raise ValueError("Gravity dimensionality must match domain dimensionality")
@@ -301,56 +207,3 @@ class SimulationConfig(BaseModel):
             if observer.positions is not None and any(len(pos) != dim for pos in observer.positions):
                 raise ValueError("Observer dimensionality must match domain dimensionality")
         return self
-
-    @property
-    def fluid_blocks(self) -> List[FluidBlockConfig]:
-        blocks: List[FluidBlockConfig] = []
-        for fluid_body in self.fluid_bodies:
-            geom = GeometryConfig.model_validate(fluid_body["geometry"])
-            mat = MaterialConfig.model_validate(fluid_body["material"])
-            if geom.lower_bound is None or geom.upper_bound is None:
-                continue
-            dims = [hi - lo for lo, hi in zip(geom.lower_bound, geom.upper_bound)]
-            blocks.append(
-                FluidBlockConfig(
-                    name=fluid_body["name"],
-                    dimensions=dims,
-                    density=mat.density if mat.density is not None else 1.0,
-                    sound_speed=mat.sound_speed if mat.sound_speed is not None else 10.0,
-                )
-            )
-        return blocks
-
-    @property
-    def walls(self) -> List[WallConfig]:
-        wall_list: List[WallConfig] = []
-        for solid_body in self.solid_bodies:
-            geom = GeometryConfig.model_validate(solid_body["geometry"])
-            if geom.inner_lower_bound is None or geom.inner_upper_bound is None or geom.thickness is None:
-                continue
-            dims = [hi - lo for lo, hi in zip(geom.inner_lower_bound, geom.inner_upper_bound)]
-            wall_list.append(
-                WallConfig(
-                    name=solid_body["name"],
-                    dimensions=dims,
-                    boundary_width=geom.thickness,
-                )
-            )
-        return wall_list
-
-    @model_serializer(mode="plain")
-    def _serialize_simulation(self) -> Dict[str, Any]:
-        return {
-            "domain": self.domain.model_dump(),
-            "particle_spacing": self.particle_spacing,
-            "particle_boundary_buffer": self.particle_boundary_buffer,
-            "fluid_bodies": self.fluid_bodies,
-            "solid_bodies": self.solid_bodies,
-            "gravity": self.gravity,
-            "observers": [observer.model_dump() for observer in self.observers],
-            "solver": self.solver.model_dump(),
-            "end_time": self.end_time,
-            # Keep legacy aliases for current CLI/LLM compatibility.
-            "fluid_blocks": [block.model_dump() for block in self.fluid_blocks],
-            "walls": [wall.model_dump() for wall in self.walls],
-        }

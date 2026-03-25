@@ -19,18 +19,36 @@ class TestLoadConfigHelper:
 
     def _valid_data(self) -> dict:
         return {
-            "domain": {"dimensions": [1.0, 1.0]},
+            "domain": {"lower_bound": [0.0, 0.0], "upper_bound": [1.0, 1.0]},
             "particle_spacing": 0.05,
             "particle_boundary_buffer": 4,
-            "fluid_blocks": [
+            "fluid_bodies": [
                 {
                     "name": "helper test",
-                    "dimensions": [0.4, 0.2],
-                    "density": 1000.0,
-                    "sound_speed": 20.0,
+                    "geometry": {
+                        "type": "bounding_box",
+                        "lower_bound": [0.0, 0.0],
+                        "upper_bound": [0.4, 0.2],
+                    },
+                    "material": {
+                        "type": "weakly_compressible_fluid",
+                        "density": 1000.0,
+                        "sound_speed": 20.0,
+                    },
                 }
             ],
-            "walls": [{"name": "WallBoundary", "dimensions": [1.0, 1.0], "boundary_width": 0.2}],
+            "solid_bodies": [
+                {
+                    "name": "WallBoundary",
+                    "geometry": {
+                        "type": "container_box",
+                        "inner_lower_bound": [0.0, 0.0],
+                        "inner_upper_bound": [1.0, 1.0],
+                        "thickness": 0.2,
+                    },
+                    "material": {"type": "rigid_body"},
+                }
+            ],
             "gravity": [0.0, -1.0],
             "observers": [{"name": "Observer", "positions": [[0.5, 0.2]]}],
             "solver": {"dual_time_stepping": True, "free_surface_correction": True},
@@ -42,7 +60,7 @@ class TestLoadConfigHelper:
         config, rc = _load_config(p)
         assert rc == 0
         assert config is not None
-        assert config.fluid_blocks[0].name == "helper test"
+        assert config.fluid_bodies[0]["name"] == "helper test"
 
     def test_missing_file_returns_none_and_nonzero(self, build_temp_path):
         config, rc = _load_config(build_temp_path / "missing.json")
@@ -72,8 +90,8 @@ class TestCLIGenerate:
         captured = capsys.readouterr()
         data = json.loads(captured.out)
         assert "domain" in data
-        assert "fluid_blocks" in data
-        assert data["fluid_blocks"]
+        assert "fluid_bodies" in data
+        assert data["fluid_bodies"]
 
     def test_generate_to_file(self, build_temp_path, capsys):
         out_file = build_temp_path / "cfg.json"
@@ -81,7 +99,7 @@ class TestCLIGenerate:
         assert rc == 0
         assert out_file.exists()
         data = json.loads(out_file.read_text())
-        assert data["fluid_blocks"][0]["name"]
+        assert data["fluid_bodies"][0]["name"]
 
     def test_generate_creates_parent_dirs(self, build_temp_path):
         out_file = build_temp_path / "nested" / "dir" / "cfg.json"
@@ -109,18 +127,36 @@ class TestCLIValidate:
 
     def _valid_data(self) -> dict:
         return {
-            "domain": {"dimensions": [1.0, 1.0]},
+            "domain": {"lower_bound": [0.0, 0.0], "upper_bound": [1.0, 1.0]},
             "particle_spacing": 0.05,
             "particle_boundary_buffer": 4,
-            "fluid_blocks": [
+            "fluid_bodies": [
                 {
                     "name": "test",
-                    "dimensions": [0.4, 0.2],
-                    "density": 1000.0,
-                    "sound_speed": 20.0,
+                    "geometry": {
+                        "type": "bounding_box",
+                        "lower_bound": [0.0, 0.0],
+                        "upper_bound": [0.4, 0.2],
+                    },
+                    "material": {
+                        "type": "weakly_compressible_fluid",
+                        "density": 1000.0,
+                        "sound_speed": 20.0,
+                    },
                 }
             ],
-            "walls": [{"name": "WallBoundary", "dimensions": [1.0, 1.0], "boundary_width": 0.2}],
+            "solid_bodies": [
+                {
+                    "name": "WallBoundary",
+                    "geometry": {
+                        "type": "container_box",
+                        "inner_lower_bound": [0.0, 0.0],
+                        "inner_upper_bound": [1.0, 1.0],
+                        "thickness": 0.2,
+                    },
+                    "material": {"type": "rigid_body"},
+                }
+            ],
             "gravity": [0.0, -1.0],
             "observers": [{"name": "Observer", "positions": [[0.5, 0.2]]}],
             "solver": {"dual_time_stepping": True, "free_surface_correction": True},
@@ -133,7 +169,8 @@ class TestCLIValidate:
         assert rc == 0
         output = capsys.readouterr().out
         assert "Generated configuration" in output
-        assert "Domain dimensions" in output
+        assert "Domain lower bound" in output
+        assert "Fluid bodies" in output
 
     def test_invalid_config(self, build_temp_path):
         bad = self._valid_data()
@@ -156,18 +193,36 @@ class TestCLIValidate:
 class TestCLIRun:
     def _write_valid(self, build_temp_path: Path) -> Path:
         data = {
-            "domain": {"dimensions": [1.0, 1.0]},
+            "domain": {"lower_bound": [0.0, 0.0], "upper_bound": [1.0, 1.0]},
             "particle_spacing": 0.1,
             "particle_boundary_buffer": 4,
-            "fluid_blocks": [
+            "fluid_bodies": [
                 {
                     "name": "quick run",
-                    "dimensions": [0.4, 0.2],
-                    "density": 1000.0,
-                    "sound_speed": 20.0,
+                    "geometry": {
+                        "type": "bounding_box",
+                        "lower_bound": [0.0, 0.0],
+                        "upper_bound": [0.4, 0.2],
+                    },
+                    "material": {
+                        "type": "weakly_compressible_fluid",
+                        "density": 1000.0,
+                        "sound_speed": 20.0,
+                    },
                 }
             ],
-            "walls": [{"name": "WallBoundary", "dimensions": [1.0, 1.0], "boundary_width": 0.2}],
+            "solid_bodies": [
+                {
+                    "name": "WallBoundary",
+                    "geometry": {
+                        "type": "container_box",
+                        "inner_lower_bound": [0.0, 0.0],
+                        "inner_upper_bound": [1.0, 1.0],
+                        "thickness": 0.2,
+                    },
+                    "material": {"type": "rigid_body"},
+                }
+            ],
             "gravity": [0.0, -1.0],
             "observers": [{"name": "FluidObserver", "positions": [[0.5, 0.2]]}],
             "solver": {"dual_time_stepping": True, "free_surface_correction": True},
@@ -192,18 +247,36 @@ class TestCLIRun:
 class TestCLIUpdate:
     def _write_valid(self, build_temp_path: Path) -> Path:
         data = {
-            "domain": {"dimensions": [1.0, 1.0]},
+            "domain": {"lower_bound": [0.0, 0.0], "upper_bound": [1.0, 1.0]},
             "particle_spacing": 0.1,
             "particle_boundary_buffer": 4,
-            "fluid_blocks": [
+            "fluid_bodies": [
                 {
                     "name": "base",
-                    "dimensions": [0.4, 0.2],
-                    "density": 1000.0,
-                    "sound_speed": 20.0,
+                    "geometry": {
+                        "type": "bounding_box",
+                        "lower_bound": [0.0, 0.0],
+                        "upper_bound": [0.4, 0.2],
+                    },
+                    "material": {
+                        "type": "weakly_compressible_fluid",
+                        "density": 1000.0,
+                        "sound_speed": 20.0,
+                    },
                 }
             ],
-            "walls": [{"name": "WallBoundary", "dimensions": [1.0, 1.0], "boundary_width": 0.2}],
+            "solid_bodies": [
+                {
+                    "name": "WallBoundary",
+                    "geometry": {
+                        "type": "container_box",
+                        "inner_lower_bound": [0.0, 0.0],
+                        "inner_upper_bound": [1.0, 1.0],
+                        "thickness": 0.2,
+                    },
+                    "material": {"type": "rigid_body"},
+                }
+            ],
             "gravity": [0.0, -1.0],
             "observers": [{"name": "FluidObserver", "positions": [[0.5, 0.2]]}],
             "solver": {"dual_time_stepping": True, "free_surface_correction": True},

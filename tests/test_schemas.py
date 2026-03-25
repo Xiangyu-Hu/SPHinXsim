@@ -5,11 +5,9 @@ from pydantic import ValidationError
 
 from sphinxsim.config.schemas import (
     DomainConfig,
-    FluidBlockConfig,
     ObserverConfig,
     SolverConfig,
     SimulationConfig,
-    WallConfig,
 )
 
 
@@ -21,18 +19,36 @@ from sphinxsim.config.schemas import (
 def _make_minimal_config(**overrides) -> SimulationConfig:
     """Return a minimal valid SimulationConfig, applying optional *overrides*."""
     data = {
-        "domain": {"dimensions": [1.0, 1.0]},
+        "domain": {"lower_bound": [0.0, 0.0], "upper_bound": [1.0, 1.0]},
         "particle_spacing": 0.05,
         "particle_boundary_buffer": 4,
-        "fluid_blocks": [
+        "fluid_bodies": [
             {
                 "name": "WaterBody",
-                "dimensions": [0.4, 0.2],
-                "density": 1000.0,
-                "sound_speed": 20.0,
+                "geometry": {
+                    "type": "bounding_box",
+                    "lower_bound": [0.0, 0.0],
+                    "upper_bound": [0.4, 0.2],
+                },
+                "material": {
+                    "type": "weakly_compressible_fluid",
+                    "density": 1000.0,
+                    "sound_speed": 20.0,
+                },
             }
         ],
-        "walls": [{"name": "WallBoundary", "dimensions": [1.0, 1.0], "boundary_width": 0.2}],
+        "solid_bodies": [
+            {
+                "name": "WallBoundary",
+                "geometry": {
+                    "type": "container_box",
+                    "inner_lower_bound": [0.0, 0.0],
+                    "inner_upper_bound": [1.0, 1.0],
+                    "thickness": 0.2,
+                },
+                "material": {"type": "rigid_body"},
+            }
+        ],
         "gravity": [0.0, -1.0],
         "observers": [{"name": "Obs", "positions": [[0.5, 0.2]]}],
         "solver": {"dual_time_stepping": True, "free_surface_correction": True},
@@ -49,69 +65,20 @@ def _make_minimal_config(**overrides) -> SimulationConfig:
 
 class TestDomainConfig:
     def test_valid_2d(self):
-        d = DomainConfig(dimensions=[1.0, 1.0])
+        d = DomainConfig(lower_bound=[0.0, 0.0], upper_bound=[1.0, 1.0])
         assert d.dimensions == [1.0, 1.0]
 
     def test_valid_3d(self):
-        d = DomainConfig(dimensions=[2.0, 1.0, 0.5])
+        d = DomainConfig(lower_bound=[0.0, 0.0, 0.0], upper_bound=[2.0, 1.0, 0.5])
         assert len(d.dimensions) == 3
 
     def test_negative_spacing_rejected(self):
         with pytest.raises(ValidationError):
             _make_minimal_config(particle_spacing=-0.01)
 
-    def test_non_positive_dimensions_rejected(self):
+    def test_non_increasing_bounds_rejected(self):
         with pytest.raises(ValidationError):
-            DomainConfig(dimensions=[1.0, 0.0])
-
-
-# ---------------------------------------------------------------------------
-# FluidBlockConfig
-# ---------------------------------------------------------------------------
-
-
-class TestFluidBlockConfig:
-    def test_valid_block(self):
-        block = FluidBlockConfig(
-            name="WaterBody", dimensions=[0.5, 0.2], density=1000.0, sound_speed=20.0
-        )
-        assert block.name == "WaterBody"
-
-    def test_zero_density_rejected(self):
-        with pytest.raises(ValidationError):
-            FluidBlockConfig(name="x", dimensions=[0.2, 0.2], density=0.0, sound_speed=20.0)
-
-    def test_non_positive_dimensions_rejected(self):
-        with pytest.raises(ValidationError):
-            FluidBlockConfig(name="x", dimensions=[0.2, -0.1], density=1.0, sound_speed=20.0)
-
-    def test_density_and_sound_speed_default_to_cpp_defaults(self):
-        block = FluidBlockConfig(name="WaterBody", dimensions=[0.5, 0.2])
-        assert block.density == pytest.approx(1.0)
-        assert block.sound_speed == pytest.approx(10.0)
-
-
-# ---------------------------------------------------------------------------
-# WallConfig
-# ---------------------------------------------------------------------------
-
-
-class TestWallConfig:
-    def test_valid_wall(self):
-        wall = WallConfig(name="WallBoundary", dimensions=[1.0, 1.0], boundary_width=0.2)
-        assert wall.name == "WallBoundary"
-
-    def test_invalid_wall_name_rejected(self):
-        with pytest.raises(ValidationError):
-            WallConfig(name="")
-
-    def test_invalid_wall_dimensions_rejected(self):
-        with pytest.raises(ValidationError):
-            WallConfig(name="WallBoundary", dimensions=[1.0, 0.0], boundary_width=0.2)
-
-    def test_missing_boundary_width_rejected(self):
-        with pytest.raises(ValidationError):
-            WallConfig(name="WallBoundary", dimensions=[1.0, 1.0])
+            DomainConfig(lower_bound=[0.0, 0.0], upper_bound=[1.0, 0.0])
 
 
 # ---------------------------------------------------------------------------
@@ -156,20 +123,49 @@ class TestSolverConfig:
 class TestSimulationConfig:
     def test_minimal_config(self):
         cfg = _make_minimal_config()
-        assert len(cfg.fluid_blocks) == 1
+        assert len(cfg.fluid_bodies) == 1
         assert cfg.solver.dual_time_stepping is True
 
-    def test_dimensionality_mismatch_rejected_fluid_block(self):
-        with pytest.raises(ValidationError, match="Fluid block dimensionality"):
-            _make_minimal_config(fluid_blocks=[{"name": "x", "dimensions": [1.0, 1.0, 1.0], "density": 1.0, "sound_speed": 1.0}])
+    def test_dimensionality_mismatch_rejected_fluid_body(self):
+        with pytest.raises(ValidationError, match="Fluid body dimensionality"):
+            _make_minimal_config(
+                fluid_bodies=[
+                    {
+                        "name": "x",
+                        "geometry": {
+                            "type": "bounding_box",
+                            "lower_bound": [0.0, 0.0, 0.0],
+                            "upper_bound": [1.0, 1.0, 1.0],
+                        },
+                        "material": {
+                            "type": "weakly_compressible_fluid",
+                            "density": 1.0,
+                            "sound_speed": 1.0,
+                        },
+                    }
+                ]
+            )
 
     def test_dimensionality_mismatch_rejected_gravity(self):
         with pytest.raises(ValidationError, match="Gravity dimensionality"):
             _make_minimal_config(gravity=[0.0, -1.0, 0.0])
 
-    def test_dimensionality_mismatch_rejected_wall(self):
-        with pytest.raises(ValidationError, match="Wall dimensionality"):
-            _make_minimal_config(walls=[{"name": "WallBoundary", "dimensions": [1.0, 1.0, 1.0], "boundary_width": 0.2}])
+    def test_dimensionality_mismatch_rejected_solid_body(self):
+        with pytest.raises(ValidationError, match="Solid body dimensionality"):
+            _make_minimal_config(
+                solid_bodies=[
+                    {
+                        "name": "WallBoundary",
+                        "geometry": {
+                            "type": "container_box",
+                            "inner_lower_bound": [0.0, 0.0, 0.0],
+                            "inner_upper_bound": [1.0, 1.0, 1.0],
+                            "thickness": 0.2,
+                        },
+                        "material": {"type": "rigid_body"},
+                    }
+                ]
+            )
 
     def test_dimensionality_mismatch_rejected_observer(self):
         with pytest.raises(ValidationError, match="Observer dimensionality"):
@@ -189,12 +185,19 @@ class TestSimulationConfig:
 
     def test_roundtrip_json(self):
         cfg = _make_minimal_config(
-            fluid_blocks=[
+            fluid_bodies=[
                 {
                     "name": "WaterBody",
-                    "dimensions": [0.4, 0.2],
-                    "density": 1000.0,
-                    "sound_speed": 20.0,
+                    "geometry": {
+                        "type": "bounding_box",
+                        "lower_bound": [0.0, 0.0],
+                        "upper_bound": [0.4, 0.2],
+                    },
+                    "material": {
+                        "type": "weakly_compressible_fluid",
+                        "density": 1000.0,
+                        "sound_speed": 20.0,
+                    },
                 }
             ]
         )

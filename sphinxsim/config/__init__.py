@@ -2,20 +2,20 @@
 
 from sphinxsim.config.schemas import (
     DomainConfig,
-    FluidBlockConfig,
+    GeometryConfig,
+    MaterialConfig,
     ObserverConfig,
     PhysicsType,
     SimulationConfig,
     SolverConfig,
-    WallConfig,
 )
 
 __all__ = [
     "DomainConfig",
-    "FluidBlockConfig",
+    "GeometryConfig",
+    "MaterialConfig",
     "ObserverConfig",
     "PhysicsType",
     "SimulationConfig",
     "SolverConfig",
-    "WallConfig",
 ]

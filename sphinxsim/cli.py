@@ -160,15 +160,31 @@ def cmd_validate(args: argparse.Namespace) -> int:
         return rc
     assert config is not None
     print(f"✅ Generated configuration:")
+    print(f"   Domain lower bound: {config.domain.lower_bound}")
+    print(f"   Domain upper bound: {config.domain.upper_bound}")
     print(f"   Domain dimensions: {config.domain.dimensions}")
     print(f"   Particle spacing: {config.particle_spacing}")
     print(f"   Particle boundary buffer: {config.particle_boundary_buffer}")
-    print(f"   Fluid blocks: {len(config.fluid_blocks)}")
-    for block in config.fluid_blocks:
-        print(f"     - {block.name}: dims={block.dimensions}, rho={block.density}, c={block.sound_speed}")
-    print(f"   Walls: {len(config.walls)}")
-    for wall in config.walls:
-        print(f"     - {wall.name}: dims={wall.dimensions}, boundary_width={wall.boundary_width}")
+    print(f"   Fluid bodies: {len(config.fluid_bodies)}")
+    for body in config.fluid_bodies:
+        geometry = body.get("geometry", {})
+        material = body.get("material", {})
+        print(
+            "     - "
+            f"{body.get('name', '(unnamed)')}: "
+            f"geometry={geometry.get('type')}, "
+            f"material={material.get('type')}"
+        )
+    print(f"   Solid bodies: {len(config.solid_bodies)}")
+    for body in config.solid_bodies:
+        geometry = body.get("geometry", {})
+        material = body.get("material", {})
+        print(
+            "     - "
+            f"{body.get('name', '(unnamed)')}: "
+            f"geometry={geometry.get('type')}, "
+            f"material={material.get('type')}"
+        )
     if config.gravity is not None:
         print(f"   Gravity: {config.gravity}")
     print(f"   Observers: {len(config.observers)}")
@@ -213,11 +229,12 @@ def cmd_run(args: argparse.Namespace) -> int:
         print("✅ Simulation completed successfully!")
         print(f"\n📊 Run summary:")
         print(f"   End time: {config.end_time if config.end_time is not None else 1.0}s")
-        print(f"   Fluid block: {config.fluid_blocks[0].name}")
+        first_fluid_body_name = config.fluid_bodies[0].get("name", "fluid_body") if config.fluid_bodies else "fluid_body"
+        print(f"   Fluid body: {first_fluid_body_name}")
         print(f"   Run config: {config_path}")
         
         # Show output location
-        safe_name = config.fluid_blocks[0].name.replace(' ', '_').replace('/', '_')[:50]
+        safe_name = first_fluid_body_name.replace(' ', '_').replace('/', '_')[:50]
         output_dir = PROJECT_ROOT / ".build-temp" / "simulations" / safe_name
         print(f"\n📁 Simulation output saved to:")
         print(f"   {output_dir}")

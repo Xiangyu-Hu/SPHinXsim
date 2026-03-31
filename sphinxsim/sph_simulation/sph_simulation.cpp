@@ -11,7 +11,7 @@ void SPHSimulation::resetOutputRoot(const fs::path &output_root)
     {
         fs::create_directory(output_root);
     }
-    IOEnvironment &io_env = sph_system_ptr_->getIOEnvironment();
+    IOEnvironment &io_env = IO::getEnvironment();
     io_env.resetOutputFolder((output_root / "output").string());
     io_env.resetRestartFolder((output_root / "restart").string());
     io_env.resetReloadFolder((output_root / "reload").string());

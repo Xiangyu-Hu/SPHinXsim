@@ -32,6 +32,9 @@ find_package(pybind11 CONFIG REQUIRED)
 find_package(VTK REQUIRED COMPONENTS CommonCore CommonDataModel IOXML)
 find_package(nlohmann_json CONFIG REQUIRED)
 
+find_package(GTest CONFIG REQUIRED)
+include(GoogleTest)
+
 # Set SPHinXsys options to minimal for Python binding
 set(SPHINXSYS_BUILD_TESTS OFF CACHE BOOL "Don't build tests")
 set(SPHINXSYS_DEVELOPER_MODE OFF CACHE BOOL "Disable developer mode") 
@@ -56,6 +59,7 @@ if(SPHINXSYS_2D)
     target_link_libraries(sph_simulation_2d INTERFACE VTK::CommonCore VTK::CommonDataModel VTK::IOXML)
     target_link_libraries(sph_simulation_2d PRIVATE nlohmann_json::nlohmann_json)
     target_link_libraries(sph_simulation_2d PUBLIC sphinxsys_2d)
+    target_link_libraries(sph_simulation_2d INTERFACE GTest::gtest GTest::gtest_main)
 
     pybind11_add_module(_sphinxsys_core_2d ${BIND_SOURCE_FILES})
     target_link_libraries(_sphinxsys_core_2d PRIVATE sph_simulation_2d)
@@ -75,6 +79,7 @@ if(SPHINXSYS_3D)
     target_link_libraries(sph_simulation_3d INTERFACE VTK::CommonCore VTK::CommonDataModel VTK::IOXML)
     target_link_libraries(sph_simulation_3d PRIVATE nlohmann_json::nlohmann_json)
     target_link_libraries(sph_simulation_3d PUBLIC sphinxsys_3d)
+        target_link_libraries(sph_simulation_3d INTERFACE GTest::gtest GTest::gtest_main)
 
     pybind11_add_module(_sphinxsys_core_3d ${BIND_SOURCE_FILES})
     target_link_libraries(_sphinxsys_core_3d PRIVATE sph_simulation_3d)

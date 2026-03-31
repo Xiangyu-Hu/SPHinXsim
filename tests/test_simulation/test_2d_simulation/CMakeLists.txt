@@ -15,8 +15,8 @@ file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/ DESTINATION ${BUILD_INPUT_PATH})
 
 aux_source_directory(. DIR_SRCS)
 add_executable(${PROJECT_NAME} ${EXECUTABLE_OUTPUT_PATH} ${DIR_SRCS})
+target_link_libraries(${PROJECT_NAME} sph_simulation_2d)	
 set_target_properties(${PROJECT_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${EXECUTABLE_OUTPUT_PATH}")
-target_link_libraries(${PROJECT_NAME} sph_simulation_2d)
 
 add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME}
     WORKING_DIRECTORY ${EXECUTABLE_OUTPUT_PATH})

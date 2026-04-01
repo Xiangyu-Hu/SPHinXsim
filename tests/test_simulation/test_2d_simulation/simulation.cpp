@@ -19,7 +19,7 @@ TEST(simulations, dambreak)
 
 TEST(simulations, filling_tank)
 {
-    SPH::SPHSimulation sim("input/dambreak.json");
+    SPH::SPHSimulation sim("input/filling_tank.json");
     sim.loadConfig();
     sim.initializeSimulation();
     sim.run(20.0);

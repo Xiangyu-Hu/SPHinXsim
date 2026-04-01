@@ -55,7 +55,58 @@ Shape &SPHSimulation::addShape(SPHSystem &sph_system, const json &config)
         return shape;
     }
 
+    if constexpr (Dimensions == 2)
+    {
+        if (type_name == "multipolygon")
+        {
+            MultiPolygon multi_polygon;
+            for (const auto &plg : config.at("polygons"))
+            {
+                const std::string operation_name = plg.at("operation").get<std::string>();
+                GeometricOps op = parseGeometricOp(operation_name);
+                multi_polygon.addMultiPolygon(parseMultiPolygon(plg), op);
+            }
+            return sph_system.addShape<MultiPolygonShape>(multi_polygon, "MultiPolygon");
+        }
+    }
+
     throw std::runtime_error("SPHSimulation::addShape: unsupported shape type: " + type_name);
+}
+//=================================================================================================//
+GeometricOps SPHSimulation::parseGeometricOp(const std::string &op_str)
+{
+    if (op_str == "union")
+        return GeometricOps::add;
+    if (op_str == "intersection")
+        return GeometricOps::intersect;
+    if (op_str == "subtraction")
+        return GeometricOps::sub;
+
+    throw std::runtime_error("SPHSimulation::parseGeometricOp: unsupported geometric operation: " + op_str);
+}
+//=================================================================================================//
+MultiPolygon SPHSimulation::parseMultiPolygon(const json &config)
+{
+    MultiPolygon multi_polygon;
+    const std::string polygon_type = config.at("type").get<std::string>();
+    if (polygon_type == "bounding_box")
+    {
+        Vecd lower_bound = jsonToVecd(config.at("lower_bound"));
+        Vecd upper_bound = jsonToVecd(config.at("upper_bound"));
+        multi_polygon.addBox(BoundingBoxd(lower_bound, upper_bound), GeometricOps::add);
+        return multi_polygon;
+    }
+
+    if (polygon_type == "container_box")
+    {
+        BoundingBoxd inner_box(
+            jsonToVecd(config.at("inner_lower_bound")), jsonToVecd(config.at("inner_upper_bound")));
+        Real thickness = config.at("thickness").get<Real>();
+        multi_polygon.addContainerBox(inner_box, thickness, GeometricOps::add);
+        return multi_polygon;
+    }
+
+    throw std::runtime_error("SPHSimulation::addShape: unsupported polygon type: " + polygon_type);
 }
 //=================================================================================================//
 void SPHSimulation::addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config)

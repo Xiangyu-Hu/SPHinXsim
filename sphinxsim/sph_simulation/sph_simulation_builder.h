@@ -40,10 +40,9 @@ class SPHSystem;
 enum class SimulationHookPoint
 {
     BoundaryConditions,
-    AfterAcoustic,
-    AfterAdvection,
     ParticleCreation,
     ParticleDeletion,
+    ParticleSort,
     NumHooks
 };
 

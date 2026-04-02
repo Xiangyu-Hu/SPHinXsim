@@ -254,7 +254,6 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
                                            .add(&main_methods.addCellLinkedListDynamics(fluid_body))
                                            .add(&main_methods.addRelationDynamics(fluid_inner, fluid_wall_contact));
     auto &observer_update_configuration = main_methods.addRelationDynamics(fluid_observer_contact);
-    auto &particle_sort = main_methods.addSortDynamics(fluid_body);
 
     auto &fluid_advection_step_setup = main_methods.addStateDynamics<fluid_dynamics::AdvectionStepSetup>(fluid_body);
     auto &fluid_update_particle_position = main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(fluid_body);
@@ -342,7 +341,6 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
         {
             if (advection_step(fluid_advection_time_step))
             {
-                advection_steps_++;
                 fluid_update_particle_position.exec();
                 fluid_density_regularization.exec();
                 fluid_advection_step_setup.exec();
@@ -374,13 +372,14 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
 
                 if (advection_steps_ % 100 == 0)
                 {
-                  particle_sort.exec();
+                    simulation_pipeline_.run_hooks(SimulationHookPoint::ParticleSort);
                 }
 
                 fluid_update_configuration.exec();
                 fluid_density_regularization.exec();
                 fluid_advection_step_setup.exec();
                 fluid_linear_correction_matrix.exec();
+                advection_steps_++;
             }
         });
     //----------------------------------------------------------------------
@@ -402,6 +401,19 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
         {
             addFluidBoundaryConditions(main_methods, entity_manager_, bd);
         }
+    }
+
+    if (config.contains("particle_sort_frequency")) // after all body part by particles defined
+    {
+        UnsignedInt frequency = config.at("particle_sort_frequency").get<UnsignedInt>();
+        auto &particle_sort = main_methods.addSortDynamics(fluid_body);
+        simulation_pipeline_.insert_hook(
+            SimulationHookPoint::ParticleSort, [&, frequency]()
+            {
+                if (advection_steps_ % frequency == 0)
+                {
+                    particle_sort.exec();
+                } });
     }
 }
 //=================================================================================================//

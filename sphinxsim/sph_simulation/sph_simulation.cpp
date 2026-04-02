@@ -1,4 +1,4 @@
-#include "sph_simulation.h"
+#include "sph_simulation.hpp"
 
 namespace SPH
 {
@@ -138,7 +138,16 @@ FluidBody &SPHSimulation::addFluidBody(SPHSystem &sph_system, const json &config
     Shape &fluid_shape = addShape(sph_system, config.at("geometry"));
     auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
     addMaterial(entity_manager_, fluid_body, config.at("material"));
-    fluid_body.generateParticles<BaseParticles, Lattice>();
+    if (config.contains("particle_reserve_factor"))
+    {
+        ParticleBuffer<ReserveSizeFactor> inlet_buffer(
+            config.at("particle_reserve_factor").get<Real>());
+        fluid_body.generateParticlesWithReserve<BaseParticles, Lattice>(inlet_buffer);
+    }
+    else
+    {
+        fluid_body.generateParticles<BaseParticles, Lattice>();
+    }
     entity_manager_.addEntity(name, &fluid_body);
     return fluid_body;
 }
@@ -152,38 +161,6 @@ SolidBody &SPHSimulation::addSolidBody(SPHSystem &sph_system, const json &config
     wall_body.generateParticles<BaseParticles, Lattice>();
     entity_manager_.addEntity(name, &wall_body);
     return wall_body;
-}
-//=================================================================================================//
-void SPHSimulation::addBodyPart(EntityManager &entity_manager, SPHBody &sph_body, const json &config)
-{
-    const std::string name = config.at("name").get<std::string>();
-    const std::string part_type_name = config.at("part_type").get<std::string>();
-    const std::string region_type_name = config.at("region_type").get<std::string>();
-    if (region_type_name == aligned_box)
-    {
-        Vecd lower_bound = jsonToVecd(config.at("lower_bound"));
-        Vecd upper_bound = jsonToVecd(config.at("upper_bound"));
-        int alignment_axis = config.at("alignment_axis").get<int>();
-        Vecd translation = jsonToVecd(config.at("translation"));
-        Real rotation_angle = config.at("rotation_angle").get<Real>();
-
-        AlignedBox aligned_box(alignment_axis, Transfrom(translation, rotation_angle),
-                               BoundingBoxd(lower_bound, upper_bound));
-        if (part_type_name == "by_particle")
-        {
-            auto &body_part = sph_body.addBodyPart<AlignedBoxByParticle>(aligned_box);
-            entity_manager.addEntity(sph_body.getName() + name, &body_part);
-            return;
-        }
-        else
-        {
-            auto &body_part = sph_body.addBodyPart<AlignedBoxByCell>(aligned_box, name);
-            entity_manager.addEntity(sph_body.getName() + name, &body_part);
-            return;
-        }
-    }
-
-    throw std::runtime_error("SPHSimulation::addBodyPart: unsupported body part region type: " + region_type_name);
 }
 //=================================================================================================//
 ObserverBody &SPHSimulation::addObserver(SPHSystem &sph_system, const json &config)
@@ -356,6 +333,7 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
         {
             Real dt = time_stepper.incrementPhysicalTime(fluid_acoustic_time_step);
             fluid_acoustic_step_1st_half.exec(dt);
+            simulation_pipeline_.run_hooks(SimulationHookPoint::BoundaryConditions);
             fluid_acoustic_step_2nd_half.exec(dt);
         });
 
@@ -391,6 +369,9 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
                     body_state_recorder.writeToFile();
                 }
 
+                simulation_pipeline_.run_hooks(SimulationHookPoint::ParticleCreation);
+                simulation_pipeline_.run_hooks(SimulationHookPoint::ParticleDeletion);
+
                 if (advection_steps_ % 100)
                 {
                     particle_sort.exec();
@@ -413,6 +394,14 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
         initialization_pipeline_.insert_hook(
             InitializationHookPoint::InitialConditions, [&]()
             { constant_gravity.exec(); });
+    }
+
+    if (config.contains("fluid_boundary_conditions"))
+    {
+        for (const auto &bd : config.at("fluid_boundary_conditions"))
+        {
+            addFluidBoundaryConditions(main_methods, entity_manager_, bd);
+        }
     }
 }
 //=================================================================================================//

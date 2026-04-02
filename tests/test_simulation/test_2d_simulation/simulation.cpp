@@ -9,21 +9,21 @@
 #include "sph_simulation.h"
 #include <gtest/gtest.h>
 
- TEST(simulations, dambreak)
+TEST(simulations, dambreak)
 {
-    SPH::SPHSimulation sim("input/filling_tank.json");
+    SPH::SPHSimulation sim("input/dambreak.json");
     sim.loadConfig();
     sim.initializeSimulation();
     sim.run(20.0);
 }
 
-/*TEST(simulations, filling_tank)
+TEST(simulations, filling_tank)
 {
     SPH::SPHSimulation sim("input/filling_tank.json");
     sim.loadConfig();
     sim.initializeSimulation();
     sim.run(30.0);
-}*/
+}
 
 int main(int argc, char *argv[])
 {

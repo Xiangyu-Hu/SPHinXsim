@@ -374,7 +374,7 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
 
                 if (advection_steps_ % 100)
                 {
-                    particle_sort.exec();
+                  particle_sort.exec();
                 }
 
                 fluid_update_configuration.exec();

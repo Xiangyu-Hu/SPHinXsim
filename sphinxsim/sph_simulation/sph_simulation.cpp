@@ -372,7 +372,7 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
                 simulation_pipeline_.run_hooks(SimulationHookPoint::ParticleCreation);
                 simulation_pipeline_.run_hooks(SimulationHookPoint::ParticleDeletion);
 
-                if (advection_steps_ % 100)
+                if (advection_steps_ % 100 == 0)
                 {
                   particle_sort.exec();
                 }

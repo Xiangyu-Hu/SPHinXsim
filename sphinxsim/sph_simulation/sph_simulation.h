@@ -117,6 +117,7 @@ class SPHSimulation
     SPHSystem &defineSPHSystem(const json &config);
     Shape &addShape(SPHSystem &sph_system, const json &config);
     void addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config);
+    void addBodyPart(EntityManager &entity_manager, SPHBody &sph_body, const json &config);
     GeometricOps parseGeometricOp(const std::string &op_str);
     MultiPolygon parseMultiPolygon(const json &config);
     FluidBody &addFluidBody(SPHSystem &sph_system, const json &config);

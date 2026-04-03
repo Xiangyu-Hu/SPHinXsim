@@ -29,6 +29,28 @@ SPHSystem &SPHSimulation::defineSPHSystem(const json &config)
     return *sph_system_ptr_;
 }
 //=================================================================================================//
+SPHSolver &SPHSimulation::defineSPHSolver(SPHSystem &sph_system, const json &config)
+{
+
+    sph_solver_ptr_ = std::make_unique<SPHSolver>(sph_system);
+    return *sph_solver_ptr_.get();
+}
+//=================================================================================================//
+StagePipeline<InitializationHookPoint> &SPHSimulation::getInitializationPipeline()
+{
+    return initialization_pipeline_;
+}
+//=================================================================================================//
+StagePipeline<SimulationHookPoint> &SPHSimulation::getSimulationPipeline()
+{
+    return simulation_pipeline_;
+}
+//=================================================================================================//
+EntityManager &SPHSimulation::getEntityManager()
+{
+    return entity_manager_;
+}
+//=================================================================================================//
 Shape &SPHSimulation::addShape(SPHSystem &sph_system, const json &config)
 {
     const std::string type_name = config.at("type").get<std::string>();
@@ -217,9 +239,9 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
     // Define SPH solver with particle methods and execution policies.
     // Generally, the host methods should be able to run immediately.
     //----------------------------------------------------------------------
-    sph_solver_ = std::make_unique<SPHSolver>(sph_system);
-    auto &main_methods = sph_solver_->addParticleMethodContainer(par_ck);
-    auto &host_methods = sph_solver_->addParticleMethodContainer(par_host);
+    SPHSolver &sph_solver = defineSPHSolver(sph_system, config);
+    auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
+    auto &host_methods = sph_solver.addParticleMethodContainer(par_host);
     //----------------------------------------------------------------------
     // Define the numerical methods used in the simulation.
     // Note that there may be data dependence on the sequence of constructions.
@@ -300,7 +322,7 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
     //----------------------------------------------------------------------
     //	Define time-integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------
-    auto &time_stepper = sph_solver_->getTimeStepper();
+    auto &time_stepper = sph_solver.getTimeStepper();
     auto &advection_step = time_stepper.addTriggerByInterval(fluid_advection_time_step.exec());
     auto &state_recording_trigger = time_stepper.addTriggerByInterval(0.1);
     int screening_interval = 100;
@@ -416,7 +438,7 @@ void SPHSimulation::loadConfig()
 //=================================================================================================//
 void SPHSimulation::initializeSimulation()
 {
-    if (!sph_solver_)
+    if (!sph_solver_ptr_)
     {
         throw std::runtime_error(
             "SPHSimulation::initializeSimulation: simulation is not built. "
@@ -440,7 +462,7 @@ void SPHSimulation::run(Real end_time)
         return;
     }
 
-    while (!sph_solver_->getTimeStepper().isEndTime(end_time))
+    while (!sph_solver_ptr_->getTimeStepper().isEndTime(end_time))
     {
         for (auto &step : simulation_pipeline_.main_steps)
         {

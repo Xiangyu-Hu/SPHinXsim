@@ -109,7 +109,7 @@ class SPHSimulation
     EntityManager entity_manager_;
     StagePipeline<InitializationHookPoint> initialization_pipeline_;
     StagePipeline<SimulationHookPoint> simulation_pipeline_;
-    std::unique_ptr<SPHSolver> sph_solver_;
+    std::unique_ptr<SPHSolver> sph_solver_ptr_;
     Real end_time_{0.0};
     size_t advection_steps_{1};
     bool executable_state_ready_{false};
@@ -119,6 +119,10 @@ class SPHSimulation
     friend class FluidSimulationBuilder;
 
     SPHSystem &defineSPHSystem(const json &config);
+    SPHSolver &defineSPHSolver(SPHSystem &sph_system, const json &config);
+    StagePipeline<InitializationHookPoint> &getInitializationPipeline();
+    StagePipeline<SimulationHookPoint> &getSimulationPipeline();
+    EntityManager &getEntityManager();
     Shape &addShape(SPHSystem &sph_system, const json &config);
     void addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config);
     template <class MethodContainerType>

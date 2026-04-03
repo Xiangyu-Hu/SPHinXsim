@@ -32,13 +32,16 @@
 #ifndef SPH_SIMULATION_H
 #define SPH_SIMULATION_H
 
-#include "fluid_simulation_builder.h"
 #include "sph_simulation_utility.h"
+#include "sphinxsys.h"
 
-#include <optional>
+#include <filesystem>
+namespace fs = std::filesystem;
 
 namespace SPH
 {
+class BaseSimulationBuilder;
+
 /**
  * @class SPHSimulation
  * @brief High-level facade for a 2D or 3D SPH simulation using the CK execution

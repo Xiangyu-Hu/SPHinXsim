@@ -1,5 +1,6 @@
 #include "sph_simulation.hpp"
 
+#include "fluid_simulation_builder.h"
 namespace SPH
 {
 //=================================================================================================//

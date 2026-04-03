@@ -30,10 +30,13 @@
 #define FLUID_SIMULATION_BUILDER_H
 
 #include "sph_simulation_utility.h"
-#include "sphinxsys.h"
 
 namespace SPH
 {
-
+class FluidSimulationBuilder : public BaseSimulationBuilder
+{
+  public:
+    void buildSimulation(SPHSimulation &sim) override;
+};
 } // namespace SPH
 #endif // FLUID_SIMULATION_BUILDER_H

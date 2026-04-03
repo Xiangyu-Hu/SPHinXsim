@@ -82,5 +82,13 @@ struct StagePipeline
         hooks[static_cast<size_t>(p)].push_back(std::move(step));
     }
 };
+
+class SPHSimulation;
+class BaseSimulationBuilder
+{
+  public:
+    virtual ~BaseSimulationBuilder() = default;
+    virtual void buildSimulation(SPHSimulation &sim) = 0;
+};
 } // namespace SPH
 #endif // SPH_SIMULATION_UTILITY_H

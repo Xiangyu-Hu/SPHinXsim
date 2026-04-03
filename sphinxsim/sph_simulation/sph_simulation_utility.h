@@ -21,17 +21,16 @@
  *                                                                           *
  * ------------------------------------------------------------------------- */
 /**
- * @file    sph_simulation_json.h
+ * @file    sph_simulation_utility.h
  * @brief   TBD.
  * @author  Xiangyu Hu
  */
 
-#ifndef SPH_SIMULATION_JSON_H
-#define SPH_SIMULATION_JSON_H
+#ifndef SPH_SIMULATION_UTILITY_H
+#define SPH_SIMULATION_UTILITY_H
 
-#include "base_data_type_package.h"
+#include "data_type.h"
 
-#include <filesystem>
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
@@ -47,5 +46,41 @@ inline Vecd jsonToVecd(const nlohmann::json &arr)
         v[i] = arr[i].get<Real>();
     return v;
 }
+
+// Enum for hook points for fast O(1) access
+enum class SimulationHookPoint
+{
+    BoundaryConditions,
+    ParticleCreation,
+    ParticleDeletion,
+    ParticleSort,
+    NumHooks
+};
+
+enum class InitializationHookPoint
+{
+    HostSteps,
+    InitialConditions,
+    NumHooks
+};
+
+// A staged pipeline structure
+template <typename HookPointType>
+struct StagePipeline
+{
+    std::vector<std::function<void()>> main_steps;
+    std::vector<std::function<void()>> hooks[static_cast<size_t>(HookPointType::NumHooks)];
+
+    void run_hooks(HookPointType p)
+    {
+        for (auto &f : hooks[static_cast<size_t>(p)])
+            f();
+    }
+
+    void insert_hook(HookPointType p, std::function<void()> step)
+    {
+        hooks[static_cast<size_t>(p)].push_back(std::move(step));
+    }
+};
 } // namespace SPH
-#endif // SPH_SIMULATION_JSON_H
+#endif // SPH_SIMULATION_UTILITY_H

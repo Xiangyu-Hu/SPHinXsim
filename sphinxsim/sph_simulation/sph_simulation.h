@@ -34,7 +34,7 @@
 
 #include "base_data_type_package.h"
 #include "sph_simulation_builder.h"
-#include "sph_simulation_json.h"
+#include "sph_simulation_utility.h"
 #include "sphinxsys.h"
 
 #include <optional>

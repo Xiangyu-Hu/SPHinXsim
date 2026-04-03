@@ -107,7 +107,9 @@ def main():
     print(f"   End time: {config.end_time if config.end_time is not None else '(set at runtime)'}")
     
     # Validate config can round-trip through JSON
-    config_json = config.model_dump_json(indent=2)
+    # Omit optional fields that are None so the C++ JSON parser does not
+    # treat null-valued optional keys as active configuration entries.
+    config_json = config.model_dump_json(indent=2, exclude_none=True)
     print(f"\n📄 Configuration as JSON ({len(config_json)} bytes)")
     print(config_json[:200] + "..." if len(config_json) > 200 else config_json)
     

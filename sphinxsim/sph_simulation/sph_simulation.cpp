@@ -7,11 +7,7 @@ SPHSimulation::SPHSimulation(const fs::path &config_path) : config_path_(config_
 //=================================================================================================//
 void SPHSimulation::resetOutputRoot(const fs::path &output_root)
 {
-    if (!fs::exists(output_root))
-    {
-        fs::create_directory(output_root);
-    }
-    IOEnvironment &io_env = IO::getEnvironment();
+    IOEnvironment &io_env = IO::initEnvironment();
     io_env.resetOutputFolder((output_root / "output").string());
     io_env.resetRestartFolder((output_root / "restart").string());
     io_env.resetReloadFolder((output_root / "reload").string());

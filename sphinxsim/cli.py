@@ -225,15 +225,16 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     try:
         sim = sph.SPHSimulation(validated_config_path)
-        sim.loadConfig()
-        print("✅ Simulation configuration loaded")
         
         # Create temp directory in project root, not relative to cwd
         output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation"
         output_dir.mkdir(exist_ok=True, parents=True)
         sim.resetOutputRoot(str(output_dir))
         print(f"📁 Now, the output folder is changed to: {output_dir}")
-        
+
+        sim.loadConfig()
+        print("✅ Simulation configuration loaded")
+
         sim.initializeSimulation()
         print("✅ Simulation initialized")        
 

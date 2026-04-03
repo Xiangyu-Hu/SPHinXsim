@@ -38,14 +38,15 @@ def main(simulation_time=2.0):
         # Use an absolute path so tests are independent of current working directory.
         config_path = PROJECT_ROOT / "examples" / "input" / "test_simulation_2d" / "config.json"
         sim = sph.SPHSimulation(str(config_path))
-        sim.loadConfig()
-        print("✅ Simulation configuration loaded")
 
         # Create temp directory in project root, not relative to cwd
         output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation_2d"
         output_dir.mkdir(exist_ok=True, parents=True)
         sim.resetOutputRoot(str(output_dir))
         print(f"📁 Now, the output folder is changed to: {output_dir}")
+
+        sim.loadConfig()
+        print("✅ Simulation configuration loaded")
 
         sim.initializeSimulation()
         print("✅ Simulation initialized")

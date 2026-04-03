@@ -32,10 +32,8 @@
 #ifndef SPH_SIMULATION_H
 #define SPH_SIMULATION_H
 
-#include "base_data_type_package.h"
-#include "sph_simulation_builder.h"
+#include "fluid_simulation_builder.h"
 #include "sph_simulation_utility.h"
-#include "sphinxsys.h"
 
 #include <optional>
 
@@ -109,7 +107,6 @@ class SPHSimulation
     StagePipeline<InitializationHookPoint> initialization_pipeline_;
     StagePipeline<SimulationHookPoint> simulation_pipeline_;
     std::unique_ptr<SPHSolver> sph_solver_;
-    std::unique_ptr<SolverConfig> solver_config_;
     Real end_time_{0.0};
     size_t advection_steps_{1};
     bool executable_state_ready_{false};
@@ -126,7 +123,6 @@ class SPHSimulation
     FluidBody &addFluidBody(SPHSystem &sph_system, const json &config);
     SolidBody &addSolidBody(SPHSystem &sph_system, const json &config);
     ObserverBody &addObserver(SPHSystem &sph_system, const json &config);
-    SolverConfig &useSolver(const json &config);
 };
 } // namespace SPH
 #endif // SPH_SIMULATION_H

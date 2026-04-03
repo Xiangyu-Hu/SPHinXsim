@@ -181,18 +181,6 @@ ObserverBody &SPHSimulation::addObserver(SPHSystem &sph_system, const json &conf
     return observer_body;
 }
 //=================================================================================================//
-SolverConfig &SPHSimulation::useSolver(const json &config)
-{
-    if (!solver_config_)
-        solver_config_ = std::make_unique<SolverConfig>();
-    auto &sc = *solver_config_;
-    if (config.value("dual_time_stepping", false))
-        sc.dualTimeStepping();
-    if (config.value("free_surface_correction", false))
-        sc.freeSurfaceCorrection();
-    return sc;
-}
-//=================================================================================================//
 void SPHSimulation::buildSimulationFromJson(const json &config)
 {
     //----------------------------------------------------------------------
@@ -209,8 +197,6 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
     if (config.contains("observers"))
         for (const auto &obs : config.at("observers"))
             addObserver(sph_system, obs);
-    if (config.contains("solver"))
-        useSolver(config.at("solver"));
     if (config.contains("end_time"))
         end_time_ = config.at("end_time").get<Real>();
     //----------------------------------------------------------------------

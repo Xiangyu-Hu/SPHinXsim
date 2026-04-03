@@ -51,20 +51,19 @@ Shape &SPHSimulation::addShape(SPHSystem &sph_system, const json &config)
         return shape;
     }
 
-    if constexpr (Dimensions == 2)
+#ifdef SPHINXSYS_2D
+    if (type_name == "multipolygon")
     {
-        if (type_name == "multipolygon")
+        MultiPolygon multi_polygon;
+        for (const auto &plg : config.at("polygons"))
         {
-            MultiPolygon multi_polygon;
-            for (const auto &plg : config.at("polygons"))
-            {
-                const std::string operation_name = plg.at("operation").get<std::string>();
-                GeometricOps op = parseGeometricOp(operation_name);
-                multi_polygon.addMultiPolygon(parseMultiPolygon(plg), op);
-            }
-            return sph_system.addShape<MultiPolygonShape>(multi_polygon, "MultiPolygon");
+            const std::string operation_name = plg.at("operation").get<std::string>();
+            GeometricOps op = parseGeometricOp(operation_name);
+            multi_polygon.addMultiPolygon(parseMultiPolygon(plg), op);
         }
+        return sph_system.addShape<MultiPolygonShape>(multi_polygon, "MultiPolygon");
     }
+#endif
 
     throw std::runtime_error("SPHSimulation::addShape: unsupported shape type: " + type_name);
 }
@@ -81,6 +80,7 @@ GeometricOps SPHSimulation::parseGeometricOp(const std::string &op_str)
     throw std::runtime_error("SPHSimulation::parseGeometricOp: unsupported geometric operation: " + op_str);
 }
 //=================================================================================================//
+#ifdef SPHINXSYS_2D
 MultiPolygon SPHSimulation::parseMultiPolygon(const json &config)
 {
     MultiPolygon multi_polygon;
@@ -104,6 +104,7 @@ MultiPolygon SPHSimulation::parseMultiPolygon(const json &config)
 
     throw std::runtime_error("SPHSimulation::addShape: unsupported polygon type: " + polygon_type);
 }
+#endif
 //=================================================================================================//
 void SPHSimulation::addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config)
 {

@@ -120,7 +120,9 @@ class SPHSimulation
     template <class MethodContainerType>
     void addFluidBoundaryConditions(MethodContainerType &method_container, EntityManager &entity_manager, const json &config);
     GeometricOps parseGeometricOp(const std::string &op_str);
+#ifdef SPHINXSYS_2D
     MultiPolygon parseMultiPolygon(const json &config);
+#endif
     FluidBody &addFluidBody(SPHSystem &sph_system, const json &config);
     SolidBody &addSolidBody(SPHSystem &sph_system, const json &config);
     ObserverBody &addObserver(SPHSystem &sph_system, const json &config);

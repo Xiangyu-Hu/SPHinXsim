@@ -19,8 +19,12 @@ void SPHSimulation::addFluidBoundaryConditions(
         int alignment_axis = config.at("alignment_axis").get<int>();
         Vecd half_size = jsonToVecd(config.at("half_size"));
         Vecd translation = jsonToVecd(config.at("translation"));
+#ifdef SPHINXSYS_2D
         Rotation rotation(config.at("rotation_angle").get<Real>());
-
+#else
+        Rotation rotation(config.at("rotation_angle").get<Real>(),
+                            jsonToVecd(config.at("rotation_axis")));
+#endif
         auto &emitter = fluid_body.addBodyPart<AlignedBoxByParticle>(
             AlignedBox(alignment_axis, Transform(rotation, translation), half_size));
         emitter.writeShapeProxy();

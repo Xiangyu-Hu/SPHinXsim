@@ -60,10 +60,10 @@ if(SPHINXSYS_2D)
     target_link_libraries(sph_simulation_2d PRIVATE nlohmann_json::nlohmann_json)
     target_link_libraries(sph_simulation_2d PUBLIC sphinxsys_2d)
     target_link_libraries(sph_simulation_2d INTERFACE GTest::gtest GTest::gtest_main)
-
+    target_compile_definitions(sph_simulation_2d PUBLIC SPHINXSYS_2D VERSION_INFO="0.1.0")
+    
     pybind11_add_module(_sphinxsys_core_2d ${BIND_SOURCE_FILES})
     target_link_libraries(_sphinxsys_core_2d PRIVATE sph_simulation_2d)
-    target_compile_definitions(_sphinxsys_core_2d PRIVATE SPHINXSYS_2D VERSION_INFO="0.1.0")
     target_compile_features(_sphinxsys_core_2d PRIVATE cxx_std_17)
     install(TARGETS _sphinxsys_core_2d  DESTINATION .)
 
@@ -79,11 +79,11 @@ if(SPHINXSYS_3D)
     target_link_libraries(sph_simulation_3d INTERFACE VTK::CommonCore VTK::CommonDataModel VTK::IOXML)
     target_link_libraries(sph_simulation_3d PRIVATE nlohmann_json::nlohmann_json)
     target_link_libraries(sph_simulation_3d PUBLIC sphinxsys_3d)
-        target_link_libraries(sph_simulation_3d INTERFACE GTest::gtest GTest::gtest_main)
+    target_link_libraries(sph_simulation_3d INTERFACE GTest::gtest GTest::gtest_main)
+    target_compile_definitions(sph_simulation_3d PUBLIC SPHINXSYS_3D VERSION_INFO="0.1.0")
 
     pybind11_add_module(_sphinxsys_core_3d ${BIND_SOURCE_FILES})
     target_link_libraries(_sphinxsys_core_3d PRIVATE sph_simulation_3d)
-    target_compile_definitions(_sphinxsys_core_3d PRIVATE SPHINXSYS_3D VERSION_INFO="0.1.0")
     target_compile_features(_sphinxsys_core_3d PRIVATE cxx_std_17)
     install(TARGETS _sphinxsys_core_3d  DESTINATION .)
 

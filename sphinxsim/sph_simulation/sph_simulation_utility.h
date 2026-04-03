@@ -88,7 +88,7 @@ class BaseSimulationBuilder
 {
   public:
     virtual ~BaseSimulationBuilder() = default;
-    virtual void buildSimulation(SPHSimulation &sim) = 0;
+    virtual void buildSimulation(SPHSimulation &sim, const json &config) = 0;
 };
 } // namespace SPH
 #endif // SPH_SIMULATION_UTILITY_H

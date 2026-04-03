@@ -5,7 +5,7 @@
 namespace SPH
 {
 //=================================================================================================//
-void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim)
+void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &config)
 {
 }
 //=================================================================================================//

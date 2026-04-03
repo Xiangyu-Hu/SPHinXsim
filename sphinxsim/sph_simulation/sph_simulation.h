@@ -114,6 +114,10 @@ class SPHSimulation
     size_t advection_steps_{1};
     bool executable_state_ready_{false};
 
+  protected:
+    friend class BaseSimulationBuilder;
+    friend class FluidSimulationBuilder;
+
     SPHSystem &defineSPHSystem(const json &config);
     Shape &addShape(SPHSystem &sph_system, const json &config);
     void addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config);

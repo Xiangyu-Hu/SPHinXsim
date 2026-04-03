@@ -36,7 +36,7 @@ namespace SPH
 class FluidSimulationBuilder : public BaseSimulationBuilder
 {
   public:
-    void buildSimulation(SPHSimulation &sim) override;
+    void buildSimulation(SPHSimulation &sim, const json &config) override;
 };
 } // namespace SPH
 #endif // FLUID_SIMULATION_BUILDER_H

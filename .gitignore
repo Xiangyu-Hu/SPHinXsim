@@ -36,9 +36,6 @@ sphinxsim/sphinxsys/cmake-build-*/
 ##### VS Code
 # VS Code setting up
 .vscode
-*.json
-!CMakePresets.json
-!config.json
 
 ##### Windows
 # Windows thumbnail cache files

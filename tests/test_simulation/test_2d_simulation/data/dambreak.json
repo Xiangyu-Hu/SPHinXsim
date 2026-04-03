@@ -1,0 +1,75 @@
+{
+  "domain": {
+    "upper_bound": [
+      5.366,
+      5.366
+    ],
+    "lower_bound": [
+      0.0,
+      0.0
+    ]
+  },
+  "particle_spacing": 0.025,
+  "particle_boundary_buffer": 4,
+  "fluid_bodies": [
+    {
+      "name": "WaterBody",
+      "geometry": {
+        "type": "bounding_box",
+        "lower_bound": [
+          0.0,
+          0.0
+        ],
+        "upper_bound": [
+          2.0,
+          1.0
+        ]
+      },
+      "material": {
+        "type": "weakly_compressible_fluid",
+        "density": 1.0,
+        "sound_speed": 20.0
+      }
+    }
+  ],
+  "solid_bodies": [
+    {
+      "name": "WallBoundary",
+      "material": {
+        "type": "rigid_body"
+      },
+      "geometry": {
+        "type": "container_box",
+        "inner_lower_bound": [
+          0.0,
+          0.0
+        ],
+        "inner_upper_bound": [
+          5.366,
+          5.366
+        ],
+        "thickness": 0.1
+      }
+    }
+  ],
+  "gravity": [
+    0.0,
+    -1.0
+  ],
+  "observers": [
+    {
+      "name": "FluidObserver",
+      "positions": [
+        [
+          5.366,
+          0.2
+        ]
+      ]
+    }
+  ],
+  "solver": {
+    "dual_time_stepping": true,
+    "free_surface_correction": true
+  },
+  "end_time": 20.0
+}

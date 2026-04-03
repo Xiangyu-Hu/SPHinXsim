@@ -1,13 +1,8 @@
 {
+  "physics_type": "fluid_dynamics",
   "domain": {
-    "upper_bound": [
-      5.366,
-      5.366
-    ],
-    "lower_bound": [
-      0.0,
-      0.0
-    ]
+    "upper_bound": [5.366, 5.366],
+    "lower_bound": [0.0, 0.0]
   },
   "particle_spacing": 0.025,
   "particle_boundary_buffer": 4,
@@ -16,14 +11,8 @@
       "name": "WaterBody",
       "geometry": {
         "type": "bounding_box",
-        "lower_bound": [
-          0.0,
-          0.0
-        ],
-        "upper_bound": [
-          2.0,
-          1.0
-        ]
+        "lower_bound": [0.0, 0.0],
+        "upper_bound": [2.0, 1.0]
       },
       "material": {
         "type": "weakly_compressible_fluid",
@@ -40,31 +29,17 @@
       },
       "geometry": {
         "type": "container_box",
-        "inner_lower_bound": [
-          0.0,
-          0.0
-        ],
-        "inner_upper_bound": [
-          5.366,
-          5.366
-        ],
+        "inner_lower_bound": [0.0, 0.0],
+        "inner_upper_bound": [5.366, 5.366],
         "thickness": 0.1
       }
     }
   ],
-  "gravity": [
-    0.0,
-    -1.0
-  ],
+  "gravity": [0.0, -1.0],
   "observers": [
     {
       "name": "FluidObserver",
-      "positions": [
-        [
-          5.366,
-          0.2
-        ]
-      ]
+      "positions": [[5.366, 0.2]]
     }
   ],
   "solver": {

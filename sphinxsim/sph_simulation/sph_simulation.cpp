@@ -1,4 +1,4 @@
-#include "sph_simulation.hpp"
+#include "sph_simulation.h"
 
 #include "fluid_simulation_builder.h"
 namespace SPH

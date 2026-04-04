@@ -1,4 +1,4 @@
-#include "sph_simulation.h"
+#include "sph_simulation.hpp"
 
 namespace SPH
 {
@@ -7,11 +7,7 @@ SPHSimulation::SPHSimulation(const fs::path &config_path) : config_path_(config_
 //=================================================================================================//
 void SPHSimulation::resetOutputRoot(const fs::path &output_root)
 {
-    if (!fs::exists(output_root))
-    {
-        fs::create_directory(output_root);
-    }
-    IOEnvironment &io_env = IO::getEnvironment();
+    IOEnvironment &io_env = IO::initEnvironment();
     io_env.resetOutputFolder((output_root / "output").string());
     io_env.resetRestartFolder((output_root / "restart").string());
     io_env.resetReloadFolder((output_root / "reload").string());
@@ -55,8 +51,60 @@ Shape &SPHSimulation::addShape(SPHSystem &sph_system, const json &config)
         return shape;
     }
 
+#ifdef SPHINXSYS_2D
+    if (type_name == "multipolygon")
+    {
+        MultiPolygon multi_polygon;
+        for (const auto &plg : config.at("polygons"))
+        {
+            const std::string operation_name = plg.at("operation").get<std::string>();
+            GeometricOps op = parseGeometricOp(operation_name);
+            multi_polygon.addMultiPolygon(parseMultiPolygon(plg), op);
+        }
+        return sph_system.addShape<MultiPolygonShape>(multi_polygon, "MultiPolygon");
+    }
+#endif
+
     throw std::runtime_error("SPHSimulation::addShape: unsupported shape type: " + type_name);
 }
+//=================================================================================================//
+GeometricOps SPHSimulation::parseGeometricOp(const std::string &op_str)
+{
+    if (op_str == "union")
+        return GeometricOps::add;
+    if (op_str == "intersection")
+        return GeometricOps::intersect;
+    if (op_str == "subtraction")
+        return GeometricOps::sub;
+
+    throw std::runtime_error("SPHSimulation::parseGeometricOp: unsupported geometric operation: " + op_str);
+}
+//=================================================================================================//
+#ifdef SPHINXSYS_2D
+MultiPolygon SPHSimulation::parseMultiPolygon(const json &config)
+{
+    MultiPolygon multi_polygon;
+    const std::string polygon_type = config.at("type").get<std::string>();
+    if (polygon_type == "bounding_box")
+    {
+        Vecd lower_bound = jsonToVecd(config.at("lower_bound"));
+        Vecd upper_bound = jsonToVecd(config.at("upper_bound"));
+        multi_polygon.addBox(BoundingBoxd(lower_bound, upper_bound), GeometricOps::add);
+        return multi_polygon;
+    }
+
+    if (polygon_type == "container_box")
+    {
+        BoundingBoxd inner_box(
+            jsonToVecd(config.at("inner_lower_bound")), jsonToVecd(config.at("inner_upper_bound")));
+        Real thickness = config.at("thickness").get<Real>();
+        multi_polygon.addContainerBox(inner_box, thickness, GeometricOps::add);
+        return multi_polygon;
+    }
+
+    throw std::runtime_error("SPHSimulation::addShape: unsupported polygon type: " + polygon_type);
+}
+#endif
 //=================================================================================================//
 void SPHSimulation::addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config)
 {
@@ -87,7 +135,16 @@ FluidBody &SPHSimulation::addFluidBody(SPHSystem &sph_system, const json &config
     Shape &fluid_shape = addShape(sph_system, config.at("geometry"));
     auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
     addMaterial(entity_manager_, fluid_body, config.at("material"));
-    fluid_body.generateParticles<BaseParticles, Lattice>();
+    if (config.contains("particle_reserve_factor"))
+    {
+        ParticleBuffer<ReserveSizeFactor> inlet_buffer(
+            config.at("particle_reserve_factor").get<Real>());
+        fluid_body.generateParticlesWithReserve<BaseParticles, Lattice>(inlet_buffer);
+    }
+    else
+    {
+        fluid_body.generateParticles<BaseParticles, Lattice>();
+    }
     entity_manager_.addEntity(name, &fluid_body);
     return fluid_body;
 }
@@ -194,7 +251,6 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
                                            .add(&main_methods.addCellLinkedListDynamics(fluid_body))
                                            .add(&main_methods.addRelationDynamics(fluid_inner, fluid_wall_contact));
     auto &observer_update_configuration = main_methods.addRelationDynamics(fluid_observer_contact);
-    auto &particle_sort = main_methods.addSortDynamics(fluid_body);
 
     auto &fluid_advection_step_setup = main_methods.addStateDynamics<fluid_dynamics::AdvectionStepSetup>(fluid_body);
     auto &fluid_update_particle_position = main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(fluid_body);
@@ -273,6 +329,7 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
         {
             Real dt = time_stepper.incrementPhysicalTime(fluid_acoustic_time_step);
             fluid_acoustic_step_1st_half.exec(dt);
+            simulation_pipeline_.run_hooks(SimulationHookPoint::BoundaryConditions);
             fluid_acoustic_step_2nd_half.exec(dt);
         });
 
@@ -281,7 +338,6 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
         {
             if (advection_step(fluid_advection_time_step))
             {
-                advection_steps_++;
                 fluid_update_particle_position.exec();
                 fluid_density_regularization.exec();
                 fluid_advection_step_setup.exec();
@@ -308,15 +364,19 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
                     body_state_recorder.writeToFile();
                 }
 
-                if (advection_steps_ % 100)
+                simulation_pipeline_.run_hooks(SimulationHookPoint::ParticleCreation);
+                simulation_pipeline_.run_hooks(SimulationHookPoint::ParticleDeletion);
+
+                if (advection_steps_ % 100 == 0)
                 {
-                    particle_sort.exec();
+                    simulation_pipeline_.run_hooks(SimulationHookPoint::ParticleSort);
                 }
 
                 fluid_update_configuration.exec();
                 fluid_density_regularization.exec();
                 fluid_advection_step_setup.exec();
                 fluid_linear_correction_matrix.exec();
+                advection_steps_++;
             }
         });
     //----------------------------------------------------------------------
@@ -330,6 +390,27 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
         initialization_pipeline_.insert_hook(
             InitializationHookPoint::InitialConditions, [&]()
             { constant_gravity.exec(); });
+    }
+
+    if (config.contains("fluid_boundary_conditions"))
+    {
+        for (const auto &bd : config.at("fluid_boundary_conditions"))
+        {
+            addFluidBoundaryConditions(main_methods, entity_manager_, bd);
+        }
+    }
+
+    if (config.contains("particle_sort_frequency")) // after all body part by particles defined
+    {
+        UnsignedInt frequency = config.at("particle_sort_frequency").get<UnsignedInt>();
+        auto &particle_sort = main_methods.addSortDynamics(fluid_body);
+        simulation_pipeline_.insert_hook(
+            SimulationHookPoint::ParticleSort, [&, frequency]()
+            {
+                if (advection_steps_ % frequency == 0)
+                {
+                    particle_sort.exec();
+                } });
     }
 }
 //=================================================================================================//

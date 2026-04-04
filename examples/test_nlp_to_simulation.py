@@ -107,7 +107,9 @@ def main():
     print(f"   End time: {config.end_time if config.end_time is not None else '(set at runtime)'}")
     
     # Validate config can round-trip through JSON
-    config_json = config.model_dump_json(indent=2)
+    # Omit optional fields that are None so the C++ JSON parser does not
+    # treat null-valued optional keys as active configuration entries.
+    config_json = config.model_dump_json(indent=2, exclude_none=True)
     print(f"\n📄 Configuration as JSON ({len(config_json)} bytes)")
     print(config_json[:200] + "..." if len(config_json) > 200 else config_json)
     
@@ -132,8 +134,6 @@ def main():
     
     try:
         sim = sph.SPHSimulation(str(config_file))
-        sim.loadConfig()
-        print("✅ Simulation built")
         
         # Create temp directory in project root, not relative to cwd
         output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation"
@@ -141,6 +141,9 @@ def main():
         sim.resetOutputRoot(str(output_dir))
         print(f"📁 Now, the output folder is changed to: {output_dir}")
 
+        sim.loadConfig()
+        print("✅ Simulation built")
+        
         sim.initializeSimulation()
         print("✅ Simulation initialized")
 

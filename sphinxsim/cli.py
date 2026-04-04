@@ -96,7 +96,7 @@ def cmd_generate(args: argparse.Namespace) -> int:
         print(f"Error generating config: {exc}", file=sys.stderr)
         return 1
 
-    output = config.model_dump_json(indent=2)
+    output = config.model_dump_json(indent=2, exclude_none=True)
     if args.output:
         output_path = PROJECT_ROOT / ".build-temp" / args.output
         try:
@@ -138,7 +138,7 @@ def cmd_update(args: argparse.Namespace) -> int:
     if not output_path.is_absolute():
         output_path = PROJECT_ROOT / ".build-temp" / output_path
 
-    output = updated_config.model_dump_json(indent=2)
+    output = updated_config.model_dump_json(indent=2, exclude_none=True)
     try:
         if output_path.parent and not output_path.parent.exists():
             output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -192,7 +192,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
     print(f"   End time: {config.end_time if config.end_time is not None else '(set at runtime)'}")
     
     # Validate config can round-trip through JSON
-    config_json = config.model_dump_json(indent=2)
+    config_json = config.model_dump_json(indent=2, exclude_none=True)
     print(f"\n📄 Configuration as JSON ({len(config_json)} bytes)")
     print(config_json[:200] + "..." if len(config_json) > 200 else config_json)
     return 0
@@ -216,7 +216,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         mode="w", suffix=".json", delete=False, prefix="sphinxsim_run_"
     )
     try:
-        tmp_cfg.write(config.model_dump_json(indent=2))
+        tmp_cfg.write(config.model_dump_json(indent=2, exclude_none=True))
         tmp_cfg.close()
         validated_config_path = tmp_cfg.name
     except OSError as exc:
@@ -225,15 +225,16 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     try:
         sim = sph.SPHSimulation(validated_config_path)
-        sim.loadConfig()
-        print("✅ Simulation configuration loaded")
         
         # Create temp directory in project root, not relative to cwd
         output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation"
         output_dir.mkdir(exist_ok=True, parents=True)
         sim.resetOutputRoot(str(output_dir))
         print(f"📁 Now, the output folder is changed to: {output_dir}")
-        
+
+        sim.loadConfig()
+        print("✅ Simulation configuration loaded")
+
         sim.initializeSimulation()
         print("✅ Simulation initialized")        
 

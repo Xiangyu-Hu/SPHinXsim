@@ -39,8 +39,10 @@ class SPHSystem;
 // Enum for hook points for fast O(1) access
 enum class SimulationHookPoint
 {
-    AfterAcoustic,
-    AfterAdvection,
+    BoundaryConditions,
+    ParticleCreation,
+    ParticleDeletion,
+    ParticleSort,
     NumHooks
 };
 

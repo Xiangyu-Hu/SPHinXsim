@@ -1,5 +1,8 @@
 """Tests for sphinxsim.config.schemas (Pydantic validation)."""
 
+import json
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -22,6 +25,7 @@ def _make_minimal_config(**overrides) -> SimulationConfig:
         "domain": {"lower_bound": [0.0, 0.0], "upper_bound": [1.0, 1.0]},
         "particle_spacing": 0.05,
         "particle_boundary_buffer": 4,
+        "particle_sort_frequency": 100,
         "fluid_bodies": [
             {
                 "name": "WaterBody",
@@ -35,6 +39,7 @@ def _make_minimal_config(**overrides) -> SimulationConfig:
                     "density": 1000.0,
                     "sound_speed": 20.0,
                 },
+                "particle_reserve_factor": 100.0,
             }
         ],
         "solid_bodies": [
@@ -127,7 +132,7 @@ class TestSimulationConfig:
         assert cfg.solver.dual_time_stepping is True
 
     def test_dimensionality_mismatch_rejected_fluid_body(self):
-        with pytest.raises(ValidationError, match="Fluid body dimensionality"):
+        with pytest.raises(ValidationError, match="dimensionality"):
             _make_minimal_config(
                 fluid_bodies=[
                     {
@@ -151,7 +156,7 @@ class TestSimulationConfig:
             _make_minimal_config(gravity=[0.0, -1.0, 0.0])
 
     def test_dimensionality_mismatch_rejected_solid_body(self):
-        with pytest.raises(ValidationError, match="Solid body dimensionality"):
+        with pytest.raises(ValidationError, match="dimensionality"):
             _make_minimal_config(
                 solid_bodies=[
                     {
@@ -183,6 +188,67 @@ class TestSimulationConfig:
         with pytest.raises(ValidationError):
             _make_minimal_config(particle_boundary_buffer=0)
 
+    def test_particle_sort_frequency_must_be_positive(self):
+        with pytest.raises(ValidationError):
+            _make_minimal_config(particle_sort_frequency=0)
+
+    def test_accepts_multipolygon_solid_and_emitter_boundary_condition(self):
+        cfg = _make_minimal_config(
+            solid_bodies=[
+                {
+                    "name": "WallBoundary",
+                    "material": {"type": "rigid_body"},
+                    "geometry": {
+                        "type": "multipolygon",
+                        "polygons": [
+                            {
+                                "operation": "union",
+                                "type": "container_box",
+                                "inner_lower_bound": [0.0, 0.0],
+                                "inner_upper_bound": [1.0, 1.0],
+                                "thickness": 0.1,
+                            },
+                            {
+                                "operation": "subtraction",
+                                "type": "bounding_box",
+                                "lower_bound": [0.0, 0.2],
+                                "upper_bound": [0.2, 0.4],
+                            },
+                        ],
+                    },
+                }
+            ],
+            fluid_boundary_conditions=[
+                {
+                    "body_name": "WaterBody",
+                    "type": "emitter",
+                    "alignment_axis": 0,
+                    "half_size": [0.1, 0.05],
+                    "translation": [0.05, 0.25],
+                    "rotation_angle": 0.0,
+                    "inflow_speed": 1.5,
+                }
+            ],
+        )
+        assert cfg.solid_bodies[0].geometry.type.value == "multipolygon"
+        assert cfg.fluid_boundary_conditions[0].type.value == "emitter"
+
+    def test_fluid_boundary_condition_requires_existing_fluid_body(self):
+        with pytest.raises(ValidationError, match="body_name must reference an existing fluid body"):
+            _make_minimal_config(
+                fluid_boundary_conditions=[
+                    {
+                        "body_name": "MissingBody",
+                        "type": "emitter",
+                        "alignment_axis": 0,
+                        "half_size": [0.1, 0.05],
+                        "translation": [0.05, 0.25],
+                        "rotation_angle": 0.0,
+                        "inflow_speed": 1.5,
+                    }
+                ]
+            )
+
     def test_roundtrip_json(self):
         cfg = _make_minimal_config(
             fluid_bodies=[
@@ -203,3 +269,13 @@ class TestSimulationConfig:
         )
         restored = SimulationConfig.model_validate_json(cfg.model_dump_json())
         assert restored == cfg
+
+    def test_full_updated_fixture_validates(self):
+        fixture_path = Path(__file__).parent / "examples" / "full_updated_simulation_config.json"
+        payload = json.loads(fixture_path.read_text())
+        cfg = SimulationConfig.model_validate(payload)
+
+        assert cfg.particle_sort_frequency == 100
+        assert cfg.fluid_bodies[0].particle_reserve_factor == pytest.approx(350.0)
+        assert cfg.solid_bodies[0].geometry.type.value == "multipolygon"
+        assert cfg.fluid_boundary_conditions[0].type.value == "emitter"

@@ -37,6 +37,9 @@ class FluidSimulationBuilder : public BaseSimulationBuilder
 {
   public:
     void buildSimulation(SPHSimulation &sim, const json &config) override;
+
+  private:
+    UnsignedInt advection_steps_{1};
 };
 } // namespace SPH
 #endif // FLUID_SIMULATION_BUILDER_H

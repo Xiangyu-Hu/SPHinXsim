@@ -94,9 +94,6 @@ class SPHSimulation
     /** Build all SPH objects and run the simulation until end_time. */
     void run(Real end_time);
 
-    /** Build the simulation from a JSON object (see class docstring). */
-    void buildSimulationFromJson(const json &config);
-
     /** Initialize all executable dynamics after a successful build. */
     void initializeSimulation();
 
@@ -110,9 +107,11 @@ class SPHSimulation
     StagePipeline<InitializationHookPoint> initialization_pipeline_;
     StagePipeline<SimulationHookPoint> simulation_pipeline_;
     std::unique_ptr<SPHSolver> sph_solver_ptr_;
+    UniquePtrKeeper<BaseSimulationBuilder> simulation_builder_ptr_;
     Real end_time_{0.0};
-    size_t advection_steps_{1};
     bool executable_state_ready_{false};
+
+    void buildSimulationFromJson(const json &config);
 
   protected:
     friend class BaseSimulationBuilder;

@@ -1,5 +1,5 @@
 {
-  "physics_type": "fluid_dynamics",
+  "simulation_type": "fluid_dynamics",
   "domain": {
     "upper_bound": [5.366, 5.366],
     "lower_bound": [0.0, 0.0]

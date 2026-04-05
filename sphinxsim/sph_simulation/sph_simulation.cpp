@@ -51,31 +51,35 @@ EntityManager &SPHSimulation::getEntityManager()
     return entity_manager_;
 }
 //=================================================================================================//
-Shape &SPHSimulation::addShape(SPHSystem &sph_system, const json &config)
+void SPHSimulation::addShape(SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
-    const std::string type_name = config.at("type").get<std::string>();
+    const std::string name = config.at("name").get<std::string>();
+    const std::string type = config.at("type").get<std::string>();
 
-    if (type_name == "bounding_box")
+    if (type == "bounding_box")
     {
         Vecd lower_bound = jsonToVecd(config.at("lower_bound"));
         Vecd upper_bound = jsonToVecd(config.at("upper_bound"));
-        return sph_system.addShape<GeometricShapeBox>(
-            BoundingBoxd(lower_bound, upper_bound), "BoundingBox");
+        entity_manager.addEntity<Shape>(
+            name, &sph_system.addShape<GeometricShapeBox>(
+                      BoundingBoxd(lower_bound, upper_bound), "BoundingBox"));
+        return;
     }
 
-    if (type_name == "container_box")
+    if (type == "container_box")
     {
-        BoundingBoxd inner_box(
-            jsonToVecd(config.at("inner_lower_bound")), jsonToVecd(config.at("inner_upper_bound")));
+        BoundingBoxd inner_box(jsonToVecd(config.at("inner_lower_bound")),
+                               jsonToVecd(config.at("inner_upper_bound")));
         BoundingBoxd outer_box = inner_box.expand(config.at("thickness").get<Real>());
         auto &shape = sph_system.addShape<ComplexShape>("ContainerBox");
         shape.add<GeometricShapeBox>(outer_box);
         shape.subtract<GeometricShapeBox>(inner_box);
-        return shape;
+        entity_manager.addEntity<Shape>(name, &shape);
+        return;
     }
 
 #ifdef SPHINXSYS_2D
-    if (type_name == "multipolygon")
+    if (type == "multipolygon")
     {
         MultiPolygon multi_polygon;
         for (const auto &plg : config.at("polygons"))
@@ -84,11 +88,13 @@ Shape &SPHSimulation::addShape(SPHSystem &sph_system, const json &config)
             GeometricOps op = parseGeometricOp(operation_name);
             multi_polygon.addMultiPolygon(parseMultiPolygon(plg), op);
         }
-        return sph_system.addShape<MultiPolygonShape>(multi_polygon, "MultiPolygon");
+        entity_manager.addEntity<Shape>(
+            name, &sph_system.addShape<MultiPolygonShape>(multi_polygon, "MultiPolygon"));
+        return;
     }
 #endif
 
-    throw std::runtime_error("SPHSimulation::addShape: unsupported shape type: " + type_name);
+    throw std::runtime_error("SPHSimulation::addShape: unsupported shape type: " + type);
 }
 //=================================================================================================//
 GeometricOps SPHSimulation::parseGeometricOp(const std::string &op_str)
@@ -152,11 +158,11 @@ void SPHSimulation::addMaterial(EntityManager &entity_manager, SPHBody &sph_body
     throw std::runtime_error("SPHSimulation::addMaterial: unsupported material type: " + type_name);
 }
 //=================================================================================================//
-FluidBody &SPHSimulation::addFluidBody(SPHSystem &sph_system, const json &config)
+void SPHSimulation::addFluidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
     const std::string name = config.at("name").get<std::string>();
-    Shape &fluid_shape = addShape(sph_system, config.at("geometry"));
-    auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
+    Shape &fluid_shape = entity_manager.getEntityByName<Shape>(name);
+    auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape);
     addMaterial(entity_manager_, fluid_body, config.at("material"));
     if (config.contains("particle_reserve_factor"))
     {
@@ -169,21 +175,19 @@ FluidBody &SPHSimulation::addFluidBody(SPHSystem &sph_system, const json &config
         fluid_body.generateParticles<BaseParticles, Lattice>();
     }
     entity_manager_.addEntity(name, &fluid_body);
-    return fluid_body;
 }
 //=================================================================================================//
-SolidBody &SPHSimulation::addSolidBody(SPHSystem &sph_system, const json &config)
+void SPHSimulation::addSolidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
     const std::string name = config.at("name").get<std::string>();
-    Shape &wall_shape = addShape(sph_system, config.at("geometry"));
-    auto &wall_body = sph_system.addBody<SolidBody>(wall_shape, name);
+    Shape &wall_shape = entity_manager.getEntityByName<Shape>(name);
+    auto &wall_body = sph_system.addBody<SolidBody>(wall_shape);
     addMaterial(entity_manager_, wall_body, config.at("material"));
     wall_body.generateParticles<BaseParticles, Lattice>();
     entity_manager_.addEntity(name, &wall_body);
-    return wall_body;
 }
 //=================================================================================================//
-ObserverBody &SPHSimulation::addObserver(SPHSystem &sph_system, const json &config)
+void SPHSimulation::addObserver(SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
     const std::string name = config.at("name").get<std::string>();
     StdVec<Vecd> positions;
@@ -199,9 +203,7 @@ ObserverBody &SPHSimulation::addObserver(SPHSystem &sph_system, const json &conf
 
     ObserverBody &observer_body = sph_system.addBody<ObserverBody>(name);
     observer_body.generateParticles<ObserverParticles>(positions);
-
     entity_manager_.addEntity(name, &observer_body);
-    return observer_body;
 }
 //=================================================================================================//
 void SPHSimulation::buildSimulationFromJson(const json &config)

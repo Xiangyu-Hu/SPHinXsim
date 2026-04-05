@@ -6,14 +6,24 @@
   },
   "particle_spacing": 0.05,
   "particle_boundary_buffer": 4,
+  "geometries": [
+    {
+      "name": "WaterBody",
+      "type": "bounding_box",
+      "lower_bound": [0.0, 0.0, 0.0],
+      "upper_bound": [2.0, 1.0, 0.5]
+    },
+    {
+      "name": "WallBoundary",
+      "type": "container_box",
+      "inner_lower_bound": [0.0, 0.0, 0.0],
+      "inner_upper_bound": [5.366, 2.0, 0.5],
+      "thickness": 0.1
+    }
+  ],
   "fluid_bodies": [
     {
       "name": "WaterBody",
-      "geometry": {
-        "type": "bounding_box",
-        "lower_bound": [0.0, 0.0, 0.0],
-        "upper_bound": [2.0, 1.0, 0.5]
-      },
       "material": {
         "type": "weakly_compressible_fluid",
         "density": 1.0,
@@ -26,12 +36,6 @@
       "name": "WallBoundary",
       "material": {
         "type": "rigid_body"
-      },
-      "geometry": {
-        "type": "container_box",
-        "inner_lower_bound": [0.0, 0.0, 0.0],
-        "inner_upper_bound": [5.366, 2.0, 0.5],
-        "thickness": 0.1
       }
     }
   ],

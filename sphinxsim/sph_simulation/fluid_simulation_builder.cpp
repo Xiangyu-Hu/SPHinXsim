@@ -11,23 +11,25 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //	Build up an SPHSystem and IO environment.
     //----------------------------------------------------------------------
     SPHSystem &sph_system = sim.defineSPHSystem(config);
+    EntityManager &entity_manager = sim.getEntityManager();
     //----------------------------------------------------------------------
     //	Creating bodies with inital shape, materials and particles.
     //----------------------------------------------------------------------
+    for (const auto &geo : config.at("geometries"))
+        sim.addShape(sph_system, entity_manager, geo);
     for (const auto &fb : config.at("fluid_bodies"))
-        sim.addFluidBody(sph_system, fb);
-    for (const auto &w : config.at("solid_bodies"))
-        sim.addSolidBody(sph_system, w);
+        sim.addFluidBody(sph_system, entity_manager, fb);
+    for (const auto &sb : config.at("solid_bodies"))
+        sim.addSolidBody(sph_system, entity_manager, sb);
     if (config.contains("observers"))
         for (const auto &obs : config.at("observers"))
-            sim.addObserver(sph_system, obs);
+            sim.addObserver(sph_system, entity_manager, obs);
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The relations give the topological connections within a body
     //  or with other bodies within interaction range.
     //  Generally, we first define all the inner relations, then the contact relations.
     //----------------------------------------------------------------------
-    EntityManager &entity_manager = sim.getEntityManager();
     auto &fluid_body = *entity_manager.entitiesWith<FluidBody>().front(); // assume only one fluid body for now
     StdVec<SolidBody *> solid_bodies = entity_manager.entitiesWith<SolidBody>();
     auto &fluid_observer = *entity_manager.entitiesWith<ObserverBody>().front(); // assume only one observer body for now

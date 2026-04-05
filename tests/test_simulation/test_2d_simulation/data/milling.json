@@ -1,5 +1,4 @@
 {
-  "simulation_type": "continuum_dynamics",
   "domain": {
     "upper_bound": [-0.1, 0.1],
     "lower_bound": [-0.1, 0.1]
@@ -31,7 +30,7 @@
   "particle_relaxation": {
     "relaxation_bodies": [
       {
-        "name": "ProcessingPiece"
+        "name": "Cutter"
       }
     ]
   },

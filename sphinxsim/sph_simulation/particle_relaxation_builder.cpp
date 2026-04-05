@@ -10,8 +10,9 @@ void ParticleRelaxationBuilder::buildSimulation(SPHSimulation &sim, const json &
     //----------------------------------------------------------------------
     //	Build up an SPHSystem and IO environment.
     //----------------------------------------------------------------------
-    RelaxationSystem &relaxation_system = sim.defineRelaxationSystem(config);
     EntityManager &entity_manager = sim.getEntityManager();
+    RelaxationSystem &relaxation_system = entity_manager.getEntityByName<
+        RelaxationSystem>("RelaxationSystem");
     //----------------------------------------------------------------------
     //	Creating bodies with inital shape and particles.
     //----------------------------------------------------------------------

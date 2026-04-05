@@ -76,6 +76,16 @@ void SPHSimulation::addShape(EntityManager &entity_manager, const json &config)
     const std::string name = config.at("name").get<std::string>();
     const std::string type = config.at("type").get<std::string>();
 
+    if (type == "box")
+    {
+        Vecd half_size = jsonToVecd(config.at("half_size"));
+        Transform transform = jsonToTransform(config.at("transform"));
+        GeometricShapeBox *shape = entity_manager.emplaceEntity<
+            GeometricShapeBox>(name, transform, half_size);
+        entity_manager.addEntity<Shape>(name, shape);
+        return;
+    }
+
     if (type == "bounding_box")
     {
         Vecd lower_bound = jsonToVecd(config.at("lower_bound"));
@@ -189,10 +199,10 @@ void SPHSimulation::addRelaxationBody(
 {
     const std::string name = config.at("name").get<std::string>();
     Shape &shape = entity_manager.getEntityByName<Shape>(name);
-    auto &relaxation_body = relaxation_system.addBody<RealBody>(shape);
+    auto &relaxation_body = relaxation_system.addBody<RealBody>(shape, name);
+    relaxation_body.generateParticles<BaseParticles, Lattice>();
     LevelSetShape &level_set_shape = relaxation_body.defineBodyLevelSetShape(par_ck, 2.0).writeLevelSet();
     entity_manager.addEntity(name, &level_set_shape);
-    relaxation_body.generateParticles<BaseParticles, Lattice>();
     entity_manager.addEntity(name, &relaxation_body);
 }
 //=================================================================================================//
@@ -200,7 +210,7 @@ void SPHSimulation::addFluidBody(SPHSystem &sph_system, EntityManager &entity_ma
 {
     const std::string name = config.at("name").get<std::string>();
     Shape &fluid_shape = entity_manager.getEntityByName<Shape>(name);
-    auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape);
+    auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
     addMaterial(entity_manager_, fluid_body, config.at("material"));
     if (config.contains("particle_reserve_factor"))
     {
@@ -219,7 +229,7 @@ void SPHSimulation::addSolidBody(SPHSystem &sph_system, EntityManager &entity_ma
 {
     const std::string name = config.at("name").get<std::string>();
     Shape &wall_shape = entity_manager.getEntityByName<Shape>(name);
-    auto &wall_body = sph_system.addBody<SolidBody>(wall_shape);
+    auto &wall_body = sph_system.addBody<SolidBody>(wall_shape, name);
     addMaterial(entity_manager_, wall_body, config.at("material"));
     wall_body.generateParticles<BaseParticles, Lattice>();
     entity_manager_.addEntity(name, &wall_body);
@@ -253,8 +263,9 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
 
     if (config.contains("particle_relaxation"))
     {
-        auto *particle_relaxation =
-            entity_manager_.emplaceEntity<ParticleRelaxationBuilder>("ParticleRelaxation");
+        defineRelaxationSystem(config);
+        auto *particle_relaxation = entity_manager_.emplaceEntity<
+            ParticleRelaxationBuilder>("ParticleRelaxation");
         particle_relaxation->buildSimulation(*this, config.at("particle_relaxation"));
         executable_particle_relaxation_ready_ = true;
     }

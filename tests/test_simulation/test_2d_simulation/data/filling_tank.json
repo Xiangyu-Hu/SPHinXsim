@@ -59,8 +59,10 @@
       "type": "emitter",
       "alignment_axis": 0,
       "half_size": [0.15, 0.0625],
-      "translation": [0.05, 1.0625],
-      "rotation_angle": 0.0,
+      "transform": {
+        "translation": [0.05, 1.0625],
+        "rotation_angle": 0.0
+      },
       "inflow_speed": 2.0
     }
   ],

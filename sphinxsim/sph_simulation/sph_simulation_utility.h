@@ -47,6 +47,23 @@ inline Vecd jsonToVecd(const nlohmann::json &arr)
     return v;
 }
 
+#ifdef SPHINXSYS_2D
+inline Transform jsonToTransform(const nlohmann::json &config)
+{
+    Rotation rotation(config.at("rotation_angle").get<Real>());
+    Vec2d translation = jsonToVecd(config.at("translation"));
+    return Transform(rotation, translation);
+}
+#else
+inline Transform jsonToTransform(const nlohmann::json &config)
+{
+    Rotation rotation(config.at("rotation_angle").get<Real>(),
+                      jsonToVecd(config.at("rotation_axis")));
+    Vec3d translation = jsonToVecd(config.at("translation"));
+    return Transform(rotation, translation);
+}
+#endif
+
 // Enum for hook points for fast O(1) access
 enum class SimulationHookPoint
 {

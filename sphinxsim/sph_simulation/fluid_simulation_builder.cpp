@@ -43,6 +43,13 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
     auto &host_methods = sph_solver.addParticleMethodContainer(par_host);
     //----------------------------------------------------------------------
+    // Solver control parameters.
+    //----------------------------------------------------------------------
+    if (config.contains("fluid_solver_parameters"))
+    {
+        updateSolverParameters(sim, config.at("fluid_solver_parameters"));
+    }
+    //----------------------------------------------------------------------
     // Define the numerical methods used in the simulation.
     // Note that there may be data dependence on the sequence of constructions.
     // Generally, the configuration dynamics, such as update cell linked list,
@@ -85,8 +92,10 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
 
     Fluid &fluid_material = DynamicCast<Fluid>(this, fluid_body.getBaseMaterial());
     const Real U_ref = fluid_material.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
-    auto &fluid_advection_time_step = main_methods.addReduceDynamics<fluid_dynamics::AdvectionTimeStepCK>(fluid_body, U_ref);
-    auto &fluid_acoustic_time_step = main_methods.addReduceDynamics<fluid_dynamics::AcousticTimeStepCK<>>(fluid_body);
+    auto &fluid_advection_time_step = main_methods.addReduceDynamics<
+        fluid_dynamics::AdvectionTimeStepCK>(fluid_body, U_ref, solver_parameters_.advection_cfl);
+    auto &fluid_acoustic_time_step = main_methods.addReduceDynamics<
+        fluid_dynamics::AcousticTimeStepCK<>>(fluid_body, solver_parameters_.acoustic_cfl);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -207,7 +216,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     {
         for (const auto &bd : config.at("fluid_boundary_conditions"))
         {
-            addFluidBoundaryConditions(sim, main_methods, bd);
+            addBoundaryConditions(sim, main_methods, bd);
         }
     }
 
@@ -223,6 +232,16 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                     particle_sort.exec();
                 } });
     }
+}
+//=================================================================================================//
+void FluidSimulationBuilder::updateSolverParameters(SPHSimulation &sim, const json &config)
+{
+    if (config.contains("acoustic_cfl"))
+        solver_parameters_.acoustic_cfl = config.at("acoustic_cfl").get<Real>();
+    if (config.contains("advection_cfl"))
+        solver_parameters_.advection_cfl = config.at("advection_cfl").get<Real>();
+    if (config.contains("free_surface_correction"))
+        solver_parameters_.free_surface_correction = config.at("free_surface_correction").get<bool>();
 }
 //=================================================================================================//
 } // namespace SPH

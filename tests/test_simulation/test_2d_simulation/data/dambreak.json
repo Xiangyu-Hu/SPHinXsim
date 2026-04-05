@@ -46,8 +46,9 @@
       "positions": [[5.366, 0.2]]
     }
   ],
-  "solver": {
-    "dual_time_stepping": true,
+  "fluid_solver_parameters": {
+    "acoustic_cfl": 0.6,
+    "advection_cfl": 0.25,
     "free_surface_correction": true
   },
   "end_time": 20.0

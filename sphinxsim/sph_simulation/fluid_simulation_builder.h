@@ -33,6 +33,13 @@
 
 namespace SPH
 {
+struct FluidSolverParameters
+{
+    Real acoustic_cfl{0.6};
+    Real advection_cfl{0.25};
+    bool free_surface_correction{true};
+};
+
 class FluidSimulationBuilder : public BaseSimulationBuilder
 {
   public:
@@ -40,10 +47,12 @@ class FluidSimulationBuilder : public BaseSimulationBuilder
 
   private:
     UnsignedInt advection_steps_{1};
+    FluidSolverParameters solver_parameters_;
 
     template <class MethodContainerType>
-    void addFluidBoundaryConditions(
+    void addBoundaryConditions(
         SPHSimulation &sim, MethodContainerType &method_container, const json &config);
+    void updateSolverParameters(SPHSimulation &sim, const json &config);
 };
 } // namespace SPH
 #endif // FLUID_SIMULATION_BUILDER_H

@@ -9,7 +9,7 @@ namespace SPH
 {
 //=================================================================================================//
 template <class MethodContainerType>
-void FluidSimulationBuilder::addFluidBoundaryConditions(
+void FluidSimulationBuilder::addBoundaryConditions(
     SPHSimulation &sim, MethodContainerType &method_container, const json &config)
 {
     EntityManager &entity_manager = sim.getEntityManager();
@@ -50,7 +50,7 @@ void FluidSimulationBuilder::addFluidBoundaryConditions(
     }
 
     throw std::runtime_error(
-        "FluidSimulationBuilder::addFluidBoundaryConditions: unsupported: " + type);
+        "FluidSimulationBuilder::addBoundaryConditions: unsupported: " + type);
 }
 //=================================================================================================//
 } // namespace SPH

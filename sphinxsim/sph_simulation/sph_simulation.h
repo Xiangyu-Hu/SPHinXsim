@@ -108,7 +108,6 @@ class SPHSimulation
 
   private:
     std::filesystem::path config_path_;
-    UniquePtrsKeeper<SPHSystem> sph_systems_ptr_;
     EntityManager entity_manager_;
     StagePipeline<InitializationHookPoint> initialization_pipeline_;
     StagePipeline<SimulationHookPoint> simulation_pipeline_;

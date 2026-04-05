@@ -36,19 +36,15 @@ SPHSystemConfig &SPHSimulation::getSPHSystemConfig(const json &config)
 SPHSystem &SPHSimulation::defineSPHSystem(const json &config)
 {
     SPHSystemConfig &system_config = getSPHSystemConfig(config);
-    SPHSystem *sph_system = sph_systems_ptr_.createPtr<SPHSystem>(
-        system_config.system_domain_bounds_, system_config.particle_spacing_);
-    entity_manager_.addEntity<SPHSystem>("SPHSystem", sph_system);
-    return *sph_system;
+    return *entity_manager_.emplaceEntity<SPHSystem>(
+        "SPHSystem", system_config.system_domain_bounds_, system_config.particle_spacing_);
 }
 //=================================================================================================//
 RelaxationSystem &SPHSimulation::defineRelaxationSystem(const json &config)
 {
     SPHSystemConfig &system_config = getSPHSystemConfig(config);
-    RelaxationSystem *relaxation_system = sph_systems_ptr_.createPtr<RelaxationSystem>(
-        system_config.system_domain_bounds_, system_config.particle_spacing_);
-    entity_manager_.addEntity<RelaxationSystem>("RelaxationSystem", relaxation_system);
-    return *relaxation_system;
+    return *entity_manager_.emplaceEntity<RelaxationSystem>(
+        "RelaxationSystem", system_config.system_domain_bounds_, system_config.particle_spacing_);
 }
 //=================================================================================================//
 SPHSolver &SPHSimulation::defineSPHSolver(SPHSystem &sph_system, const json &config)

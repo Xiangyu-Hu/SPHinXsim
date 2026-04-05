@@ -38,30 +38,12 @@ namespace SPH
 {
 /** Convert a JSON array [x, y] or [x, y, z] to Vecd (extra elements are
  * ignored). */
-inline Vecd jsonToVecd(const nlohmann::json &arr)
-{
-    Vecd v = Vecd::Zero();
-    const int dim = static_cast<int>(Vecd::RowsAtCompileTime);
-    for (int i = 0; i < std::min(dim, static_cast<int>(arr.size())); ++i)
-        v[i] = arr[i].get<Real>();
-    return v;
-}
+Vecd jsonToVecd(const nlohmann::json &arr);
 
 #ifdef SPHINXSYS_2D
-inline Transform jsonToTransform(const nlohmann::json &config)
-{
-    Rotation rotation(config.at("rotation_angle").get<Real>());
-    Vec2d translation = jsonToVecd(config.at("translation"));
-    return Transform(rotation, translation);
-}
+Transform jsonToTransform(const nlohmann::json &config);
 #else
-inline Transform jsonToTransform(const nlohmann::json &config)
-{
-    Rotation rotation(config.at("rotation_angle").get<Real>(),
-                      jsonToVecd(config.at("rotation_axis")));
-    Vec3d translation = jsonToVecd(config.at("translation"));
-    return Transform(rotation, translation);
-}
+Transform jsonToTransform(const nlohmann::json &config);
 #endif
 
 // Enum for hook points for fast O(1) access

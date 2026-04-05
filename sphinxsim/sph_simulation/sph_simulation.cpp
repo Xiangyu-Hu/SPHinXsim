@@ -14,19 +14,41 @@ void SPHSimulation::resetOutputRoot(const fs::path &output_root)
     io_env.resetReloadFolder((output_root / "reload").string());
 }
 //=================================================================================================//
+SPHSystemConfig &SPHSimulation::getSPHSystemConfig(const json &config)
+{
+    if (!entity_manager_.hasEntity<SPHSystemConfig>("SPHSystemConfig"))
+    {
+        SPHSystemConfig system_config;
+        Real particle_spacing = config.at("particle_spacing").get<Real>();
+        int particle_boundary_buffer = config.at("particle_boundary_buffer").get<int>();
+        Real boundary_width = particle_boundary_buffer * particle_spacing;
+        BoundingBoxd domain_bounds(
+            jsonToVecd(config.at("domain").at("lower_bound")),
+            jsonToVecd(config.at("domain").at("upper_bound")));
+
+        system_config.system_domain_bounds_ = domain_bounds.expand(boundary_width);
+        system_config.particle_spacing_ = particle_spacing;
+        entity_manager_.emplaceEntity<SPHSystemConfig>("SPHSystemConfig", system_config);
+    }
+    return entity_manager_.getEntityByName<SPHSystemConfig>("SPHSystemConfig");
+}
+//=================================================================================================//
 SPHSystem &SPHSimulation::defineSPHSystem(const json &config)
 {
-    Real particle_spacing = config.at("particle_spacing").get<Real>();
-    int particle_boundary_buffer = config.at("particle_boundary_buffer").get<int>();
-    Real boundary_width = particle_boundary_buffer * particle_spacing;
-
-    BoundingBoxd domain_bounds(
-        jsonToVecd(config.at("domain").at("lower_bound")),
-        jsonToVecd(config.at("domain").at("upper_bound")));
-
-    BoundingBoxd system_domain_bounds = domain_bounds.expand(boundary_width);
-    sph_system_ptr_ = std::make_unique<SPHSystem>(system_domain_bounds, particle_spacing);
-    return *sph_system_ptr_;
+    SPHSystemConfig &system_config = getSPHSystemConfig(config);
+    SPHSystem *sph_system = sph_systems_ptr_.createPtr<SPHSystem>(
+        system_config.system_domain_bounds_, system_config.particle_spacing_);
+    entity_manager_.addEntity<SPHSystem>("SPHSystem", sph_system);
+    return *sph_system;
+}
+//=================================================================================================//
+RelaxationSystem &SPHSimulation::defineRelaxationSystem(const json &config)
+{
+    SPHSystemConfig &system_config = getSPHSystemConfig(config);
+    RelaxationSystem *relaxation_system = sph_systems_ptr_.createPtr<RelaxationSystem>(
+        system_config.system_domain_bounds_, system_config.particle_spacing_);
+    entity_manager_.addEntity<RelaxationSystem>("RelaxationSystem", relaxation_system);
+    return *relaxation_system;
 }
 //=================================================================================================//
 SPHSolver &SPHSimulation::defineSPHSolver(SPHSystem &sph_system, const json &config)

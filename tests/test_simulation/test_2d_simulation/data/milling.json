@@ -6,15 +6,31 @@
   },
   "particle_spacing": 0.0008,
   "particle_boundary_buffer": 4,
+  "geometries": [
+    {
+      "name": "ProcessingPiece",
+      "type": "box",
+      "half_size": [0.06, 0.02],
+      "transform": {
+        "translation": [0.0, -0.028],
+        "rotation_angle": 0.0
+      }
+    },
+    {
+      "name": "Cutter",
+      "type": "multipolygon",
+      "polygons": [
+        {
+          "operation": "union",
+          "type": "data_file",
+          "file_path": "./input/cutter.dat"
+        }
+      ]
+    }
+  ],
   "continuum_bodies": [
     {
       "name": "ProcessingPiece",
-      "geometry": {
-        "type": "box",
-        "half_size": [0.06, 0.02],
-        "translation": [0.0, -0.028],
-        "rotation_angle": 0.0
-      },
       "material": {
         "type": "weakly_compressible_fluid",
         "density": 1.0,
@@ -27,16 +43,6 @@
       "name": "Cutter",
       "material": {
         "type": "rigid_body"
-      },
-      "geometry": {
-        "type": "multipolygon",
-        "polygons": [
-          {
-            "operation": "union",
-            "type": "data_file",
-            "file_path": "./input/cutter.dat"
-          }
-        ]
       }
     }
   ],

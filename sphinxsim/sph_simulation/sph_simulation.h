@@ -42,6 +42,12 @@ namespace SPH
 {
 class BaseSimulationBuilder;
 
+struct SPHSystemConfig
+{
+    BoundingBoxd system_domain_bounds_;
+    Real particle_spacing_;
+};
+
 /**
  * @class SPHSimulation
  * @brief High-level facade for a 2D or 3D SPH simulation using the CK execution
@@ -102,7 +108,7 @@ class SPHSimulation
 
   private:
     std::filesystem::path config_path_;
-    std::unique_ptr<SPHSystem> sph_system_ptr_;
+    UniquePtrsKeeper<SPHSystem> sph_systems_ptr_;
     EntityManager entity_manager_;
     StagePipeline<InitializationHookPoint> initialization_pipeline_;
     StagePipeline<SimulationHookPoint> simulation_pipeline_;
@@ -112,12 +118,14 @@ class SPHSimulation
     bool executable_state_ready_{false};
 
     void buildSimulationFromJson(const json &config);
+    SPHSystemConfig &getSPHSystemConfig(const json &config);
 
   protected:
     friend class BaseSimulationBuilder;
     friend class FluidSimulationBuilder;
 
     SPHSystem &defineSPHSystem(const json &config);
+    RelaxationSystem &defineRelaxationSystem(const json &config);
     SPHSolver &defineSPHSolver(SPHSystem &sph_system, const json &config);
     StagePipeline<InitializationHookPoint> &getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &getSimulationPipeline();

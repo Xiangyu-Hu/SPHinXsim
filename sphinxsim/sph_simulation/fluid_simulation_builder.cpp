@@ -1,6 +1,4 @@
-#include "fluid_simulation_builder.h"
-
-#include "sph_simulation.hpp"
+#include "fluid_simulation_builder.hpp"
 
 namespace SPH
 {
@@ -209,7 +207,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     {
         for (const auto &bd : config.at("fluid_boundary_conditions"))
         {
-            sim.addFluidBoundaryConditions(main_methods, entity_manager, bd);
+            addFluidBoundaryConditions(sim, main_methods, bd);
         }
     }
 

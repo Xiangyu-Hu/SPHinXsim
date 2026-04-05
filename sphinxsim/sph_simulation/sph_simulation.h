@@ -124,8 +124,6 @@ class SPHSimulation
     EntityManager &getEntityManager();
     void addShape(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config);
-    template <class MethodContainerType>
-    void addFluidBoundaryConditions(MethodContainerType &method_container, EntityManager &entity_manager, const json &config);
     GeometricOps parseGeometricOp(const std::string &op_str);
 #ifdef SPHINXSYS_2D
     MultiPolygon parseMultiPolygon(const json &config);

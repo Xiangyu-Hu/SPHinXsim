@@ -40,6 +40,10 @@ class FluidSimulationBuilder : public BaseSimulationBuilder
 
   private:
     UnsignedInt advection_steps_{1};
+
+    template <class MethodContainerType>
+    void addFluidBoundaryConditions(
+        SPHSimulation &sim, MethodContainerType &method_container, const json &config);
 };
 } // namespace SPH
 #endif // FLUID_SIMULATION_BUILDER_H

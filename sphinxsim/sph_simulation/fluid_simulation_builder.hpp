@@ -1,5 +1,7 @@
-#ifndef SPH_SIMULATION_HPP
-#define SPH_SIMULATION_HPP
+#ifndef FLUID_SIMULATION_BUILDER_HPP
+#define FLUID_SIMULATION_BUILDER_HPP
+
+#include "fluid_simulation_builder.h"
 
 #include "sph_simulation.h"
 
@@ -7,9 +9,12 @@ namespace SPH
 {
 //=================================================================================================//
 template <class MethodContainerType>
-void SPHSimulation::addFluidBoundaryConditions(
-    MethodContainerType &method_container, EntityManager &entity_manager, const json &config)
+void FluidSimulationBuilder::addFluidBoundaryConditions(
+    SPHSimulation &sim, MethodContainerType &method_container, const json &config)
 {
+    EntityManager &entity_manager = sim.getEntityManager();
+    StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
+
     const std::string body_name = config.at("body_name").get<std::string>();
     FluidBody &fluid_body = entity_manager.getEntityByName<FluidBody>(body_name);
     const std::string type = config.at("type").get<std::string>();
@@ -23,7 +28,7 @@ void SPHSimulation::addFluidBoundaryConditions(
         Rotation rotation(config.at("rotation_angle").get<Real>());
 #else
         Rotation rotation(config.at("rotation_angle").get<Real>(),
-                            jsonToVecd(config.at("rotation_axis")));
+                          jsonToVecd(config.at("rotation_axis")));
 #endif
         auto &emitter = fluid_body.addBodyPart<AlignedBoxByParticle>(
             AlignedBox(alignment_axis, Transform(rotation, translation), half_size));
@@ -34,18 +39,19 @@ void SPHSimulation::addFluidBoundaryConditions(
         auto &injection = method_container.template addStateDynamics<
             fluid_dynamics::EmitterInflowInjectionCK>(emitter);
 
-        simulation_pipeline_.insert_hook(
+        simulation_pipeline.insert_hook(
             SimulationHookPoint::BoundaryConditions, [&]()
             { inflow_condition.exec(); });
 
-        simulation_pipeline_.insert_hook(
+        simulation_pipeline.insert_hook(
             SimulationHookPoint::ParticleCreation, [&]()
             { injection.exec(); });
         return;
     }
 
-    throw std::runtime_error("SPHSimulation::addBodyPart: unsupported boundary condition type: " + type);
+    throw std::runtime_error(
+        "FluidSimulationBuilder::addFluidBoundaryConditions: unsupported: " + type);
 }
 //=================================================================================================//
 } // namespace SPH
-#endif // SPH_SIMULATION_HPP
+#endif // FLUID_SIMULATION_BUILDER_HPP

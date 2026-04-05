@@ -1,6 +1,8 @@
 #include "sph_simulation.h"
 
 #include "fluid_simulation_builder.h"
+#include "particle_relaxation_builder.h"
+
 namespace SPH
 {
 //=================================================================================================//
@@ -69,7 +71,7 @@ EntityManager &SPHSimulation::getEntityManager()
     return entity_manager_;
 }
 //=================================================================================================//
-void SPHSimulation::addShape(SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
+void SPHSimulation::addShape(EntityManager &entity_manager, const json &config)
 {
     const std::string name = config.at("name").get<std::string>();
     const std::string type = config.at("type").get<std::string>();
@@ -78,9 +80,9 @@ void SPHSimulation::addShape(SPHSystem &sph_system, EntityManager &entity_manage
     {
         Vecd lower_bound = jsonToVecd(config.at("lower_bound"));
         Vecd upper_bound = jsonToVecd(config.at("upper_bound"));
-        entity_manager.addEntity<Shape>(
-            name, &sph_system.addShape<GeometricShapeBox>(
-                      BoundingBoxd(lower_bound, upper_bound), "BoundingBox"));
+        GeometricShapeBox *shape = entity_manager.emplaceEntity<
+            GeometricShapeBox>(name, BoundingBoxd(lower_bound, upper_bound));
+        entity_manager.addEntity<Shape>(name, shape);
         return;
     }
 
@@ -89,10 +91,10 @@ void SPHSimulation::addShape(SPHSystem &sph_system, EntityManager &entity_manage
         BoundingBoxd inner_box(jsonToVecd(config.at("inner_lower_bound")),
                                jsonToVecd(config.at("inner_upper_bound")));
         BoundingBoxd outer_box = inner_box.expand(config.at("thickness").get<Real>());
-        auto &shape = sph_system.addShape<ComplexShape>("ContainerBox");
-        shape.add<GeometricShapeBox>(outer_box);
-        shape.subtract<GeometricShapeBox>(inner_box);
-        entity_manager.addEntity<Shape>(name, &shape);
+        ComplexShape *shape = entity_manager.emplaceEntity<ComplexShape>(name);
+        shape->add<GeometricShapeBox>(outer_box);
+        shape->subtract<GeometricShapeBox>(inner_box);
+        entity_manager.addEntity<Shape>(name, shape);
         return;
     }
 
@@ -106,8 +108,8 @@ void SPHSimulation::addShape(SPHSystem &sph_system, EntityManager &entity_manage
             GeometricOps op = parseGeometricOp(operation_name);
             multi_polygon.addMultiPolygon(parseMultiPolygon(plg), op);
         }
-        entity_manager.addEntity<Shape>(
-            name, &sph_system.addShape<MultiPolygonShape>(multi_polygon, "MultiPolygon"));
+        MultiPolygonShape *shape = entity_manager.emplaceEntity<MultiPolygonShape>(name, multi_polygon);
+        entity_manager.addEntity<Shape>(name, shape);
         return;
     }
 #endif
@@ -226,6 +228,18 @@ void SPHSimulation::addObserver(SPHSystem &sph_system, EntityManager &entity_man
 //=================================================================================================//
 void SPHSimulation::buildSimulationFromJson(const json &config)
 {
+    for (const auto &geo : config.at("geometries"))
+    {
+        addShape(entity_manager_, geo);
+    }
+
+    if (config.contains("particle_relaxation"))
+    {
+        auto *particle_relaxation =
+            entity_manager_.emplaceEntity<ParticleRelaxationBuilder>("ParticleRelaxation");
+        particle_relaxation->buildSimulation(*this, config);
+    }
+
     std::string simulation_type = config.at("simulation_type").get<std::string>();
     if (simulation_type == "fluid_dynamics")
     {

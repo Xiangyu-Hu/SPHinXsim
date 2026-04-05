@@ -13,8 +13,6 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     //	Creating bodies with inital shape, materials and particles.
     //----------------------------------------------------------------------
-    for (const auto &geo : config.at("geometries"))
-        sim.addShape(sph_system, entity_manager, geo);
     for (const auto &fb : config.at("fluid_bodies"))
         sim.addFluidBody(sph_system, entity_manager, fb);
     for (const auto &sb : config.at("solid_bodies"))

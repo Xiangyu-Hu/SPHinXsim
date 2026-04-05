@@ -28,6 +28,13 @@
       ]
     }
   ],
+  "particle_relaxation": {
+    "relaxation_bodies": [
+      {
+        "name": "ProcessingPiece"
+      }
+    ]
+  },
   "continuum_bodies": [
     {
       "name": "ProcessingPiece",

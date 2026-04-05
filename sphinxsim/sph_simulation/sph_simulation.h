@@ -121,6 +121,7 @@ class SPHSimulation
 
   protected:
     friend class BaseSimulationBuilder;
+    friend class ParticleRelaxationBuilder;
     friend class FluidSimulationBuilder;
 
     SPHSystem &defineSPHSystem(const json &config);
@@ -129,7 +130,7 @@ class SPHSimulation
     StagePipeline<InitializationHookPoint> &getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &getSimulationPipeline();
     EntityManager &getEntityManager();
-    void addShape(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
+    void addShape(EntityManager &entity_manager, const json &config);
     void addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config);
     GeometricOps parseGeometricOp(const std::string &op_str);
 #ifdef SPHINXSYS_2D

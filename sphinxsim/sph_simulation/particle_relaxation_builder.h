@@ -42,9 +42,12 @@ class ParticleRelaxationBuilder : public BaseSimulationBuilder
 {
   public:
     void buildSimulation(SPHSimulation &sim, const json &config) override;
+    void updateRelaxationParameters(SPHSimulation &sim, const json &config);
+    void runRelaxation();
 
   private:
-    UnsignedInt iteration_steps_{1};
+    RelaxationParameters relaxation_parameters_;
+    StagePipeline<SimulationHookPoint> relaxation_pipeline_;
 };
 } // namespace SPH
 #endif // PARTICLE_RELAXATION_BUILDER_H

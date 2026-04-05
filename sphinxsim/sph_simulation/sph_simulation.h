@@ -100,6 +100,8 @@ class SPHSimulation
     /** Build all SPH objects and run the simulation until end_time. */
     void run(Real end_time);
 
+    void runParticleRelaxation();
+
     /** Initialize all executable dynamics after a successful build. */
     void initializeSimulation();
 
@@ -114,7 +116,8 @@ class SPHSimulation
     std::unique_ptr<SPHSolver> sph_solver_ptr_;
     UniquePtrKeeper<BaseSimulationBuilder> simulation_builder_ptr_;
     Real end_time_{0.0};
-    bool executable_state_ready_{false};
+    bool executable_particle_relaxation_ready_{false};
+    bool executable_simulation_state_ready_{false};
 
     void buildSimulationFromJson(const json &config);
     SPHSystemConfig &getSPHSystemConfig(const json &config);
@@ -136,6 +139,7 @@ class SPHSimulation
 #ifdef SPHINXSYS_2D
     MultiPolygon parseMultiPolygon(const json &config);
 #endif
+    void addRelaxationBody(RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
     void addFluidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addSolidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addObserver(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);

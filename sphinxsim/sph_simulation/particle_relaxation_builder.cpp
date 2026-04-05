@@ -10,11 +10,104 @@ void ParticleRelaxationBuilder::buildSimulation(SPHSimulation &sim, const json &
     //----------------------------------------------------------------------
     //	Build up an SPHSystem and IO environment.
     //----------------------------------------------------------------------
-    RelaxationSystem &sph_system = sim.defineRelaxationSystem(config);
+    RelaxationSystem &relaxation_system = sim.defineRelaxationSystem(config);
     EntityManager &entity_manager = sim.getEntityManager();
     //----------------------------------------------------------------------
-    //	Creating bodies with inital shape, materials and particles.
+    //	Creating bodies with inital shape and particles.
     //----------------------------------------------------------------------
+    for (const auto &rb : config.at("relaxation_bodies"))
+        sim.addRelaxationBody(relaxation_system, entity_manager, rb);
+    //----------------------------------------------------------------------
+    //	Define body relation map.
+    //	The relations give the topological connections within a body
+    //  or with other bodies within interaction range.
+    //  Generally, we first define all the inner relations, then the contact relations.
+    //----------------------------------------------------------------------
+    RealBody &relax_body = *entity_manager.entitiesWith<RealBody>().front(); // assume only one relax body for now
+    auto &body_inner = relaxation_system.addInnerRelation(relax_body);
+    //----------------------------------------------------------------------
+    // Define SPH solver with particle methods and execution policies.
+    // Generally, the host methods should be able to run immediately.
+    //----------------------------------------------------------------------
+    SPHSolver *sph_solver = entity_manager.emplaceEntity<SPHSolver>("RelaxationSolver", relaxation_system);
+    auto &host_methods = sph_solver->addParticleMethodContainer(par_host);
+    host_methods.addStateDynamics<RandomizeParticlePositionCK>(relax_body).exec();
+
+    auto &main_methods = sph_solver->addParticleMethodContainer(par_ck);
+    auto &body_update_configuration = main_methods.addParticleDynamicsGroup()
+                                          .add(&main_methods.addCellLinkedListDynamics(relax_body))
+                                          .add(&main_methods.addRelationDynamics(body_inner));
+
+    LevelSetShape &level_set_shape = entity_manager.getEntityByName<LevelSetShape>(relax_body.getName());
+    auto &relaxation_residual =
+        main_methods.addInteractionDynamics<KernelGradientIntegral, NoKernelCorrectionCK>(body_inner)
+            .addPostStateDynamics<LevelsetKernelGradientIntegral>(relax_body, level_set_shape);
+    auto &relaxation_scaling = main_methods.addReduceDynamics<RelaxationScalingCK>(relax_body);
+    auto &update_particle_position = main_methods.addStateDynamics<PositionRelaxationCK>(relax_body);
+
+    NearShapeSurface *near_body_surface = entity_manager.emplaceEntity<NearShapeSurface>(relax_body.getName(), relax_body);
+    auto &level_set_bounding = main_methods.addStateDynamics<LevelsetBounding>(*near_body_surface);
+    //----------------------------------------------------------------------
+    //	Run on CPU after relaxation finished and output results.
+    //----------------------------------------------------------------------
+    auto &body_normal_direction = host_methods.addStateDynamics<NormalFromBodyShapeCK>(relax_body);
+    //----------------------------------------------------------------------
+    //	Define simple file input and outputs functions.
+    //----------------------------------------------------------------------
+    auto &body_state_recorder = main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(relaxation_system);
+    auto &write_particle_reload_files = main_methods.addIODynamics<ReloadParticleIOCK>(StdVec<SPHBody *>{&relax_body});
+    write_particle_reload_files.addToReload<Vecd>(relax_body, "NormalDirection");
+    //----------------------------------------------------------------------
+    //	First output before the particle relaxation.
+    //----------------------------------------------------------------------
+    body_state_recorder.writeToFile(0);
+    //----------------------------------------------------------------------
+    //	Define particle relaxation simulation.
+    //----------------------------------------------------------------------
+    ParticleRelaxationBuilder::updateRelaxationParameters(sim, config);
+    int ite_p = 0;
+    relaxation_pipeline_.main_steps.push_back(
+        [&]()
+        {
+            while (ite_p < relaxation_parameters_.total_iterations)
+            {
+                body_update_configuration.exec();
+
+                relaxation_residual.exec();
+                Real relaxation_step = relaxation_scaling.exec();
+                update_particle_position.exec(relaxation_step);
+                level_set_bounding.exec();
+
+                ite_p += 1;
+                if (ite_p % 100 == 0)
+                {
+                    std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
+                    body_state_recorder.writeToFile(ite_p);
+                }
+            }
+            std::cout << "The physics relaxation process finish !" << std::endl;
+            body_normal_direction.exec();
+            write_particle_reload_files.writeToFile();
+        });
+}
+//=================================================================================================//
+void ParticleRelaxationBuilder::updateRelaxationParameters(SPHSimulation &sim, const json &config)
+{
+    if (config.contains("relaxation_parameters"))
+    {
+        const json &relaxation_parameters_json = config.at("relaxation_parameters");
+        if (relaxation_parameters_json.contains("total_iterations"))
+            relaxation_parameters_.total_iterations =
+                relaxation_parameters_json.at("total_iterations").get<UnsignedInt>();
+    }
+}
+//=================================================================================================//
+void ParticleRelaxationBuilder::runRelaxation()
+{
+    for (auto &step : relaxation_pipeline_.main_steps)
+    {
+        step(); // each step touches all cells internally
+    }
 }
 //=================================================================================================//
 } // namespace SPH

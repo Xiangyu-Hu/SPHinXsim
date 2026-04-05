@@ -151,6 +151,12 @@ MultiPolygon SPHSimulation::parseMultiPolygon(const json &config)
         return multi_polygon;
     }
 
+    if (polygon_type == "data_file")
+    {
+        multi_polygon.addPolygonFromFile(config.at("file_path").get<std::string>(), GeometricOps::add);
+        return multi_polygon;
+    }
+
     throw std::runtime_error("SPHSimulation::addShape: unsupported polygon type: " + polygon_type);
 }
 #endif
@@ -176,6 +182,18 @@ void SPHSimulation::addMaterial(EntityManager &entity_manager, SPHBody &sph_body
     }
 
     throw std::runtime_error("SPHSimulation::addMaterial: unsupported material type: " + type_name);
+}
+//=================================================================================================//
+void SPHSimulation::addRelaxationBody(
+    RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config)
+{
+    const std::string name = config.at("name").get<std::string>();
+    Shape &shape = entity_manager.getEntityByName<Shape>(name);
+    auto &relaxation_body = relaxation_system.addBody<RealBody>(shape);
+    LevelSetShape &level_set_shape = relaxation_body.defineBodyLevelSetShape(par_ck, 2.0).writeLevelSet();
+    entity_manager.addEntity(name, &level_set_shape);
+    relaxation_body.generateParticles<BaseParticles, Lattice>();
+    entity_manager.addEntity(name, &relaxation_body);
 }
 //=================================================================================================//
 void SPHSimulation::addFluidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
@@ -237,16 +255,22 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
     {
         auto *particle_relaxation =
             entity_manager_.emplaceEntity<ParticleRelaxationBuilder>("ParticleRelaxation");
-        particle_relaxation->buildSimulation(*this, config);
+        particle_relaxation->buildSimulation(*this, config.at("particle_relaxation"));
+        executable_particle_relaxation_ready_ = true;
     }
 
-    std::string simulation_type = config.at("simulation_type").get<std::string>();
-    if (simulation_type == "fluid_dynamics")
+    if (config.contains("simulation_type"))
     {
-        simulation_builder_ptr_.createPtr<FluidSimulationBuilder>()->buildSimulation(*this, config);
-        return;
+        std::string simulation_type = config.at("simulation_type").get<std::string>();
+        if (simulation_type == "fluid_dynamics")
+        {
+            simulation_builder_ptr_.createPtr<FluidSimulationBuilder>()->buildSimulation(*this, config);
+            return;
+        }
+
+        throw std::runtime_error(
+            "SPHSimulation::buildSimulationFromJson: unsupported simulation type: " + simulation_type);
     }
-    throw std::runtime_error("SPHSimulation::buildSimulationFromJson: unsupported simulation type: " + simulation_type);
 }
 //=================================================================================================//
 void SPHSimulation::loadConfig()
@@ -280,12 +304,12 @@ void SPHSimulation::initializeSimulation()
         step(); // each step touches all cells internally
     }
 
-    executable_state_ready_ = true;
+    executable_simulation_state_ready_ = true;
 }
 //=================================================================================================//
 void SPHSimulation::run(Real end_time)
 {
-    if (!executable_state_ready_)
+    if (!executable_simulation_state_ready_)
     {
         std::cerr << "SPHSimulation::run: Simulation is not initialized. "
                      "Call initializeSimulation() before run.\n";
@@ -299,6 +323,20 @@ void SPHSimulation::run(Real end_time)
             step(); // each step touches all cells internally
         }
     }
+}
+//=================================================================================================//
+void SPHSimulation::runParticleRelaxation()
+{
+    if (!executable_particle_relaxation_ready_)
+    {
+        std::cerr << "SPHSimulation::runParticleRelaxation: Simulation is not initialized. "
+                     "Call initializeSimulation() before run.\n";
+        return;
+    }
+
+    ParticleRelaxationBuilder &relaxation_builder =
+        entity_manager_.getEntityByName<ParticleRelaxationBuilder>("ParticleRelaxation");
+    relaxation_builder.runRelaxation();
 }
 //=================================================================================================//
 } // namespace SPH

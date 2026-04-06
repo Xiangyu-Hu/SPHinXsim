@@ -121,11 +121,13 @@ class SPHSimulation
 
     void buildSimulationFromJson(const json &config);
     SPHSystemConfig &getSPHSystemConfig(const json &config);
+    void parseParticleReload(const json &config, BaseParticles &reload_particles);
 
   protected:
     friend class BaseSimulationBuilder;
     friend class ParticleRelaxationBuilder;
     friend class FluidSimulationBuilder;
+    friend class ContinuumSimulationBuilder;
 
     SPHSystem &defineSPHSystem(const json &config);
     RelaxationSystem &defineRelaxationSystem(const json &config);
@@ -141,6 +143,7 @@ class SPHSimulation
 #endif
     void addRelaxationBody(RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
     void addFluidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
+    void addContinuumBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addSolidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addObserver(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
 };

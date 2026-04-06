@@ -1,7 +1,7 @@
 {
   "domain": {
-    "upper_bound": [0.1, 0.05],
-    "lower_bound": [-0.1, -0.1]
+    "upper_bound": [0.08, 0.04],
+    "lower_bound": [-0.08, -0.08]
   },
   "particle_spacing": 0.0008,
   "particle_boundary_buffer": 4,
@@ -11,7 +11,7 @@
       "type": "box",
       "half_size": [0.06, 0.02],
       "transform": {
-        "translation": [0.0, -0.028],
+        "translation": [0.0, -0.051],
         "rotation_angle": 0.0
       }
     },
@@ -32,15 +32,23 @@
       {
         "name": "Cutter"
       }
-    ]
+    ],
+    "relaxation_parameters": {
+      "total_iterations": 1000
+    }
   },
+  "simulation_type": "continuum_dynamics",
   "continuum_bodies": [
     {
       "name": "ProcessingPiece",
       "material": {
-        "type": "weakly_compressible_fluid",
-        "density": 1.0,
-        "sound_speed": 20.0
+        "type": "j2_plasticity",
+        "density": 2700.0,
+        "sound_speed": 5000.0,
+        "youngs_modulus": 78.2e9,
+        "poisson_ratio": 0.3,
+        "yield_stress": 2.9e8,
+        "hardening_modulus": 0.1
       }
     }
   ],
@@ -49,6 +57,9 @@
       "name": "Cutter",
       "material": {
         "type": "rigid_body"
+      },
+      "particle_reload": {
+        "reload_variables": ["NormalDirection"]
       }
     }
   ],

@@ -1,5 +1,6 @@
 #include "sph_simulation.h"
 
+#include "continuum_simulation_builder.h"
 #include "fluid_simulation_builder.h"
 #include "particle_relaxation_builder.h"
 
@@ -178,9 +179,9 @@ MultiPolygon SPHSimulation::parseMultiPolygon(const json &config)
 //=================================================================================================//
 void SPHSimulation::addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config)
 {
-    const std::string type_name = config.at("type").get<std::string>();
+    const std::string type = config.at("type").get<std::string>();
 
-    if (type_name == "weakly_compressible_fluid")
+    if (type == "weakly_compressible_fluid")
     {
         Real density = config.at("density").get<Real>();
         Real sound_speed = config.at("sound_speed").get<Real>();
@@ -189,14 +190,28 @@ void SPHSimulation::addMaterial(EntityManager &entity_manager, SPHBody &sph_body
         return;
     }
 
-    if (type_name == "rigid_body")
+    if (type == "rigid_body")
     {
         auto &material = sph_body.defineMaterial<Solid>();
         entity_manager.addEntity(sph_body.getName() + material.MaterialType(), &material);
         return;
     }
 
-    throw std::runtime_error("SPHSimulation::addMaterial: unsupported material type: " + type_name);
+    if (type == "j2_plasticity")
+    {
+        Real density = config.at("density").get<Real>();
+        Real sound_speed = config.at("sound_speed").get<Real>();
+        Real youngs_modulus = config.at("youngs_modulus").get<Real>();
+        Real poisson_ratio = config.at("poisson_ratio").get<Real>();
+        Real yield_stress = config.at("yield_stress").get<Real>();
+        Real hardening_modulus = config.at("hardening_modulus").get<Real>();
+        auto &material = sph_body.defineMaterial<J2Plasticity>(
+            density, sound_speed, youngs_modulus, poisson_ratio, yield_stress, hardening_modulus);
+        entity_manager.addEntity(sph_body.getName() + material.MaterialType(), &material);
+        return;
+    }
+
+    throw std::runtime_error("SPHSimulation::addMaterial: unsupported material type: " + type);
 }
 //=================================================================================================//
 void SPHSimulation::addRelaxationBody(
@@ -230,14 +245,51 @@ void SPHSimulation::addFluidBody(SPHSystem &sph_system, EntityManager &entity_ma
     entity_manager_.addEntity(name, &fluid_body);
 }
 //=================================================================================================//
+void SPHSimulation::addContinuumBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
+{
+    const std::string name = config.at("name").get<std::string>();
+    Shape &shape = entity_manager.getEntityByName<Shape>(name);
+    auto &continuum_body = sph_system.addBody<RealBody>(shape, name);
+    addMaterial(entity_manager_, continuum_body, config.at("material"));
+    continuum_body.generateParticles<BaseParticles, Lattice>();
+    entity_manager_.addEntity(name, &continuum_body);
+}
+//=================================================================================================//
 void SPHSimulation::addSolidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
     const std::string name = config.at("name").get<std::string>();
-    Shape &wall_shape = entity_manager.getEntityByName<Shape>(name);
-    auto &wall_body = sph_system.addBody<SolidBody>(wall_shape, name);
-    addMaterial(entity_manager_, wall_body, config.at("material"));
-    wall_body.generateParticles<BaseParticles, Lattice>();
-    entity_manager_.addEntity(name, &wall_body);
+    Shape &solid_shape = entity_manager.getEntityByName<Shape>(name);
+    auto &solid_body = sph_system.addBody<SolidBody>(solid_shape, name);
+    addMaterial(entity_manager_, solid_body, config.at("material"));
+    if (config.contains("particle_reload"))
+    {
+        BaseParticles &reload_particles = solid_body.generateParticles<BaseParticles, Reload>(name);
+        parseParticleReload(config.at("particle_reload"), reload_particles);
+    }
+    else
+    {
+        solid_body.generateParticles<BaseParticles, Lattice>();
+    }
+    entity_manager_.addEntity(name, &solid_body);
+}
+//=================================================================================================//
+void SPHSimulation::parseParticleReload(const json &config, BaseParticles &reload_particles)
+{
+    if (config.contains("reload_variables"))
+    {
+        for (const auto &var : config.at("reload_variables"))
+        {
+            if (var == "NormalDirection")
+            {
+                reload_particles.reloadExtraVariable<Vecd>("NormalDirection");
+            }
+            else
+            {
+                throw std::runtime_error(
+                    "SPHSimulation::parseParticleReload: unsupported reload variable: " + var.get<std::string>());
+            }
+        }
+    }
 }
 //=================================================================================================//
 void SPHSimulation::addObserver(SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
@@ -272,15 +324,22 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
         auto *particle_relaxation = entity_manager_.emplaceEntity<
             ParticleRelaxationBuilder>("ParticleRelaxation");
         particle_relaxation->buildSimulation(*this, config.at("particle_relaxation"));
-        executable_particle_relaxation_ready_ = true;
+        particle_relaxation->runRelaxation();
     }
 
     if (config.contains("simulation_type"))
     {
         std::string simulation_type = config.at("simulation_type").get<std::string>();
+
         if (simulation_type == "fluid_dynamics")
         {
             simulation_builder_ptr_.createPtr<FluidSimulationBuilder>()->buildSimulation(*this, config);
+            return;
+        }
+
+        if (simulation_type == "continuum_dynamics")
+        {
+            simulation_builder_ptr_.createPtr<ContinuumSimulationBuilder>()->buildSimulation(*this, config);
             return;
         }
 

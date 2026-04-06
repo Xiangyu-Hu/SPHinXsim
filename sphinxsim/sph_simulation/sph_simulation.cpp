@@ -8,12 +8,16 @@ namespace SPH
 //=================================================================================================//
 SPHSimulation::SPHSimulation(const fs::path &config_path) : config_path_(config_path) {}
 //=================================================================================================//
-void SPHSimulation::resetOutputRoot(const fs::path &output_root)
+void SPHSimulation::resetOutputRoot(const fs::path &output_root, bool keep_existing)
 {
     IOEnvironment &io_env = IO::initEnvironment();
-    io_env.resetOutputFolder((output_root / "output").string());
-    io_env.resetRestartFolder((output_root / "restart").string());
-    io_env.resetReloadFolder((output_root / "reload").string());
+    if (!fs::exists(output_root))
+    {
+        fs::create_directories(output_root);
+    }
+    io_env.resetOutputFolder((output_root / "output").string(), keep_existing);
+    io_env.resetRestartFolder((output_root / "restart").string(), keep_existing);
+    io_env.resetReloadFolder((output_root / "reload").string(), keep_existing);
 }
 //=================================================================================================//
 SPHSystemConfig &SPHSimulation::getSPHSystemConfig(const json &config)

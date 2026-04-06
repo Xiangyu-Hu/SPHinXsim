@@ -116,6 +116,7 @@ class SPHSimulation
     std::unique_ptr<SPHSolver> sph_solver_ptr_;
     UniquePtrKeeper<BaseSimulationBuilder> simulation_builder_ptr_;
     Real end_time_{0.0};
+    Real output_interval_{0.1};
     bool executable_particle_relaxation_ready_{false};
     bool executable_simulation_state_ready_{false};
 
@@ -134,6 +135,7 @@ class SPHSimulation
     SPHSolver &defineSPHSolver(SPHSystem &sph_system, const json &config);
     StagePipeline<InitializationHookPoint> &getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &getSimulationPipeline();
+    Real getOutputInterval() { return output_interval_; };
     EntityManager &getEntityManager();
     void addShape(EntityManager &entity_manager, const json &config);
     void addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config);

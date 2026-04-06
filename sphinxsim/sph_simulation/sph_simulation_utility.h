@@ -49,6 +49,7 @@ Transform jsonToTransform(const nlohmann::json &config);
 // Enum for hook points for fast O(1) access
 enum class SimulationHookPoint
 {
+    ForcePrior,
     BoundaryConditions,
     ParticleCreation,
     ParticleDeletion,

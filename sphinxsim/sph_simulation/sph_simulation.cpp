@@ -359,10 +359,15 @@ void SPHSimulation::loadConfig()
     json config;
     file >> config;
 
-    buildSimulationFromJson(config);
-
     if (config.contains("end_time"))
         end_time_ = config.at("end_time").get<Real>();
+
+    if (config.contains("output_interval"))
+        output_interval_ = config.at("output_interval").get<Real>();
+    else
+        output_interval_ = end_time_ / 100.0; // default to 100 output frames
+
+    buildSimulationFromJson(config);
 }
 //=================================================================================================//
 void SPHSimulation::initializeSimulation()

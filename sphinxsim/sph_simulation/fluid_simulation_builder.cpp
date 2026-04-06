@@ -132,7 +132,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     auto &time_stepper = sph_solver.getTimeStepper();
     auto &advection_step = time_stepper.addTriggerByInterval(fluid_advection_time_step.exec());
-    auto &state_recording_trigger = time_stepper.addTriggerByInterval(0.1);
+    auto &state_recording_trigger = time_stepper.addTriggerByInterval(sim.getOutputInterval());
     int screening_interval = 100;
     int observation_interval = screening_interval * 2;
     //----------------------------------------------------------------------
@@ -157,9 +157,6 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             if (advection_step(fluid_advection_time_step))
             {
                 fluid_update_particle_position.exec();
-                fluid_density_regularization.exec();
-                fluid_advection_step_setup.exec();
-                fluid_linear_correction_matrix.exec();
 
                 if (advection_steps_ % screening_interval == 0)
                 {

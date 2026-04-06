@@ -63,5 +63,6 @@
       }
     }
   ],
-  "end_time": 20.0
+  "end_time": 0.01,
+  "output_interval": 0.0001
 }

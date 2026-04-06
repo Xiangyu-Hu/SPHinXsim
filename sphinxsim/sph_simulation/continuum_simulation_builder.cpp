@@ -55,13 +55,44 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     // Finally, the auxiliary models such as time step estimator, initial condition,
     // boundary condition and other constraints should be defined.
     //----------------------------------------------------------------------
-    auto &solid_normal_direction = host_methods.addStateDynamics<NormalFromBodyShapeCK>(solid_bodies);
-
     auto &solid_cell_linked_list = main_methods.addCellLinkedListDynamics(solid_bodies);
-    auto &fluid_update_configuration = main_methods.addParticleDynamicsGroup()
-                                           .add(&main_methods.addCellLinkedListDynamics(continuum_body))
-                                           .add(&main_methods.addRelationDynamics(continuum_inner, continuum_solid_contact));
+    auto &continuum_update_configuration =
+        main_methods.addParticleDynamicsGroup()
+            .add(&main_methods.addCellLinkedListDynamics(continuum_body))
+            .add(&main_methods.addRelationDynamics(continuum_inner, continuum_solid_contact));
 
+    auto &continuum_advection_step_setup = main_methods.addStateDynamics<
+        fluid_dynamics::AdvectionStepSetup>(continuum_body);
+    auto &continuum_update_particle_position = main_methods.addStateDynamics<
+        fluid_dynamics::UpdateParticlePosition>(continuum_body);
+
+    auto &continuum_acoustic_step_1st_half = main_methods.addInteractionDynamics<
+        fluid_dynamics::AcousticStep1stHalf, OneLevel,
+        AcousticRiemannSolverCK, NoKernelCorrectionCK>(continuum_inner);
+
+    auto &continuum_acoustic_step_2nd_half = main_methods.addInteractionDynamics<
+        fluid_dynamics::AcousticStep2ndHalf, OneLevel,
+        AcousticRiemannSolverCK, NoKernelCorrectionCK>(continuum_inner);
+
+    Fluid &continuum_eos = DynamicCast<Fluid>(this, continuum_body.getBaseMaterial());
+    const Real U_ref = continuum_eos.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
+    auto &continuum_advection_time_step = main_methods.addReduceDynamics<
+        fluid_dynamics::AdvectionTimeStepCK>(continuum_body, U_ref, solver_parameters_.advection_cfl);
+    auto &continuum_acoustic_time_step = main_methods.addReduceDynamics<
+        fluid_dynamics::AcousticTimeStepCK<>>(continuum_body, solver_parameters_.acoustic_cfl);
+
+    auto &continuum_linear_correction_matrix = main_methods.addInteractionDynamicsWithUpdate<
+        LinearCorrectionMatrix>(continuum_inner);
+    auto &column_shear_force =
+        main_methods.addParticleDynamicsGroup()
+            .add(&main_methods.addInteractionDynamics<LinearGradient, Vecd>(continuum_inner, "Velocity"))
+            .add(&main_methods.addInteractionDynamicsOneLevel<
+                  continuum_dynamics::ShearIntegration, J2Plasticity>(continuum_inner));
+
+    auto &continuum_solid_contact_factor = main_methods.addInteractionDynamics<
+        solid_dynamics::RepulsionFactor>(continuum_solid_contact);
+    auto &continuum_solid_contact_force = main_methods.addInteractionDynamicsWithUpdate<
+        solid_dynamics::RepulsionForceCK, Wall>(continuum_solid_contact);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -71,7 +102,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     {
         body_state_recorder.addToWrite<Vecd>(*solid_body, "NormalDirection");
     }
-    //body_state_recorder.addToWrite<Real>(continuum_body, "Pressure");
+    body_state_recorder.addToWrite<Real>(continuum_body, "Pressure");
     //----------------------------------------------------------------------
     //	Define Preparation or initialization step for the time integration loop.
     //----------------------------------------------------------------------
@@ -79,13 +110,69 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     initialization_pipeline.main_steps.push_back(
         [&]()
         {
-            solid_normal_direction.exec();
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialConditions);
 
             solid_cell_linked_list.exec();
-            fluid_update_configuration.exec();
+            continuum_update_configuration.exec();
+
+            continuum_advection_step_setup.exec();
+            continuum_linear_correction_matrix.exec();
 
             body_state_recorder.writeToFile();
+        });
+
+    //----------------------------------------------------------------------
+    //	Define time-integration method, screen out uput and observation sample rate.
+    //----------------------------------------------------------------------
+    auto &time_stepper = sph_solver.getTimeStepper();
+    auto &advection_step = time_stepper.addTriggerByInterval(continuum_advection_time_step.exec());
+    auto &state_recording_trigger = time_stepper.addTriggerByInterval(sim.getOutputInterval());
+    int screening_interval = 100;
+    int observation_interval = screening_interval * 2;
+    //----------------------------------------------------------------------
+    //	Define time-integration method.
+    //  Here we use dual time stepping with acoustic and advection steps.
+    //  The acoustic step is executed every physical time step, while the advection step is
+    //  executed at a lower frequency determined by the advection time step.
+    //----------------------------------------------------------------------
+    StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
+    simulation_pipeline.main_steps.push_back( // acoustic step
+        [&]()
+        {
+            Real dt = time_stepper.incrementPhysicalTime(continuum_acoustic_time_step);
+            simulation_pipeline.run_hooks(SimulationHookPoint::ForcePrior);
+            continuum_acoustic_step_1st_half.exec(dt);
+            continuum_acoustic_step_2nd_half.exec(dt);
+        });
+
+    simulation_pipeline.main_steps.push_back( // advection step
+        [&, screening_interval, observation_interval]()
+        {
+            if (advection_step(continuum_advection_time_step))
+            {
+                continuum_update_particle_position.exec();
+
+                if (advection_steps_ % screening_interval == 0)
+                {
+                    std::cout << std::fixed << std::setprecision(9)
+                              << "N=" << advection_steps_
+                              << "  Time = " << time_stepper.getPhysicalTime()
+                              << "  advection_dt = " << advection_step.getInterval()
+                              << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize()
+                              << "\n";
+                }
+
+                if (state_recording_trigger())
+                {
+                    body_state_recorder.writeToFile();
+                }
+
+                solid_cell_linked_list.exec();
+                continuum_update_configuration.exec();
+                continuum_advection_step_setup.exec();
+                continuum_linear_correction_matrix.exec();
+                advection_steps_++;
+            }
         });
 }
 //=================================================================================================//

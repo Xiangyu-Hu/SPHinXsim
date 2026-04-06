@@ -1,7 +1,7 @@
 {
   "domain": {
-    "upper_bound": [-0.1, 0.1],
-    "lower_bound": [-0.1, 0.1]
+    "upper_bound": [0.1, 0.05],
+    "lower_bound": [-0.1, -0.1]
   },
   "particle_spacing": 0.0008,
   "particle_boundary_buffer": 4,

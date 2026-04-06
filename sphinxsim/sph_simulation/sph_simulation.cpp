@@ -47,6 +47,7 @@ RelaxationSystem &SPHSimulation::defineRelaxationSystem(const json &config)
     SPHSystemConfig &system_config = getSPHSystemConfig(config);
     return *entity_manager_.emplaceEntity<RelaxationSystem>(
         "RelaxationSystem", system_config.system_domain_bounds_, system_config.particle_spacing_);
+    ;
 }
 //=================================================================================================//
 SPHSolver &SPHSimulation::defineSPHSolver(SPHSystem &sph_system, const json &config)

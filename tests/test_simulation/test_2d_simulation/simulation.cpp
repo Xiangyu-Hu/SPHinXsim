@@ -9,7 +9,7 @@
 #include "sph_simulation.h"
 #include <gtest/gtest.h>
 
-/*
+
 TEST(simulations, dambreak)
 {
     SPH::SPHSimulation sim("input/dambreak.json");
@@ -24,7 +24,7 @@ TEST(simulations, filling_tank)
     sim.loadConfig();
     sim.initializeSimulation();
     sim.run(30.0);
-}*/
+}
 
 TEST(simulations, milling)
 {

@@ -16,13 +16,13 @@
       }
     },
     {
-      "name": "Cutter",
+      "name": "MillingTool",
       "type": "multipolygon",
       "polygons": [
         {
           "operation": "union",
           "type": "data_file",
-          "file_path": "./input/cutter.dat"
+          "file_path": "./input/milling_tool.dat"
         }
       ]
     }
@@ -30,7 +30,7 @@
   "particle_relaxation": {
     "relaxation_bodies": [
       {
-        "name": "Cutter"
+        "name": "MillingTool"
       }
     ],
     "relaxation_parameters": {
@@ -54,12 +54,32 @@
   ],
   "solid_bodies": [
     {
-      "name": "Cutter",
+      "name": "MillingTool",
       "material": {
         "type": "rigid_body"
       },
       "particle_reload": {
         "reload_variables": ["NormalDirection"]
+      }
+    }
+  ],
+  "body_constraints": [
+    {
+      "name": "MillingTool",
+      "type": "prescribed_motion",
+      "motion": {
+        "velocity": [0.0, 0.0],
+        "angular_velocity": -100.0,
+        "rotation_center": [0.0, 0.0]
+      }
+    },
+    {
+      "name": "ProcessingPiece",
+      "type": "fixed_region",
+      "geometry": {
+        "type": "bounding_box",
+        "lower_bound": [-0.06, -0.02],
+        "upper_bound": [0.06, -0.01]
       }
     }
   ],

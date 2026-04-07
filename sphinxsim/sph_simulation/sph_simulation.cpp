@@ -321,10 +321,10 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
     if (config.contains("particle_relaxation"))
     {
         defineRelaxationSystem(config);
-        auto *particle_relaxation = entity_manager_.emplaceEntity<
-            ParticleRelaxationBuilder>("ParticleRelaxation");
-        particle_relaxation->buildSimulation(*this, config.at("particle_relaxation"));
-        particle_relaxation->runRelaxation();
+        entity_manager_.emplaceEntity<ParticleRelaxationBuilder>("ParticleRelaxation")
+            ->buildSimulation(*this, config.at("particle_relaxation"));
+        executable_particle_relaxation_ready_ = true;
+        runParticleRelaxation();
     }
 
     if (config.contains("simulation_type"))

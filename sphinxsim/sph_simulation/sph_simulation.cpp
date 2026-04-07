@@ -3,6 +3,7 @@
 #include "continuum_simulation_builder.h"
 #include "fluid_simulation_builder.h"
 #include "geometry_builder.h"
+#include "material_builder.h"
 #include "particle_relaxation_builder.h"
 
 namespace SPH
@@ -52,7 +53,6 @@ RelaxationSystem &SPHSimulation::defineRelaxationSystem(const json &config)
     SPHSystemConfig &system_config = getSPHSystemConfig(config);
     return *entity_manager_.emplaceEntity<RelaxationSystem>(
         "RelaxationSystem", system_config.system_domain_bounds_, system_config.particle_spacing_);
-    ;
 }
 //=================================================================================================//
 SPHSolver &SPHSimulation::defineSPHSolver(SPHSystem &sph_system, const json &config)
@@ -77,43 +77,6 @@ EntityManager &SPHSimulation::getEntityManager()
     return entity_manager_;
 }
 //=================================================================================================//
-void SPHSimulation::addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config)
-{
-    const std::string type = config.at("type").get<std::string>();
-
-    if (type == "weakly_compressible_fluid")
-    {
-        Real density = config.at("density").get<Real>();
-        Real sound_speed = config.at("sound_speed").get<Real>();
-        auto &material = sph_body.defineMaterial<WeaklyCompressibleFluid>(density, sound_speed);
-        entity_manager.addEntity(sph_body.getName() + material.MaterialType(), &material);
-        return;
-    }
-
-    if (type == "rigid_body")
-    {
-        auto &material = sph_body.defineMaterial<Solid>();
-        entity_manager.addEntity(sph_body.getName() + material.MaterialType(), &material);
-        return;
-    }
-
-    if (type == "j2_plasticity")
-    {
-        Real density = config.at("density").get<Real>();
-        Real sound_speed = config.at("sound_speed").get<Real>();
-        Real youngs_modulus = config.at("youngs_modulus").get<Real>();
-        Real poisson_ratio = config.at("poisson_ratio").get<Real>();
-        Real yield_stress = config.at("yield_stress").get<Real>();
-        Real hardening_modulus = config.at("hardening_modulus").get<Real>();
-        auto &material = sph_body.defineMaterial<J2Plasticity>(
-            density, sound_speed, youngs_modulus, poisson_ratio, yield_stress, hardening_modulus);
-        entity_manager.addEntity(sph_body.getName() + material.MaterialType(), &material);
-        return;
-    }
-
-    throw std::runtime_error("SPHSimulation::addMaterial: unsupported material type: " + type);
-}
-//=================================================================================================//
 void SPHSimulation::addRelaxationBody(
     RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config)
 {
@@ -128,10 +91,11 @@ void SPHSimulation::addRelaxationBody(
 //=================================================================================================//
 void SPHSimulation::addFluidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
+    MaterialBuilder &material_builder = entity_manager.getEntityByName<MaterialBuilder>("MaterialBuilder");
     const std::string name = config.at("name").get<std::string>();
     Shape &fluid_shape = entity_manager.getEntityByName<Shape>(name);
     auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
-    addMaterial(entity_manager_, fluid_body, config.at("material"));
+    material_builder.addMaterial(entity_manager_, fluid_body, config.at("material"));
     if (config.contains("particle_reserve_factor"))
     {
         ParticleBuffer<ReserveSizeFactor> inlet_buffer(
@@ -147,20 +111,22 @@ void SPHSimulation::addFluidBody(SPHSystem &sph_system, EntityManager &entity_ma
 //=================================================================================================//
 void SPHSimulation::addContinuumBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
+    MaterialBuilder &material_builder = entity_manager.getEntityByName<MaterialBuilder>("MaterialBuilder");
     const std::string name = config.at("name").get<std::string>();
     Shape &shape = entity_manager.getEntityByName<Shape>(name);
     auto &continuum_body = sph_system.addBody<RealBody>(shape, name);
-    addMaterial(entity_manager_, continuum_body, config.at("material"));
+    material_builder.addMaterial(entity_manager_, continuum_body, config.at("material"));
     continuum_body.generateParticles<BaseParticles, Lattice>();
     entity_manager_.addEntity(name, &continuum_body);
 }
 //=================================================================================================//
 void SPHSimulation::addSolidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
+    MaterialBuilder &material_builder = entity_manager.getEntityByName<MaterialBuilder>("MaterialBuilder");
     const std::string name = config.at("name").get<std::string>();
     Shape &solid_shape = entity_manager.getEntityByName<Shape>(name);
     auto &solid_body = sph_system.addBody<SolidBody>(solid_shape, name);
-    addMaterial(entity_manager_, solid_body, config.at("material"));
+    material_builder.addMaterial(entity_manager_, solid_body, config.at("material"));
     if (config.contains("particle_reload"))
     {
         BaseParticles &reload_particles = solid_body.generateParticles<BaseParticles, Reload>(name);
@@ -226,6 +192,8 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
 
     if (config.contains("simulation_type"))
     {
+        entity_manager_.emplaceEntity<MaterialBuilder>("MaterialBuilder");
+
         std::string simulation_type = config.at("simulation_type").get<std::string>();
 
         if (simulation_type == "fluid_dynamics")

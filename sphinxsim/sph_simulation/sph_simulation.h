@@ -139,7 +139,6 @@ class SPHSimulation
     StagePipeline<SimulationHookPoint> &getSimulationPipeline();
     Real getOutputInterval() { return output_interval_; };
     EntityManager &getEntityManager();
-    void addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config);
     void addRelaxationBody(RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
     void addFluidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addContinuumBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);

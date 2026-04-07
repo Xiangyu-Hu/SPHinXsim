@@ -1,7 +1,6 @@
 #include "continuum_simulation_builder.h"
 
 #include "sph_simulation.h"
-
 namespace SPH
 {
 //=================================================================================================//

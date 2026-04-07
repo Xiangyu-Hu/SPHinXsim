@@ -66,10 +66,10 @@ void ParticleRelaxationBuilder::buildSimulation(SPHSimulation &sim, const json &
     //	Define particle relaxation simulation.
     //----------------------------------------------------------------------
     ParticleRelaxationBuilder::updateRelaxationParameters(sim, config);
-    int ite_p = 0;
     relaxation_pipeline_.main_steps.push_back(
         [&]()
         {
+            int ite_p = 0;
             while (ite_p < relaxation_parameters_.total_iterations)
             {
                 body_update_configuration.exec();

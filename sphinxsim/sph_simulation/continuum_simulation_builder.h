@@ -39,7 +39,7 @@ struct ContinuumSolverParameters
     Real advection_cfl{0.25};
 };
 
-class ContinuumSimulationBuilder : public BaseSimulationBuilder
+class ContinuumSimulationBuilder : public SimulationBuilder
 {
   public:
     void buildSimulation(SPHSimulation &sim, const json &config) override;

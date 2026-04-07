@@ -40,7 +40,7 @@ struct FluidSolverParameters
     bool free_surface_correction{true};
 };
 
-class FluidSimulationBuilder : public BaseSimulationBuilder
+class FluidSimulationBuilder : public SimulationBuilder
 {
   public:
     void buildSimulation(SPHSimulation &sim, const json &config) override;

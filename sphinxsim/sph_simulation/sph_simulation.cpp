@@ -2,12 +2,15 @@
 
 #include "continuum_simulation_builder.h"
 #include "fluid_simulation_builder.h"
+#include "geometry_builder.h"
 #include "particle_relaxation_builder.h"
 
 namespace SPH
 {
 //=================================================================================================//
-SPHSimulation::SPHSimulation(const fs::path &config_path) : config_path_(config_path) {}
+SPHSimulation::SPHSimulation(const fs::path &config_path)
+    : config_path_(config_path),
+      geometry_builder_(*entity_manager_.emplaceEntity<GeometryBuilder>("GeometryBuilder")) {}
 //=================================================================================================//
 void SPHSimulation::resetOutputRoot(const fs::path &output_root, bool keep_existing)
 {
@@ -29,10 +32,7 @@ SPHSystemConfig &SPHSimulation::getSPHSystemConfig(const json &config)
         Real particle_spacing = config.at("particle_spacing").get<Real>();
         int particle_boundary_buffer = config.at("particle_boundary_buffer").get<int>();
         Real boundary_width = particle_boundary_buffer * particle_spacing;
-        BoundingBoxd domain_bounds(
-            jsonToVecd(config.at("domain").at("lower_bound")),
-            jsonToVecd(config.at("domain").at("upper_bound")));
-
+        BoundingBoxd domain_bounds = geometry_builder_.parseBoundingBox(config.at("domain"));
         system_config.system_domain_bounds_ = domain_bounds.expand(boundary_width);
         system_config.particle_spacing_ = particle_spacing;
         entity_manager_.emplaceEntity<SPHSystemConfig>("SPHSystemConfig", system_config);
@@ -76,106 +76,6 @@ EntityManager &SPHSimulation::getEntityManager()
 {
     return entity_manager_;
 }
-//=================================================================================================//
-void SPHSimulation::addShape(EntityManager &entity_manager, const json &config)
-{
-    const std::string name = config.at("name").get<std::string>();
-    const std::string type = config.at("type").get<std::string>();
-
-    if (type == "box")
-    {
-        Vecd half_size = jsonToVecd(config.at("half_size"));
-        Transform transform = jsonToTransform(config.at("transform"));
-        GeometricShapeBox *shape = entity_manager.emplaceEntity<
-            GeometricShapeBox>(name, transform, half_size);
-        entity_manager.addEntity<Shape>(name, shape);
-        return;
-    }
-
-    if (type == "bounding_box")
-    {
-        Vecd lower_bound = jsonToVecd(config.at("lower_bound"));
-        Vecd upper_bound = jsonToVecd(config.at("upper_bound"));
-        GeometricShapeBox *shape = entity_manager.emplaceEntity<
-            GeometricShapeBox>(name, BoundingBoxd(lower_bound, upper_bound));
-        entity_manager.addEntity<Shape>(name, shape);
-        return;
-    }
-
-    if (type == "container_box")
-    {
-        BoundingBoxd inner_box(jsonToVecd(config.at("inner_lower_bound")),
-                               jsonToVecd(config.at("inner_upper_bound")));
-        BoundingBoxd outer_box = inner_box.expand(config.at("thickness").get<Real>());
-        ComplexShape *shape = entity_manager.emplaceEntity<ComplexShape>(name);
-        shape->add<GeometricShapeBox>(outer_box);
-        shape->subtract<GeometricShapeBox>(inner_box);
-        entity_manager.addEntity<Shape>(name, shape);
-        return;
-    }
-
-#ifdef SPHINXSYS_2D
-    if (type == "multipolygon")
-    {
-        MultiPolygon multi_polygon;
-        for (const auto &plg : config.at("polygons"))
-        {
-            const std::string operation_name = plg.at("operation").get<std::string>();
-            GeometricOps op = parseGeometricOp(operation_name);
-            multi_polygon.addMultiPolygon(parseMultiPolygon(plg), op);
-        }
-        MultiPolygonShape *shape = entity_manager.emplaceEntity<MultiPolygonShape>(name, multi_polygon);
-        entity_manager.addEntity<Shape>(name, shape);
-        return;
-    }
-#endif
-
-    throw std::runtime_error("SPHSimulation::addShape: unsupported shape type: " + type);
-}
-//=================================================================================================//
-GeometricOps SPHSimulation::parseGeometricOp(const std::string &op_str)
-{
-    if (op_str == "union")
-        return GeometricOps::add;
-    if (op_str == "intersection")
-        return GeometricOps::intersect;
-    if (op_str == "subtraction")
-        return GeometricOps::sub;
-
-    throw std::runtime_error("SPHSimulation::parseGeometricOp: unsupported geometric operation: " + op_str);
-}
-//=================================================================================================//
-#ifdef SPHINXSYS_2D
-MultiPolygon SPHSimulation::parseMultiPolygon(const json &config)
-{
-    MultiPolygon multi_polygon;
-    const std::string polygon_type = config.at("type").get<std::string>();
-    if (polygon_type == "bounding_box")
-    {
-        Vecd lower_bound = jsonToVecd(config.at("lower_bound"));
-        Vecd upper_bound = jsonToVecd(config.at("upper_bound"));
-        multi_polygon.addBox(BoundingBoxd(lower_bound, upper_bound), GeometricOps::add);
-        return multi_polygon;
-    }
-
-    if (polygon_type == "container_box")
-    {
-        BoundingBoxd inner_box(
-            jsonToVecd(config.at("inner_lower_bound")), jsonToVecd(config.at("inner_upper_bound")));
-        Real thickness = config.at("thickness").get<Real>();
-        multi_polygon.addContainerBox(inner_box, thickness, GeometricOps::add);
-        return multi_polygon;
-    }
-
-    if (polygon_type == "data_file")
-    {
-        multi_polygon.addPolygonFromFile(config.at("file_path").get<std::string>(), GeometricOps::add);
-        return multi_polygon;
-    }
-
-    throw std::runtime_error("SPHSimulation::addShape: unsupported polygon type: " + polygon_type);
-}
-#endif
 //=================================================================================================//
 void SPHSimulation::addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config)
 {
@@ -313,10 +213,7 @@ void SPHSimulation::addObserver(SPHSystem &sph_system, EntityManager &entity_man
 //=================================================================================================//
 void SPHSimulation::buildSimulationFromJson(const json &config)
 {
-    for (const auto &geo : config.at("geometries"))
-    {
-        addShape(entity_manager_, geo);
-    }
+    geometry_builder_.addGeometries(entity_manager_, config);
 
     if (config.contains("particle_relaxation"))
     {

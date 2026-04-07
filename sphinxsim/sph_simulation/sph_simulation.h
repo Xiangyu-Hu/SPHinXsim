@@ -40,7 +40,8 @@ namespace fs = std::filesystem;
 
 namespace SPH
 {
-class BaseSimulationBuilder;
+class GeometryBuilder;
+class SimulationBuilder;
 
 struct SPHSystemConfig
 {
@@ -111,10 +112,11 @@ class SPHSimulation
   private:
     std::filesystem::path config_path_;
     EntityManager entity_manager_;
+    GeometryBuilder &geometry_builder_;
     StagePipeline<InitializationHookPoint> initialization_pipeline_;
     StagePipeline<SimulationHookPoint> simulation_pipeline_;
     std::unique_ptr<SPHSolver> sph_solver_ptr_;
-    UniquePtrKeeper<BaseSimulationBuilder> simulation_builder_ptr_;
+    UniquePtrKeeper<SimulationBuilder> simulation_builder_ptr_;
     Real end_time_{0.0};
     Real output_interval_{0.1};
     bool executable_particle_relaxation_ready_{false};
@@ -125,7 +127,7 @@ class SPHSimulation
     void parseParticleReload(const json &config, BaseParticles &reload_particles);
 
   protected:
-    friend class BaseSimulationBuilder;
+    friend class SimulationBuilder;
     friend class ParticleRelaxationBuilder;
     friend class FluidSimulationBuilder;
     friend class ContinuumSimulationBuilder;
@@ -137,12 +139,7 @@ class SPHSimulation
     StagePipeline<SimulationHookPoint> &getSimulationPipeline();
     Real getOutputInterval() { return output_interval_; };
     EntityManager &getEntityManager();
-    void addShape(EntityManager &entity_manager, const json &config);
     void addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config);
-    GeometricOps parseGeometricOp(const std::string &op_str);
-#ifdef SPHINXSYS_2D
-    MultiPolygon parseMultiPolygon(const json &config);
-#endif
     void addRelaxationBody(RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
     void addFluidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addContinuumBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);

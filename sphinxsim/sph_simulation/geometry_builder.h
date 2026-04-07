@@ -21,74 +21,34 @@
  *                                                                           *
  * ------------------------------------------------------------------------- */
 /**
- * @file    sph_simulation_utility.h
+ * @file    geometry_builder.h
  * @brief   TBD.
  * @author  Xiangyu Hu
  */
 
-#ifndef SPH_SIMULATION_UTILITY_H
-#define SPH_SIMULATION_UTILITY_H
+#ifndef GEOMETRY_BUILDER_H
+#define GEOMETRY_BUILDER_H
 
-#include "data_type.h"
-
-#include <nlohmann/json.hpp>
-using json = nlohmann::json;
+#include "sph_simulation_utility.h"
+#include "sphinxsys.h"
 
 namespace SPH
 {
-/** Convert a JSON array [x, y] or [x, y, z] to Vecd (extra elements are
- * ignored). */
-Vecd jsonToVecd(const nlohmann::json &arr);
+class EntityManager;
 
-#ifdef SPHINXSYS_2D
-Transform jsonToTransform(const nlohmann::json &config);
-#else
-Transform jsonToTransform(const nlohmann::json &config);
-#endif
-
-// Enum for hook points for fast O(1) access
-enum class SimulationHookPoint
-{
-    ForcePrior,
-    BoundaryConditions,
-    ParticleCreation,
-    ParticleDeletion,
-    ParticleSort,
-    NumHooks
-};
-
-enum class InitializationHookPoint
-{
-    HostSteps,
-    InitialConditions,
-    NumHooks
-};
-
-// A staged pipeline structure
-template <typename HookPointType>
-struct StagePipeline
-{
-    std::vector<std::function<void()>> main_steps;
-    std::vector<std::function<void()>> hooks[static_cast<size_t>(HookPointType::NumHooks)];
-
-    void run_hooks(HookPointType p)
-    {
-        for (auto &f : hooks[static_cast<size_t>(p)])
-            f();
-    }
-
-    void insert_hook(HookPointType p, std::function<void()> step)
-    {
-        hooks[static_cast<size_t>(p)].push_back(std::move(step));
-    }
-};
-
-class SPHSimulation;
-class SimulationBuilder
+class GeometryBuilder
 {
   public:
-    virtual ~SimulationBuilder() = default;
-    virtual void buildSimulation(SPHSimulation &sim, const json &config) = 0;
+    void addGeometries(EntityManager &entity_manager, const json &config);
+    BoundingBoxd parseBoundingBox(const json &config);
+    TransformGeometryBox parseBox(const json &config);
+    GeometricOps parseGeometricOp(const std::string &op_str);
+#ifdef SPHINXSYS_2D
+    MultiPolygon parseMultiPolygon(const json &config);
+#endif
+
+  private:
+    Shape *addGeometry(EntityManager &entity_manager, const json &config);
 };
 } // namespace SPH
-#endif // SPH_SIMULATION_UTILITY_H
+#endif // GEOMETRY_BUILDER_H

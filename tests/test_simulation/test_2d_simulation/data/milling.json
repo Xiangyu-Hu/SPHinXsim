@@ -71,15 +71,15 @@
   ],
   "body_constraints": [
     {
-      "name": "MillingTool",
+      "body_name": "MillingTool",
       "type": "simbody",
       "mobilized_body": "planar",
       "velocity": [0.0, -0.03, 0.0],
       "angular_velocity": 200.0
     },
     {
-      "name": "ProcessingPiece",
-      "type": "fixed_by_region",
+      "body_name": "ProcessingPiece",
+      "type": "fixed_region",
       "region_name": "ClampingRegion"
     }
   ],

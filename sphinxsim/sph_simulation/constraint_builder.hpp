@@ -65,7 +65,7 @@ void ConstraintBuilder::addConstraint(
         {
             Real omega_z = 2.0 * Pi * config.at("angular_velocity").get<Real>();
             Vec3d velocity = upgradeToVec3d(jsonToVecd(config.at("velocity")));
-            SimTK::Vec3 u_cmd = SimTK::Vec3(velocity[0], velocity[1], omega_z);
+            SimTK::Vec3 u_cmd = SimTK::Vec3(omega_z, velocity[0], velocity[1]);
 
             SimTK::MobilizedBody::Planar &mobilized_body =
                 *entity_manager.emplaceEntity<SimTK::MobilizedBody::Planar>(

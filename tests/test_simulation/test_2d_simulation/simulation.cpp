@@ -33,7 +33,7 @@ TEST(simulations, milling)
     sim.resetOutputRoot("./milling", true);
     sim.loadConfig();
     sim.initializeSimulation();
-    //    sim.run(20.0);
+    sim.run(0.01);
 }
 
 int main(int argc, char *argv[])

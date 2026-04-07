@@ -131,6 +131,7 @@ class SPHSimulation
     friend class ParticleRelaxationBuilder;
     friend class FluidSimulationBuilder;
     friend class ContinuumSimulationBuilder;
+    friend class ConstraintBuilder;
 
     SPHSystem &defineSPHSystem(const json &config);
     RelaxationSystem &defineRelaxationSystem(const json &config);
@@ -139,6 +140,7 @@ class SPHSimulation
     StagePipeline<SimulationHookPoint> &getSimulationPipeline();
     Real getOutputInterval() { return output_interval_; };
     EntityManager &getEntityManager();
+    SPHSolver &getSPHSolver() { return *sph_solver_ptr_; };
     void addRelaxationBody(RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
     void addFluidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addContinuumBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);

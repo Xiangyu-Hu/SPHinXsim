@@ -1,6 +1,8 @@
 #include "continuum_simulation_builder.h"
 
+#include "constraint_builder.hpp"
 #include "sph_simulation.h"
+
 namespace SPH
 {
 //=================================================================================================//
@@ -139,8 +141,10 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
         [&]()
         {
             Real dt = time_stepper.incrementPhysicalTime(continuum_acoustic_time_step);
-            simulation_pipeline.run_hooks(SimulationHookPoint::ForcePrior);
+            // continuum_shear_force.exec(acoustic_dt);
+            //             continuum_solid_contact_force.exec();
             continuum_acoustic_step_1st_half.exec(dt);
+            simulation_pipeline.run_hooks(SimulationHookPoint::BoundaryConditions);
             continuum_acoustic_step_2nd_half.exec(dt);
         });
 
@@ -169,10 +173,21 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
                 solid_cell_linked_list.exec();
                 continuum_update_configuration.exec();
                 continuum_advection_step_setup.exec();
+                // continuum_solid_contact_factor.exec();
                 continuum_linear_correction_matrix.exec();
                 advection_steps_++;
             }
         });
+
+    //----------------------------------------------------------------------
+    // Define optional methods using hooking point in stage pipelines.
+    //----------------------------------------------------------------------
+    if (config.contains("body_constraints"))
+    {
+        ConstraintBuilder &constraint_builder =
+            *entity_manager.emplaceEntity<ConstraintBuilder>("ConstraintBuilder");
+        constraint_builder.addConstraints(sim, main_methods, config);
+    }
 }
 //=================================================================================================//
 void ContinuumSimulationBuilder::updateSolverParameters(SPHSimulation &sim, const json &config)

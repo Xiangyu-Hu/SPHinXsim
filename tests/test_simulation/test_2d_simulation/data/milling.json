@@ -54,7 +54,7 @@
         "youngs_modulus": 78.2e9,
         "poisson_ratio": 0.3,
         "yield_stress": 2.9e8,
-        "hardening_modulus": 0.1
+        "hardening_modulus": 0.1e8
       }
     }
   ],
@@ -83,6 +83,12 @@
       "region_name": "ClampingRegion"
     }
   ],
-  "end_time": 0.01,
+  "continuum_solver_parameters": {
+    "acoustic_cfl": 0.4,
+    "advection_cfl": 0.2,
+    "contact_numerical_damping": 0.5,
+    "hourglass_factor": 2.0
+  },
+  "end_time": 0.02,
   "output_interval": 0.0001
 }

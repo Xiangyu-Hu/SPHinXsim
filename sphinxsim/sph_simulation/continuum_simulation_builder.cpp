@@ -78,22 +78,23 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     Fluid &continuum_eos = DynamicCast<Fluid>(this, continuum_body.getBaseMaterial());
     const Real U_ref = continuum_eos.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
     auto &continuum_advection_time_step = main_methods.addReduceDynamics<
-        fluid_dynamics::AdvectionTimeStepCK>(continuum_body, U_ref, solver_parameters_.advection_cfl);
+        fluid_dynamics::AdvectionTimeStepCK>(continuum_body, U_ref, solver_parameters_.advection_cfl_);
     auto &continuum_acoustic_time_step = main_methods.addReduceDynamics<
-        fluid_dynamics::AcousticTimeStepCK<>>(continuum_body, solver_parameters_.acoustic_cfl);
+        fluid_dynamics::AcousticTimeStepCK<>>(continuum_body, solver_parameters_.acoustic_cfl_);
 
     auto &continuum_linear_correction_matrix = main_methods.addInteractionDynamicsWithUpdate<
         LinearCorrectionMatrix>(continuum_inner);
-    auto &column_shear_force =
+    auto &continuum_shear_force =
         main_methods.addParticleDynamicsGroup()
             .add(&main_methods.addInteractionDynamics<LinearGradient, Vecd>(continuum_inner, "Velocity"))
             .add(&main_methods.addInteractionDynamicsOneLevel<
-                  continuum_dynamics::ShearIntegration, J2Plasticity>(continuum_inner));
+                  continuum_dynamics::ShearIntegration, J2Plasticity>(continuum_inner, solver_parameters_.hourglass_factor_));
 
     auto &continuum_solid_contact_factor = main_methods.addInteractionDynamics<
         solid_dynamics::RepulsionFactor>(continuum_solid_contact);
     auto &continuum_solid_contact_force = main_methods.addInteractionDynamicsWithUpdate<
-        solid_dynamics::RepulsionForceCK, Wall>(continuum_solid_contact);
+        solid_dynamics::RepulsionForceCK, Wall>(
+        continuum_solid_contact, solver_parameters_.contact_numerical_damping_);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -102,6 +103,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     for (auto &solid_body : solid_bodies)
     {
         body_state_recorder.addToWrite<Vecd>(*solid_body, "NormalDirection");
+        body_state_recorder.addToWrite<Vecd>(*solid_body, "Velocity");
     }
     body_state_recorder.addToWrite<Real>(continuum_body, "Pressure");
     //----------------------------------------------------------------------
@@ -141,8 +143,8 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
         [&]()
         {
             Real dt = time_stepper.incrementPhysicalTime(continuum_acoustic_time_step);
-            // continuum_shear_force.exec(acoustic_dt);
-            //             continuum_solid_contact_force.exec();
+            continuum_shear_force.exec(dt);
+            continuum_solid_contact_force.exec();
             continuum_acoustic_step_1st_half.exec(dt);
             simulation_pipeline.run_hooks(SimulationHookPoint::BoundaryConditions);
             continuum_acoustic_step_2nd_half.exec(dt);
@@ -173,7 +175,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
                 solid_cell_linked_list.exec();
                 continuum_update_configuration.exec();
                 continuum_advection_step_setup.exec();
-                // continuum_solid_contact_factor.exec();
+                continuum_solid_contact_factor.exec();
                 continuum_linear_correction_matrix.exec();
                 advection_steps_++;
             }
@@ -193,9 +195,13 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
 void ContinuumSimulationBuilder::updateSolverParameters(SPHSimulation &sim, const json &config)
 {
     if (config.contains("acoustic_cfl"))
-        solver_parameters_.acoustic_cfl = config.at("acoustic_cfl").get<Real>();
+        solver_parameters_.acoustic_cfl_ = config.at("acoustic_cfl").get<Real>();
     if (config.contains("advection_cfl"))
-        solver_parameters_.advection_cfl = config.at("advection_cfl").get<Real>();
+        solver_parameters_.advection_cfl_ = config.at("advection_cfl").get<Real>();
+    if (config.contains("contact_numerical_damping"))
+        solver_parameters_.contact_numerical_damping_ = config.at("contact_numerical_damping").get<Real>();
+    if (config.contains("hourglass_factor"))
+        solver_parameters_.hourglass_factor_ = config.at("hourglass_factor").get<Real>();
 }
 //=================================================================================================//
 } // namespace SPH

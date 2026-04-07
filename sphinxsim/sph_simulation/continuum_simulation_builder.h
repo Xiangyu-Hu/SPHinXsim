@@ -35,8 +35,10 @@ namespace SPH
 {
 struct ContinuumSolverParameters
 {
-    Real acoustic_cfl{0.6};
-    Real advection_cfl{0.25};
+    Real acoustic_cfl_{0.4};
+    Real advection_cfl_{0.2};
+    Real contact_numerical_damping_{0.5};
+    Real hourglass_factor_{2.0};
 };
 
 class ContinuumSimulationBuilder : public SimulationBuilder

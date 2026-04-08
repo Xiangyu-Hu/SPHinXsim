@@ -15,7 +15,7 @@
     sim.resetOutputRoot("./dambreak");
     sim.loadConfig();
     sim.initializeSimulation();
-    sim.run(20.0);
+    sim.run();
 }
 
 TEST(simulations, filling_tank)
@@ -24,7 +24,7 @@ TEST(simulations, filling_tank)
     sim.resetOutputRoot("./filling_tank", true);
     sim.loadConfig();
     sim.initializeSimulation();
-    sim.run(30.0);
+    sim.run();
 }*/
 
 TEST(simulations, milling)
@@ -33,7 +33,7 @@ TEST(simulations, milling)
     sim.resetOutputRoot("./milling", true);
     sim.loadConfig();
     sim.initializeSimulation();
-    sim.run(0.01);
+    sim.run();
 }
 
 int main(int argc, char *argv[])

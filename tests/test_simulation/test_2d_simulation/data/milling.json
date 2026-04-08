@@ -48,13 +48,13 @@
     {
       "name": "ProcessingPiece",
       "material": {
-        "type": "j2_plasticity",
-        "density": 2700.0,
-        "sound_speed": 5000.0,
-        "youngs_modulus": 78.2e9,
+        "type": "general_continuum",
+        "density": 2.7,
+        "sound_speed": 50.0,
+        "youngs_modulus": 78.2e2,
         "poisson_ratio": 0.3,
-        "yield_stress": 2.9e8,
-        "hardening_modulus": 0.1e8
+        "yield_stress": 2.9e1,
+        "hardening_modulus": 0.0
       }
     }
   ],
@@ -75,7 +75,7 @@
       "type": "simbody",
       "mobilized_body": "planar",
       "velocity": [0.0, -0.03, 0.0],
-      "angular_velocity": 200.0
+      "angular_velocity": 2.0
     },
     {
       "body_name": "ProcessingPiece",
@@ -87,8 +87,9 @@
     "acoustic_cfl": 0.4,
     "advection_cfl": 0.2,
     "contact_numerical_damping": 0.5,
-    "hourglass_factor": 2.0
+    "hourglass_factor": 2.0,
+    "screen_interval": 100
   },
-  "end_time": 0.02,
-  "output_interval": 0.0001
+  "end_time": 0.06,
+  "output_interval": 0.01
 }

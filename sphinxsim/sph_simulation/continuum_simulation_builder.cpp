@@ -69,11 +69,11 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
 
     auto &continuum_acoustic_step_1st_half = main_methods.addInteractionDynamics<
         fluid_dynamics::AcousticStep1stHalf, OneLevel,
-        AcousticRiemannSolverCK, NoKernelCorrectionCK>(continuum_inner);
+        DissipativeRiemannSolverCK, NoKernelCorrectionCK>(continuum_inner);
 
     auto &continuum_acoustic_step_2nd_half = main_methods.addInteractionDynamics<
         fluid_dynamics::AcousticStep2ndHalf, OneLevel,
-        AcousticRiemannSolverCK, NoKernelCorrectionCK>(continuum_inner);
+        DissipativeRiemannSolverCK, NoKernelCorrectionCK>(continuum_inner);
 
     Fluid &continuum_eos = DynamicCast<Fluid>(this, continuum_body.getBaseMaterial());
     const Real U_ref = continuum_eos.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
@@ -88,7 +88,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
         main_methods.addParticleDynamicsGroup()
             .add(&main_methods.addInteractionDynamics<LinearGradient, Vecd>(continuum_inner, "Velocity"))
             .add(&main_methods.addInteractionDynamicsOneLevel<
-                  continuum_dynamics::ShearIntegration, J2Plasticity>(continuum_inner, solver_parameters_.hourglass_factor_));
+                  continuum_dynamics::ShearIntegration, GeneralContinuum>(continuum_inner, solver_parameters_.hourglass_factor_));
 
     auto &continuum_solid_contact_factor = main_methods.addInteractionDynamics<
         solid_dynamics::RepulsionFactor>(continuum_solid_contact);
@@ -130,7 +130,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     auto &time_stepper = sph_solver.getTimeStepper();
     auto &advection_step = time_stepper.addTriggerByInterval(continuum_advection_time_step.exec());
     auto &state_recording_trigger = time_stepper.addTriggerByInterval(sim.getOutputInterval());
-    int screening_interval = 100;
+    int screening_interval = solver_parameters_.screen_interval_;
     int observation_interval = screening_interval * 2;
     //----------------------------------------------------------------------
     //	Define time-integration method.
@@ -202,6 +202,8 @@ void ContinuumSimulationBuilder::updateSolverParameters(SPHSimulation &sim, cons
         solver_parameters_.contact_numerical_damping_ = config.at("contact_numerical_damping").get<Real>();
     if (config.contains("hourglass_factor"))
         solver_parameters_.hourglass_factor_ = config.at("hourglass_factor").get<Real>();
+    if (config.contains("screen_interval"))
+        solver_parameters_.screen_interval_ = config.at("screen_interval").get<int>();
 }
 //=================================================================================================//
 } // namespace SPH

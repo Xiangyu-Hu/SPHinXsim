@@ -98,8 +98,9 @@ class SPHSimulation
     /** Override output/restart/reload root folder (mainly for tests). */
     void resetOutputRoot(const fs::path &output_root, bool keep_existing = false);
 
-    /** Build all SPH objects and run the simulation until end_time. */
-    void run(Real end_time);
+    void run();
+    void stepTo(Real target_time);
+    void stepBy(Real interval);
 
     void runParticleRelaxation();
 

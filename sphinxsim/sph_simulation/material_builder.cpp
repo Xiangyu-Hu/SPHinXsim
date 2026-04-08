@@ -39,6 +39,20 @@ void MaterialBuilder::addMaterial(EntityManager &entity_manager, SPHBody &sph_bo
         return;
     }
 
+    if (type == "general_continuum")
+    {
+        Real density = config.at("density").get<Real>();
+        Real sound_speed = config.at("sound_speed").get<Real>();
+        Real youngs_modulus = config.at("youngs_modulus").get<Real>();
+        Real poisson_ratio = config.at("poisson_ratio").get<Real>();
+        auto &material = sph_body.defineMaterial<GeneralContinuum>(
+            density, sound_speed, youngs_modulus, poisson_ratio);
+        entity_manager.addEntity(sph_body.getName() + material.MaterialType(), &material);
+        return;
+    }
+
+    throw std::runtime_error("MaterialBuilder::addMaterial: unsupported material: " + type);
+
     throw std::runtime_error("MaterialBuilder::addMaterial: unsupported material: " + type);
 }
 //=================================================================================================//

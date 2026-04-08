@@ -39,6 +39,7 @@ struct ContinuumSolverParameters
     Real advection_cfl_{0.2};
     Real contact_numerical_damping_{0.5};
     Real hourglass_factor_{2.0};
+    int screen_interval_{100};
 };
 
 class ContinuumSimulationBuilder : public SimulationBuilder

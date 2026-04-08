@@ -252,7 +252,12 @@ void SPHSimulation::initializeSimulation()
     executable_simulation_state_ready_ = true;
 }
 //=================================================================================================//
-void SPHSimulation::run(Real end_time)
+void SPHSimulation::run()
+{
+    stepTo(end_time_);
+}
+//=================================================================================================//
+void SPHSimulation::stepTo(Real target_time)
 {
     if (!executable_simulation_state_ready_)
     {
@@ -261,13 +266,21 @@ void SPHSimulation::run(Real end_time)
         return;
     }
 
-    while (!sph_solver_ptr_->getTimeStepper().isEndTime(end_time))
+    TimeStepper &time_stepper = sph_solver_ptr_->getTimeStepper();
+    while (!time_stepper.isEndTime(target_time))
     {
         for (auto &step : simulation_pipeline_.main_steps)
         {
             step(); // each step touches all cells internally
         }
     }
+}
+//=================================================================================================//
+void SPHSimulation::stepBy(Real interval)
+{
+    TimeStepper &time_stepper = sph_solver_ptr_->getTimeStepper();
+    Real present_time_ = time_stepper.getPhysicalTime();
+    stepTo(present_time_ + interval);
 }
 //=================================================================================================//
 void SPHSimulation::runParticleRelaxation()

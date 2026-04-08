@@ -26,6 +26,7 @@ ParticleDynamicsGroup &ContinuumSimulationBuilder::addShearForceIntegration(
                 inner_relation, solver_parameters_.hourglass_factor_));
         return continuum_shear_force;
     }
+
     if (entity_manager.hasEntity<J2Plasticity>(body_name + "J2Plasticity"))
     {
         continuum_shear_force.add(

@@ -48,7 +48,7 @@
     {
       "name": "ProcessingPiece",
       "material": {
-        "type": "general_continuum",
+        "type": "j2_plasticity",
         "density": 2.7,
         "sound_speed": 50.0,
         "youngs_modulus": 78.2e2,

@@ -98,10 +98,10 @@
 
   "restart": {
     "enabled": true,
-    "save_interval": 1000,
-    "restore_step": 0
+    "save_interval": 100,
+    "restore_step": 1000
   },
 
   "end_time": 0.1,
-  "output_interval": 0.01
+  "output_interval": 0.00001
 }

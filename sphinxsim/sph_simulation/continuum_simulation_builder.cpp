@@ -152,8 +152,10 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
             if (advection_step(continuum_advection_time_step))
             {
                 continuum_update_particle_position.exec();
+                advection_steps_++;
 
-                if (advection_steps_ % screening_interval == 0)
+                if (advection_steps_ % screening_interval == 0 ||
+                    advection_steps_ == sph_system.RestartStep() + 1)
                 {
                     std::cout << std::fixed << std::setprecision(9)
                               << "N=" << advection_steps_
@@ -174,7 +176,6 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
                 continuum_advection_step_setup.exec();
                 continuum_solid_contact_factor.exec();
                 continuum_linear_correction_matrix.exec();
-                advection_steps_++;
             }
         });
 
@@ -191,7 +192,14 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     RestartConfig &restart_config = sim.getRestartConfig();
     if (restart_config.enabled)
     {
+        sph_system.setRestartStep(restart_config.restore_step);
         auto &restart_io = main_methods.addIODynamics<RestartIOCK>(sph_system);
+        SPH::SimbodyStateEngine &state_engine =
+            entity_manager.getEntityByName<SPH::SimbodyStateEngine>("SimbodyStateEngine");
+        SimTK::RungeKuttaMersonIntegrator &integ = entity_manager.getEntityByName<
+            SimTK::RungeKuttaMersonIntegrator>("SimbodyIntegrator");
+        SimTK::MultibodySystem &MBsystem = entity_manager.getEntityByName<
+            SimTK::MultibodySystem>("SimbodyMultibodySystem");
 
         simulation_pipeline.insert_hook(
             SimulationHookPoint::ExtraOutputs, [&]()
@@ -199,13 +207,19 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
             if (advection_steps_ % restart_config.save_interval == 0)
             {
                 restart_io.writeToFile(advection_steps_);
+                state_engine.writeStateToXml(advection_steps_, integ);
             } });
 
         if (restart_config.restore_step != 0)
         {
+            advection_steps_ = restart_config.restore_step;
             initialization_pipeline.insert_hook(
                 InitializationHookPoint::InitialConditions, [&]()
-                { restart_io.readRestartFiles(restart_config.restore_step); });
+                { 
+                    Real restart_time = restart_io.readRestartFiles(restart_config.restore_step);
+                    SimTK::State state = MBsystem.getDefaultState();
+                    state_engine.readStateFromXml(restart_config.restore_step, state);
+                    state.setTime(restart_time); });
         }
     }
 }

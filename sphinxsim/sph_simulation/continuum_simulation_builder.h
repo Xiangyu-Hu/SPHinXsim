@@ -50,7 +50,7 @@ class ContinuumSimulationBuilder : public SimulationBuilder
     void buildSimulation(SPHSimulation &sim, const json &config) override;
 
   private:
-    UnsignedInt advection_steps_{1};
+    UnsignedInt advection_steps_{0};
     ContinuumSolverParameters solver_parameters_;
 
     void updateSolverParameters(SPHSimulation &sim, const json &config);

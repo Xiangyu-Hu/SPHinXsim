@@ -58,6 +58,8 @@ void ConstraintBuilder::addConstraint(
         SolidBodyPartForSimbody &body_part = real_body.addBodyPart<SolidBodyPartForSimbody>(shape);
         SimTK::Body::Rigid &simbody_body = *entity_manager.emplaceEntity<
             SimTK::Body::Rigid>(body_part.getName(), *body_part.body_part_mass_properties_);
+        SPH::SimbodyStateEngine &state_engine = *entity_manager.emplaceEntity<
+            SPH::SimbodyStateEngine>("SimbodyStateEngine", MBsystem);
 
         const std::string mobilized_body_type = config.at("mobilized_body").get<std::string>();
 

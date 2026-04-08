@@ -237,6 +237,11 @@ void SPHSimulation::loadConfig()
     else
         output_interval_ = end_time_ / 100.0; // default to 100 output frames
 
+    if (config.contains("restart"))
+    {
+        parseRestartConfig(config.at("restart"));
+    }
+
     buildSimulationFromJson(config);
 }
 //=================================================================================================//
@@ -300,6 +305,13 @@ void SPHSimulation::runParticleRelaxation()
     ParticleRelaxationBuilder &relaxation_builder =
         entity_manager_.getEntityByName<ParticleRelaxationBuilder>("ParticleRelaxation");
     relaxation_builder.runRelaxation();
+}
+//=================================================================================================//
+void SPHSimulation::parseRestartConfig(const json &config)
+{
+    restart_config_.enabled = config.at("enabled").get<bool>();
+    restart_config_.save_interval = config.at("save_interval").get<int>();
+    restart_config_.restore_step = config.at("restore_step").get<int>();
 }
 //=================================================================================================//
 } // namespace SPH

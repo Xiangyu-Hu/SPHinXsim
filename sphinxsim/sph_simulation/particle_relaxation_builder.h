@@ -48,7 +48,6 @@ class ParticleRelaxationBuilder : public SimulationBuilder
   private:
     RelaxationParameters relaxation_parameters_;
     StagePipeline<SimulationHookPoint> relaxation_pipeline_;
-    RelaxationSystem &defineRelaxationSystem();
 };
 } // namespace SPH
 #endif // PARTICLE_RELAXATION_BUILDER_H

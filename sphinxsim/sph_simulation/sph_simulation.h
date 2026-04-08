@@ -49,66 +49,25 @@ struct SPHSystemConfig
     Real particle_spacing_;
 };
 
-/**
- * @class SPHSimulation
- * @brief High-level facade for a 2D or 3D SPH simulation using the CK execution
- * backend.
- *
- * Typical usage:
- * @code
- *   SPHSimulation sim("config.json");
- *   sim.loadConfig();
- *   sim.initializeSimulation();
- *   sim.run(20.0);
- * @endcode
- *
- * The JSON config schema is:
- * @code
- * {
- *   "domain"      : { "lower_bound": [0.0, 0.0], "upper_bound": [DL, DH] },
- *   "particle_spacing": 0.02,
- *   "particle_boundary_buffer": 4,
- *   "fluid_bodies" : [{
- *     "name": "Water",
- *     "geometry": { "type": "bounding_box",
- *                   "lower_bound": [0.0, 0.0], "upper_bound": [LL, LH] },
- *     "material": { "type": "weakly_compressible_fluid",
- *                   "density": 1000.0, "sound_speed": 20.0 }
- *   }],
- *   "solid_bodies" : [{
- *     "name": "Tank",
- *     "geometry": { "type": "container_box",
- *                   "inner_lower_bound": [0.0, 0.0], "inner_upper_bound": [DL, DH],
- *                   "thickness": 0.08 },
- *     "material": { "type": "rigid_body" }
- *   }],
- *   "gravity"     : [0.0, -9.81],
- *   "observers"   : [{ "name": "Probe", "positions": [[0.5, 0.2]] }],
- *   "solver"      : { "dual_time_stepping": true, "free_surface_correction": true },
- *   "end_time"    : 20.0
- * }
- * @endcode
- */
+struct RestartConfig
+{
+    bool enabled{false};
+    int save_interval{1000};
+    int restore_step{0};
+};
+
 class SPHSimulation
 {
   public:
     SPHSimulation(const fs::path &config_path);
     ~SPHSimulation() {};
-
-    /** Override output/restart/reload root folder (mainly for tests). */
     void resetOutputRoot(const fs::path &output_root, bool keep_existing = false);
-
+    void loadConfig();
+    void runParticleRelaxation();
+    void initializeSimulation();
     void run();
     void stepTo(Real target_time);
     void stepBy(Real interval);
-
-    void runParticleRelaxation();
-
-    /** Initialize all executable dynamics after a successful build. */
-    void initializeSimulation();
-
-    /** Load JSON config from the path given at construction, then build simulation. */
-    void loadConfig();
 
   private:
     std::filesystem::path config_path_;
@@ -122,9 +81,11 @@ class SPHSimulation
     Real output_interval_{0.1};
     bool executable_particle_relaxation_ready_{false};
     bool executable_simulation_state_ready_{false};
+    RestartConfig restart_config_;
 
     void buildSimulationFromJson(const json &config);
     void parseSPHSystemConfig(const json &config);
+    void parseRestartConfig(const json &config);
     void parseParticleReload(const json &config, BaseParticles &reload_particles);
     void handleParticleRelaxation(const json &config);
 
@@ -141,6 +102,7 @@ class SPHSimulation
     StagePipeline<InitializationHookPoint> &getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &getSimulationPipeline();
     Real getOutputInterval() { return output_interval_; };
+    RestartConfig &getRestartConfig() { return restart_config_; };
     EntityManager &getEntityManager();
     SPHSolver &getSPHSolver() { return *sph_solver_ptr_; };
     void addRelaxationBody(RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);

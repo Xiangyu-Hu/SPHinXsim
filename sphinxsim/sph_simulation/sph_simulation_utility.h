@@ -53,6 +53,7 @@ enum class SimulationHookPoint
     BoundaryConditions,
     ParticleCreation,
     ParticleDeletion,
+    ExtraOutputs,
     ParticleSort,
     NumHooks
 };

@@ -95,6 +95,13 @@
     "hourglass_factor": 2.0,
     "screen_interval": 100
   },
+
+  "restart": {
+    "enabled": true,
+    "save_interval": 1000,
+    "restore_step": 0
+  },
+
   "end_time": 0.1,
   "output_interval": 0.01
 }

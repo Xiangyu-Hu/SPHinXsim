@@ -167,6 +167,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
                 {
                     body_state_recorder.writeToFile();
                 }
+                simulation_pipeline.run_hooks(SimulationHookPoint::ExtraOutputs);
 
                 solid_cell_linked_list.exec();
                 continuum_update_configuration.exec();
@@ -185,6 +186,27 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
         ConstraintBuilder &constraint_builder =
             *entity_manager.emplaceEntity<ConstraintBuilder>("ConstraintBuilder");
         constraint_builder.addConstraints(sim, main_methods, config);
+    }
+
+    RestartConfig &restart_config = sim.getRestartConfig();
+    if (restart_config.enabled)
+    {
+        auto &restart_io = main_methods.addIODynamics<RestartIOCK>(sph_system);
+
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::ExtraOutputs, [&]()
+            {
+            if (advection_steps_ % restart_config.save_interval == 0)
+            {
+                restart_io.writeToFile(advection_steps_);
+            } });
+
+        if (restart_config.restore_step != 0)
+        {
+            initialization_pipeline.insert_hook(
+                InitializationHookPoint::InitialConditions, [&]()
+                { restart_io.readRestartFiles(restart_config.restore_step); });
+        }
     }
 }
 //=================================================================================================//

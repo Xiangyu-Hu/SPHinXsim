@@ -90,6 +90,6 @@
     "hourglass_factor": 2.0,
     "screen_interval": 100
   },
-  "end_time": 0.06,
+  "end_time": 0.1,
   "output_interval": 0.01
 }

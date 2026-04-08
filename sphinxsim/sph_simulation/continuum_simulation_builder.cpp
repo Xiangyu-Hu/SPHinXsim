@@ -1,7 +1,6 @@
-#include "continuum_simulation_builder.h"
+#include "continuum_simulation_builder.hpp"
 
 #include "constraint_builder.hpp"
-#include "sph_simulation.h"
 
 namespace SPH
 {
@@ -84,11 +83,8 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
 
     auto &continuum_linear_correction_matrix = main_methods.addInteractionDynamicsWithUpdate<
         LinearCorrectionMatrix>(continuum_inner);
-    auto &continuum_shear_force =
-        main_methods.addParticleDynamicsGroup()
-            .add(&main_methods.addInteractionDynamics<LinearGradient, Vecd>(continuum_inner, "Velocity"))
-            .add(&main_methods.addInteractionDynamicsOneLevel<
-                  continuum_dynamics::ShearIntegration, GeneralContinuum>(continuum_inner, solver_parameters_.hourglass_factor_));
+
+    auto &continuum_shear_force = addShearForceIntegration(entity_manager, main_methods, continuum_inner);
 
     auto &continuum_solid_contact_factor = main_methods.addInteractionDynamics<
         solid_dynamics::RepulsionFactor>(continuum_solid_contact);

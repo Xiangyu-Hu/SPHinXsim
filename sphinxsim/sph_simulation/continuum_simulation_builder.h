@@ -33,6 +33,8 @@
 
 namespace SPH
 {
+class EntityManager;
+class ParticleDynamicsGroup;
 struct ContinuumSolverParameters
 {
     Real acoustic_cfl_{0.4};
@@ -51,10 +53,11 @@ class ContinuumSimulationBuilder : public SimulationBuilder
     UnsignedInt advection_steps_{1};
     ContinuumSolverParameters solver_parameters_;
 
-    template <class MethodContainerType>
-    void addBoundaryConditions(
-        SPHSimulation &sim, MethodContainerType &method_container, const json &config);
     void updateSolverParameters(SPHSimulation &sim, const json &config);
+
+    template <class MethodContainerType, class InnerRelationType>
+    ParticleDynamicsGroup &addShearForceIntegration(
+        EntityManager &entity_manager, MethodContainerType &method_container, InnerRelationType &inner_relation);
 };
 } // namespace SPH
 #endif // CONTINUUM_SIMULATION_BUILDER_H

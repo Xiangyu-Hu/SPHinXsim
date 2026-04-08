@@ -33,16 +33,21 @@
       "upper_bound": [0.08, -0.067]
     }
   ],
+
   "particle_relaxation": {
-    "relaxation_bodies": [
-      {
-        "name": "MillingTool"
+    "build_and_run": false,
+    "settings": {
+      "relaxation_bodies": [
+        {
+          "name": "MillingTool"
+        }
+      ],
+      "relaxation_parameters": {
+        "total_iterations": 1000
       }
-    ],
-    "relaxation_parameters": {
-      "total_iterations": 1000
     }
   },
+
   "simulation_type": "continuum_dynamics",
   "continuum_bodies": [
     {

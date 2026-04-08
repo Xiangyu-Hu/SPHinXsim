@@ -124,8 +124,9 @@ class SPHSimulation
     bool executable_simulation_state_ready_{false};
 
     void buildSimulationFromJson(const json &config);
-    SPHSystemConfig &getSPHSystemConfig(const json &config);
+    void parseSPHSystemConfig(const json &config);
     void parseParticleReload(const json &config, BaseParticles &reload_particles);
+    void handleParticleRelaxation(const json &config);
 
   protected:
     friend class SimulationBuilder;
@@ -134,8 +135,8 @@ class SPHSimulation
     friend class ContinuumSimulationBuilder;
     friend class ConstraintBuilder;
 
-    SPHSystem &defineSPHSystem(const json &config);
-    RelaxationSystem &defineRelaxationSystem(const json &config);
+    SPHSystem &defineSPHSystem();
+    RelaxationSystem &defineRelaxationSystem();
     SPHSolver &defineSPHSolver(SPHSystem &sph_system, const json &config);
     StagePipeline<InitializationHookPoint> &getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &getSimulationPipeline();

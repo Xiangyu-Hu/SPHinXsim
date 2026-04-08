@@ -25,32 +25,28 @@ void SPHSimulation::resetOutputRoot(const fs::path &output_root, bool keep_exist
     io_env.resetReloadFolder((output_root / "reload").string(), keep_existing);
 }
 //=================================================================================================//
-SPHSystemConfig &SPHSimulation::getSPHSystemConfig(const json &config)
+void SPHSimulation::parseSPHSystemConfig(const json &config)
 {
-    if (!entity_manager_.hasEntity<SPHSystemConfig>("SPHSystemConfig"))
-    {
-        SPHSystemConfig system_config;
-        Real particle_spacing = config.at("particle_spacing").get<Real>();
-        int particle_boundary_buffer = config.at("particle_boundary_buffer").get<int>();
-        Real boundary_width = particle_boundary_buffer * particle_spacing;
-        BoundingBoxd domain_bounds = geometry_builder_.parseBoundingBox(config.at("domain"));
-        system_config.system_domain_bounds_ = domain_bounds.expand(boundary_width);
-        system_config.particle_spacing_ = particle_spacing;
-        entity_manager_.emplaceEntity<SPHSystemConfig>("SPHSystemConfig", system_config);
-    }
-    return entity_manager_.getEntityByName<SPHSystemConfig>("SPHSystemConfig");
+    SPHSystemConfig system_config;
+    Real particle_spacing = config.at("particle_spacing").get<Real>();
+    int particle_boundary_buffer = config.at("particle_boundary_buffer").get<int>();
+    Real boundary_width = particle_boundary_buffer * particle_spacing;
+    BoundingBoxd domain_bounds = geometry_builder_.parseBoundingBox(config.at("domain"));
+    system_config.system_domain_bounds_ = domain_bounds.expand(boundary_width);
+    system_config.particle_spacing_ = particle_spacing;
+    entity_manager_.emplaceEntity<SPHSystemConfig>("SPHSystemConfig", system_config);
 }
 //=================================================================================================//
-SPHSystem &SPHSimulation::defineSPHSystem(const json &config)
+SPHSystem &SPHSimulation::defineSPHSystem()
 {
-    SPHSystemConfig &system_config = getSPHSystemConfig(config);
+    SPHSystemConfig &system_config = entity_manager_.getEntityByName<SPHSystemConfig>("SPHSystemConfig");
     return *entity_manager_.emplaceEntity<SPHSystem>(
         "SPHSystem", system_config.system_domain_bounds_, system_config.particle_spacing_);
 }
 //=================================================================================================//
-RelaxationSystem &SPHSimulation::defineRelaxationSystem(const json &config)
+RelaxationSystem &SPHSimulation::defineRelaxationSystem()
 {
-    SPHSystemConfig &system_config = getSPHSystemConfig(config);
+    SPHSystemConfig &system_config = entity_manager_.getEntityByName<SPHSystemConfig>("SPHSystemConfig");
     return *entity_manager_.emplaceEntity<RelaxationSystem>(
         "RelaxationSystem", system_config.system_domain_bounds_, system_config.particle_spacing_);
 }
@@ -177,17 +173,26 @@ void SPHSimulation::addObserver(SPHSystem &sph_system, EntityManager &entity_man
     entity_manager_.addEntity(name, &observer_body);
 }
 //=================================================================================================//
+void SPHSimulation::handleParticleRelaxation(const json &config)
+{
+    if (config.at("build_and_run").get<bool>())
+    {
+        defineRelaxationSystem();
+        entity_manager_.emplaceEntity<ParticleRelaxationBuilder>("ParticleRelaxation")
+            ->buildSimulation(*this, config.at("settings"));
+        executable_particle_relaxation_ready_ = true;
+        runParticleRelaxation();
+    }
+}
+//=================================================================================================//
 void SPHSimulation::buildSimulationFromJson(const json &config)
 {
+    parseSPHSystemConfig(config);
     geometry_builder_.addGeometries(entity_manager_, config);
 
     if (config.contains("particle_relaxation"))
     {
-        defineRelaxationSystem(config);
-        entity_manager_.emplaceEntity<ParticleRelaxationBuilder>("ParticleRelaxation")
-            ->buildSimulation(*this, config.at("particle_relaxation"));
-        executable_particle_relaxation_ready_ = true;
-        runParticleRelaxation();
+        handleParticleRelaxation(config.at("particle_relaxation"));
     }
 
     if (config.contains("simulation_type"))

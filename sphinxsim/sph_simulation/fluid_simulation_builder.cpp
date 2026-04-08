@@ -8,7 +8,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     //	Build up an SPHSystem and IO environment.
     //----------------------------------------------------------------------
-    SPHSystem &sph_system = sim.defineSPHSystem(config);
+    SPHSystem &sph_system = sim.defineSPHSystem();
     EntityManager &entity_manager = sim.getEntityManager();
     //----------------------------------------------------------------------
     //	Creating bodies with inital shape, materials and particles.

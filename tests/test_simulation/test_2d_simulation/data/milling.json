@@ -79,7 +79,7 @@
       "body_name": "MillingTool",
       "type": "simbody",
       "mobilized_body": "planar",
-      "velocity": [0.0, -0.03, 0.0],
+      "velocity": [0.0, -0.03],
       "angular_velocity": 2.0
     },
     {
@@ -89,19 +89,19 @@
     }
   ],
   "continuum_solver_parameters": {
-    "acoustic_cfl": 0.4,
+    "acoustic_cfl": 0.3,
     "advection_cfl": 0.2,
-    "contact_numerical_damping": 0.5,
+    "contact_numerical_damping": 0.0,
     "hourglass_factor": 2.0,
-    "screen_interval": 100
+    "screen_interval": 1
   },
 
   "restart": {
     "enabled": true,
-    "save_interval": 100,
-    "restore_step": 1000
+    "save_interval": 1,
+    "restore_step": 1500
   },
 
   "end_time": 0.1,
-  "output_interval": 0.00001
+  "output_interval": 0.000001
 }

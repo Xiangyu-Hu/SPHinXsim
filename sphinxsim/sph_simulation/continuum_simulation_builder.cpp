@@ -35,8 +35,8 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     // Generally, the host methods should be able to run immediately.
     //----------------------------------------------------------------------
     SPHSolver &sph_solver = sim.defineSPHSolver(sph_system, config);
-    auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
-    auto &host_methods = sph_solver.addParticleMethodContainer(par_host);
+    auto &main_methods = sph_solver.addParticleMethodContainer(seq);
+    //    auto &host_methods = sph_solver.addParticleMethodContainer(par_host);
     //----------------------------------------------------------------------
     // Solver control parameters.
     //----------------------------------------------------------------------
@@ -66,13 +66,8 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     auto &continuum_update_particle_position = main_methods.addStateDynamics<
         fluid_dynamics::UpdateParticlePosition>(continuum_body);
 
-    auto &continuum_acoustic_step_1st_half = main_methods.addInteractionDynamics<
-        fluid_dynamics::AcousticStep1stHalf, OneLevel,
-        DissipativeRiemannSolverCK, NoKernelCorrectionCK>(continuum_inner);
-
-    auto &continuum_acoustic_step_2nd_half = main_methods.addInteractionDynamics<
-        fluid_dynamics::AcousticStep2ndHalf, OneLevel,
-        DissipativeRiemannSolverCK, NoKernelCorrectionCK>(continuum_inner);
+    auto &continuum_acoustic_step_1st_half = addAcousticStep1stHalf(entity_manager, main_methods, continuum_inner);
+    auto &continuum_acoustic_step_2nd_half = addAcousticStep2ndHalf(entity_manager, main_methods, continuum_inner);
 
     Fluid &continuum_eos = DynamicCast<Fluid>(this, continuum_body.getBaseMaterial());
     const Real U_ref = continuum_eos.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
@@ -102,6 +97,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
         body_state_recorder.addToWrite<Vecd>(*solid_body, "Velocity");
     }
     body_state_recorder.addToWrite<Real>(continuum_body, "Pressure");
+    body_state_recorder.addToWrite<Real>(continuum_body, "IntactFactor");
     //----------------------------------------------------------------------
     //	Define Preparation or initialization step for the time integration loop.
     //----------------------------------------------------------------------
@@ -115,6 +111,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
             continuum_update_configuration.exec();
 
             continuum_advection_step_setup.exec();
+            continuum_solid_contact_factor.exec();
             continuum_linear_correction_matrix.exec();
 
             body_state_recorder.writeToFile();
@@ -135,8 +132,10 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //  executed at a lower frequency determined by the advection time step.
     //----------------------------------------------------------------------
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
+    addOutputEvolvingVariablesBounds(main_methods, continuum_body);
+    auto &maximum_norm = main_methods.addReduceDynamics<MaximumNorm<Vecd>>(continuum_body, "RepulsionForce");
     simulation_pipeline.main_steps.push_back( // acoustic step
-        [&]()
+        [&, screening_interval]()
         {
             Real dt = time_stepper.incrementPhysicalTime(continuum_acoustic_time_step);
             continuum_shear_force.exec(dt);
@@ -144,6 +143,21 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
             continuum_acoustic_step_1st_half.exec(dt);
             simulation_pipeline.run_hooks(SimulationHookPoint::BoundaryConditions);
             continuum_acoustic_step_2nd_half.exec(dt);
+
+            if (advection_steps_ % screening_interval == 0 ||
+                advection_steps_ == sph_system.RestartStep() + 1)
+            {
+                std::pair<Real, UnsignedInt> max_repulsion_force = maximum_norm.exec();
+                std::cout << std::fixed << std::setprecision(9)
+                          << "N=" << advection_steps_
+                          << "  Time = " << time_stepper.getPhysicalTime()
+                          << "  advection_dt = " << advection_step.getInterval()
+                          << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize()
+                          << "  max_repulsion_force = " << max_repulsion_force.first
+                          << " at particle index = " << max_repulsion_force.second
+                          << "\n";
+                outputEvolvingVariablesBounds();
+            }
         });
 
     simulation_pipeline.main_steps.push_back( // advection step
@@ -152,18 +166,8 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
             if (advection_step(continuum_advection_time_step))
             {
                 continuum_update_particle_position.exec();
+                simulation_pipeline.run_hooks(SimulationHookPoint::PositionConstraints);
                 advection_steps_++;
-
-                if (advection_steps_ % screening_interval == 0 ||
-                    advection_steps_ == sph_system.RestartStep() + 1)
-                {
-                    std::cout << std::fixed << std::setprecision(9)
-                              << "N=" << advection_steps_
-                              << "  Time = " << time_stepper.getPhysicalTime()
-                              << "  advection_dt = " << advection_step.getInterval()
-                              << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize()
-                              << "\n";
-                }
 
                 if (state_recording_trigger())
                 {
@@ -194,12 +198,12 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     {
         sph_system.setRestartStep(restart_config.restore_step);
         auto &restart_io = main_methods.addIODynamics<RestartIOCK>(sph_system);
-        SPH::SimbodyStateEngine &state_engine =
-            entity_manager.getEntityByName<SPH::SimbodyStateEngine>("SimbodyStateEngine");
         SimTK::RungeKuttaMersonIntegrator &integ = entity_manager.getEntityByName<
             SimTK::RungeKuttaMersonIntegrator>("SimbodyIntegrator");
         SimTK::MultibodySystem &MBsystem = entity_manager.getEntityByName<
             SimTK::MultibodySystem>("SimbodyMultibodySystem");
+        SPH::SimbodyStateEngine &state_engine = *entity_manager.emplaceEntity<
+            SPH::SimbodyStateEngine>("SimbodyStateEngine", MBsystem);
 
         simulation_pipeline.insert_hook(
             SimulationHookPoint::ExtraOutputs, [&]()
@@ -217,7 +221,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
                 InitializationHookPoint::InitialConditions, [&]()
                 { 
                     Real restart_time = restart_io.readRestartFiles(restart_config.restore_step);
-                    SimTK::State state = MBsystem.getDefaultState();
+                    SimTK::State state = integ.getState();
                     state_engine.readStateFromXml(restart_config.restore_step, state);
                     state.setTime(restart_time); });
         }
@@ -236,6 +240,35 @@ void ContinuumSimulationBuilder::updateSolverParameters(SPHSimulation &sim, cons
         solver_parameters_.hourglass_factor_ = config.at("hourglass_factor").get<Real>();
     if (config.contains("screen_interval"))
         solver_parameters_.screen_interval_ = config.at("screen_interval").get<int>();
+}
+//=================================================================================================//
+void ContinuumSimulationBuilder::outputEvolvingVariablesBounds()
+{
+    std::cout << "---------------------------------------------\n";
+    for (UnsignedInt j = 0; j < output_evolving_variables_bounds_[0].size(); ++j)
+    {
+        std::pair<Real, UnsignedInt> bound = output_evolving_variables_bounds_[0][j]->exec();
+        std::cout << std::fixed << std::setprecision(9)
+                  << "Evolving scalar variable bound: " << evolving_variables_names_[0][j]
+                  << " = " << bound.first << ", particle_index = " << bound.second << "\n";
+    }
+    std::cout << "---------------------------------------------\n";
+    for (UnsignedInt j = 0; j < output_evolving_variables_bounds_[1].size(); ++j)
+    {
+        std::pair<Real, UnsignedInt> bound = output_evolving_variables_bounds_[1][j]->exec();
+        std::cout << std::fixed << std::setprecision(9)
+                  << "Evolving vector variable bound: " << evolving_variables_names_[1][j]
+                  << " = " << bound.first << ", particle_index = " << bound.second << "\n";
+    }
+    std::cout << "---------------------------------------------\n";
+    for (UnsignedInt j = 0; j < output_evolving_variables_bounds_[2].size(); ++j)
+    {
+        std::pair<Real, UnsignedInt> bound = output_evolving_variables_bounds_[2][j]->exec();
+        std::cout << std::fixed << std::setprecision(9)
+                  << "Evolving matrix variable bound: " << evolving_variables_names_[2][j]
+                  << " = " << bound.first << ", particle_index = " << bound.second << "\n";
+    }
+    std::cout << "---------------------------------------------\n";
 }
 //=================================================================================================//
 } // namespace SPH

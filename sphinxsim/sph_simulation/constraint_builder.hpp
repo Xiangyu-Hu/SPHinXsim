@@ -30,6 +30,7 @@ void ConstraintBuilder::addConstraint(
     EntityManager &entity_manager = sim.getEntityManager();
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
     GeometryBuilder &geometry_builder = entity_manager.getEntityByName<GeometryBuilder>("GeometryBuilder");
+    StagePipeline<InitializationHookPoint> &initialization_pipeline = sim.getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
 
     const std::string type = config.at("type").get<std::string>();
@@ -65,37 +66,44 @@ void ConstraintBuilder::addConstraint(
 
         if (mobilized_body_type == "planar")
         {
-            Real omega_z = 2.0 * Pi * config.at("angular_velocity").get<Real>();
-            Vec3d velocity = upgradeToVec3d(jsonToVecd(config.at("velocity")));
-            SimTK::Vec3 u_cmd = SimTK::Vec3(omega_z, velocity[0], velocity[1]);
-
             SimTK::MobilizedBody::Planar &mobilized_body =
                 *entity_manager.emplaceEntity<SimTK::MobilizedBody::Planar>(
                     "SimbodyMobilizedBody",
                     matter.Ground(), SimTK::Transform(SimTKVec3(0.0, 0.0, 0.0)),
                     simbody_body, SimTK::Transform(SimTKVec3(0.0, 0.0, 0.0)));
-            SimTK::State state = MBsystem.realizeTopology();
-            mobilized_body.setU(state, u_cmd);
+            MBsystem.realizeTopology();
+
             SimTK::RungeKuttaMersonIntegrator &integ =
                 *entity_manager.emplaceEntity<SimTK::RungeKuttaMersonIntegrator>(
                     "SimbodyIntegrator", MBsystem);
+            auto &constraint = method_container.template addStateDynamics<
+                solid_dynamics::ConstraintBodyPartBySimBodyCK>(body_part, MBsystem, mobilized_body, integ);
+            SimTK::State state = MBsystem.getDefaultState();
+
+            // set the initial velocity of the mobilized body
+            Real omega_z = 2.0 * Pi * config.at("angular_velocity").get<Real>();
+            Vec3d velocity = upgradeToVec3d(jsonToVecd(config.at("velocity")));
+            SimTK::Vec3 u_cmd = SimTK::Vec3(omega_z, velocity[0], velocity[1]);
+            mobilized_body.setU(state, u_cmd); // set the initial velocity of the mobilized body
             integ.setAccuracy(1e-3);
             integ.setAllowInterpolation(false);
             integ.initialize(state);
 
-            auto &constraint = method_container.template addStateDynamics<
-                solid_dynamics::ConstraintBodyPartBySimBodyCK>(body_part, MBsystem, mobilized_body, integ);
+            initialization_pipeline.insert_hook(
+                InitializationHookPoint::InitialConditions, [&]()
+                { constraint.exec(); });
+
             simulation_pipeline.insert_hook(
-                SimulationHookPoint::BoundaryConditions, [&, u_cmd]()
-                {         
-                     // (A) move the mobilized body to the target state at the current physical time
-                    Real t_target = time_stepper.getPhysicalTime();
-                    if (t_target > integ.getState().getTime())
-                    {
-                        integ.stepTo(t_target);
-                    }
-                    // (B) carry out the constraint
-                    constraint.exec(); });
+                SimulationHookPoint::PositionConstraints, [&]()
+                {
+                // (A) move the mobilized body to the target state at the current physical time
+                Real t_target = time_stepper.getPhysicalTime();
+                if (t_target > integ.getState().getTime())
+                {
+                    integ.stepTo(t_target);
+                }
+                // (B) carry out the constraint
+                constraint.exec(); });
             return;
         }
         throw std::runtime_error(

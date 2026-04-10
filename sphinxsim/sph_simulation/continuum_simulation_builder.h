@@ -35,6 +35,10 @@ namespace SPH
 {
 class EntityManager;
 class ParticleDynamicsGroup;
+template <class T>
+class BaseDynamics;
+class SPHBody;
+
 struct ContinuumSolverParameters
 {
     Real acoustic_cfl_{0.4};
@@ -52,12 +56,26 @@ class ContinuumSimulationBuilder : public SimulationBuilder
   private:
     UnsignedInt advection_steps_{0};
     ContinuumSolverParameters solver_parameters_;
+    StdVec<BaseDynamics<std::pair<Real, UnsignedInt>> *> output_evolving_variables_bounds_[3];
+    StdVec<std::string> evolving_variables_names_[3];
 
     void updateSolverParameters(SPHSimulation &sim, const json &config);
+    void outputEvolvingVariablesBounds();
+
+    template <class MethodContainerType, class InnerRelationType>
+    BaseDynamics<void> &addAcousticStep1stHalf(
+        EntityManager &entity_manager, MethodContainerType &method_container, InnerRelationType &inner_relation);
+
+    template <class MethodContainerType, class InnerRelationType>
+    BaseDynamics<void> &addAcousticStep2ndHalf(
+        EntityManager &entity_manager, MethodContainerType &method_container, InnerRelationType &inner_relation);
 
     template <class MethodContainerType, class InnerRelationType>
     ParticleDynamicsGroup &addShearForceIntegration(
         EntityManager &entity_manager, MethodContainerType &method_container, InnerRelationType &inner_relation);
+
+    template <class MethodContainerType>
+    void addOutputEvolvingVariablesBounds(MethodContainerType &method_container, SPHBody &sph_body);
 };
 } // namespace SPH
 #endif // CONTINUUM_SIMULATION_BUILDER_H

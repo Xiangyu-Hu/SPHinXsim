@@ -51,6 +51,7 @@ enum class SimulationHookPoint
 {
     ForcePrior,
     BoundaryConditions,
+    PositionConstraints,
     ParticleCreation,
     ParticleDeletion,
     ExtraOutputs,

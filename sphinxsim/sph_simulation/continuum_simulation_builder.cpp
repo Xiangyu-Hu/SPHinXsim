@@ -35,7 +35,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     // Generally, the host methods should be able to run immediately.
     //----------------------------------------------------------------------
     SPHSolver &sph_solver = sim.defineSPHSolver(sph_system, config);
-    auto &main_methods = sph_solver.addParticleMethodContainer(seq);
+    auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
     //    auto &host_methods = sph_solver.addParticleMethodContainer(par_host);
     //----------------------------------------------------------------------
     // Solver control parameters.
@@ -77,7 +77,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
         fluid_dynamics::AcousticTimeStepCK<>>(continuum_body, solver_parameters_.acoustic_cfl_);
 
     auto &continuum_linear_correction_matrix = main_methods.addInteractionDynamicsWithUpdate<
-        LinearCorrectionMatrix>(continuum_inner);
+        LinearCorrectionMatrix>(continuum_inner, solver_parameters_.linear_correction_matrix_coeff_);
 
     auto &continuum_shear_force = addShearForceIntegration(entity_manager, main_methods, continuum_inner);
 
@@ -133,7 +133,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
     addOutputEvolvingVariablesBounds(main_methods, continuum_body);
-    auto &maximum_norm = main_methods.addReduceDynamics<MaximumNorm<Vecd>>(continuum_body, "RepulsionForce");
+    auto &maximum_norm = main_methods.addReduceDynamics<MaximumNorm<Matd>>(continuum_body, "VelocityGradient");
     simulation_pipeline.main_steps.push_back( // acoustic step
         [&, screening_interval]()
         {
@@ -147,14 +147,14 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
             if (advection_steps_ % screening_interval == 0 ||
                 advection_steps_ == sph_system.RestartStep() + 1)
             {
-                std::pair<Real, UnsignedInt> max_repulsion_force = maximum_norm.exec();
+                std::pair<Real, UnsignedInt> max_velocity_gradient = maximum_norm.exec();
                 std::cout << std::fixed << std::setprecision(9)
                           << "N=" << advection_steps_
                           << "  Time = " << time_stepper.getPhysicalTime()
                           << "  advection_dt = " << advection_step.getInterval()
                           << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize()
-                          << "  max_repulsion_force = " << max_repulsion_force.first
-                          << " at particle index = " << max_repulsion_force.second
+                          << "  max_velocity_gradient = " << max_velocity_gradient.first
+                          << " at particle index = " << max_velocity_gradient.second
                           << "\n";
                 outputEvolvingVariablesBounds();
             }
@@ -233,8 +233,12 @@ void ContinuumSimulationBuilder::updateSolverParameters(SPHSimulation &sim, cons
         solver_parameters_.acoustic_cfl_ = config.at("acoustic_cfl").get<Real>();
     if (config.contains("advection_cfl"))
         solver_parameters_.advection_cfl_ = config.at("advection_cfl").get<Real>();
+    if (config.contains("linear_correction_matrix_coeff"))
+        solver_parameters_.linear_correction_matrix_coeff_ = config.at("linear_correction_matrix_coeff").get<Real>();
     if (config.contains("contact_numerical_damping"))
         solver_parameters_.contact_numerical_damping_ = config.at("contact_numerical_damping").get<Real>();
+    if (config.contains("shear_stress_damping"))
+        solver_parameters_.shear_stress_damping_ = config.at("shear_stress_damping").get<Real>();
     if (config.contains("hourglass_factor"))
         solver_parameters_.hourglass_factor_ = config.at("hourglass_factor").get<Real>();
     if (config.contains("screen_interval"))

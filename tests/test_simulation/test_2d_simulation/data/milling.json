@@ -59,7 +59,7 @@
         "youngs_modulus": 78.2e2,
         "poisson_ratio": 0.3,
         "yield_stress": 2.9e1,
-        "hardening_modulus": 0.0
+        "hardening_modulus": 1.0
       }
     }
   ],
@@ -89,19 +89,21 @@
     }
   ],
   "continuum_solver_parameters": {
-    "acoustic_cfl": 0.3,
+    "acoustic_cfl": 0.4,
     "advection_cfl": 0.2,
-    "contact_numerical_damping": 0.0,
+    "linear_correction_matrix_coeff": 0.5,
+    "contact_numerical_damping": 1.0,
+    "shear_stress_damping": 1.0,
     "hourglass_factor": 2.0,
-    "screen_interval": 1
+    "screen_interval": 100
   },
 
   "restart": {
     "enabled": true,
-    "save_interval": 1,
-    "restore_step": 1500
+    "save_interval": 100,
+    "restore_step": 0
   },
 
-  "end_time": 0.1,
-  "output_interval": 0.000001
+  "end_time": 0.5,
+  "output_interval": 0.01
 }

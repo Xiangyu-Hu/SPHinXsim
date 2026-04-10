@@ -43,7 +43,9 @@ struct ContinuumSolverParameters
 {
     Real acoustic_cfl_{0.4};
     Real advection_cfl_{0.2};
+    Real linear_correction_matrix_coeff_{0.5};
     Real contact_numerical_damping_{0.5};
+    Real shear_stress_damping_{0.0};
     Real hourglass_factor_{2.0};
     int screen_interval_{100};
 };

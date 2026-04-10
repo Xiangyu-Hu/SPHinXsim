@@ -71,15 +71,15 @@ void ConstraintBuilder::addConstraint(
                     "SimbodyMobilizedBody",
                     matter.Ground(), SimTK::Transform(SimTKVec3(0.0, 0.0, 0.0)),
                     simbody_body, SimTK::Transform(SimTKVec3(0.0, 0.0, 0.0)));
-            MBsystem.realizeTopology();
-
             SimTK::RungeKuttaMersonIntegrator &integ =
                 *entity_manager.emplaceEntity<SimTK::RungeKuttaMersonIntegrator>(
                     "SimbodyIntegrator", MBsystem);
+            MBsystem.realizeTopology();
+
             auto &constraint = method_container.template addStateDynamics<
                 solid_dynamics::ConstraintBodyPartBySimBodyCK>(body_part, MBsystem, mobilized_body, integ);
-            SimTK::State state = MBsystem.getDefaultState();
 
+            SimTK::State state = MBsystem.getDefaultState();
             // set the initial velocity of the mobilized body
             Real omega_z = 2.0 * Pi * config.at("angular_velocity").get<Real>();
             Vec3d velocity = upgradeToVec3d(jsonToVecd(config.at("velocity")));

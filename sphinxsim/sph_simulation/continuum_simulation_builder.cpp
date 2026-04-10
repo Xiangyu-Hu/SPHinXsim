@@ -217,13 +217,12 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
         if (restart_config.restore_step != 0)
         {
             advection_steps_ = restart_config.restore_step;
-            initialization_pipeline.insert_hook(
-                InitializationHookPoint::InitialConditions, [&]()
-                { 
-                    Real restart_time = restart_io.readRestartFiles(restart_config.restore_step);
-                    SimTK::State state = integ.getState();
-                    state_engine.readStateFromXml(restart_config.restore_step, state);
-                    state.setTime(restart_time); });
+            Real restart_time = restart_io.readRestartFiles(restart_config.restore_step);
+            SimTK::State state = integ.getState();
+            state_engine.readStateFromXml(restart_config.restore_step, state);
+            state.setTime(restart_time);
+            MBsystem.realize(state);
+            integ.initialize(state);
         }
     }
 }

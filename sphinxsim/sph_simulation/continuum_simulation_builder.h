@@ -61,7 +61,6 @@ class ContinuumSimulationBuilder : public SimulationBuilder
     StdVec<std::string> evolving_variables_names_[3];
 
     void updateSolverParameters(SPHSimulation &sim, const json &config);
-    void outputEvolvingVariablesBounds();
 
     template <class MethodContainerType, class InnerRelationType>
     BaseDynamics<void> &addAcousticStep1stHalf(
@@ -74,9 +73,6 @@ class ContinuumSimulationBuilder : public SimulationBuilder
     template <class MethodContainerType, class InnerRelationType>
     ParticleDynamicsGroup &addShearForceIntegration(
         EntityManager &entity_manager, MethodContainerType &method_container, InnerRelationType &inner_relation);
-
-    template <class MethodContainerType>
-    void addOutputEvolvingVariablesBounds(MethodContainerType &method_container, SPHBody &sph_body);
 };
 } // namespace SPH
 #endif // CONTINUUM_SIMULATION_BUILDER_H

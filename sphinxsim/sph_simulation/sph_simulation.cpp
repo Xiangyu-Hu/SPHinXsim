@@ -310,8 +310,11 @@ void SPHSimulation::runParticleRelaxation()
 void SPHSimulation::parseRestartConfig(const json &config)
 {
     restart_config_.enabled = config.at("enabled").get<bool>();
-    restart_config_.save_interval = config.at("save_interval").get<int>();
+    if (config.contains("save_interval"))
+        restart_config_.save_interval = config.at("save_interval").get<int>();
     restart_config_.restore_step = config.at("restore_step").get<int>();
+    if (config.contains("summary_enabled"))
+        restart_config_.summary_enabled = config.at("summary_enabled").get<bool>();
 }
 //=================================================================================================//
 } // namespace SPH

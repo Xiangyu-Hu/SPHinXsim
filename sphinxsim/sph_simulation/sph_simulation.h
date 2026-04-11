@@ -54,6 +54,7 @@ struct RestartConfig
     bool enabled{false};
     int save_interval{1000};
     int restore_step{0};
+    bool summary_enabled{false};
 };
 
 class SPHSimulation

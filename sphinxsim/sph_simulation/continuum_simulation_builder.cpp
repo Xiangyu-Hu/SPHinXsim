@@ -187,8 +187,8 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     if (restart_config.enabled)
     {
         sph_system.setRestartStep(restart_config.restore_step);
-        auto &restart_io = main_methods.addIODynamics<RestartIOCK>(sph_system);
-        addOutputEvolvingVariablesBounds(main_methods, continuum_body);
+        auto &restart_io = main_methods.addIODynamics<RestartIOCK>(
+            sph_system, restart_config.summary_enabled);
 
         simulation_pipeline.insert_hook(
             SimulationHookPoint::ExtraOutputs, [&]()
@@ -196,7 +196,6 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
                 if (time_stepper.getIterationStep() % restart_config.save_interval == 0)
                 {
                     restart_io.writeToFile(time_stepper.getIterationStep());
-                    outputEvolvingVariablesBounds();
                 } });
 
         if (restart_config.restore_step != 0)
@@ -236,35 +235,6 @@ void ContinuumSimulationBuilder::updateSolverParameters(SPHSimulation &sim, cons
         solver_parameters_.hourglass_factor_ = config.at("hourglass_factor").get<Real>();
     if (config.contains("screen_interval"))
         solver_parameters_.screen_interval_ = config.at("screen_interval").get<int>();
-}
-//=================================================================================================//
-void ContinuumSimulationBuilder::outputEvolvingVariablesBounds()
-{
-    std::cout << "---------------------------------------------\n";
-    for (UnsignedInt j = 0; j < output_evolving_variables_bounds_[0].size(); ++j)
-    {
-        std::pair<Real, UnsignedInt> bound = output_evolving_variables_bounds_[0][j]->exec();
-        std::cout << std::fixed << std::setprecision(9)
-                  << "Evolving scalar variable bound: " << evolving_variables_names_[0][j]
-                  << " = " << bound.first << ", particle_index = " << bound.second << "\n";
-    }
-    std::cout << "---------------------------------------------\n";
-    for (UnsignedInt j = 0; j < output_evolving_variables_bounds_[1].size(); ++j)
-    {
-        std::pair<Real, UnsignedInt> bound = output_evolving_variables_bounds_[1][j]->exec();
-        std::cout << std::fixed << std::setprecision(9)
-                  << "Evolving vector variable bound: " << evolving_variables_names_[1][j]
-                  << " = " << bound.first << ", particle_index = " << bound.second << "\n";
-    }
-    std::cout << "---------------------------------------------\n";
-    for (UnsignedInt j = 0; j < output_evolving_variables_bounds_[2].size(); ++j)
-    {
-        std::pair<Real, UnsignedInt> bound = output_evolving_variables_bounds_[2][j]->exec();
-        std::cout << std::fixed << std::setprecision(9)
-                  << "Evolving matrix variable bound: " << evolving_variables_names_[2][j]
-                  << " = " << bound.first << ", particle_index = " << bound.second << "\n";
-    }
-    std::cout << "---------------------------------------------\n";
 }
 //=================================================================================================//
 } // namespace SPH

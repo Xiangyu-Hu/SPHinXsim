@@ -101,7 +101,8 @@
   "restart": {
     "enabled": true,
     "save_interval": 1000,
-    "restore_step": 0
+    "restore_step": 0,
+    "summary_enabled": true
   },
 
   "end_time": 0.1,

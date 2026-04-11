@@ -29,6 +29,7 @@ void ConstraintBuilder::addConstraint(
 {
     EntityManager &entity_manager = sim.getEntityManager();
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
+    RestartConfig &restart_config = sim.getRestartConfig();
     GeometryBuilder &geometry_builder = entity_manager.getEntityByName<GeometryBuilder>("GeometryBuilder");
     StagePipeline<InitializationHookPoint> &initialization_pipeline = sim.getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
@@ -76,23 +77,37 @@ void ConstraintBuilder::addConstraint(
                     "SimbodyIntegrator", MBsystem);
             MBsystem.realizeTopology();
 
-            auto &constraint = method_container.template addStateDynamics<
-                solid_dynamics::ConstraintBodyPartBySimBodyCK>(body_part, MBsystem, mobilized_body, integ);
-
             SimTK::State state = MBsystem.getDefaultState();
             // set the initial velocity of the mobilized body
             Real omega_z = 2.0 * Pi * config.at("angular_velocity").get<Real>();
             Vec3d velocity = upgradeToVec3d(jsonToVecd(config.at("velocity")));
             SimTK::Vec3 u_cmd = SimTK::Vec3(omega_z, velocity[0], velocity[1]);
             mobilized_body.setU(state, u_cmd); // set the initial velocity of the mobilized body
-            integ.setAccuracy(1e-3);
-            integ.setAllowInterpolation(false);
+
+            if (restart_config.enabled)
+            {
+                SPH::SimbodyStateEngine &state_engine = *entity_manager.emplaceEntity<
+                    SPH::SimbodyStateEngine>("SimbodyStateEngine", MBsystem);
+
+                simulation_pipeline.insert_hook(
+                    SimulationHookPoint::ExtraOutputs, [&]()
+                    { 
+                        UnsignedInt iteration_step = time_stepper.getIterationStep();
+                        if (iteration_step % restart_config.save_interval == 0)
+                        {
+                            state_engine.writeStateToXml(iteration_step, integ);
+                        } });
+
+                if (restart_config.restore_step != 0)
+                {
+                    state_engine.readStateFromXml(restart_config.restore_step, state);
+                    MBsystem.realize(state);
+                }
+            }
             integ.initialize(state);
 
-            initialization_pipeline.insert_hook(
-                InitializationHookPoint::InitialConditions, [&]()
-                { constraint.exec(); });
-
+            auto &constraint = method_container.template addStateDynamics<
+                solid_dynamics::ConstraintBodyPartBySimBodyCK>(body_part, MBsystem, mobilized_body, integ);
             simulation_pipeline.insert_hook(
                 SimulationHookPoint::PositionConstraints, [&]()
                 {
@@ -104,6 +119,7 @@ void ConstraintBuilder::addConstraint(
                 }
                 // (B) carry out the constraint
                 constraint.exec(); });
+
             return;
         }
         throw std::runtime_error(

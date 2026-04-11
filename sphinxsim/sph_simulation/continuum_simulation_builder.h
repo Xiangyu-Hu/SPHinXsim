@@ -56,7 +56,6 @@ class ContinuumSimulationBuilder : public SimulationBuilder
     void buildSimulation(SPHSimulation &sim, const json &config) override;
 
   private:
-    UnsignedInt advection_steps_{0};
     ContinuumSolverParameters solver_parameters_;
     StdVec<BaseDynamics<std::pair<Real, UnsignedInt>> *> output_evolving_variables_bounds_[3];
     StdVec<std::string> evolving_variables_names_[3];

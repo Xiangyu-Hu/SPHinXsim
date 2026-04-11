@@ -144,12 +144,11 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
             simulation_pipeline.run_hooks(SimulationHookPoint::BoundaryConditions);
             continuum_acoustic_step_2nd_half.exec(dt);
 
-            if (advection_steps_ % screening_interval == 0 ||
-                advection_steps_ == sph_system.RestartStep() + 1)
+            if (time_stepper.isFirstComputingStep() || time_stepper.getIterationStep() % screening_interval == 0)
             {
                 std::pair<Real, UnsignedInt> max_velocity_gradient = maximum_norm.exec();
                 std::cout << std::fixed << std::setprecision(9)
-                          << "N=" << advection_steps_
+                          << "N=" << time_stepper.getIterationStep()
                           << "  Time = " << time_stepper.getPhysicalTime()
                           << "  advection_dt = " << advection_step.getInterval()
                           << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize()
@@ -167,12 +166,13 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
             {
                 continuum_update_particle_position.exec();
                 simulation_pipeline.run_hooks(SimulationHookPoint::PositionConstraints);
-                advection_steps_++;
+                time_stepper.incrementIterationStep();
 
                 if (state_recording_trigger())
                 {
                     body_state_recorder.writeToFile();
                 }
+
                 simulation_pipeline.run_hooks(SimulationHookPoint::ExtraOutputs);
 
                 solid_cell_linked_list.exec();
@@ -186,44 +186,42 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     // Define optional methods using hooking point in stage pipelines.
     //----------------------------------------------------------------------
-    if (config.contains("body_constraints"))
-    {
-        ConstraintBuilder &constraint_builder =
-            *entity_manager.emplaceEntity<ConstraintBuilder>("ConstraintBuilder");
-        constraint_builder.addConstraints(sim, main_methods, config);
-    }
 
+    //----------------------------------------------------------------------
+    // Initial condition from restart file if enabled.
+    //----------------------------------------------------------------------
     RestartConfig &restart_config = sim.getRestartConfig();
     if (restart_config.enabled)
     {
         sph_system.setRestartStep(restart_config.restore_step);
         auto &restart_io = main_methods.addIODynamics<RestartIOCK>(sph_system);
-        SimTK::RungeKuttaMersonIntegrator &integ = entity_manager.getEntityByName<
-            SimTK::RungeKuttaMersonIntegrator>("SimbodyIntegrator");
-        SimTK::MultibodySystem &MBsystem = entity_manager.getEntityByName<
-            SimTK::MultibodySystem>("SimbodyMultibodySystem");
-        SPH::SimbodyStateEngine &state_engine = *entity_manager.emplaceEntity<
-            SPH::SimbodyStateEngine>("SimbodyStateEngine", MBsystem);
 
         simulation_pipeline.insert_hook(
             SimulationHookPoint::ExtraOutputs, [&]()
-            {
-            if (advection_steps_ % restart_config.save_interval == 0)
-            {
-                restart_io.writeToFile(advection_steps_);
-                state_engine.writeStateToXml(advection_steps_, integ);
-            } });
+            { 
+                if (time_stepper.getIterationStep() % restart_config.save_interval == 0)
+                {
+                    restart_io.writeToFile(time_stepper.getIterationStep());
+                } });
 
         if (restart_config.restore_step != 0)
         {
-            advection_steps_ = restart_config.restore_step;
-            Real restart_time = restart_io.readRestartFiles(restart_config.restore_step);
-            SimTK::State state = integ.getState();
-            state_engine.readStateFromXml(restart_config.restore_step, state);
-            state.setTime(restart_time);
-            MBsystem.realize(state);
-            integ.initialize(state);
+            initialization_pipeline.insert_hook(
+                InitializationHookPoint::InitialConditions, [&]()
+                { 
+                    time_stepper.setRestartStep(restart_config.restore_step);
+                    restart_io.readRestartFiles(restart_config.restore_step); });
         }
+    }
+
+    //----------------------------------------------------------------------
+    // Constraints carried at last due to possible third-party dependencies.
+    //----------------------------------------------------------------------
+    if (config.contains("body_constraints"))
+    {
+        ConstraintBuilder &constraint_builder =
+            *entity_manager.emplaceEntity<ConstraintBuilder>("ConstraintBuilder");
+        constraint_builder.addConstraints(sim, main_methods, config);
     }
 }
 //=================================================================================================//

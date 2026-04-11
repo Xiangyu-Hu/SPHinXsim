@@ -62,18 +62,6 @@ EntityManager &SPHSimulation::getEntityManager()
     return entity_manager_;
 }
 //=================================================================================================//
-void SPHSimulation::addRelaxationBody(
-    RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config)
-{
-    const std::string name = config.at("name").get<std::string>();
-    Shape &shape = entity_manager.getEntityByName<Shape>(name);
-    auto &relaxation_body = relaxation_system.addBody<RealBody>(shape, name);
-    relaxation_body.generateParticles<BaseParticles, Lattice>();
-    LevelSetShape &level_set_shape = relaxation_body.defineBodyLevelSetShape(par_ck, 2.0).writeLevelSet();
-    entity_manager.addEntity(name, &level_set_shape);
-    entity_manager.addEntity(name, &relaxation_body);
-}
-//=================================================================================================//
 void SPHSimulation::addFluidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
     MaterialBuilder &material_builder = entity_manager.getEntityByName<MaterialBuilder>("MaterialBuilder");

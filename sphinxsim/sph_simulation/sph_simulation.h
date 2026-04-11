@@ -104,7 +104,6 @@ class SPHSimulation
     RestartConfig &getRestartConfig() { return restart_config_; };
     EntityManager &getEntityManager();
     SPHSolver &getSPHSolver() { return *sph_solver_ptr_; };
-    void addRelaxationBody(RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
     void addFluidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addContinuumBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addSolidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);

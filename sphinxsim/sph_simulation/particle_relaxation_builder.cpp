@@ -15,15 +15,15 @@ void ParticleRelaxationBuilder::buildSimulation(SPHSimulation &sim, const json &
     //----------------------------------------------------------------------
     //	Creating bodies with inital shape and particles.
     //----------------------------------------------------------------------
-    for (const auto &rb : config.at("relaxation_bodies"))
-        sim.addRelaxationBody(relaxation_system, entity_manager, rb);
+    addRelaxationBodies(relaxation_system, entity_manager, config);
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The relations give the topological connections within a body
     //  or with other bodies within interaction range.
     //  Generally, we first define all the inner relations, then the contact relations.
     //----------------------------------------------------------------------
-    RealBody &relax_body = *entity_manager.entitiesWith<RealBody>().front(); // assume only one relax body for now
+    RealBody &relax_body = *DynamicCast<RealBody>(
+        this, relaxation_system.getRealBodies().front()); // assume only one relax body for now
     auto &body_inner = relaxation_system.addInnerRelation(relax_body);
     //----------------------------------------------------------------------
     // Define SPH solver with particle methods and execution policies.
@@ -117,6 +117,20 @@ RelaxationSystem &ParticleRelaxationBuilder::defineRelaxationSystem(
     auto &system_config = entity_manager.getEntityByName<SystemDomainConfig>("SystemDomainConfig");
     return *entity_manager.emplaceEntity<RelaxationSystem>(
         "RelaxationSystem", system_config.system_domain_bounds_, system_config.particle_spacing_);
+}
+//=================================================================================================//
+void ParticleRelaxationBuilder::addRelaxationBodies(
+    RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config)
+{
+    for (const auto &rb : config.at("relaxation_bodies"))
+    {
+        const std::string name = rb.at("name").get<std::string>();
+        Shape &shape = entity_manager.getEntityByName<Shape>(name);
+        auto &relaxation_body = relaxation_system.addBody<RealBody>(shape, name);
+        relaxation_body.generateParticles<BaseParticles, Lattice>();
+        LevelSetShape &level_set_shape = relaxation_body.defineBodyLevelSetShape(par_ck, 2.0).writeLevelSet();
+        entity_manager.addEntity(name, &level_set_shape);
+    }
 }
 //=================================================================================================//
 } // namespace SPH

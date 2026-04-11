@@ -33,7 +33,8 @@
 
 namespace SPH
 {
-class RelaxationSystem;  
+class RelaxationSystem;
+class EntityManager;
 
 struct RelaxationParameters
 {
@@ -50,8 +51,10 @@ class ParticleRelaxationBuilder : public SimulationBuilder
   private:
     RelaxationParameters relaxation_parameters_;
     StagePipeline<SimulationHookPoint> relaxation_pipeline_;
-    
+
     RelaxationSystem &defineRelaxationSystem(SPHSimulation &sim, const json &config);
+    void addRelaxationBodies(
+        RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
 };
 } // namespace SPH
 #endif // PARTICLE_RELAXATION_BUILDER_H

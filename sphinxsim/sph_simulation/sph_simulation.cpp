@@ -28,12 +28,8 @@ void SPHSimulation::resetOutputRoot(const fs::path &output_root, bool keep_exist
 void SPHSimulation::parseSPHSystemConfig(const json &config)
 {
     SPHSystemConfig system_config;
-    Real particle_spacing = config.at("particle_spacing").get<Real>();
-    int particle_boundary_buffer = config.at("particle_boundary_buffer").get<int>();
-    Real boundary_width = particle_boundary_buffer * particle_spacing;
-    BoundingBoxd domain_bounds = geometry_builder_.parseBoundingBox(config.at("domain"));
-    system_config.system_domain_bounds_ = domain_bounds.expand(boundary_width);
-    system_config.particle_spacing_ = particle_spacing;
+    system_config.system_domain_bounds_ = geometry_builder_.parseBoundingBox(config.at("domain"));
+    system_config.particle_spacing_ = config.at("particle_spacing").get<Real>();
     entity_manager_.emplaceEntity<SPHSystemConfig>("SPHSystemConfig", system_config);
 }
 //=================================================================================================//

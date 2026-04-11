@@ -123,8 +123,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     auto &time_stepper = sph_solver.getTimeStepper();
     auto &advection_step = time_stepper.addTriggerByInterval(continuum_advection_time_step.exec());
     auto &state_recording_trigger = time_stepper.addTriggerByInterval(sim.getOutputInterval());
-    int screening_interval = solver_parameters_.screen_interval_;
-    int observation_interval = screening_interval * 2;
+    time_stepper.setScreeningInterval(solver_parameters_.screen_interval_);
     //----------------------------------------------------------------------
     //	Define time-integration method.
     //  Here we use dual time stepping with acoustic and advection steps.
@@ -135,7 +134,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     addOutputEvolvingVariablesBounds(main_methods, continuum_body);
     auto &maximum_norm = main_methods.addReduceDynamics<MaximumNorm<Matd>>(continuum_body, "VelocityGradient");
     simulation_pipeline.main_steps.push_back( // acoustic step
-        [&, screening_interval]()
+        [&]()
         {
             Real dt = time_stepper.incrementPhysicalTime(continuum_acoustic_time_step);
             continuum_shear_force.exec(dt);
@@ -144,7 +143,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
             simulation_pipeline.run_hooks(SimulationHookPoint::BoundaryConditions);
             continuum_acoustic_step_2nd_half.exec(dt);
 
-            if (time_stepper.isFirstComputingStep() || time_stepper.getIterationStep() % screening_interval == 0)
+            if (time_stepper.isFirstComputingStep() || time_stepper.isScreeningStep())
             {
                 std::pair<Real, UnsignedInt> max_velocity_gradient = maximum_norm.exec();
                 std::cout << std::fixed << std::setprecision(9)
@@ -155,12 +154,11 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
                           << "  max_velocity_gradient = " << max_velocity_gradient.first
                           << " at particle index = " << max_velocity_gradient.second
                           << "\n";
-                outputEvolvingVariablesBounds();
             }
         });
 
     simulation_pipeline.main_steps.push_back( // advection step
-        [&, screening_interval, observation_interval]()
+        [&]()
         {
             if (advection_step(continuum_advection_time_step))
             {
@@ -202,6 +200,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
                 if (time_stepper.getIterationStep() % restart_config.save_interval == 0)
                 {
                     restart_io.writeToFile(time_stepper.getIterationStep());
+                    outputEvolvingVariablesBounds();
                 } });
 
         if (restart_config.restore_step != 0)

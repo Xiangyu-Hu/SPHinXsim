@@ -131,8 +131,6 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //  executed at a lower frequency determined by the advection time step.
     //----------------------------------------------------------------------
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
-    addOutputEvolvingVariablesBounds(main_methods, continuum_body);
-    auto &maximum_norm = main_methods.addReduceDynamics<MaximumNorm<Matd>>(continuum_body, "VelocityGradient");
     simulation_pipeline.main_steps.push_back( // acoustic step
         [&]()
         {
@@ -145,14 +143,11 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
 
             if (time_stepper.isFirstComputingStep() || time_stepper.isScreeningStep())
             {
-                std::pair<Real, UnsignedInt> max_velocity_gradient = maximum_norm.exec();
                 std::cout << std::fixed << std::setprecision(9)
                           << "N=" << time_stepper.getIterationStep()
                           << "  Time = " << time_stepper.getPhysicalTime()
                           << "  advection_dt = " << advection_step.getInterval()
                           << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize()
-                          << "  max_velocity_gradient = " << max_velocity_gradient.first
-                          << " at particle index = " << max_velocity_gradient.second
                           << "\n";
             }
         });
@@ -193,6 +188,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     {
         sph_system.setRestartStep(restart_config.restore_step);
         auto &restart_io = main_methods.addIODynamics<RestartIOCK>(sph_system);
+        addOutputEvolvingVariablesBounds(main_methods, continuum_body);
 
         simulation_pipeline.insert_hook(
             SimulationHookPoint::ExtraOutputs, [&]()

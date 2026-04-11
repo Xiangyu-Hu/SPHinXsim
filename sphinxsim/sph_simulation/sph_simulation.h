@@ -32,7 +32,7 @@
 #ifndef SPH_SIMULATION_H
 #define SPH_SIMULATION_H
 
-#include "sph_simulation_utility.h"
+#include "base_simulation_builder.h"
 #include "sphinxsys.h"
 
 #include <filesystem>

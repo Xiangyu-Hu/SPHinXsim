@@ -29,7 +29,7 @@
 #ifndef GEOMETRY_BUILDER_H
 #define GEOMETRY_BUILDER_H
 
-#include "sph_simulation_utility.h"
+#include "base_simulation_builder.h"
 #include "sphinxsys.h"
 
 namespace SPH

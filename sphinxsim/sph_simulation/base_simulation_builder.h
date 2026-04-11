@@ -21,13 +21,13 @@
  *                                                                           *
  * ------------------------------------------------------------------------- */
 /**
- * @file    sph_simulation_utility.h
+ * @file    base_simulation_builder.h
  * @brief   TBD.
  * @author  Xiangyu Hu
  */
 
-#ifndef SPH_SIMULATION_UTILITY_H
-#define SPH_SIMULATION_UTILITY_H
+#ifndef BASE_SIMULATION_BUILDER_H
+#define BASE_SIMULATION_BUILDER_H
 
 #include "data_type.h"
 
@@ -93,4 +93,4 @@ class SimulationBuilder
     virtual void buildSimulation(SPHSimulation &sim, const json &config) = 0;
 };
 } // namespace SPH
-#endif // SPH_SIMULATION_UTILITY_H
+#endif // BASE_SIMULATION_BUILDER_H

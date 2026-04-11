@@ -9,7 +9,7 @@
 #include "sph_simulation.h"
 #include <gtest/gtest.h>
 
-/*TEST(simulations, dambreak)
+TEST(simulations, dambreak)
 {
     SPH::SPHSimulation sim("./input/dambreak.json");
     sim.resetOutputRoot("./dambreak");
@@ -18,14 +18,14 @@
     sim.run();
 }
 
-TEST(simulations, filling_tank)
+/*TEST(simulations, filling_tank)
 {
     SPH::SPHSimulation sim("./input/filling_tank.json");
     sim.resetOutputRoot("./filling_tank", true);
     sim.loadConfig();
     sim.initializeSimulation();
     sim.run();
-}*/
+}
 
 TEST(simulations, milling)
 {
@@ -34,7 +34,7 @@ TEST(simulations, milling)
     sim.loadConfig();
     sim.initializeSimulation();
     sim.run();
-}
+}*/
 
 int main(int argc, char *argv[])
 {

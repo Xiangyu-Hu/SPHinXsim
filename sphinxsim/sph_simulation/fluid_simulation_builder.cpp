@@ -106,6 +106,12 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     body_state_recorder.addToWrite<Real>(fluid_body, "Density");
     auto &observer_pressure_output = main_methods.addObserveRecorder<Real>("Pressure", fluid_observer_contact);
     //----------------------------------------------------------------------
+    //	Define time-integration method, screen out uput and observation sample rate.
+    //----------------------------------------------------------------------
+    auto &time_stepper = sph_solver.getTimeStepper();
+    auto &advection_step = time_stepper.addTriggerByInterval(fluid_advection_time_step.exec());
+    auto &state_recording_trigger = time_stepper.addTriggerByInterval(sim.getOutputInterval());
+    //----------------------------------------------------------------------
     //	Define Preparation or initialization step for the time integration loop.
     //----------------------------------------------------------------------
     StagePipeline<InitializationHookPoint> &initialization_pipeline = sim.getInitializationPipeline();
@@ -125,16 +131,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             body_state_recorder.writeToFile();
 
             observer_update_configuration.exec();
-            observer_pressure_output.writeToFile(advection_steps_);
+            observer_pressure_output.writeToFile(time_stepper.getIterationStep());
         });
-    //----------------------------------------------------------------------
-    //	Define time-integration method, screen out uput and observation sample rate.
-    //----------------------------------------------------------------------
-    auto &time_stepper = sph_solver.getTimeStepper();
-    auto &advection_step = time_stepper.addTriggerByInterval(fluid_advection_time_step.exec());
-    auto &state_recording_trigger = time_stepper.addTriggerByInterval(sim.getOutputInterval());
-    int screening_interval = 100;
-    int observation_interval = screening_interval * 2;
     //----------------------------------------------------------------------
     //	Define time-integration method.
     //  Here we use dual time stepping with acoustic and advection steps.
@@ -152,26 +150,27 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         });
 
     simulation_pipeline.main_steps.push_back( // advection step
-        [&, screening_interval, observation_interval]()
+        [&]()
         {
             if (advection_step(fluid_advection_time_step))
             {
                 fluid_update_particle_position.exec();
+                time_stepper.incrementIterationStep();
 
-                if (advection_steps_ % screening_interval == 0)
+                if (time_stepper.isFirstComputingStep() || time_stepper.isScreeningStep())
                 {
                     std::cout << std::fixed << std::setprecision(9)
-                              << "N=" << advection_steps_
+                              << "N=" << time_stepper.getIterationStep()
                               << "  Time = " << time_stepper.getPhysicalTime()
                               << "  advection_dt = " << advection_step.getInterval()
                               << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize()
                               << "\n";
                 }
 
-                if (advection_steps_ % observation_interval == 0)
+                if (time_stepper.isObservationStep())
                 {
                     observer_update_configuration.exec();
-                    observer_pressure_output.writeToFile(advection_steps_);
+                    observer_pressure_output.writeToFile(time_stepper.getIterationStep());
                 }
 
                 if (state_recording_trigger())
@@ -182,16 +181,11 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleCreation);
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleDeletion);
 
-                if (advection_steps_ % 100 == 0)
-                {
-                    simulation_pipeline.run_hooks(SimulationHookPoint::ParticleSort);
-                }
-
+                simulation_pipeline.run_hooks(SimulationHookPoint::ParticleSort);
                 fluid_update_configuration.exec();
                 fluid_density_regularization.exec();
                 fluid_advection_step_setup.exec();
                 fluid_linear_correction_matrix.exec();
-                advection_steps_++;
             }
         });
     //----------------------------------------------------------------------
@@ -222,7 +216,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         simulation_pipeline.insert_hook(
             SimulationHookPoint::ParticleSort, [&, frequency]()
             {
-                if (advection_steps_ % frequency == 0)
+                if (time_stepper.getIterationStep() % frequency == 0)
                 {
                     particle_sort.exec();
                 } });

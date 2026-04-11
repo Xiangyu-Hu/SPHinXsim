@@ -33,6 +33,7 @@
 
 namespace SPH
 {
+class TimeStepper;
 struct FluidSolverParameters
 {
     Real acoustic_cfl{0.6};
@@ -46,7 +47,6 @@ class FluidSimulationBuilder : public SimulationBuilder
     void buildSimulation(SPHSimulation &sim, const json &config) override;
 
   private:
-    UnsignedInt advection_steps_{1};
     FluidSolverParameters solver_parameters_;
 
     template <class MethodContainerType>

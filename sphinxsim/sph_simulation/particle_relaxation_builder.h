@@ -33,6 +33,8 @@
 
 namespace SPH
 {
+class RelaxationSystem;  
+
 struct RelaxationParameters
 {
     UnsignedInt total_iterations{1000};
@@ -48,6 +50,8 @@ class ParticleRelaxationBuilder : public SimulationBuilder
   private:
     RelaxationParameters relaxation_parameters_;
     StagePipeline<SimulationHookPoint> relaxation_pipeline_;
+    
+    RelaxationSystem &defineRelaxationSystem(SPHSimulation &sim, const json &config);
 };
 } // namespace SPH
 #endif // PARTICLE_RELAXATION_BUILDER_H

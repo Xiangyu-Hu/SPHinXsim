@@ -35,7 +35,7 @@
   ],
 
   "particle_relaxation": {
-    "build_and_run": false,
+    "build_and_run": true,
     "settings": {
       "relaxation_bodies": [
         {

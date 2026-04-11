@@ -11,8 +11,7 @@ void ParticleRelaxationBuilder::buildSimulation(SPHSimulation &sim, const json &
     //	Build up an SPHSystem and IO environment.
     //----------------------------------------------------------------------
     EntityManager &entity_manager = sim.getEntityManager();
-    RelaxationSystem &relaxation_system = entity_manager.getEntityByName<
-        RelaxationSystem>("RelaxationSystem");
+    RelaxationSystem &relaxation_system = defineRelaxationSystem(sim, config);
     //----------------------------------------------------------------------
     //	Creating bodies with inital shape and particles.
     //----------------------------------------------------------------------
@@ -109,6 +108,15 @@ void ParticleRelaxationBuilder::runRelaxation()
     {
         step(); // each step touches all cells internally
     }
+}
+//=================================================================================================//
+RelaxationSystem &ParticleRelaxationBuilder::defineRelaxationSystem(
+    SPHSimulation &sim, const json &config)
+{
+    EntityManager &entity_manager = sim.getEntityManager();
+    auto &system_config = entity_manager.getEntityByName<SystemDomainConfig>("SystemDomainConfig");
+    return *entity_manager.emplaceEntity<RelaxationSystem>(
+        "RelaxationSystem", system_config.system_domain_bounds_, system_config.particle_spacing_);
 }
 //=================================================================================================//
 } // namespace SPH

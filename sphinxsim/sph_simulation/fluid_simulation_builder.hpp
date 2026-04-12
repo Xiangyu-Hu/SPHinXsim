@@ -28,7 +28,7 @@ void FluidSimulationBuilder::addBoundaryConditions(
         auto &emitter = fluid_body.addBodyPart<AlignedBoxByParticle>(AlignedBox(alignment_axis, box));
         emitter.writeShapeProxy();
         auto &inflow_condition = method_container.template addStateDynamics<
-            fluid_dynamics::EmitterInflowConditionCK, ConstantInflowVelocity>(
+            fluid_dynamics::EmitterInflowConditionCK, ConstantInflowSpeed>(
             emitter, config.at("inflow_speed").get<Real>());
         auto &injection = method_container.template addStateDynamics<
             fluid_dynamics::EmitterInflowInjectionCK>(emitter);

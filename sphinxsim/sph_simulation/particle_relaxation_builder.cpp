@@ -5,7 +5,7 @@
 namespace SPH
 {
 //=================================================================================================//
-void ParticleRelaxationBuilder::buildSimulation(SPHSimulation &sim, const json &config)
+void ParticleRelaxationBuilder::buildParticleRelaxation(SPHSimulation &sim, const json &config)
 {
     //----------------------------------------------------------------------
     //	Build up an SPHSystem and IO environment.

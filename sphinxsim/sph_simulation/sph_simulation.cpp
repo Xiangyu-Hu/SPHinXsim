@@ -155,7 +155,7 @@ void SPHSimulation::handleParticleRelaxation(const json &config)
     if (config.at("build_and_run").get<bool>())
     {
         entity_manager_.emplaceEntity<ParticleRelaxationBuilder>("ParticleRelaxation")
-            ->buildSimulation(*this, config.at("settings"));
+            ->buildParticleRelaxation(*this, config.at("settings"));
         runParticleRelaxation();
     }
 }

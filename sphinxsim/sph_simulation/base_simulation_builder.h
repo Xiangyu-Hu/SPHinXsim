@@ -86,11 +86,24 @@ struct StagePipeline
 };
 
 class SPHSimulation;
+class SPHSystem;
+class EntityManager;
+class BaseParticles;
+
 class SimulationBuilder
 {
   public:
     virtual ~SimulationBuilder() = default;
     virtual void buildSimulation(SPHSimulation &sim, const json &config) = 0;
+
+  protected:
+    void addFluidBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
+    void addContinuumBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
+    void addSolidBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
+    void addObservers(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
+
+  private:
+    void parseParticleReload(const json &config, BaseParticles &reload_particles);
 };
 } // namespace SPH
 #endif // BASE_SIMULATION_BUILDER_H

@@ -86,7 +86,6 @@ class SPHSimulation
     void buildSimulationFromJson(const json &config);
     void parseSystemDomainConfig(const json &config);
     void parseRestartConfig(const json &config);
-    void parseParticleReload(const json &config, BaseParticles &reload_particles);
     void handleParticleRelaxation(const json &config);
 
   protected:
@@ -104,10 +103,6 @@ class SPHSimulation
     RestartConfig &getRestartConfig() { return restart_config_; };
     EntityManager &getEntityManager();
     SPHSolver &getSPHSolver() { return *sph_solver_ptr_; };
-    void addFluidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
-    void addContinuumBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
-    void addSolidBody(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
-    void addObserver(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
 };
 } // namespace SPH
 #endif // SPH_SIMULATION_H

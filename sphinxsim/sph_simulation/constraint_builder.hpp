@@ -42,7 +42,7 @@ void ConstraintBuilder::addConstraint(
         BodyPartByParticle &body_part = real_body.addBodyPart<BodyRegionByParticle>(shape);
 
         auto &constraint = method_container.template addStateDynamics<
-            ConstantConstraintCK, Vecd>(body_part, "Velocity", Vec2d::Zero());
+            ConstantConstraintCK, Vecd>(body_part, "Velocity", Vecd::Zero());
 
         simulation_pipeline.insert_hook(
             SimulationHookPoint::BoundaryConditions, [&]()

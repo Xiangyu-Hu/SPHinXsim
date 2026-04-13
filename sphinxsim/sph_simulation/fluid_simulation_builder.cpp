@@ -13,11 +13,11 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     //	Creating bodies with inital shape, materials and particles.
     //----------------------------------------------------------------------
-    addFluidBodies(sph_system, entity_manager, config);
-    addSolidBodies(sph_system, entity_manager, config);
+    addFluidBodies(sph_system, entity_manager, config.at("fluid_bodies"));
+    addSolidBodies(sph_system, entity_manager, config.at("solid_bodies"));
     if (config.contains("observers"))
     {
-        addObservers(sph_system, entity_manager, config);
+        addObservers(sph_system, entity_manager, config.at("observers"));
     }
     //----------------------------------------------------------------------
     //	Define body relation map.

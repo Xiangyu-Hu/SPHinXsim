@@ -40,7 +40,7 @@ SimulationBuilder ::~SimulationBuilder() = default;
 void SimulationBuilder::addFluidBodies(
     SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
-    for (const auto &fb : config.at("fluid_bodies"))
+    for (const auto &fb : config)
     {
         const std::string name = fb.at("name").get<std::string>();
         Shape &fluid_shape = entity_manager.getEntityByName<Shape>(name);
@@ -63,7 +63,7 @@ void SimulationBuilder::addFluidBodies(
 void SimulationBuilder::addContinuumBodies(
     SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
-    for (const auto &cb : config.at("continuum_bodies"))
+    for (const auto &cb : config)
     {
         const std::string name = cb.at("name").get<std::string>();
         Shape &shape = entity_manager.getEntityByName<Shape>(name);
@@ -77,7 +77,7 @@ void SimulationBuilder::addContinuumBodies(
 void SimulationBuilder::addSolidBodies(
     SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
-        for (const auto &sb : config.at("solid_bodies"))
+        for (const auto &sb : config)
     {
         const std::string name = sb.at("name").get<std::string>();
         Shape &solid_shape = entity_manager.getEntityByName<Shape>(name);
@@ -99,7 +99,7 @@ void SimulationBuilder::addSolidBodies(
 void SimulationBuilder::addObservers(
     SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
-    for (const auto &ob : config.at("observers"))
+    for (const auto &ob : config)
     {
         const std::string name = ob.at("name").get<std::string>();
         StdVec<Vecd> positions;

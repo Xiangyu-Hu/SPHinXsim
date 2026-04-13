@@ -52,8 +52,6 @@ void MaterialBuilder::addMaterial(EntityManager &entity_manager, SPHBody &sph_bo
     }
 
     throw std::runtime_error("MaterialBuilder::addMaterial: unsupported material: " + type);
-
-    throw std::runtime_error("MaterialBuilder::addMaterial: unsupported material: " + type);
 }
 //=================================================================================================//
 } // namespace SPH

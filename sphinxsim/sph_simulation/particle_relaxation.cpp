@@ -1,4 +1,4 @@
-#include "particle_relaxation_builder.h"
+#include "particle_relaxation.h"
 
 #include "sph_simulation.h"
 

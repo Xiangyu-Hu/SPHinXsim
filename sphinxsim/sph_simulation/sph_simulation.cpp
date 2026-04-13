@@ -4,7 +4,7 @@
 #include "fluid_simulation_builder.h"
 #include "geometry_builder.h"
 #include "material_builder.h"
-#include "particle_relaxation_builder.h"
+#include "particle_relaxation.h"
 
 namespace SPH
 {
@@ -88,8 +88,6 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
 
     if (config.contains("simulation_type"))
     {
-        entity_manager_.emplaceEntity<MaterialBuilder>("MaterialBuilder");
-
         std::string simulation_type = config.at("simulation_type").get<std::string>();
 
         if (simulation_type == "fluid_dynamics")

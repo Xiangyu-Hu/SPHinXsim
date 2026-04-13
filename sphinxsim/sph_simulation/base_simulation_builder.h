@@ -89,6 +89,7 @@ class SPHSimulation;
 class SPHSystem;
 class EntityManager;
 class BaseParticles;
+class MaterialBuilder;
 
 struct RestartConfig
 {
@@ -108,7 +109,8 @@ struct SolverCommonConfig
 class SimulationBuilder
 {
   public:
-    virtual ~SimulationBuilder() = default;
+    SimulationBuilder();
+    virtual ~SimulationBuilder();
     virtual void buildSimulation(SPHSimulation &sim, const json &config) = 0;
     virtual void parseSolverParameters(EntityManager &entity_manager, const json &config);
 
@@ -119,6 +121,7 @@ class SimulationBuilder
     void addObservers(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
 
   private:
+    std::unique_ptr<MaterialBuilder> material_builder_ptr_;
     SolverCommonConfig parseSolverCommonConfig(const json &config);
     void parseParticleReload(const json &config, BaseParticles &reload_particles);
     RestartConfig parseRestartConfig(const json &config);

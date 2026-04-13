@@ -32,17 +32,20 @@ Transform jsonToTransform(const nlohmann::json &config)
 }
 #endif
 //=================================================================================================//
+SimulationBuilder::SimulationBuilder()
+    : material_builder_ptr_(std::make_unique<MaterialBuilder>()) {}
+//=================================================================================================//
+SimulationBuilder ::~SimulationBuilder() = default;
+//=================================================================================================//
 void SimulationBuilder::addFluidBodies(
     SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
-    MaterialBuilder &material_builder =
-        entity_manager.getEntityByName<MaterialBuilder>("MaterialBuilder");
     for (const auto &fb : config.at("fluid_bodies"))
     {
         const std::string name = fb.at("name").get<std::string>();
         Shape &fluid_shape = entity_manager.getEntityByName<Shape>(name);
         auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
-        material_builder.addMaterial(entity_manager, fluid_body, fb.at("material"));
+        material_builder_ptr_->addMaterial(entity_manager, fluid_body, fb.at("material"));
         if (fb.contains("particle_reserve_factor"))
         {
             ParticleBuffer<ReserveSizeFactor> inlet_buffer(
@@ -60,14 +63,12 @@ void SimulationBuilder::addFluidBodies(
 void SimulationBuilder::addContinuumBodies(
     SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
-    MaterialBuilder &material_builder =
-        entity_manager.getEntityByName<MaterialBuilder>("MaterialBuilder");
     for (const auto &cb : config.at("continuum_bodies"))
     {
         const std::string name = cb.at("name").get<std::string>();
         Shape &shape = entity_manager.getEntityByName<Shape>(name);
         auto &continuum_body = sph_system.addBody<RealBody>(shape, name);
-        material_builder.addMaterial(entity_manager, continuum_body, cb.at("material"));
+        material_builder_ptr_->addMaterial(entity_manager, continuum_body, cb.at("material"));
         continuum_body.generateParticles<BaseParticles, Lattice>();
         entity_manager.addEntity(name, &continuum_body);
     }
@@ -76,14 +77,12 @@ void SimulationBuilder::addContinuumBodies(
 void SimulationBuilder::addSolidBodies(
     SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
-    MaterialBuilder &material_builder =
-        entity_manager.getEntityByName<MaterialBuilder>("MaterialBuilder");
-    for (const auto &sb : config.at("solid_bodies"))
+        for (const auto &sb : config.at("solid_bodies"))
     {
         const std::string name = sb.at("name").get<std::string>();
         Shape &solid_shape = entity_manager.getEntityByName<Shape>(name);
         auto &solid_body = sph_system.addBody<SolidBody>(solid_shape, name);
-        material_builder.addMaterial(entity_manager, solid_body, sb.at("material"));
+        material_builder_ptr_->addMaterial(entity_manager, solid_body, sb.at("material"));
         if (sb.contains("particle_reload"))
         {
             BaseParticles &reload_particles = solid_body.generateParticles<BaseParticles, Reload>(name);

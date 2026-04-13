@@ -29,7 +29,7 @@ void ConstraintBuilder::addConstraint(
 {
     EntityManager &entity_manager = sim.getEntityManager();
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
-    RestartConfig &restart_config = sim.getRestartConfig();
+    RestartConfig &restart_config = entity_manager.getEntityByName<RestartConfig>("RestartConfig");
     GeometryBuilder &geometry_builder = entity_manager.getEntityByName<GeometryBuilder>("GeometryBuilder");
     StagePipeline<InitializationHookPoint> &initialization_pipeline = sim.getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
@@ -84,7 +84,7 @@ void ConstraintBuilder::addConstraint(
             SimTK::Vec3 u_cmd = SimTK::Vec3(omega_z, velocity[0], velocity[1]);
             mobilized_body.setU(state, u_cmd); // set the initial velocity of the mobilized body
 
-            if (restart_config.enabled)
+            if (restart_config.enabled_)
             {
                 SPH::SimbodyStateEngine &state_engine = *entity_manager.emplaceEntity<
                     SPH::SimbodyStateEngine>("SimbodyStateEngine", MBsystem);
@@ -93,14 +93,14 @@ void ConstraintBuilder::addConstraint(
                     SimulationHookPoint::ExtraOutputs, [&]()
                     { 
                         UnsignedInt iteration_step = time_stepper.getIterationStep();
-                        if (iteration_step % restart_config.save_interval == 0)
+                        if (iteration_step % restart_config.save_interval_ == 0)
                         {
                             state_engine.writeStateToXml(iteration_step, integ);
                         } });
 
-                if (restart_config.restore_step != 0)
+                if (restart_config.restore_step_ != 0)
                 {
-                    state_engine.readStateFromXml(restart_config.restore_step, state);
+                    state_engine.readStateFromXml(restart_config.restore_step_, state);
                     MBsystem.realize(state);
                 }
             }

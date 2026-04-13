@@ -90,6 +90,21 @@ class SPHSystem;
 class EntityManager;
 class BaseParticles;
 
+struct RestartConfig
+{
+    bool enabled_{false};
+    int save_interval_{1000};
+    int restore_step_{0};
+    bool summary_enabled_{false};
+};
+
+struct SolverCommonConfig
+{
+    Real end_time_{0.0};
+    Real output_interval_{0.1};
+    UnsignedInt screen_interval_{100};
+};
+
 class SimulationBuilder
 {
   public:
@@ -97,13 +112,19 @@ class SimulationBuilder
     virtual void buildSimulation(SPHSimulation &sim, const json &config) = 0;
 
   protected:
+    SolverCommonConfig solver_common_config_;
+    RestartConfig restart_config_;
+
+    virtual void updateSolverParameters(EntityManager &entity_manager, const json &config);
     void addFluidBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addContinuumBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addSolidBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addObservers(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
 
   private:
+    SolverCommonConfig parseSolverCommonConfig(const json &config);
     void parseParticleReload(const json &config, BaseParticles &reload_particles);
+    RestartConfig parseRestartConfig(const json &config);
 };
 } // namespace SPH
 #endif // BASE_SIMULATION_BUILDER_H

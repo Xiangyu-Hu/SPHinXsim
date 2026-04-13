@@ -120,6 +120,31 @@ void SimulationBuilder::addObservers(
     }
 }
 //=================================================================================================//
+void SimulationBuilder::updateSolverParameters(EntityManager &entity_manager, const json &config)
+{
+    solver_common_config_ = parseSolverCommonConfig(config);
+    entity_manager.addEntity("SolverCommonConfig", &solver_common_config_);
+
+    if (config.contains("restart"))
+    {
+        restart_config_ = parseRestartConfig(config.at("restart"));
+        entity_manager.addEntity("RestartConfig", &restart_config_);
+    }
+}
+//=================================================================================================//
+SolverCommonConfig SimulationBuilder::parseSolverCommonConfig(const json &config)
+{
+    SolverCommonConfig solver_common_config;
+    if (config.contains("end_time"))
+        solver_common_config.end_time_ = config.at("end_time").get<Real>();
+    if (config.contains("output_interval"))
+        solver_common_config.output_interval_ = config.at("output_interval").get<Real>();
+    else
+        solver_common_config.output_interval_ = solver_common_config.end_time_ / 100.0; // default to 100 output frames
+
+    return solver_common_config;
+}
+//=================================================================================================//
 void SimulationBuilder::parseParticleReload(const json &config, BaseParticles &reload_particles)
 {
     if (config.contains("reload_variables"))
@@ -137,6 +162,18 @@ void SimulationBuilder::parseParticleReload(const json &config, BaseParticles &r
             }
         }
     }
+}
+//=================================================================================================//
+RestartConfig SimulationBuilder::parseRestartConfig(const json &config)
+{
+    RestartConfig restart_config;
+    restart_config.enabled_ = config.at("enabled").get<bool>();
+    if (config.contains("save_interval"))
+        restart_config.save_interval_ = config.at("save_interval").get<int>();
+    restart_config_.restore_step_ = config.at("restore_step").get<int>();
+    if (config.contains("summary_enabled"))
+        restart_config.summary_enabled_ = config.at("summary_enabled").get<bool>();
+    return restart_config;
 }
 //=================================================================================================//
 } // namespace SPH

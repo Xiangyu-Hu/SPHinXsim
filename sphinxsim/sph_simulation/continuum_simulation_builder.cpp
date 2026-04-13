@@ -32,16 +32,10 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     // Define SPH solver with particle methods and execution policies.
     // Generally, the host methods should be able to run immediately.
     //----------------------------------------------------------------------
+    updateSolverParameters(entity_manager, config.at("solver_parameters"));
     SPHSolver &sph_solver = sim.defineSPHSolver(sph_system, config);
     auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
     //    auto &host_methods = sph_solver.addParticleMethodContainer(par_host);
-    //----------------------------------------------------------------------
-    // Solver control parameters.
-    //----------------------------------------------------------------------
-    if (config.contains("continuum_solver_parameters"))
-    {
-        updateSolverParameters(sim, config.at("continuum_solver_parameters"));
-    }
     //----------------------------------------------------------------------
     // Define the numerical methods used in the simulation.
     // Note that there may be data dependence on the sequence of constructions.
@@ -70,12 +64,12 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     Fluid &continuum_eos = DynamicCast<Fluid>(this, continuum_body.getBaseMaterial());
     const Real U_ref = continuum_eos.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
     auto &continuum_advection_time_step = main_methods.addReduceDynamics<
-        fluid_dynamics::AdvectionTimeStepCK>(continuum_body, U_ref, solver_parameters_.advection_cfl_);
+        fluid_dynamics::AdvectionTimeStepCK>(continuum_body, U_ref, continuum_solver_parameters_.advection_cfl_);
     auto &continuum_acoustic_time_step = main_methods.addReduceDynamics<
-        fluid_dynamics::AcousticTimeStepCK<>>(continuum_body, solver_parameters_.acoustic_cfl_);
+        fluid_dynamics::AcousticTimeStepCK<>>(continuum_body, continuum_solver_parameters_.acoustic_cfl_);
 
     auto &continuum_linear_correction_matrix = main_methods.addInteractionDynamicsWithUpdate<
-        LinearCorrectionMatrix>(continuum_inner, solver_parameters_.linear_correction_matrix_coeff_);
+        LinearCorrectionMatrix>(continuum_inner, continuum_solver_parameters_.linear_correction_matrix_coeff_);
 
     auto &continuum_shear_force = addShearForceIntegration(entity_manager, main_methods, continuum_inner);
 
@@ -83,7 +77,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
         solid_dynamics::RepulsionFactor>(continuum_solid_contact);
     auto &continuum_solid_contact_force = main_methods.addInteractionDynamicsWithUpdate<
         solid_dynamics::RepulsionForceCK, Wall>(
-        continuum_solid_contact, solver_parameters_.contact_numerical_damping_);
+        continuum_solid_contact, continuum_solver_parameters_.contact_numerical_damping_);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -120,8 +114,8 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     auto &time_stepper = sph_solver.getTimeStepper();
     auto &advection_step = time_stepper.addTriggerByInterval(continuum_advection_time_step.exec());
-    auto &state_recording_trigger = time_stepper.addTriggerByInterval(sim.getOutputInterval());
-    time_stepper.setScreeningInterval(solver_parameters_.screen_interval_);
+    auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config_.output_interval_);
+    time_stepper.setScreeningInterval(solver_common_config_.screen_interval_);
     //----------------------------------------------------------------------
     //	Define time-integration method.
     //  Here we use dual time stepping with acoustic and advection steps.
@@ -181,28 +175,27 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     // Initial condition from restart file if enabled.
     //----------------------------------------------------------------------
-    RestartConfig &restart_config = sim.getRestartConfig();
-    if (restart_config.enabled)
+    if (restart_config_.enabled_)
     {
-        sph_system.setRestartStep(restart_config.restore_step);
+        sph_system.setRestartStep(restart_config_.restore_step_);
         auto &restart_io = main_methods.addIODynamics<RestartIOCK>(
-            sph_system, restart_config.summary_enabled);
+            sph_system, restart_config_.summary_enabled_);
 
         simulation_pipeline.insert_hook(
             SimulationHookPoint::ExtraOutputs, [&]()
             { 
-                if (time_stepper.getIterationStep() % restart_config.save_interval == 0)
+                if (time_stepper.getIterationStep() % restart_config_.save_interval_ == 0)
                 {
                     restart_io.writeToFile(time_stepper.getIterationStep());
                 } });
 
-        if (restart_config.restore_step != 0)
+        if (restart_config_.restore_step_ != 0)
         {
             initialization_pipeline.insert_hook(
                 InitializationHookPoint::InitialConditions, [&]()
                 { 
-                    time_stepper.setRestartStep(restart_config.restore_step);
-                    restart_io.readRestartFiles(restart_config.restore_step); });
+                    time_stepper.setRestartStep(restart_config_.restore_step_);
+                    restart_io.readRestartFiles(restart_config_.restore_step_); });
         }
     }
 
@@ -217,22 +210,33 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     }
 }
 //=================================================================================================//
-void ContinuumSimulationBuilder::updateSolverParameters(SPHSimulation &sim, const json &config)
+void ContinuumSimulationBuilder::updateSolverParameters(EntityManager &entity_manager, const json &config)
 {
+    SimulationBuilder::updateSolverParameters(entity_manager, config);
+    if (config.contains("continuum_dynamics"))
+    {
+        continuum_solver_parameters_ = parseContinuumSolverParameters(config.at("continuum_dynamics"));
+        entity_manager.addEntity("ContinuumSolverParameters", &continuum_solver_parameters_);
+    }
+}
+//=================================================================================================//
+ContinuumSolverParameters ContinuumSimulationBuilder::parseContinuumSolverParameters(const json &config)
+{
+    ContinuumSolverParameters parameters;
     if (config.contains("acoustic_cfl"))
-        solver_parameters_.acoustic_cfl_ = config.at("acoustic_cfl").get<Real>();
+        parameters.acoustic_cfl_ = config.at("acoustic_cfl").get<Real>();
     if (config.contains("advection_cfl"))
-        solver_parameters_.advection_cfl_ = config.at("advection_cfl").get<Real>();
+        parameters.advection_cfl_ = config.at("advection_cfl").get<Real>();
     if (config.contains("linear_correction_matrix_coeff"))
-        solver_parameters_.linear_correction_matrix_coeff_ = config.at("linear_correction_matrix_coeff").get<Real>();
+        parameters.linear_correction_matrix_coeff_ = config.at("linear_correction_matrix_coeff").get<Real>();
     if (config.contains("contact_numerical_damping"))
-        solver_parameters_.contact_numerical_damping_ = config.at("contact_numerical_damping").get<Real>();
+        parameters.contact_numerical_damping_ = config.at("contact_numerical_damping").get<Real>();
     if (config.contains("shear_stress_damping"))
-        solver_parameters_.shear_stress_damping_ = config.at("shear_stress_damping").get<Real>();
+        parameters.shear_stress_damping_ = config.at("shear_stress_damping").get<Real>();
     if (config.contains("hourglass_factor"))
-        solver_parameters_.hourglass_factor_ = config.at("hourglass_factor").get<Real>();
-    if (config.contains("screen_interval"))
-        solver_parameters_.screen_interval_ = config.at("screen_interval").get<int>();
+        parameters.hourglass_factor_ = config.at("hourglass_factor").get<Real>();
+
+    return parameters;
 }
 //=================================================================================================//
 } // namespace SPH

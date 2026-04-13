@@ -116,19 +116,6 @@ void SPHSimulation::loadConfig()
     json config;
     file >> config;
 
-    if (config.contains("end_time"))
-        end_time_ = config.at("end_time").get<Real>();
-
-    if (config.contains("output_interval"))
-        output_interval_ = config.at("output_interval").get<Real>();
-    else
-        output_interval_ = end_time_ / 100.0; // default to 100 output frames
-
-    if (config.contains("restart"))
-    {
-        parseRestartConfig(config.at("restart"));
-    }
-
     buildSimulationFromJson(config);
 }
 //=================================================================================================//
@@ -151,7 +138,10 @@ void SPHSimulation::initializeSimulation()
 //=================================================================================================//
 void SPHSimulation::run()
 {
-    stepTo(end_time_);
+    SolverCommonConfig &solver_common_config =
+        entity_manager_.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
+
+    stepTo(solver_common_config.end_time_);
 }
 //=================================================================================================//
 void SPHSimulation::stepTo(Real target_time)
@@ -191,16 +181,6 @@ void SPHSimulation::runParticleRelaxation()
     ParticleRelaxationBuilder &relaxation_builder =
         entity_manager_.getEntityByName<ParticleRelaxationBuilder>("ParticleRelaxation");
     relaxation_builder.runRelaxation();
-}
-//=================================================================================================//
-void SPHSimulation::parseRestartConfig(const json &config)
-{
-    restart_config_.enabled = config.at("enabled").get<bool>();
-    if (config.contains("save_interval"))
-        restart_config_.save_interval = config.at("save_interval").get<int>();
-    restart_config_.restore_step = config.at("restore_step").get<int>();
-    if (config.contains("summary_enabled"))
-        restart_config_.summary_enabled = config.at("summary_enabled").get<bool>();
 }
 //=================================================================================================//
 } // namespace SPH

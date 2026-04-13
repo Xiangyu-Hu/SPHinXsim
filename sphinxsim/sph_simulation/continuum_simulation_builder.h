@@ -47,7 +47,6 @@ struct ContinuumSolverParameters
     Real contact_numerical_damping_{0.5};
     Real shear_stress_damping_{0.0};
     Real hourglass_factor_{2.0};
-    int screen_interval_{100};
 };
 
 class ContinuumSimulationBuilder : public SimulationBuilder
@@ -55,12 +54,15 @@ class ContinuumSimulationBuilder : public SimulationBuilder
   public:
     void buildSimulation(SPHSimulation &sim, const json &config) override;
 
+  protected:
+    virtual void updateSolverParameters(EntityManager &entity_manager, const json &config) override;
+
   private:
-    ContinuumSolverParameters solver_parameters_;
+    ContinuumSolverParameters continuum_solver_parameters_;
     StdVec<BaseDynamics<std::pair<Real, UnsignedInt>> *> output_evolving_variables_bounds_[3];
     StdVec<std::string> evolving_variables_names_[3];
 
-    void updateSolverParameters(SPHSimulation &sim, const json &config);
+    ContinuumSolverParameters parseContinuumSolverParameters(const json &config);
 
     template <class MethodContainerType, class InnerRelationType>
     BaseDynamics<void> &addAcousticStep1stHalf(

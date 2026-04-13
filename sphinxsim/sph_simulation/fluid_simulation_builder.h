@@ -36,9 +36,9 @@ namespace SPH
 class TimeStepper;
 struct FluidSolverParameters
 {
-    Real acoustic_cfl{0.6};
-    Real advection_cfl{0.25};
-    bool free_surface_correction{true};
+    Real acoustic_cfl_{0.6};
+    Real advection_cfl_{0.25};
+    bool free_surface_correction_{true};
 };
 
 class FluidSimulationBuilder : public SimulationBuilder
@@ -49,10 +49,12 @@ class FluidSimulationBuilder : public SimulationBuilder
   private:
     FluidSolverParameters solver_parameters_;
 
+    virtual void updateSolverParameters(EntityManager &entity_manager, const json &config) override;
     template <class MethodContainerType>
     void addBoundaryConditions(
         SPHSimulation &sim, MethodContainerType &method_container, const json &config);
     void updateSolverParameters(SPHSimulation &sim, const json &config);
+    FluidSolverParameters parseFluidSolverParameters(const json &config);
 };
 } // namespace SPH
 #endif // FLUID_SIMULATION_BUILDER_H

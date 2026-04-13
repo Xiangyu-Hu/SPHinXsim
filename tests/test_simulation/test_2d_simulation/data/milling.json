@@ -88,23 +88,24 @@
       "region_name": "ClampingRegion"
     }
   ],
-  "continuum_solver_parameters": {
-    "acoustic_cfl": 0.4,
-    "advection_cfl": 0.2,
-    "linear_correction_matrix_coeff": 0.5,
-    "contact_numerical_damping": 1.0,
-    "shear_stress_damping": 1.0,
-    "hourglass_factor": 2.0,
-    "screen_interval": 100
-  },
 
-  "restart": {
-    "enabled": true,
-    "save_interval": 1000,
-    "restore_step": 0,
-    "summary_enabled": true
-  },
-
-  "end_time": 0.1,
-  "output_interval": 0.01
+  "solver_parameters": {
+    "end_time": 0.1,
+    "output_interval": 0.01,
+    "screen_interval": 100,
+    "restart": {
+      "enabled": true,
+      "save_interval": 1000,
+      "restore_step": 0,
+      "summary_enabled": true
+    },
+    "continuum_dynamics": {
+      "acoustic_cfl": 0.4,
+      "advection_cfl": 0.2,
+      "linear_correction_matrix_coeff": 0.5,
+      "contact_numerical_damping": 1.0,
+      "shear_stress_damping": 1.0,
+      "hourglass_factor": 2.0
+    }
+  }
 }

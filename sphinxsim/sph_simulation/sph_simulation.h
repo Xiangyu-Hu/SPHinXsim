@@ -49,14 +49,6 @@ struct SystemDomainConfig
     Real particle_spacing_;
 };
 
-struct RestartConfig
-{
-    bool enabled{false};
-    int save_interval{1000};
-    int restore_step{0};
-    bool summary_enabled{false};
-};
-
 class SPHSimulation
 {
   public:
@@ -78,14 +70,11 @@ class SPHSimulation
     StagePipeline<SimulationHookPoint> simulation_pipeline_;
     std::unique_ptr<SPHSolver> sph_solver_ptr_;
     UniquePtrKeeper<SimulationBuilder> simulation_builder_ptr_;
-    Real end_time_{0.0};
-    Real output_interval_{0.1};
     bool executable_simulation_state_ready_{false};
     RestartConfig restart_config_;
 
     void buildSimulationFromJson(const json &config);
     void parseSystemDomainConfig(const json &config);
-    void parseRestartConfig(const json &config);
     void handleParticleRelaxation(const json &config);
 
   protected:
@@ -99,8 +88,6 @@ class SPHSimulation
     SPHSolver &defineSPHSolver(SPHSystem &sph_system, const json &config);
     StagePipeline<InitializationHookPoint> &getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &getSimulationPipeline();
-    Real getOutputInterval() { return output_interval_; };
-    RestartConfig &getRestartConfig() { return restart_config_; };
     EntityManager &getEntityManager();
     SPHSolver &getSPHSolver() { return *sph_solver_ptr_; };
 };

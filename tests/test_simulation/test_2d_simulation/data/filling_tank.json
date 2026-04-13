@@ -73,10 +73,15 @@
       "positions": [[5.366, 0.2]]
     }
   ],
-  "fluid_solver_parameters": {
-    "acoustic_cfl": 0.6,
-    "advection_cfl": 0.25,
-    "free_surface_correction": true
-  },
-  "end_time": 30.0
+
+  "solver_parameters": {
+    "end_time": 30.0,
+    "output_interval": 0.01,
+    "screen_interval": 100,
+    "fluid_dynamics": {
+      "acoustic_cfl": 0.6,
+      "advection_cfl": 0.25,
+      "free_surface_correction": true
+    }
+  }
 }

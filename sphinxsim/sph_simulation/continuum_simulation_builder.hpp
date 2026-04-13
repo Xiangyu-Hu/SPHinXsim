@@ -73,8 +73,8 @@ ParticleDynamicsGroup &ContinuumSimulationBuilder::addShearForceIntegration(
         continuum_shear_force.add(
             &method_container.template addInteractionDynamicsOneLevel<
                 continuum_dynamics::ShearIntegration, GeneralContinuum>(
-                inner_relation, solver_parameters_.hourglass_factor_,
-                solver_parameters_.shear_stress_damping_));
+                inner_relation, continuum_solver_parameters_.hourglass_factor_,
+                continuum_solver_parameters_.shear_stress_damping_));
         return continuum_shear_force;
     }
 
@@ -83,8 +83,8 @@ ParticleDynamicsGroup &ContinuumSimulationBuilder::addShearForceIntegration(
         continuum_shear_force.add(
             &method_container.template addInteractionDynamicsOneLevel<
                 continuum_dynamics::ShearIntegration, J2Plasticity>(
-                inner_relation, solver_parameters_.hourglass_factor_,
-                solver_parameters_.shear_stress_damping_));
+                inner_relation, continuum_solver_parameters_.hourglass_factor_,
+                continuum_solver_parameters_.shear_stress_damping_));
 
         return continuum_shear_force;
     }

@@ -32,8 +32,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     // Define SPH solver with particle methods and execution policies.
     // Generally, the host methods should be able to run immediately.
     //----------------------------------------------------------------------
-    updateSolverParameters(entity_manager, config.at("solver_parameters"));
-    SPHSolver &sph_solver = sim.defineSPHSolver(sph_system, config);
+    SPHSolver &sph_solver = sim.defineSPHSolver(*this, config);
     auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
     //    auto &host_methods = sph_solver.addParticleMethodContainer(par_host);
     //----------------------------------------------------------------------
@@ -61,15 +60,17 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     auto &continuum_acoustic_step_1st_half = addAcousticStep1stHalf(entity_manager, main_methods, continuum_inner);
     auto &continuum_acoustic_step_2nd_half = addAcousticStep2ndHalf(entity_manager, main_methods, continuum_inner);
 
+    auto &continuum_solver_parameters = entity_manager.getEntityByName<
+        ContinuumSolverParameters>("ContinuumSolverParameters");
     Fluid &continuum_eos = DynamicCast<Fluid>(this, continuum_body.getBaseMaterial());
     const Real U_ref = continuum_eos.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
     auto &continuum_advection_time_step = main_methods.addReduceDynamics<
-        fluid_dynamics::AdvectionTimeStepCK>(continuum_body, U_ref, continuum_solver_parameters_.advection_cfl_);
+        fluid_dynamics::AdvectionTimeStepCK>(continuum_body, U_ref, continuum_solver_parameters.advection_cfl_);
     auto &continuum_acoustic_time_step = main_methods.addReduceDynamics<
-        fluid_dynamics::AcousticTimeStepCK<>>(continuum_body, continuum_solver_parameters_.acoustic_cfl_);
+        fluid_dynamics::AcousticTimeStepCK<>>(continuum_body, continuum_solver_parameters.acoustic_cfl_);
 
     auto &continuum_linear_correction_matrix = main_methods.addInteractionDynamicsWithUpdate<
-        LinearCorrectionMatrix>(continuum_inner, continuum_solver_parameters_.linear_correction_matrix_coeff_);
+        LinearCorrectionMatrix>(continuum_inner, continuum_solver_parameters.linear_correction_matrix_coeff_);
 
     auto &continuum_shear_force = addShearForceIntegration(entity_manager, main_methods, continuum_inner);
 
@@ -77,7 +78,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
         solid_dynamics::RepulsionFactor>(continuum_solid_contact);
     auto &continuum_solid_contact_force = main_methods.addInteractionDynamicsWithUpdate<
         solid_dynamics::RepulsionForceCK, Wall>(
-        continuum_solid_contact, continuum_solver_parameters_.contact_numerical_damping_);
+        continuum_solid_contact, continuum_solver_parameters.contact_numerical_damping_);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -112,10 +113,11 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     //	Define time-integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------
+    auto &solver_common_config = entity_manager.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
     auto &time_stepper = sph_solver.getTimeStepper();
     auto &advection_step = time_stepper.addTriggerByInterval(continuum_advection_time_step.exec());
-    auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config_.output_interval_);
-    time_stepper.setScreeningInterval(solver_common_config_.screen_interval_);
+    auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config.output_interval_);
+    time_stepper.setScreeningInterval(solver_common_config.screen_interval_);
     //----------------------------------------------------------------------
     //	Define time-integration method.
     //  Here we use dual time stepping with acoustic and advection steps.
@@ -175,27 +177,28 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     // Initial condition from restart file if enabled.
     //----------------------------------------------------------------------
-    if (restart_config_.enabled_)
+    auto &restart_config = entity_manager.getEntityByName<RestartConfig>("RestartConfig");
+    if (restart_config.enabled_)
     {
-        sph_system.setRestartStep(restart_config_.restore_step_);
+        sph_system.setRestartStep(restart_config.restore_step_);
         auto &restart_io = main_methods.addIODynamics<RestartIOCK>(
-            sph_system, restart_config_.summary_enabled_);
+            sph_system, restart_config.summary_enabled_);
 
         simulation_pipeline.insert_hook(
             SimulationHookPoint::ExtraOutputs, [&]()
             { 
-                if (time_stepper.getIterationStep() % restart_config_.save_interval_ == 0)
+                if (time_stepper.getIterationStep() % restart_config.save_interval_ == 0)
                 {
                     restart_io.writeToFile(time_stepper.getIterationStep());
                 } });
 
-        if (restart_config_.restore_step_ != 0)
+        if (restart_config.restore_step_ != 0)
         {
             initialization_pipeline.insert_hook(
                 InitializationHookPoint::InitialConditions, [&]()
                 { 
-                    time_stepper.setRestartStep(restart_config_.restore_step_);
-                    restart_io.readRestartFiles(restart_config_.restore_step_); });
+                    time_stepper.setRestartStep(restart_config.restore_step_);
+                    restart_io.readRestartFiles(restart_config.restore_step_); });
         }
     }
 
@@ -210,13 +213,13 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     }
 }
 //=================================================================================================//
-void ContinuumSimulationBuilder::updateSolverParameters(EntityManager &entity_manager, const json &config)
+void ContinuumSimulationBuilder::parseSolverParameters(EntityManager &entity_manager, const json &config)
 {
-    SimulationBuilder::updateSolverParameters(entity_manager, config);
+    SimulationBuilder::parseSolverParameters(entity_manager, config);
     if (config.contains("continuum_dynamics"))
     {
-        continuum_solver_parameters_ = parseContinuumSolverParameters(config.at("continuum_dynamics"));
-        entity_manager.addEntity("ContinuumSolverParameters", &continuum_solver_parameters_);
+        entity_manager.emplaceEntity<ContinuumSolverParameters>(
+            "ContinuumSolverParameters", parseContinuumSolverParameters(config.at("continuum_dynamics")));
     }
 }
 //=================================================================================================//

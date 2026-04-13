@@ -5,7 +5,7 @@
 namespace SPH
 {
 //=================================================================================================//
-void ParticleRelaxationBuilder::buildParticleRelaxation(SPHSimulation &sim, const json &config)
+void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json &config)
 {
     //----------------------------------------------------------------------
     //	Build up an SPHSystem and IO environment.
@@ -64,7 +64,7 @@ void ParticleRelaxationBuilder::buildParticleRelaxation(SPHSimulation &sim, cons
     //----------------------------------------------------------------------
     //	Define particle relaxation simulation.
     //----------------------------------------------------------------------
-    ParticleRelaxationBuilder::updateRelaxationParameters(sim, config);
+    ParticleRelaxation::updateRelaxationParameters(sim, config);
     relaxation_pipeline_.main_steps.push_back(
         [&]()
         {
@@ -91,7 +91,7 @@ void ParticleRelaxationBuilder::buildParticleRelaxation(SPHSimulation &sim, cons
         });
 }
 //=================================================================================================//
-void ParticleRelaxationBuilder::updateRelaxationParameters(SPHSimulation &sim, const json &config)
+void ParticleRelaxation::updateRelaxationParameters(SPHSimulation &sim, const json &config)
 {
     if (config.contains("relaxation_parameters"))
     {
@@ -102,7 +102,7 @@ void ParticleRelaxationBuilder::updateRelaxationParameters(SPHSimulation &sim, c
     }
 }
 //=================================================================================================//
-void ParticleRelaxationBuilder::runRelaxation()
+void ParticleRelaxation::runRelaxation()
 {
     for (auto &step : relaxation_pipeline_.main_steps)
     {
@@ -110,7 +110,7 @@ void ParticleRelaxationBuilder::runRelaxation()
     }
 }
 //=================================================================================================//
-RelaxationSystem &ParticleRelaxationBuilder::defineRelaxationSystem(
+RelaxationSystem &ParticleRelaxation::defineRelaxationSystem(
     SPHSimulation &sim, const json &config)
 {
     EntityManager &entity_manager = sim.getEntityManager();
@@ -119,7 +119,7 @@ RelaxationSystem &ParticleRelaxationBuilder::defineRelaxationSystem(
         "RelaxationSystem", system_config.system_domain_bounds_, system_config.particle_spacing_);
 }
 //=================================================================================================//
-void ParticleRelaxationBuilder::addRelaxationBodies(
+void ParticleRelaxation::addRelaxationBodies(
     RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config)
 {
     for (const auto &rb : config.at("relaxation_bodies"))

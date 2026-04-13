@@ -14,7 +14,7 @@ void ConstraintBuilder::addConstraints(
     SPHSimulation &sim, MethodContainerType &method_container, const json &config)
 {
     EntityManager &entity_manager = sim.getEntityManager();
-    SPHSystem &sph_system = entity_manager.getEntityByName<SPHSystem>("SPHSystem");
+    SPHSystem &sph_system = sim.getSPHSystem();
     for (const auto &constraint_config : config.at("body_constraints"))
     {
         const std::string body_name = constraint_config.at("body_name").get<std::string>();
@@ -30,7 +30,7 @@ void ConstraintBuilder::addConstraint(
     EntityManager &entity_manager = sim.getEntityManager();
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
     RestartConfig &restart_config = entity_manager.getEntityByName<RestartConfig>("RestartConfig");
-    GeometryBuilder &geometry_builder = entity_manager.getEntityByName<GeometryBuilder>("GeometryBuilder");
+    GeometryBuilder &geometry_builder = sim.getGeometryBuilder();
     StagePipeline<InitializationHookPoint> &initialization_pipeline = sim.getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
 

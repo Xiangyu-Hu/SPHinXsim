@@ -53,15 +53,9 @@ class ContinuumSimulationBuilder : public SimulationBuilder
 {
   public:
     void buildSimulation(SPHSimulation &sim, const json &config) override;
-
-  protected:
-    virtual void updateSolverParameters(EntityManager &entity_manager, const json &config) override;
+    virtual void parseSolverParameters(EntityManager &entity_manager, const json &config) override;
 
   private:
-    ContinuumSolverParameters continuum_solver_parameters_;
-    StdVec<BaseDynamics<std::pair<Real, UnsignedInt>> *> output_evolving_variables_bounds_[3];
-    StdVec<std::string> evolving_variables_names_[3];
-
     ContinuumSolverParameters parseContinuumSolverParameters(const json &config);
 
     template <class MethodContainerType, class InnerRelationType>

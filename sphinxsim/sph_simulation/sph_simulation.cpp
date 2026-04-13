@@ -11,7 +11,9 @@ namespace SPH
 //=================================================================================================//
 SPHSimulation::SPHSimulation(const fs::path &config_path)
     : config_path_(config_path),
-      geometry_builder_(*entity_manager_.emplaceEntity<GeometryBuilder>("GeometryBuilder")) {}
+      geometry_builder_ptr_(std::make_unique<GeometryBuilder>()) {}
+//=================================================================================================//
+SPHSimulation::~SPHSimulation() = default;
 //=================================================================================================//
 void SPHSimulation::resetOutputRoot(const fs::path &output_root, bool keep_existing)
 {
@@ -28,22 +30,24 @@ void SPHSimulation::resetOutputRoot(const fs::path &output_root, bool keep_exist
 void SPHSimulation::parseSystemDomainConfig(const json &config)
 {
     SystemDomainConfig system_config;
-    system_config.system_domain_bounds_ = geometry_builder_.parseBoundingBox(config.at("domain"));
+    system_config.system_domain_bounds_ = geometry_builder_ptr_->parseBoundingBox(config.at("domain"));
     system_config.particle_spacing_ = config.at("particle_spacing").get<Real>();
     entity_manager_.emplaceEntity<SystemDomainConfig>("SystemDomainConfig", system_config);
 }
 //=================================================================================================//
 SPHSystem &SPHSimulation::defineSPHSystem()
 {
-    SystemDomainConfig &system_config = entity_manager_.getEntityByName<SystemDomainConfig>("SystemDomainConfig");
-    return *entity_manager_.emplaceEntity<SPHSystem>(
-        "SPHSystem", system_config.system_domain_bounds_, system_config.particle_spacing_);
+    SystemDomainConfig &system_config = entity_manager_.getEntityByName<
+        SystemDomainConfig>("SystemDomainConfig");
+    sph_system_ptr_ = std::make_unique<SPHSystem>(
+        system_config.system_domain_bounds_, system_config.particle_spacing_);
+    return *sph_system_ptr_.get();
 }
 //=================================================================================================//
-SPHSolver &SPHSimulation::defineSPHSolver(SPHSystem &sph_system, const json &config)
+SPHSolver &SPHSimulation::defineSPHSolver(SimulationBuilder &simulation_builder, const json &config)
 {
-
-    sph_solver_ptr_ = std::make_unique<SPHSolver>(sph_system);
+    simulation_builder.parseSolverParameters(entity_manager_, config.at("solver_parameters"));
+    sph_solver_ptr_ = std::make_unique<SPHSolver>(getSPHSystem());
     return *sph_solver_ptr_.get();
 }
 //=================================================================================================//
@@ -62,24 +66,24 @@ EntityManager &SPHSimulation::getEntityManager()
     return entity_manager_;
 }
 //=================================================================================================//
-void SPHSimulation::handleParticleRelaxation(const json &config)
+void SPHSimulation::defineParticleRelaxation(const json &config)
 {
     if (config.at("build_and_run").get<bool>())
     {
-        entity_manager_.emplaceEntity<ParticleRelaxationBuilder>("ParticleRelaxation")
-            ->buildParticleRelaxation(*this, config.at("settings"));
-        runParticleRelaxation();
+        particle_relaxation_ptr_ = std::make_unique<ParticleRelaxation>();
+        particle_relaxation_ptr_->buildParticleRelaxation(*this, config.at("settings"));
+        particle_relaxation_ptr_->runRelaxation();
     }
 }
 //=================================================================================================//
 void SPHSimulation::buildSimulationFromJson(const json &config)
 {
     parseSystemDomainConfig(config);
-    geometry_builder_.addGeometries(entity_manager_, config);
+    geometry_builder_ptr_->addGeometries(entity_manager_, config);
 
     if (config.contains("particle_relaxation"))
     {
-        handleParticleRelaxation(config.at("particle_relaxation"));
+        defineParticleRelaxation(config.at("particle_relaxation"));
     }
 
     if (config.contains("simulation_type"))
@@ -90,13 +94,15 @@ void SPHSimulation::buildSimulationFromJson(const json &config)
 
         if (simulation_type == "fluid_dynamics")
         {
-            simulation_builder_ptr_.createPtr<FluidSimulationBuilder>()->buildSimulation(*this, config);
+            FluidSimulationBuilder fluid_simulation_builder;
+            fluid_simulation_builder.buildSimulation(*this, config);
             return;
         }
 
         if (simulation_type == "continuum_dynamics")
         {
-            simulation_builder_ptr_.createPtr<ContinuumSimulationBuilder>()->buildSimulation(*this, config);
+            ContinuumSimulationBuilder continuum_simulation_builder;
+            continuum_simulation_builder.buildSimulation(*this, config);
             return;
         }
 
@@ -172,15 +178,12 @@ void SPHSimulation::stepBy(Real interval)
 //=================================================================================================//
 void SPHSimulation::runParticleRelaxation()
 {
-    if (!entity_manager_.hasEntity<ParticleRelaxationBuilder>("ParticleRelaxation"))
+    if (!particle_relaxation_ptr_)
     {
-        std::cerr << "SPHSimulation::runParticleRelaxation: Particle relaxation builder not found.\n";
+        std::cerr << "SPHSimulation::ParticleRelaxation: ParticleRelaxation not found.\n";
         exit(1);
     }
-
-    ParticleRelaxationBuilder &relaxation_builder =
-        entity_manager_.getEntityByName<ParticleRelaxationBuilder>("ParticleRelaxation");
-    relaxation_builder.runRelaxation();
+    particle_relaxation_ptr_->runRelaxation();
 }
 //=================================================================================================//
 } // namespace SPH

@@ -45,15 +45,12 @@ class FluidSimulationBuilder : public SimulationBuilder
 {
   public:
     void buildSimulation(SPHSimulation &sim, const json &config) override;
+    virtual void parseSolverParameters(EntityManager &entity_manager, const json &config) override;
 
   private:
-    FluidSolverParameters solver_parameters_;
-
-    virtual void updateSolverParameters(EntityManager &entity_manager, const json &config) override;
     template <class MethodContainerType>
     void addBoundaryConditions(
         SPHSimulation &sim, MethodContainerType &method_container, const json &config);
-    void updateSolverParameters(SPHSimulation &sim, const json &config);
     FluidSolverParameters parseFluidSolverParameters(const json &config);
 };
 } // namespace SPH

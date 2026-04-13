@@ -41,7 +41,7 @@ struct RelaxationParameters
     UnsignedInt total_iterations{1000};
 };
 
-class ParticleRelaxationBuilder
+class ParticleRelaxation
 {
   public:
     void buildParticleRelaxation(SPHSimulation &sim, const json &config);

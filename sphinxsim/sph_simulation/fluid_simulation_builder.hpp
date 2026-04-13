@@ -14,7 +14,7 @@ void FluidSimulationBuilder::addBoundaryConditions(
     SPHSimulation &sim, MethodContainerType &method_container, const json &config)
 {
     EntityManager &entity_manager = sim.getEntityManager();
-    GeometryBuilder &geometry_builder = entity_manager.getEntityByName<GeometryBuilder>("GeometryBuilder");
+    GeometryBuilder &geometry_builder = sim.getGeometryBuilder();
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
 
     const std::string body_name = config.at("body_name").get<std::string>();

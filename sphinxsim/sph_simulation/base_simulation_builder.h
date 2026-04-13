@@ -110,12 +110,9 @@ class SimulationBuilder
   public:
     virtual ~SimulationBuilder() = default;
     virtual void buildSimulation(SPHSimulation &sim, const json &config) = 0;
+    virtual void parseSolverParameters(EntityManager &entity_manager, const json &config);
 
   protected:
-    SolverCommonConfig solver_common_config_;
-    RestartConfig restart_config_;
-
-    virtual void updateSolverParameters(EntityManager &entity_manager, const json &config);
     void addFluidBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addContinuumBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addSolidBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);

@@ -42,6 +42,7 @@ namespace SPH
 {
 class GeometryBuilder;
 class SimulationBuilder;
+class ParticleRelaxation;
 
 struct SystemDomainConfig
 {
@@ -53,7 +54,7 @@ class SPHSimulation
 {
   public:
     SPHSimulation(const fs::path &config_path);
-    ~SPHSimulation() {};
+    ~SPHSimulation();
     void resetOutputRoot(const fs::path &output_root, bool keep_existing = false);
     void loadConfig();
     void runParticleRelaxation();
@@ -62,34 +63,36 @@ class SPHSimulation
     void stepTo(Real target_time);
     void stepBy(Real interval);
 
-  private:
-    std::filesystem::path config_path_;
-    EntityManager entity_manager_;
-    GeometryBuilder &geometry_builder_;
-    StagePipeline<InitializationHookPoint> initialization_pipeline_;
-    StagePipeline<SimulationHookPoint> simulation_pipeline_;
-    std::unique_ptr<SPHSolver> sph_solver_ptr_;
-    UniquePtrKeeper<SimulationBuilder> simulation_builder_ptr_;
-    bool executable_simulation_state_ready_{false};
-    RestartConfig restart_config_;
-
-    void buildSimulationFromJson(const json &config);
-    void parseSystemDomainConfig(const json &config);
-    void handleParticleRelaxation(const json &config);
-
   protected:
     friend class SimulationBuilder;
-    friend class ParticleRelaxationBuilder;
+    friend class ParticleRelaxation;
     friend class FluidSimulationBuilder;
     friend class ContinuumSimulationBuilder;
     friend class ConstraintBuilder;
 
     SPHSystem &defineSPHSystem();
-    SPHSolver &defineSPHSolver(SPHSystem &sph_system, const json &config);
+    SPHSolver &defineSPHSolver(SimulationBuilder &simulation_builder, const json &config);
+    SPHSystem &getSPHSystem() { return *sph_system_ptr_; };
+    SPHSolver &getSPHSolver() { return *sph_solver_ptr_; };
+    GeometryBuilder &getGeometryBuilder() { return *geometry_builder_ptr_; };
+    EntityManager &getEntityManager();
     StagePipeline<InitializationHookPoint> &getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &getSimulationPipeline();
-    EntityManager &getEntityManager();
-    SPHSolver &getSPHSolver() { return *sph_solver_ptr_; };
+
+  private:
+    std::filesystem::path config_path_;
+    EntityManager entity_manager_;
+    StagePipeline<InitializationHookPoint> initialization_pipeline_;
+    StagePipeline<SimulationHookPoint> simulation_pipeline_;
+    std::unique_ptr<GeometryBuilder> geometry_builder_ptr_;
+    std::unique_ptr<ParticleRelaxation> particle_relaxation_ptr_;
+    std::unique_ptr<SPHSystem> sph_system_ptr_;
+    std::unique_ptr<SPHSolver> sph_solver_ptr_;
+    bool executable_simulation_state_ready_{false};
+
+    void buildSimulationFromJson(const json &config);
+    void parseSystemDomainConfig(const json &config);
+    void defineParticleRelaxation(const json &config);
 };
 } // namespace SPH
 #endif // SPH_SIMULATION_H

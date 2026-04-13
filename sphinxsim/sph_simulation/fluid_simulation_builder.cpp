@@ -36,8 +36,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     // Define SPH solver with particle methods and execution policies.
     // Generally, the host methods should be able to run immediately.
     //----------------------------------------------------------------------
-    updateSolverParameters(entity_manager, config.at("solver_parameters"));
-    SPHSolver &sph_solver = sim.defineSPHSolver(sph_system, config);
+    SPHSolver &sph_solver = sim.defineSPHSolver(*this, config);
     auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
     auto &host_methods = sph_solver.addParticleMethodContainer(par_host);
     //----------------------------------------------------------------------
@@ -81,12 +80,14 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             .addPostContactInteraction(fluid_wall_contact)
             .addPostStateDynamics<fluid_dynamics::DensityRegularization, FreeSurface>(fluid_body);
 
+    auto &fluid_solver_parameters = entity_manager.getEntityByName<
+        FluidSolverParameters>("FluidSolverParameters");
     Fluid &fluid_material = DynamicCast<Fluid>(this, fluid_body.getBaseMaterial());
     const Real U_ref = fluid_material.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
     auto &fluid_advection_time_step = main_methods.addReduceDynamics<
-        fluid_dynamics::AdvectionTimeStepCK>(fluid_body, U_ref, solver_parameters_.advection_cfl_);
+        fluid_dynamics::AdvectionTimeStepCK>(fluid_body, U_ref, fluid_solver_parameters.advection_cfl_);
     auto &fluid_acoustic_time_step = main_methods.addReduceDynamics<
-        fluid_dynamics::AcousticTimeStepCK<>>(fluid_body, solver_parameters_.acoustic_cfl_);
+        fluid_dynamics::AcousticTimeStepCK<>>(fluid_body, fluid_solver_parameters.acoustic_cfl_);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -101,10 +102,11 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     //	Define time-integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------
+    auto &solver_common_config = entity_manager.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
     auto &time_stepper = sph_solver.getTimeStepper();
     auto &advection_step = time_stepper.addTriggerByInterval(fluid_advection_time_step.exec());
-    auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config_.output_interval_);
-    time_stepper.setScreeningInterval(solver_common_config_.screen_interval_);
+    auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config.output_interval_);
+    time_stepper.setScreeningInterval(solver_common_config.screen_interval_);
     //----------------------------------------------------------------------
     //	Define Preparation or initialization step for the time integration loop.
     //----------------------------------------------------------------------
@@ -217,13 +219,13 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     }
 }
 //=================================================================================================//
-void FluidSimulationBuilder::updateSolverParameters(EntityManager &entity_manager, const json &config)
+void FluidSimulationBuilder::parseSolverParameters(EntityManager &entity_manager, const json &config)
 {
-    SimulationBuilder::updateSolverParameters(entity_manager, config);
+    SimulationBuilder::parseSolverParameters(entity_manager, config);
     if (config.contains("fluid_dynamics"))
     {
-        solver_parameters_ = parseFluidSolverParameters(config.at("fluid_dynamics"));
-        entity_manager.addEntity("FluidSolverParameters", &solver_parameters_);
+        entity_manager.emplaceEntity<FluidSolverParameters>(
+            "FluidSolverParameters", parseFluidSolverParameters(config.at("fluid_dynamics")));
     }
 }
 //=================================================================================================//

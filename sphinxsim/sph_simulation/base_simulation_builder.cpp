@@ -120,15 +120,15 @@ void SimulationBuilder::addObservers(
     }
 }
 //=================================================================================================//
-void SimulationBuilder::updateSolverParameters(EntityManager &entity_manager, const json &config)
+void SimulationBuilder::parseSolverParameters(EntityManager &entity_manager, const json &config)
 {
-    solver_common_config_ = parseSolverCommonConfig(config);
-    entity_manager.addEntity("SolverCommonConfig", &solver_common_config_);
+    entity_manager.emplaceEntity<
+        SolverCommonConfig>("SolverCommonConfig", parseSolverCommonConfig(config));
 
     if (config.contains("restart"))
     {
-        restart_config_ = parseRestartConfig(config.at("restart"));
-        entity_manager.addEntity("RestartConfig", &restart_config_);
+        entity_manager.emplaceEntity<RestartConfig>(
+            "RestartConfig", parseRestartConfig(config.at("restart")));
     }
 }
 //=================================================================================================//
@@ -170,7 +170,7 @@ RestartConfig SimulationBuilder::parseRestartConfig(const json &config)
     restart_config.enabled_ = config.at("enabled").get<bool>();
     if (config.contains("save_interval"))
         restart_config.save_interval_ = config.at("save_interval").get<int>();
-    restart_config_.restore_step_ = config.at("restore_step").get<int>();
+    restart_config.restore_step_ = config.at("restore_step").get<int>();
     if (config.contains("summary_enabled"))
         restart_config.summary_enabled_ = config.at("summary_enabled").get<bool>();
     return restart_config;

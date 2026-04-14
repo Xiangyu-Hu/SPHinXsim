@@ -44,12 +44,6 @@ class GeometryBuilder;
 class SimulationBuilder;
 class ParticleRelaxation;
 
-struct SystemDomainConfig
-{
-    BoundingBoxd system_domain_bounds_;
-    Real particle_spacing_;
-};
-
 class SPHSimulation
 {
   public:
@@ -74,7 +68,6 @@ class SPHSimulation
     SPHSolver &defineSPHSolver(SimulationBuilder &simulation_builder, const json &config);
     SPHSystem &getSPHSystem() { return *sph_system_ptr_; };
     SPHSolver &getSPHSolver() { return *sph_solver_ptr_; };
-    GeometryBuilder &getGeometryBuilder() { return *geometry_builder_ptr_; };
     EntityManager &getEntityManager();
     StagePipeline<InitializationHookPoint> &getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &getSimulationPipeline();
@@ -91,8 +84,7 @@ class SPHSimulation
     bool executable_simulation_state_ready_{false};
 
     void buildSimulationFromJson(const json &config);
-    void parseSystemDomainConfig(const json &config);
-    void defineParticleRelaxation(const json &config);
+    void createParticleRelaxation(const json &config);
 };
 } // namespace SPH
 #endif // SPH_SIMULATION_H

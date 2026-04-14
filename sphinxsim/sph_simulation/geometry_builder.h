@@ -36,13 +36,20 @@ namespace SPH
 {
 class EntityManager;
 
+struct SystemDomainConfig
+{
+    BoundingBoxd system_domain_bounds_;
+    Real particle_spacing_;
+};
+
 class GeometryBuilder
 {
   public:
-    void addGeometries(EntityManager &entity_manager, const json &config);
-    BoundingBoxd parseBoundingBox(const json &config);
-    TransformGeometryBox parseBox(const json &config);
+    void createGeometries(EntityManager &entity_manager, const json &config);
+    static BoundingBoxd parseBoundingBox(const json &config);
+    static TransformGeometryBox parseBox(const json &config);
     GeometricOps parseGeometricOp(const std::string &op_str);
+    SystemDomainConfig parseSystemDomainConfig(const json &config);
 #ifdef SPHINXSYS_2D
     MultiPolygon parseMultiPolygon(const json &config);
 #endif

@@ -3,9 +3,11 @@
 namespace SPH
 {
 //=================================================================================================//
-void GeometryBuilder::addGeometries(EntityManager &entity_manager, const json &config)
+void GeometryBuilder::createGeometries(EntityManager &entity_manager, const json &config)
 {
-    for (const auto &geo : config.at("geometries"))
+    entity_manager.emplaceEntity<SystemDomainConfig>(
+        "SystemDomainConfig", parseSystemDomainConfig(config));
+    for (const auto &geo : config.at("shapes"))
     {
         Shape *shape = addGeometry(entity_manager, geo);
         entity_manager.addEntity<Shape>(shape->getName(), shape);
@@ -24,6 +26,14 @@ TransformGeometryBox GeometryBuilder::parseBox(const json &config)
     Vecd half_size = jsonToVecd(config.at("half_size"));
     Transform transform = jsonToTransform(config.at("transform"));
     return TransformGeometryBox(transform, half_size);
+}
+//=================================================================================================//
+SystemDomainConfig GeometryBuilder::parseSystemDomainConfig(const json &config)
+{
+    SystemDomainConfig system_config;
+    system_config.system_domain_bounds_ = parseBoundingBox(config.at("system_domain"));
+    system_config.particle_spacing_ = config.at("global_resolution").get<Real>();
+    return system_config;
 }
 //=================================================================================================//
 GeometricOps GeometryBuilder::parseGeometricOp(const std::string &op_str)

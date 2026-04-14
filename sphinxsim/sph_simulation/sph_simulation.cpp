@@ -27,14 +27,6 @@ void SPHSimulation::resetOutputRoot(const fs::path &output_root, bool keep_exist
     io_env.resetReloadFolder((output_root / "reload").string(), keep_existing);
 }
 //=================================================================================================//
-void SPHSimulation::parseSystemDomainConfig(const json &config)
-{
-    SystemDomainConfig system_config;
-    system_config.system_domain_bounds_ = geometry_builder_ptr_->parseBoundingBox(config.at("domain"));
-    system_config.particle_spacing_ = config.at("particle_spacing").get<Real>();
-    entity_manager_.emplaceEntity<SystemDomainConfig>("SystemDomainConfig", system_config);
-}
-//=================================================================================================//
 SPHSystem &SPHSimulation::defineSPHSystem()
 {
     SystemDomainConfig &system_config = entity_manager_.getEntityByName<
@@ -66,7 +58,7 @@ EntityManager &SPHSimulation::getEntityManager()
     return entity_manager_;
 }
 //=================================================================================================//
-void SPHSimulation::defineParticleRelaxation(const json &config)
+void SPHSimulation::createParticleRelaxation(const json &config)
 {
     if (config.at("build_and_run").get<bool>())
     {
@@ -78,12 +70,11 @@ void SPHSimulation::defineParticleRelaxation(const json &config)
 //=================================================================================================//
 void SPHSimulation::buildSimulationFromJson(const json &config)
 {
-    parseSystemDomainConfig(config);
-    geometry_builder_ptr_->addGeometries(entity_manager_, config);
+    geometry_builder_ptr_->createGeometries(entity_manager_, config.at("geometries"));
 
     if (config.contains("particle_relaxation"))
     {
-        defineParticleRelaxation(config.at("particle_relaxation"));
+        createParticleRelaxation(config.at("particle_relaxation"));
     }
 
     if (config.contains("simulation_type"))

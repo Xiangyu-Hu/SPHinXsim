@@ -1,5 +1,6 @@
 #include "particle_relaxation.h"
 
+#include "geometry_builder.h"
 #include "sph_simulation.h"
 
 namespace SPH

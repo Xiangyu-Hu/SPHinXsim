@@ -1,38 +1,39 @@
 {
-  "domain": {
-    "upper_bound": [0.08, 0.04],
-    "lower_bound": [-0.08, -0.08]
-  },
-  "particle_spacing": 0.0008,
-  "particle_boundary_buffer": 4,
-  "geometries": [
-    {
-      "name": "ProcessingPiece",
-      "type": "box",
-      "half_size": [0.06, 0.02],
-      "transform": {
-        "translation": [0.0, -0.051],
-        "rotation_angle": 0.0
-      }
+  "geometries": {
+    "system_domain": {
+      "upper_bound": [0.08, 0.04],
+      "lower_bound": [-0.08, -0.08]
     },
-    {
-      "name": "MillingTool",
-      "type": "multipolygon",
-      "polygons": [
-        {
-          "operation": "union",
-          "type": "data_file",
-          "file_path": "./input/milling_tool.dat"
+    "global_resolution": 0.0008,
+    "shapes": [
+      {
+        "name": "ProcessingPiece",
+        "type": "box",
+        "half_size": [0.06, 0.02],
+        "transform": {
+          "translation": [0.0, -0.051],
+          "rotation_angle": 0.0
         }
-      ]
-    },
-    {
-      "name": "ClampingRegion",
-      "type": "bounding_box",
-      "lower_bound": [-0.08, -0.08],
-      "upper_bound": [0.08, -0.067]
-    }
-  ],
+      },
+      {
+        "name": "MillingTool",
+        "type": "multipolygon",
+        "polygons": [
+          {
+            "operation": "union",
+            "type": "data_file",
+            "file_path": "./input/milling_tool.dat"
+          }
+        ]
+      },
+      {
+        "name": "ClampingRegion",
+        "type": "bounding_box",
+        "lower_bound": [-0.08, -0.08],
+        "upper_bound": [0.08, -0.067]
+      }
+    ]
+  },
 
   "particle_relaxation": {
     "build_and_run": true,
@@ -49,6 +50,7 @@
   },
 
   "simulation_type": "continuum_dynamics",
+
   "continuum_bodies": [
     {
       "name": "ProcessingPiece",
@@ -63,6 +65,7 @@
       }
     }
   ],
+
   "solid_bodies": [
     {
       "name": "MillingTool",
@@ -74,6 +77,7 @@
       }
     }
   ],
+
   "body_constraints": [
     {
       "body_name": "MillingTool",

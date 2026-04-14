@@ -14,7 +14,6 @@ void FluidSimulationBuilder::addBoundaryConditions(
     SPHSimulation &sim, MethodContainerType &method_container, const json &config)
 {
     EntityManager &entity_manager = sim.getEntityManager();
-    GeometryBuilder &geometry_builder = sim.getGeometryBuilder();
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
 
     const std::string body_name = config.at("body_name").get<std::string>();
@@ -24,7 +23,7 @@ void FluidSimulationBuilder::addBoundaryConditions(
     if (type == "emitter")
     { // must be aligned box for emitter
         int alignment_axis = config.at("alignment_axis").get<int>();
-        TransformGeometryBox box = geometry_builder.parseBox(config);
+        TransformGeometryBox box = GeometryBuilder::parseBox(config);
         auto &emitter = fluid_body.addBodyPart<AlignedBoxByParticle>(AlignedBox(alignment_axis, box));
         emitter.writeShapeProxy();
         auto &inflow_condition = method_container.template addStateDynamics<

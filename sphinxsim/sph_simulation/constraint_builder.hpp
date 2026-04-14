@@ -30,7 +30,6 @@ void ConstraintBuilder::addConstraint(
     EntityManager &entity_manager = sim.getEntityManager();
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
     RestartConfig &restart_config = entity_manager.getEntityByName<RestartConfig>("RestartConfig");
-    GeometryBuilder &geometry_builder = sim.getGeometryBuilder();
     StagePipeline<InitializationHookPoint> &initialization_pipeline = sim.getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
 

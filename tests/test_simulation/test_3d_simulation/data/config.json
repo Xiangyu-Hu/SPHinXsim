@@ -1,29 +1,28 @@
 {
   "simulation_type": "fluid_dynamics",
 
-  "domain": {
-    "upper_bound": [5.366, 2.0, 0.5],
-    "lower_bound": [0.0, 0.0, 0.0]
-  },
-
-  "particle_spacing": 0.05,
-  "particle_boundary_buffer": 4,
-
-  "geometries": [
-    {
-      "name": "WaterBody",
-      "type": "bounding_box",
-      "lower_bound": [0.0, 0.0, 0.0],
-      "upper_bound": [2.0, 1.0, 0.5]
+  "geometries": {
+    "system_domain": {
+      "upper_bound": [5.366, 2.0, 0.5],
+      "lower_bound": [0.0, 0.0, 0.0]
     },
-    {
-      "name": "WallBoundary",
-      "type": "container_box",
-      "inner_lower_bound": [0.0, 0.0, 0.0],
-      "inner_upper_bound": [5.366, 2.0, 0.5],
-      "thickness": 0.1
-    }
-  ],
+    "global_resolution": 0.05,
+    "shapes": [
+      {
+        "name": "WaterBody",
+        "type": "bounding_box",
+        "lower_bound": [0.0, 0.0, 0.0],
+        "upper_bound": [2.0, 1.0, 0.5]
+      },
+      {
+        "name": "WallBoundary",
+        "type": "container_box",
+        "inner_lower_bound": [0.0, 0.0, 0.0],
+        "inner_upper_bound": [5.366, 2.0, 0.5],
+        "thickness": 0.1
+      }
+    ]
+  },
 
   "fluid_bodies": [
     {

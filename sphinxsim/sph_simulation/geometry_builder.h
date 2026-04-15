@@ -55,7 +55,7 @@ class GeometryBuilder
 #endif
 
   private:
-    Shape *addGeometry(EntityManager &entity_manager, const json &config);
+    Shape *addShape(EntityManager &entity_manager, const json &config);
 };
 } // namespace SPH
 #endif // GEOMETRY_BUILDER_H

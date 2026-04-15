@@ -9,7 +9,7 @@ void GeometryBuilder::createGeometries(EntityManager &entity_manager, const json
         "SystemDomainConfig", parseSystemDomainConfig(config));
     for (const auto &geo : config.at("shapes"))
     {
-        Shape *shape = addGeometry(entity_manager, geo);
+        Shape *shape = addShape(entity_manager, geo);
         entity_manager.addEntity<Shape>(shape->getName(), shape);
     }
 }
@@ -80,7 +80,7 @@ MultiPolygon GeometryBuilder::parseMultiPolygon(const json &config)
 }
 #endif
 //=================================================================================================//
-Shape *GeometryBuilder::addGeometry(EntityManager &entity_manager, const json &config)
+Shape *GeometryBuilder::addShape(EntityManager &entity_manager, const json &config)
 {
     const std::string name = config.at("name").get<std::string>();
     const std::string type = config.at("type").get<std::string>();
@@ -95,19 +95,44 @@ Shape *GeometryBuilder::addGeometry(EntityManager &entity_manager, const json &c
     if (type == "bounding_box")
     {
         BoundingBoxd bounding_box = parseBoundingBox(config);
+        entity_manager.emplaceEntity<BoundingBoxd>(name, bounding_box);
         GeometricShapeBox *shape = entity_manager.emplaceEntity<GeometricShapeBox>(name, bounding_box, name);
         return shape;
     }
 
-    if (type == "container_box")
+    if (type == "expanded_box")
     {
-        BoundingBoxd inner_box(jsonToVecd(config.at("inner_lower_bound")),
-                               jsonToVecd(config.at("inner_upper_bound")));
-        BoundingBoxd outer_box = inner_box.expand(config.at("thickness").get<Real>());
-        ComplexShape *shape = entity_manager.emplaceEntity<ComplexShape>(name, name);
-        shape->add<GeometricShapeBox>(outer_box);
-        shape->subtract<GeometricShapeBox>(inner_box);
+        const std::string original_name = config.at("original").get<std::string>();
+        TransformGeometryBox expand_box =
+            entity_manager.getEntityByName<GeometricShapeBox>(original_name)
+                .getExpandedBox(config.at("expansion").get<Real>());
+        GeometricShapeBox *shape = entity_manager.emplaceEntity<GeometricShapeBox>(name, expand_box, name);
         return shape;
+    }
+
+    if (type == "complex_shape")
+    {
+        ComplexShape *complex_shape = entity_manager.emplaceEntity<ComplexShape>(name, name);
+
+        StdVec<Shape *> sub_shapes;
+        for (const auto &sub_shape_name : config.at("sub_shapes"))
+        {
+            sub_shapes.push_back(&entity_manager.getEntityByName<Shape>(sub_shape_name));
+        }
+
+        for (UnsignedInt i = 0; i < sub_shapes.size(); ++i)
+        {
+            const auto &operation = config.at("operations").at(i).get<std::string>();
+            GeometricOps op = parseGeometricOp(operation);
+            if (op != GeometricOps::add && op != GeometricOps::sub)
+            {
+                throw std::runtime_error(
+                    "GeometryBuilder::addShape: unsupported operation for complex shape: " + operation);
+            }
+            op == GeometricOps::add ? complex_shape->add(sub_shapes[i])
+                                    : complex_shape->subtract(sub_shapes[i]);
+        }
+        return complex_shape;
     }
 
 #ifdef SPHINXSYS_2D
@@ -125,7 +150,7 @@ Shape *GeometryBuilder::addGeometry(EntityManager &entity_manager, const json &c
     }
 #endif
 
-    throw std::runtime_error("GeometryBuilder::addGeometry: unsupported geometry: " + type);
+    throw std::runtime_error("GeometryBuilder::addShape: unsupported shape: " + type);
 }
 //=================================================================================================//
 } // namespace SPH

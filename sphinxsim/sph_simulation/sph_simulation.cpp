@@ -11,13 +11,16 @@ namespace SPH
 //=================================================================================================//
 SPHSimulation::SPHSimulation(const fs::path &config_path)
     : config_path_(config_path),
-      geometry_builder_ptr_(std::make_unique<GeometryBuilder>()) {}
+      geometry_builder_ptr_(std::make_unique<GeometryBuilder>())
+{
+    IO::initEnvironment();
+}
 //=================================================================================================//
 SPHSimulation::~SPHSimulation() = default;
 //=================================================================================================//
 void SPHSimulation::resetOutputRoot(const fs::path &output_root, bool keep_existing)
 {
-    IOEnvironment &io_env = IO::initEnvironment();
+    IOEnvironment &io_env = IO::getEnvironment();
     if (!fs::exists(output_root))
     {
         fs::create_directories(output_root);

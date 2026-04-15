@@ -89,6 +89,7 @@ Shape *GeometryBuilder::addShape(EntityManager &entity_manager, const json &conf
     {
         TransformGeometryBox box = parseBox(config);
         GeometricShapeBox *shape = entity_manager.emplaceEntity<GeometricShapeBox>(name, box, name);
+        shape->writeGeometricShapeBoxToVtp();
         return shape;
     }
 
@@ -97,6 +98,7 @@ Shape *GeometryBuilder::addShape(EntityManager &entity_manager, const json &conf
         BoundingBoxd bounding_box = parseBoundingBox(config);
         entity_manager.emplaceEntity<BoundingBoxd>(name, bounding_box);
         GeometricShapeBox *shape = entity_manager.emplaceEntity<GeometricShapeBox>(name, bounding_box, name);
+        shape->writeGeometricShapeBoxToVtp();
         return shape;
     }
 
@@ -107,6 +109,7 @@ Shape *GeometryBuilder::addShape(EntityManager &entity_manager, const json &conf
             entity_manager.getEntityByName<GeometricShapeBox>(original_name)
                 .getExpandedBox(config.at("expansion").get<Real>());
         GeometricShapeBox *shape = entity_manager.emplaceEntity<GeometricShapeBox>(name, expand_box, name);
+        shape->writeGeometricShapeBoxToVtp();
         return shape;
     }
 
@@ -146,6 +149,7 @@ Shape *GeometryBuilder::addShape(EntityManager &entity_manager, const json &conf
             multi_polygon.addMultiPolygon(parseMultiPolygon(plg), op);
         }
         MultiPolygonShape *shape = entity_manager.emplaceEntity<MultiPolygonShape>(name, multi_polygon, name);
+        shape->writeMultiPolygonShapeToVtp();
         return shape;
     }
 #endif

@@ -76,7 +76,7 @@ MultiPolygon GeometryBuilder::parseMultiPolygon(const json &config)
         return multi_polygon;
     }
 
-    throw std::runtime_error("SPHSimulation::addShape: unsupported polygon type: " + polygon_type);
+    throw std::runtime_error("SPHSimulation::parseMultiPolygon: unsupported polygon type: " + polygon_type);
 }
 #endif
 //=================================================================================================//

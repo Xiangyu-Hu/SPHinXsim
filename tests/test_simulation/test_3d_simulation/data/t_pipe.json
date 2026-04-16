@@ -1,0 +1,69 @@
+{
+  "simulation_type": "fluid_dynamics",
+  "particle_sort_frequency": 100,
+
+  "geometries": {
+    "global_resolution": 0.001,
+    "shapes": [
+      {
+        "name": "BloodBody",
+        "type": "triangle_mesh",
+        "file_path": "./input/blood.stl",
+        "scale": 0.001
+      },
+      {
+        "name": "WallBoundary",
+        "type": "triangle_mesh",
+        "file_path": "./input/t_pipe.stl",
+        "scale": 0.001
+      }
+    ]
+  },
+
+  "fluid_bodies": [
+    {
+      "name": "BloodBody",
+      "material": {
+        "type": "weakly_compressible_fluid",
+        "density": 1060.0,
+        "sound_speed": 6.0,
+        "viscosity": 0.0035
+      },
+      "particle_reserve_factor": 0.2
+    }
+  ],
+
+  "solid_bodies": [
+    {
+      "name": "WallBoundary",
+      "material": {
+        "type": "rigid_body"
+      }
+    }
+  ],
+
+  "fluid_boundary_conditions": [
+    {
+      "body_name": "BloodBody",
+      "type": "pressure",
+      "alignment_axis": 0,
+      "half_size": [1.0, 1.0, 1.0],
+      "transform": {
+        "translation": [0.0, 0.0, 0.0],
+        "rotation_angle": 0.0
+      },
+      "constant_value": 2.0
+    }
+  ],
+
+  "solver_parameters": {
+    "end_time": 0.05,
+    "output_interval": 0.01,
+    "screen_interval": 100,
+    "fluid_dynamics": {
+      "acoustic_cfl": 0.6,
+      "advection_cfl": 0.25,
+      "free_surface_correction": false
+    }
+  }
+}

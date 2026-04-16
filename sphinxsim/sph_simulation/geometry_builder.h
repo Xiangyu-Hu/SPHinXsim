@@ -38,8 +38,12 @@ class EntityManager;
 
 struct SystemDomainConfig
 {
-    BoundingBoxd system_domain_bounds_;
-    Real particle_spacing_;
+    BoundingBoxd system_domain_bounds_ = BoundingBoxd(Vecd::Constant(-Eps), Vecd::Constant(Eps));
+    Real particle_spacing_ = Eps;
+    void updateSystemDomainBounds(const BoundingBoxd &shape_bounds)
+    {
+        system_domain_bounds_ = system_domain_bounds_.add(shape_bounds);
+    }
 };
 
 class GeometryBuilder

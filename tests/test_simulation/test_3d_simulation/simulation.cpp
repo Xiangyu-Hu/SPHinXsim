@@ -7,16 +7,30 @@
  * @author Xiangyu Hu
  */
 #include "sph_simulation.h"
-#include "sphinxsys.h"
+#include <gtest/gtest.h>
 
 using namespace SPH;
 
-int main()
+/*TEST(simulations, dambreak)
 {
-    SPHSimulation sim("input/config.json");
+    SPHSimulation sim("input/dambreak.json");
+    sim.resetOutputRoot("./dambreak");
     sim.loadConfig();
     sim.initializeSimulation();
     sim.run();
+}*/
 
-    return 0;
+TEST(simulations, t_pipe)
+{
+    SPHSimulation sim("input/t_pipe.json");
+    sim.resetOutputRoot("./t_pipe", true);
+    sim.loadConfig();
+    //    sim.initializeSimulation();
+    //    sim.run();
+}
+
+int main(int argc, char *argv[])
+{
+    testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

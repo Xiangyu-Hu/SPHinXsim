@@ -5,12 +5,13 @@ namespace SPH
 //=================================================================================================//
 void GeometryBuilder::createGeometries(EntityManager &entity_manager, const json &config)
 {
-    entity_manager.emplaceEntity<SystemDomainConfig>(
-        "SystemDomainConfig", parseSystemDomainConfig(config));
+    SystemDomainConfig *system_domain_config = entity_manager.emplaceEntity<
+        SystemDomainConfig>("SystemDomainConfig", parseSystemDomainConfig(config));
     for (const auto &geo : config.at("shapes"))
     {
         Shape *shape = addShape(entity_manager, geo);
         entity_manager.addEntity<Shape>(shape->getName(), shape);
+        system_domain_config->updateSystemDomainBounds(shape->getBounds());
     }
 }
 //=================================================================================================//
@@ -31,8 +32,14 @@ TransformGeometryBox GeometryBuilder::parseBox(const json &config)
 SystemDomainConfig GeometryBuilder::parseSystemDomainConfig(const json &config)
 {
     SystemDomainConfig system_config;
-    system_config.system_domain_bounds_ = parseBoundingBox(config.at("system_domain"));
-    system_config.particle_spacing_ = config.at("global_resolution").get<Real>();
+    if (config.contains("system_domain"))
+    {
+        system_config.system_domain_bounds_ = parseBoundingBox(config.at("system_domain"));
+    }
+    if (config.contains("global_resolution"))
+    {
+        system_config.particle_spacing_ = config.at("global_resolution").get<Real>();
+    }
     return system_config;
 }
 //=================================================================================================//
@@ -150,6 +157,26 @@ Shape *GeometryBuilder::addShape(EntityManager &entity_manager, const json &conf
         }
         MultiPolygonShape *shape = entity_manager.emplaceEntity<MultiPolygonShape>(name, multi_polygon, name);
         shape->writeMultiPolygonShapeToVtp();
+        return shape;
+    }
+#else
+    if (type == "triangle_mesh")
+    {
+        Vec3d translation = Vec3d::Zero();
+        if (config.contains("translation"))
+        {
+            translation = jsonToVecd(config.at("translation"));
+        }
+
+        Real scale = 1.0;
+        if (config.contains("scale"))
+        {
+            scale = config.at("scale").get<Real>();
+        }
+
+        TriangleMeshShapeSTL *shape = entity_manager.emplaceEntity<TriangleMeshShapeSTL>(
+            name, config.at("file_path").get<std::string>(), translation, scale, name);
+        shape->writTriangleMeshShapeToVtp();
         return shape;
     }
 #endif

@@ -23,15 +23,10 @@
   "particle_relaxation": {
     "build_and_run": true,
     "settings": {
-      "relaxation_bodies": [
-        {
-          "name": "WallBoundary"
-        },
-        {
-          "name": "BloodBody",
-          "dependent_bodies": ["WallBoundary"]
-        }
-      ],
+      "relaxation_bodies": ["BloodBody", "WallBoundary"],
+      "relation_map": {
+        "BloodBody": ["WallBoundary"]
+      },
       "relaxation_parameters": {
         "total_iterations": 1000
       }

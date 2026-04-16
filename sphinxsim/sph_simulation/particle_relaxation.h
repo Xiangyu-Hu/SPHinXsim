@@ -35,6 +35,7 @@ namespace SPH
 {
 class RelaxationSystem;
 class EntityManager;
+class ParticleDynamicsGroup;
 
 struct RelaxationParameters
 {
@@ -50,11 +51,18 @@ class ParticleRelaxation
 
   private:
     RelaxationParameters relaxation_parameters_;
+    std::unique_ptr<RelaxationSystem> relaxation_system_ptr_;
+    std::unique_ptr<SPHSolver> sph_solver_ptr_;
     StagePipeline<SimulationHookPoint> relaxation_pipeline_;
 
-    RelaxationSystem &defineRelaxationSystem(SPHSimulation &sim, const json &config);
+    RelaxationSystem &defineRelaxationSystem(EntityManager &entity_manager, const json &config);
+    SPHSolver &defineSPHSolver(RelaxationSystem &relaxation_system, const json &config);
     void addRelaxationBodies(
         RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
+    void defineBodyRelations(RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
+    
+    template <class MethodContainerType>
+    ParticleDynamicsGroup &addConfigurationDynamics(RelaxationSystem &relaxation_system, MethodContainerType &main_methods);
 };
 } // namespace SPH
 #endif // PARTICLE_RELAXATION_BUILDER_H

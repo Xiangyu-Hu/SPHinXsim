@@ -12,7 +12,7 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
     //	Build up an SPHSystem and IO environment.
     //----------------------------------------------------------------------
     EntityManager &entity_manager = sim.getEntityManager();
-    RelaxationSystem &relaxation_system = defineRelaxationSystem(sim, config);
+    RelaxationSystem &relaxation_system = defineRelaxationSystem(entity_manager, config);
     //----------------------------------------------------------------------
     //	Creating bodies with inital shape and particles.
     //----------------------------------------------------------------------
@@ -23,21 +23,18 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
     //  or with other bodies within interaction range.
     //  Generally, we first define all the inner relations, then the contact relations.
     //----------------------------------------------------------------------
-    RealBody &relax_body = *DynamicCast<RealBody>(
-        this, relaxation_system.getRealBodies().front()); // assume only one relax body for now
-    auto &body_inner = relaxation_system.addInnerRelation(relax_body);
+    defineBodyRelations(relaxation_system, entity_manager, config);
     //----------------------------------------------------------------------
     // Define SPH solver with particle methods and execution policies.
     // Generally, the host methods should be able to run immediately.
     //----------------------------------------------------------------------
-    SPHSolver *sph_solver = entity_manager.emplaceEntity<SPHSolver>("RelaxationSolver", relaxation_system);
-    auto &host_methods = sph_solver->addParticleMethodContainer(par_host);
-    host_methods.addStateDynamics<RandomizeParticlePositionCK>(relax_body).exec();
+    SPHSolver &sph_solver = defineSPHSolver(relaxation_system, config);
+    auto &host_methods = sph_solver.addParticleMethodContainer(par_host);
+    StdVec<RealBody *> relaxation_bodies = relaxation_system.collectBodies<RealBody>();
+    host_methods.addStateDynamics<RandomizeParticlePositionCK>(relaxation_bodies).exec();
 
-    auto &main_methods = sph_solver->addParticleMethodContainer(par_ck);
-    auto &body_update_configuration = main_methods.addParticleDynamicsGroup()
-                                          .add(&main_methods.addCellLinkedListDynamics(relax_body))
-                                          .add(&main_methods.addRelationDynamics(body_inner));
+    auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
+    auto &body_update_configuration = addConfigurationDynamics(relaxation_system, main_methods);
 
     LevelSetShape &level_set_shape = entity_manager.getEntityByName<LevelSetShape>(relax_body.getName());
     auto &relaxation_residual =
@@ -112,12 +109,18 @@ void ParticleRelaxation::runRelaxation()
 }
 //=================================================================================================//
 RelaxationSystem &ParticleRelaxation::defineRelaxationSystem(
-    SPHSimulation &sim, const json &config)
+    EntityManager &entity_manager, const json &config)
 {
-    EntityManager &entity_manager = sim.getEntityManager();
     auto &system_config = entity_manager.getEntityByName<SystemDomainConfig>("SystemDomainConfig");
-    return *entity_manager.emplaceEntity<RelaxationSystem>(
-        "RelaxationSystem", system_config.system_domain_bounds_, system_config.particle_spacing_);
+    relaxation_system_ptr_ = std::make_unique<RelaxationSystem>(
+        system_config.system_domain_bounds_, system_config.particle_spacing_);
+    return *relaxation_system_ptr_.get();
+}
+//=================================================================================================//
+SPHSolver &ParticleRelaxation::defineSPHSolver(RelaxationSystem &relaxation_system, const json &config)
+{
+    sph_solver_ptr_ = std::make_unique<SPHSolver>(relaxation_system);
+    return *sph_solver_ptr_.get();
 }
 //=================================================================================================//
 void ParticleRelaxation::addRelaxationBodies(
@@ -131,6 +134,32 @@ void ParticleRelaxation::addRelaxationBodies(
         relaxation_body.generateParticles<BaseParticles, Lattice>();
         LevelSetShape &level_set_shape = relaxation_body.defineBodyLevelSetShape(par_ck, 2.0).writeLevelSet();
         entity_manager.addEntity(name, &level_set_shape);
+    }
+}
+//=================================================================================================//
+void ParticleRelaxation::defineBodyRelations(
+    RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config)
+{
+    StdVec<RealBody *> relaxation_bodies = relaxation_system.collectBodies<RealBody>();
+    for (const auto &relax_body : relaxation_bodies)
+    {
+        relaxation_system.addInnerRelation(*relax_body);
+    }
+
+    if (config.contains("relation_map"))
+    {
+        const json &relation_map_json = config.at("relation_map");
+        for (auto it = relation_map_json.begin(); it != relation_map_json.end(); ++it)
+        {
+            const std::string source_body_name = it.key();
+            RealBody &source_body = relaxation_system.getBodyByName<RealBody>(source_body_name);
+            StdVec<RealBody *> target_bodies;
+            for (const auto &target_body_name : it.value())
+            {
+                target_bodies.push_back(&relaxation_system.getBodyByName<RealBody>(target_body_name));
+            }
+            relaxation_system.addContactRelation(source_body, target_bodies);
+        }
     }
 }
 //=================================================================================================//

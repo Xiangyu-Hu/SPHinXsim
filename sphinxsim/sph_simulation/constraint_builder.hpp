@@ -18,7 +18,7 @@ void ConstraintBuilder::addConstraints(
     for (const auto &constraint_config : config.at("body_constraints"))
     {
         const std::string body_name = constraint_config.at("body_name").get<std::string>();
-        RealBody &real_body = sph_system.getRealBodyByName(body_name);
+        RealBody &real_body = sph_system.getBodyByName<RealBody>(body_name);
         addConstraint(sim, method_container, real_body, constraint_config);
     }
 }

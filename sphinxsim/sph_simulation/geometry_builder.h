@@ -38,12 +38,12 @@ class EntityManager;
 
 struct SystemDomainConfig
 {
+    bool prescribed_spacing_ = true;
     BoundingBoxd system_domain_bounds_ = BoundingBoxd(Vecd::Constant(-Eps), Vecd::Constant(Eps));
     Real particle_spacing_ = Eps;
-    void updateSystemDomainBounds(const BoundingBoxd &shape_bounds)
-    {
-        system_domain_bounds_ = system_domain_bounds_.add(shape_bounds);
-    }
+    UnsignedInt min_dimension_resolution_ = 25;
+    void updateSystemDomainConfig(const BoundingBoxd &shape_bounds);
+    void updateParticleSpacing();
 };
 
 class GeometryBuilder
@@ -54,6 +54,7 @@ class GeometryBuilder
     static TransformGeometryBox parseBox(const json &config);
     GeometricOps parseGeometricOp(const std::string &op_str);
     SystemDomainConfig parseSystemDomainConfig(const json &config);
+    void parseGlobalResolution(SystemDomainConfig &system_domain_config, const json &config);
 #ifdef SPHINXSYS_2D
     MultiPolygon parseMultiPolygon(const json &config);
 #endif

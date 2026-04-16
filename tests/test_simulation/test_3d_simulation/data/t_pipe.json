@@ -3,7 +3,7 @@
   "particle_sort_frequency": 100,
 
   "geometries": {
-    "global_resolution": 0.001,
+    "global_resolution": { "minimum_dimension_resolution": 25 },
     "shapes": [
       {
         "name": "BloodBody",
@@ -18,6 +18,24 @@
         "scale": 0.001
       }
     ]
+  },
+
+  "particle_relaxation": {
+    "build_and_run": true,
+    "settings": {
+      "relaxation_bodies": [
+        {
+          "name": "WallBoundary"
+        },
+        {
+          "name": "BloodBody",
+          "dependent_bodies": ["WallBoundary"]
+        }
+      ],
+      "relaxation_parameters": {
+        "total_iterations": 1000
+      }
+    }
   },
 
   "fluid_bodies": [
@@ -38,6 +56,9 @@
       "name": "WallBoundary",
       "material": {
         "type": "rigid_body"
+      },
+      "particle_reload": {
+        "reload_variables": ["NormalDirection"]
       }
     }
   ],

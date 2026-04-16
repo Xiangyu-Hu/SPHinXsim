@@ -3,6 +3,21 @@
 namespace SPH
 {
 //=================================================================================================//
+void SystemDomainConfig::updateSystemDomainConfig(const BoundingBoxd &shape_bounds)
+{
+    system_domain_bounds_ = system_domain_bounds_.add(shape_bounds);
+    updateParticleSpacing();
+}
+//=================================================================================================//
+void SystemDomainConfig::updateParticleSpacing()
+{
+    if (!prescribed_spacing_)
+    {
+        particle_spacing_ = system_domain_bounds_.MinimumDimension() /
+                            Real(min_dimension_resolution_);
+    }
+}
+//=================================================================================================//
 void GeometryBuilder::createGeometries(EntityManager &entity_manager, const json &config)
 {
     SystemDomainConfig *system_domain_config = entity_manager.emplaceEntity<
@@ -11,7 +26,7 @@ void GeometryBuilder::createGeometries(EntityManager &entity_manager, const json
     {
         Shape *shape = addShape(entity_manager, geo);
         entity_manager.addEntity<Shape>(shape->getName(), shape);
-        system_domain_config->updateSystemDomainBounds(shape->getBounds());
+        system_domain_config->updateSystemDomainConfig(shape->getBounds());
     }
 }
 //=================================================================================================//
@@ -38,9 +53,22 @@ SystemDomainConfig GeometryBuilder::parseSystemDomainConfig(const json &config)
     }
     if (config.contains("global_resolution"))
     {
-        system_config.particle_spacing_ = config.at("global_resolution").get<Real>();
+        parseGlobalResolution(system_config, config.at("global_resolution"));
     }
     return system_config;
+}
+//=================================================================================================//
+void GeometryBuilder::parseGlobalResolution(SystemDomainConfig &system_config, const json &config)
+{
+    if (config.contains("minimum_dimension_resolution"))
+    {
+        system_config.prescribed_spacing_ = false;
+        system_config.min_dimension_resolution_ =
+            config.at("minimum_dimension_resolution").get<UnsignedInt>();
+        system_config.updateParticleSpacing();
+        return;
+    }
+    system_config.particle_spacing_ = config.at("particle_spacing").get<Real>();
 }
 //=================================================================================================//
 GeometricOps GeometryBuilder::parseGeometricOp(const std::string &op_str)

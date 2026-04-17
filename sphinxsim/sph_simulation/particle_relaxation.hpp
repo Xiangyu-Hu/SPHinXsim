@@ -18,18 +18,18 @@ ParticleDynamicsGroup &ParticleRelaxation::addConfigurationDynamics(
     configuration_update.add(&main_methods.addCellLinkedListDynamics(relaxation_bodies));
     for (auto *relax_body : relaxation_bodies)
     {
-        auto &body_inner = relaxation_system.getRelationByName<
-            InnerRelation<RealBody>>(relax_body->getName());
+        auto *body_inner = relaxation_system.getRelationByName<
+            Inner<Relation<RealBody>>>(relax_body->getName());
         if (body_inner != nullptr)
         {
-            configuration_update.add(&main_methods.addRelationDynamics(body_inner));
+            configuration_update.add(&main_methods.addRelationDynamics(*body_inner));
         }
 
-        auto &body_contact = relaxation_system.getRelationByName<
+        auto *body_contact = relaxation_system.getRelationByName<
             Contact<Relation<RealBody, RealBody>>>(relax_body->getName());
         if (body_contact != nullptr)
         {
-            configuration_update.add(&main_methods.addRelationDynamics(body_contact));
+            configuration_update.add(&main_methods.addRelationDynamics(*body_contact));
         }
     }
     return configuration_update;
@@ -43,10 +43,8 @@ ParticleDynamicsGroup &ParticleRelaxation::addRelaxationResidue(
     StdVec<RealBody *> relaxation_bodies = relaxation_system.collectBodies<RealBody>();
     for (auto *relax_body : relaxation_bodies)
     {
-        LevelSetShape &level_set_shape = entity_manager.getEntityByName<LevelSetShape>(relax_body.getName());
-        main_methods.addInteractionDynamics<KernelGradientIntegral, NoKernelCorrectionCK>(body_inner)
-            .addPostStateDynamics<LevelsetKernelGradientIntegral>(relax_body, level_set_shape);
     }
+    return relaxation_residue;
 }
 //=================================================================================================//
 } // namespace SPH

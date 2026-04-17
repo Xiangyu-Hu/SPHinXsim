@@ -1,10 +1,12 @@
-#include "particle_relaxation.h"
+#include "particle_relaxation.hpp"
 
 #include "geometry_builder.h"
 #include "sph_simulation.h"
 
 namespace SPH
 {
+//=================================================================================================//
+ParticleRelaxation::~ParticleRelaxation() = default;
 //=================================================================================================//
 void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json &config)
 {
@@ -14,16 +16,9 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
     EntityManager &entity_manager = sim.getEntityManager();
     RelaxationSystem &relaxation_system = defineRelaxationSystem(entity_manager, config);
     //----------------------------------------------------------------------
-    //	Creating bodies with inital shape and particles.
-    //----------------------------------------------------------------------
-    addRelaxationBodies(relaxation_system, entity_manager, config);
-    //----------------------------------------------------------------------
-    //	Define body relation map.
-    //	The relations give the topological connections within a body
-    //  or with other bodies within interaction range.
-    //  Generally, we first define all the inner relations, then the contact relations.
-    //----------------------------------------------------------------------
-    defineBodyRelations(relaxation_system, entity_manager, config);
+    RealBody &relax_body = *DynamicCast<RealBody>(
+        this, relaxation_system.getRealBodies().front()); // assume only one relax body for now
+    auto &body_inner = relaxation_system.addInnerRelation(relax_body);
     //----------------------------------------------------------------------
     // Define SPH solver with particle methods and execution policies.
     // Generally, the host methods should be able to run immediately.

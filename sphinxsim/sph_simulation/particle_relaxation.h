@@ -35,6 +35,7 @@ namespace SPH
 {
 class RelaxationSystem;
 class EntityManager;
+class SPHSolver;
 class ParticleDynamicsGroup;
 
 struct RelaxationParameters
@@ -45,6 +46,7 @@ struct RelaxationParameters
 class ParticleRelaxation
 {
   public:
+    ~ParticleRelaxation();
     void buildParticleRelaxation(SPHSimulation &sim, const json &config);
     void updateRelaxationParameters(SPHSimulation &sim, const json &config);
     void runRelaxation();

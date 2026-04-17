@@ -22,6 +22,13 @@ Transform jsonToTransform(const nlohmann::json &config)
     Vec2d translation = jsonToVecd(config.at("translation"));
     return Transform(rotation, translation);
 }
+//=================================================================================================//
+Rotation getRotationFromXAxis(const Vecd &direction)
+{
+    Real angle = std::atan2(direction[yAxis], direction[xAxis]);
+    return Rotation(angle);
+}
+//=================================================================================================//
 #else
 Transform jsonToTransform(const nlohmann::json &config)
 {
@@ -29,6 +36,13 @@ Transform jsonToTransform(const nlohmann::json &config)
                       jsonToVecd(config.at("rotation_axis")));
     Vec3d translation = jsonToVecd(config.at("translation"));
     return Transform(rotation, translation);
+}
+//=================================================================================================//
+Rotation getRotationFromXAxis(const Vecd &direction)
+{
+    Vec3d rotation_axis = Vec3d::UnitX().cross(direction);
+    Real rotation_angle = std::acos(Vec3d::UnitX().dot(direction));
+    return Rotation(rotation_angle, rotation_axis);
 }
 #endif
 //=================================================================================================//
@@ -77,7 +91,7 @@ void SimulationBuilder::addContinuumBodies(
 void SimulationBuilder::addSolidBodies(
     SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
 {
-        for (const auto &sb : config)
+    for (const auto &sb : config)
     {
         const std::string name = sb.at("name").get<std::string>();
         Shape &solid_shape = entity_manager.getEntityByName<Shape>(name);

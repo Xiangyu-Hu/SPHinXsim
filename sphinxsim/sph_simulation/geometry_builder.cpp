@@ -5,7 +5,7 @@ namespace SPH
 //=================================================================================================//
 void SystemDomainConfig::updateSystemDomainConfig(const BoundingBoxd &shape_bounds)
 {
-    system_domain_bounds_ = system_domain_bounds_.add(shape_bounds);
+    system_bounds_ = system_bounds_.add(shape_bounds);
     updateParticleSpacing();
 }
 //=================================================================================================//
@@ -13,8 +13,8 @@ void SystemDomainConfig::updateParticleSpacing()
 {
     if (!prescribed_spacing_)
     {
-        particle_spacing_ = system_domain_bounds_.MinimumDimension() /
-                            Real(min_dimension_resolution_);
+        particle_spacing_ = system_bounds_.MinimumDimension() /
+                            Real(min_dimension_particles_);
     }
 }
 //=================================================================================================//
@@ -27,6 +27,12 @@ void GeometryBuilder::createGeometries(EntityManager &entity_manager, const json
         Shape *shape = addShape(entity_manager, geo);
         entity_manager.addEntity<Shape>(shape->getName(), shape);
         system_domain_config->updateSystemDomainConfig(shape->getBounds());
+    }
+
+    for (const auto &ab : config.at("aligned_boxes"))
+    {
+        GeometricShapeBox aligned_box_shape = addAlignedBox(entity_manager, ab);
+        aligned_box_shape.writeGeometricShapeBoxToVtp();
     }
 }
 //=================================================================================================//
@@ -49,7 +55,7 @@ SystemDomainConfig GeometryBuilder::parseSystemDomainConfig(const json &config)
     SystemDomainConfig system_config;
     if (config.contains("system_domain"))
     {
-        system_config.system_domain_bounds_ = parseBoundingBox(config.at("system_domain"));
+        system_config.system_bounds_ = parseBoundingBox(config.at("system_domain"));
     }
     if (config.contains("global_resolution"))
     {
@@ -60,11 +66,11 @@ SystemDomainConfig GeometryBuilder::parseSystemDomainConfig(const json &config)
 //=================================================================================================//
 void GeometryBuilder::parseGlobalResolution(SystemDomainConfig &system_config, const json &config)
 {
-    if (config.contains("minimum_dimension_resolution"))
+    if (config.contains("min_dimension_particles"))
     {
         system_config.prescribed_spacing_ = false;
-        system_config.min_dimension_resolution_ =
-            config.at("minimum_dimension_resolution").get<UnsignedInt>();
+        system_config.min_dimension_particles_ =
+            config.at("min_dimension_particles").get<UnsignedInt>();
         system_config.updateParticleSpacing();
         return;
     }
@@ -210,6 +216,33 @@ Shape *GeometryBuilder::addShape(EntityManager &entity_manager, const json &conf
 #endif
 
     throw std::runtime_error("GeometryBuilder::addShape: unsupported shape: " + type);
+}
+//=================================================================================================//
+GeometricShapeBox GeometryBuilder::addAlignedBox(EntityManager &entity_manager, const json &config)
+{
+    const std::string name = config.at("name").get<std::string>();
+    const std::string type = config.at("type").get<std::string>();
+
+    if (type == "in_outlet")
+    {
+        Vecd center = jsonToVecd(config.at("center"));
+        Vecd normal = jsonToVecd(config.at("normal"));
+        Real radius = config.at("radius").get<Real>();
+
+        SystemDomainConfig &system_domain_config =
+            entity_manager.getEntityByName<SystemDomainConfig>("SystemDomainConfig");
+        Real expansion_length = 4.0 * system_domain_config.particle_spacing_;
+
+        Vecd half_size = Vecd::Constant(radius + expansion_length);
+        half_size[xAxis] = expansion_length * 0.5;
+        Vecd translation = center + normal * half_size[xAxis];
+        Rotation rotation = getRotationFromXAxis(normal);
+        AlignedBox *aligned_box = entity_manager.emplaceEntity<AlignedBox>(
+            name, xAxis, Transform(rotation, translation), half_size);
+        return GeometricShapeBox(*aligned_box, name); //for visualization only
+    }
+
+    throw std::runtime_error("GeometryBuilder::addAlignedBox: unsupported aligned box type: " + type);
 }
 //=================================================================================================//
 } // namespace SPH

@@ -42,8 +42,10 @@ Vecd jsonToVecd(const nlohmann::json &arr);
 
 #ifdef SPHINXSYS_2D
 Transform jsonToTransform(const nlohmann::json &config);
+Rotation getRotationFromXAxis(const Vecd &direction);
 #else
 Transform jsonToTransform(const nlohmann::json &config);
+Rotation getRotationFromXAxis(const Vecd &direction);
 #endif
 
 // Enum for hook points for fast O(1) access

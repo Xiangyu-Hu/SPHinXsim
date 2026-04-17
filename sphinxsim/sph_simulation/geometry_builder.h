@@ -39,9 +39,9 @@ class EntityManager;
 struct SystemDomainConfig
 {
     bool prescribed_spacing_ = true;
-    BoundingBoxd system_domain_bounds_ = BoundingBoxd(Vecd::Constant(-Eps), Vecd::Constant(Eps));
+    BoundingBoxd system_bounds_ = BoundingBoxd(Vecd::Constant(Eps));
     Real particle_spacing_ = Eps;
-    UnsignedInt min_dimension_resolution_ = 25;
+    UnsignedInt min_dimension_particles_ = 25;
     void updateSystemDomainConfig(const BoundingBoxd &shape_bounds);
     void updateParticleSpacing();
 };
@@ -61,6 +61,7 @@ class GeometryBuilder
 
   private:
     Shape *addShape(EntityManager &entity_manager, const json &config);
+    GeometricShapeBox addAlignedBox(EntityManager &entity_manager, const json &config);
 };
 } // namespace SPH
 #endif // GEOMETRY_BUILDER_H

@@ -35,7 +35,7 @@ SPHSystem &SPHSimulation::defineSPHSystem()
     SystemDomainConfig &system_config = entity_manager_.getEntityByName<
         SystemDomainConfig>("SystemDomainConfig");
     sph_system_ptr_ = std::make_unique<SPHSystem>(
-        system_config.system_domain_bounds_, system_config.particle_spacing_);
+        system_config.system_bounds_, system_config.particle_spacing_);
     return *sph_system_ptr_.get();
 }
 //=================================================================================================//

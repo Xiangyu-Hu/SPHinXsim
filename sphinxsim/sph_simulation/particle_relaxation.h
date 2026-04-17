@@ -59,10 +59,13 @@ class ParticleRelaxation
     SPHSolver &defineSPHSolver(RelaxationSystem &relaxation_system, const json &config);
     void addRelaxationBodies(
         RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
-    void defineBodyRelations(RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
-    
+    void defineBodyRelations(RelaxationSystem &relaxation_system, const json &config);
+
     template <class MethodContainerType>
     ParticleDynamicsGroup &addConfigurationDynamics(RelaxationSystem &relaxation_system, MethodContainerType &main_methods);
+    template <class MethodContainerType>
+    ParticleDynamicsGroup &addRelaxationResidue(
+        RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods);
 };
 } // namespace SPH
 #endif // PARTICLE_RELAXATION_BUILDER_H

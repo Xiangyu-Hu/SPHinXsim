@@ -137,8 +137,7 @@ void ParticleRelaxation::addRelaxationBodies(
     }
 }
 //=================================================================================================//
-void ParticleRelaxation::defineBodyRelations(
-    RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config)
+void ParticleRelaxation::defineBodyRelations(RelaxationSystem &relaxation_system, const json &config)
 {
     StdVec<RealBody *> relaxation_bodies = relaxation_system.collectBodies<RealBody>();
     for (const auto &relax_body : relaxation_bodies)
@@ -146,16 +145,21 @@ void ParticleRelaxation::defineBodyRelations(
         relaxation_system.addInnerRelation(*relax_body);
     }
 
-    if (config.contains("relation_map"))
+    if (config.contains("contact_relations"))
     {
-        const json &relation_map_json = config.at("relation_map");
-        for (auto it = relation_map_json.begin(); it != relation_map_json.end(); ++it)
+        for (const auto &cr : config.at("contact_relations"))
         {
-            const std::string source_body_name = it.key();
+            if (cr.size() < 2)
+            {
+                throw std::runtime_error("Contact relation should have at least two bodies.");
+            }
+
+            const std::string source_body_name = cr.at(0).get<std::string>();
             RealBody &source_body = relaxation_system.getBodyByName<RealBody>(source_body_name);
             StdVec<RealBody *> target_bodies;
-            for (const auto &target_body_name : it.value())
+            for (size_t i = 1; i < cr.size(); ++i)
             {
+                const std::string target_body_name = cr.at(i).get<std::string>();
                 target_bodies.push_back(&relaxation_system.getBodyByName<RealBody>(target_body_name));
             }
             relaxation_system.addContactRelation(source_body, target_bodies);

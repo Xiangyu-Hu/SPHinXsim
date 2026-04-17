@@ -3,7 +3,7 @@
   "particle_sort_frequency": 100,
 
   "geometries": {
-    "global_resolution": { "minimum_dimension_resolution": 25 },
+    "global_resolution": { "min_dimension_particles": 25 },
     "shapes": [
       {
         "name": "BloodBody",
@@ -17,6 +17,32 @@
         "file_path": "./input/t_pipe.stl",
         "scale": 0.001
       }
+    ],
+    "aligned_boxes": [
+      {
+        "name": "InletBox",
+        "half_size": [0.01, 0.01, 0.01],
+        "transform": {
+          "translation": [-0.05, 0.0, 0.0],
+          "rotation_angle": 0.0
+        }
+      },
+      {
+        "name": "UpperOutletBox",
+        "half_size": [0.01, 0.01, 0.01],
+        "transform": {
+          "translation": [0.05, 0.0, 0.0],
+          "rotation_angle": 0.0
+        }
+      },
+      {
+        "name": "LowerOutletBox",
+        "half_size": [0.01, 0.01, 0.01],
+        "transform": {
+          "translation": [0.05, 0.0, 0.0],
+          "rotation_angle": 0.0
+        }
+      }
     ]
   },
 
@@ -24,9 +50,7 @@
     "build_and_run": true,
     "settings": {
       "relaxation_bodies": ["BloodBody", "WallBoundary"],
-      "relation_map": {
-        "BloodBody": ["WallBoundary"]
-      },
+      "contact_relations": [["BloodBody", "WallBoundary"]],
       "relaxation_parameters": {
         "total_iterations": 1000
       }

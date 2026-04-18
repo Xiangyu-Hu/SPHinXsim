@@ -44,13 +44,18 @@
   },
 
   "particle_relaxation": {
-    "build_and_run": true,
-    "settings": {
-      "relaxation_bodies": ["BloodBody", "WallBoundary"],
-      "contact_relations": [["BloodBody", "WallBoundary"]],
-      "relaxation_parameters": {
-        "total_iterations": 1000
+    "relaxation_bodies": [
+      {
+        "name": "BloodBody",
+        "contact_bodies": [["WallBoundary"]]
+      },
+      {
+        "name": "WallBoundary",
+        "level_set": {}
       }
+    ],
+    "relaxation_parameters": {
+      "total_iterations": 1000
     }
   },
 

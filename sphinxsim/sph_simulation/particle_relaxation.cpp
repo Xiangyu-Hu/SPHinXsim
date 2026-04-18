@@ -16,40 +16,31 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
     EntityManager &entity_manager = sim.getEntityManager();
     RelaxationSystem &relaxation_system = defineRelaxationSystem(entity_manager, config);
     //----------------------------------------------------------------------
-    RealBody &relax_body = *DynamicCast<RealBody>(
-        this, relaxation_system.getRealBodies().front()); // assume only one relax body for now
-    auto &body_inner = relaxation_system.addInnerRelation(relax_body);
+    addRelaxationBodies(relaxation_system, entity_manager, config.at("relaxation_bodies"));
+    defineBodyRelations(relaxation_system);
     //----------------------------------------------------------------------
     // Define SPH solver with particle methods and execution policies.
     // Generally, the host methods should be able to run immediately.
     //----------------------------------------------------------------------
     SPHSolver &sph_solver = defineSPHSolver(relaxation_system, config);
     auto &host_methods = sph_solver.addParticleMethodContainer(par_host);
-    StdVec<RealBody *> relaxation_bodies = relaxation_system.collectBodies<RealBody>();
-    host_methods.addStateDynamics<RandomizeParticlePositionCK>(relaxation_bodies).exec();
-
     auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
+
+    randomizeParticlePositions(relaxation_system, host_methods);
     auto &body_update_configuration = addConfigurationDynamics(relaxation_system, main_methods);
-
-    LevelSetShape &level_set_shape = entity_manager.getEntityByName<LevelSetShape>(relax_body.getName());
-    auto &relaxation_residual =
-        main_methods.addInteractionDynamics<KernelGradientIntegral, NoKernelCorrectionCK>(body_inner)
-            .addPostStateDynamics<LevelsetKernelGradientIntegral>(relax_body, level_set_shape);
-    auto &relaxation_scaling = main_methods.addReduceDynamics<RelaxationScalingCK>(relax_body);
-    auto &update_particle_position = main_methods.addStateDynamics<PositionRelaxationCK>(relax_body);
-
-    NearShapeSurface *near_body_surface = entity_manager.emplaceEntity<NearShapeSurface>(relax_body.getName(), relax_body);
-    auto &level_set_bounding = main_methods.addStateDynamics<LevelsetBounding>(*near_body_surface);
+    auto &relaxation_residual = addRelaxationResidue(relaxation_system, entity_manager, main_methods);
+    ReduceDynamicsGroup relaxation_scaling = addRelaxationScaling(relaxation_system, entity_manager, main_methods);
+    auto &update_particle_position = addRelaxationPositionUpdate(relaxation_system, entity_manager, main_methods);
     //----------------------------------------------------------------------
     //	Run on CPU after relaxation finished and output results.
     //----------------------------------------------------------------------
-    auto &body_normal_direction = host_methods.addStateDynamics<NormalFromBodyShapeCK>(relax_body);
+    auto &body_normal_direction = addBodyNormalDirection(relaxation_system, entity_manager, main_methods);
     //----------------------------------------------------------------------
     //	Define simple file input and outputs functions.
     //----------------------------------------------------------------------
     auto &body_state_recorder = main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(relaxation_system);
-    auto &write_particle_reload_files = main_methods.addIODynamics<ReloadParticleIOCK>(StdVec<SPHBody *>{&relax_body});
-    write_particle_reload_files.addToReload<Vecd>(relax_body, "NormalDirection");
+    auto &write_particle_reload_files = main_methods.addIODynamics<ReloadParticleIOCK>(relaxation_system);
+    write_particle_reload_files.addToReload<Vecd>(real_body, "NormalDirection");
     //----------------------------------------------------------------------
     //	First output before the particle relaxation.
     //----------------------------------------------------------------------
@@ -61,6 +52,8 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
     relaxation_pipeline_.main_steps.push_back(
         [&]()
         {
+            simulation_pipeline.run_hooks(RelaxationHookPoint::Initialization);
+
             UnsignedInt ite_p = 0;
             while (ite_p < relaxation_parameters_.total_iterations)
             {
@@ -117,47 +110,54 @@ SPHSolver &ParticleRelaxation::defineSPHSolver(RelaxationSystem &relaxation_syst
     sph_solver_ptr_ = std::make_unique<SPHSolver>(relaxation_system);
     return *sph_solver_ptr_.get();
 }
+
 //=================================================================================================//
 void ParticleRelaxation::addRelaxationBodies(
     RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config)
 {
-    for (const auto &rb : config.at("relaxation_bodies"))
+    for (const auto &rb : config)
     {
-        const std::string name = rb.at("name").get<std::string>();
-        Shape &shape = entity_manager.getEntityByName<Shape>(name);
-        auto &relaxation_body = relaxation_system.addBody<RealBody>(shape, name);
-        relaxation_body.generateParticles<BaseParticles, Lattice>();
-        LevelSetShape &level_set_shape = relaxation_body.defineBodyLevelSetShape(par_ck, 2.0).writeLevelSet();
-        entity_manager.addEntity(name, &level_set_shape);
+        RelaxationBodyConfig body_config;
+        body_config.name_ = rb.at("name").get<std::string>();
+        Shape &shape = entity_manager.getEntityByName<Shape>(body_config.name_);
+        auto &real_body = relaxation_system.addBody<RealBody>(shape, body_config.name_);
+
+        if (rb.contains("with_level_set"))
+        {
+            body_config.with_level_set_ = true;
+            LevelSetShape &level_set_shape = real_body.defineBodyLevelSetShape(par_ck, 2.0).writeLevelSet();
+            entity_manager.addEntity(body_config.name_, &level_set_shape);
+            entity_manager.emplaceEntity<NearShapeSurface>(real_body.getName(), real_body);
+        }
+
+        if (rb.contains("contact_bodies"))
+        {
+            for (const auto &contact_body : rb.at("contact_bodies"))
+            {
+                body_config.contact_bodies_.push_back(contact_body.get<std::string>());
+            }
+        }
+        real_body.generateParticles<BaseParticles, Lattice>();
+        bodies_config_.relaxation_bodies_.push_back(body_config);
     }
 }
 //=================================================================================================//
-void ParticleRelaxation::defineBodyRelations(RelaxationSystem &relaxation_system, const json &config)
+void ParticleRelaxation::defineBodyRelations(RelaxationSystem &relaxation_system)
 {
-    StdVec<RealBody *> relaxation_bodies = relaxation_system.collectBodies<RealBody>();
-    for (const auto &relax_body : relaxation_bodies)
+    for (const auto &body_config : bodies_config_.relaxation_bodies_)
     {
-        relaxation_system.addInnerRelation(*relax_body);
-    }
+        RealBody &real_body = relaxation_system.getBodyByName<RealBody>(body_config.name_);
+        relaxation_system.addInnerRelation(real_body);
 
-    if (config.contains("contact_relations"))
-    {
-        for (const auto &cr : config.at("contact_relations"))
+        if (!body_config.contact_bodies_.empty())
         {
-            if (cr.size() < 2)
+            StdVec<RealBody *> contact_bodies;
+            for (const auto &contact_body_name : body_config.contact_bodies_)
             {
-                throw std::runtime_error("Contact relation should have at least two bodies.");
+                RealBody &contact_body = relaxation_system.getBodyByName<RealBody>(contact_body_name);
+                contact_bodies.push_back(&contact_body);
             }
-
-            const std::string source_body_name = cr.at(0).get<std::string>();
-            RealBody &source_body = relaxation_system.getBodyByName<RealBody>(source_body_name);
-            StdVec<RealBody *> target_bodies;
-            for (size_t i = 1; i < cr.size(); ++i)
-            {
-                const std::string target_body_name = cr.at(i).get<std::string>();
-                target_bodies.push_back(&relaxation_system.getBodyByName<RealBody>(target_body_name));
-            }
-            relaxation_system.addContactRelation(source_body, target_bodies);
+            relaxation_system.addContactRelation(real_body, contact_bodies);
         }
     }
 }

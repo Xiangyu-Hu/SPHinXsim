@@ -38,9 +38,28 @@ class EntityManager;
 class SPHSolver;
 class ParticleDynamicsGroup;
 
+struct RelaxationBodyConfig;
+{
+    std::string name_;
+    bool with_level_set_;
+    std::vector<std::string> contact_bodies_;
+}
+
+struct RelaxationBodiesConfig
+{
+    std::vector<RelaxationBodyConfig> relaxation_bodies_; // particles in these bodies will be relaxed
+    std::vector<std::string> dummy_bodies_;               // no relaxation
+};
 struct RelaxationParameters
 {
     UnsignedInt total_iterations{1000};
+};
+
+enum class RelaxationHookPoint
+{
+    Initialization,
+    ImposeConstraints,
+    NumHooks
 };
 
 class ParticleRelaxation
@@ -52,21 +71,41 @@ class ParticleRelaxation
     void runRelaxation();
 
   private:
+    RelaxationBodiesConfig bodies_config_;
     RelaxationParameters relaxation_parameters_;
     std::unique_ptr<RelaxationSystem> relaxation_system_ptr_;
     std::unique_ptr<SPHSolver> sph_solver_ptr_;
-    StagePipeline<SimulationHookPoint> relaxation_pipeline_;
+    StagePipeline<RelaxationHookPoint> relaxation_pipeline_;
 
     RelaxationSystem &defineRelaxationSystem(EntityManager &entity_manager, const json &config);
     SPHSolver &defineSPHSolver(RelaxationSystem &relaxation_system, const json &config);
     void addRelaxationBodies(
         RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
-    void defineBodyRelations(RelaxationSystem &relaxation_system, const json &config);
+    void defineBodyRelations(RelaxationSystem &relaxation_system);
+
+    template <class MethodContainerType>
+    void randomizeParticlePositions(RelaxationSystem &relaxation_system, MethodContainerType &main_methods);
+
+    template <class MethodContainerType>
+    ParticleDynamicsGroup &addDummyBodiesCellLinkedListDynamics(RelaxationSystem &relaxation_system, MethodContainerType &main_methods);
 
     template <class MethodContainerType>
     ParticleDynamicsGroup &addConfigurationDynamics(RelaxationSystem &relaxation_system, MethodContainerType &main_methods);
+
     template <class MethodContainerType>
     ParticleDynamicsGroup &addRelaxationResidue(
+        RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods);
+
+    template <class MethodContainerType>
+    ReduceDynamicsGroup<ReduceMin> addRelaxationScaling(
+        RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods);
+
+    template <class MethodContainerType>
+    ParticleDynamicsGroup &addRelaxationPositionUpdate(
+        RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods);
+
+    template <class MethodContainerType>
+    ParticleDynamicsGroup &addBodyNormalDirection(
         RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods);
 };
 } // namespace SPH

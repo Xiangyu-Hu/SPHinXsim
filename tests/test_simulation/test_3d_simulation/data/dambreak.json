@@ -6,7 +6,7 @@
       "upper_bound": [5.366, 2.0, 0.5],
       "lower_bound": [0.0, 0.0, 0.0]
     },
-    "global_resolution": 0.05,
+    "global_resolution": { "particle_spacing": 0.05 },
     "shapes": [
       {
         "name": "WaterBody",

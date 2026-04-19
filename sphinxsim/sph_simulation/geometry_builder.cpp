@@ -28,11 +28,14 @@ void GeometryBuilder::createGeometries(EntityManager &entity_manager, const json
         entity_manager.addEntity<Shape>(shape->getName(), shape);
         system_domain_config->updateSystemDomainConfig(shape->getBounds());
     }
-
-    for (const auto &ab : config.at("aligned_boxes"))
+    
+    if (config.contains("aligned_boxes"))
     {
-        GeometricShapeBox aligned_box_shape = addAlignedBox(entity_manager, ab);
-        aligned_box_shape.writeGeometricShapeBoxToVtp();
+        for (const auto &ab : config.at("aligned_boxes"))
+        {
+            GeometricShapeBox aligned_box_shape = addAlignedBox(entity_manager, ab);
+            aligned_box_shape.writeGeometricShapeBoxToVtp();
+        }
     }
 }
 //=================================================================================================//
@@ -239,7 +242,7 @@ GeometricShapeBox GeometryBuilder::addAlignedBox(EntityManager &entity_manager, 
         Rotation rotation = getRotationFromXAxis(normal);
         AlignedBox *aligned_box = entity_manager.emplaceEntity<AlignedBox>(
             name, xAxis, Transform(rotation, translation), half_size);
-        return GeometricShapeBox(*aligned_box, name); //for visualization only
+        return GeometricShapeBox(*aligned_box, name); // for visualization only
     }
 
     throw std::runtime_error("GeometryBuilder::addAlignedBox: unsupported aligned box type: " + type);

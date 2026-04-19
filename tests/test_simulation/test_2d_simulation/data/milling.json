@@ -4,7 +4,7 @@
       "upper_bound": [0.08, 0.04],
       "lower_bound": [-0.08, -0.08]
     },
-    "global_resolution": 0.0008,
+    "global_resolution": { "particle_spacing": 0.0008 },
     "shapes": [
       {
         "name": "ProcessingPiece",
@@ -40,7 +40,9 @@
     "settings": {
       "relaxation_bodies": [
         {
-          "name": "MillingTool"
+          "name": "MillingTool",
+          "level_set": {},
+          "solid_body": {}
         }
       ],
       "relaxation_parameters": {

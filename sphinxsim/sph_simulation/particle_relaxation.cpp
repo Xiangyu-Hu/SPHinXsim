@@ -29,7 +29,7 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
     randomizeParticlePositions(relaxation_system, host_methods);
     auto &body_update_configuration = addConfigurationDynamics(relaxation_system, main_methods);
     auto &relaxation_residual = addRelaxationResidue(relaxation_system, entity_manager, main_methods);
-    ReduceDynamicsGroup relaxation_scaling = addRelaxationScaling(relaxation_system, entity_manager, main_methods);
+    auto &relaxation_scaling = addRelaxationScaling(relaxation_system, entity_manager, main_methods);
     auto &update_particle_position = addRelaxationPositionUpdate(relaxation_system, entity_manager, main_methods);
     //----------------------------------------------------------------------
     //	Run on CPU after relaxation finished and output results.
@@ -40,7 +40,6 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     auto &body_state_recorder = main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(relaxation_system);
     auto &write_particle_reload_files = main_methods.addIODynamics<ReloadParticleIOCK>(relaxation_system);
-    write_particle_reload_files.addToReload<Vecd>(real_body, "NormalDirection");
     //----------------------------------------------------------------------
     //	First output before the particle relaxation.
     //----------------------------------------------------------------------
@@ -52,7 +51,7 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
     relaxation_pipeline_.main_steps.push_back(
         [&]()
         {
-            simulation_pipeline.run_hooks(RelaxationHookPoint::Initialization);
+            relaxation_pipeline_.run_hooks(RelaxationHookPoint::Initialization);
 
             UnsignedInt ite_p = 0;
             while (ite_p < relaxation_parameters_.total_iterations)
@@ -61,8 +60,8 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
 
                 relaxation_residual.exec();
                 Real relaxation_step = relaxation_scaling.exec();
+                relaxation_pipeline_.run_hooks(RelaxationHookPoint::Constraints);
                 update_particle_position.exec(relaxation_step);
-                level_set_bounding.exec();
 
                 ite_p += 1;
                 if (ite_p % 100 == 0)
@@ -75,6 +74,17 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
             body_normal_direction.exec();
             write_particle_reload_files.writeToFile();
         });
+
+    //----------------------------------------------------------------------
+    // Define optional methods using hooking point in stage pipelines.
+    //----------------------------------------------------------------------
+    if (config.at("relaxation_constraints"))
+    {
+        auto &relaxation_constraints = addRelaxationConstraints(
+            relaxation_system, entity_manager, main_methods, config.at("relaxation_constraints"));
+        relaxation_pipeline_.insert_hook(RelaxationHookPoint::Constraints, [&]()
+                                         { relaxation_constraints.exec(); });
+    }
 }
 //=================================================================================================//
 void ParticleRelaxation::updateRelaxationParameters(SPHSimulation &sim, const json &config)
@@ -128,6 +138,11 @@ void ParticleRelaxation::addRelaxationBodies(
             LevelSetShape &level_set_shape = real_body.defineBodyLevelSetShape(par_ck, 2.0).writeLevelSet();
             entity_manager.addEntity(body_config.name_, &level_set_shape);
             entity_manager.emplaceEntity<NearShapeSurface>(real_body.getName(), real_body);
+        }
+
+        if (rb.contains("solid_body"))
+        {
+            body_config.is_solid_body_ = true;
         }
 
         if (rb.contains("contact_bodies"))

@@ -88,8 +88,8 @@
     },
     {
       "body_name": "ProcessingPiece",
-      "type": "fixed_region",
-      "region_name": "ClampingRegion"
+      "type": "fixed",
+      "region": "ClampingRegion"
     }
   ],
 

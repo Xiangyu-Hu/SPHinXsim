@@ -37,13 +37,16 @@ class RelaxationSystem;
 class EntityManager;
 class SPHSolver;
 class ParticleDynamicsGroup;
+template <class T>
+class BaseDynamics;
 
-struct RelaxationBodyConfig;
+struct RelaxationBodyConfig
 {
     std::string name_;
     bool with_level_set_;
+    bool is_solid_body_;
     std::vector<std::string> contact_bodies_;
-}
+};
 
 struct RelaxationBodiesConfig
 {
@@ -58,7 +61,7 @@ struct RelaxationParameters
 enum class RelaxationHookPoint
 {
     Initialization,
-    ImposeConstraints,
+    Constraints,
     NumHooks
 };
 
@@ -97,7 +100,7 @@ class ParticleRelaxation
         RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods);
 
     template <class MethodContainerType>
-    ReduceDynamicsGroup<ReduceMin> addRelaxationScaling(
+    BaseDynamics<Real> &addRelaxationScaling(
         RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods);
 
     template <class MethodContainerType>
@@ -107,6 +110,11 @@ class ParticleRelaxation
     template <class MethodContainerType>
     ParticleDynamicsGroup &addBodyNormalDirection(
         RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods);
+    
+    template <class MethodContainerType>
+    ParticleDynamicsGroup &addRelaxationConstraints(
+        RelaxationSystem &relaxation_system, EntityManager &entity_manager,
+        MethodContainerType &main_methods, const json &config);
 };
 } // namespace SPH
 #endif // PARTICLE_RELAXATION_BUILDER_H

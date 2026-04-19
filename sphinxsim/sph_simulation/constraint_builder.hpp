@@ -35,17 +35,25 @@ void ConstraintBuilder::addConstraint(
 
     const std::string type = config.at("type").get<std::string>();
 
-    if (type == "fixed_region")
+    if (type == "fixed")
     {
-        Shape &shape = entity_manager.getEntityByName<Shape>(config.at("region_name").get<std::string>());
-        BodyPartByParticle &body_part = real_body.addBodyPart<BodyRegionByParticle>(shape);
-
-        auto &constraint = method_container.template addStateDynamics<
-            ConstantConstraintCK, Vecd>(body_part, "Velocity", Vecd::Zero());
+        BaseDynamics<void> *constraint = nullptr;
+        if (config.contains("region"))
+        {
+            Shape &shape = entity_manager.getEntityByName<Shape>(config.at("region").get<std::string>());
+            BodyPartByParticle &body_part = real_body.addBodyPart<BodyRegionByParticle>(shape);
+            constraint = &method_container.template addStateDynamics<
+                ConstantConstraintCK, Vecd>(body_part, "Velocity", Vecd::Zero());
+        }
+        else
+        {
+            constraint = &method_container.template addStateDynamics<
+                ConstantConstraintCK, Vecd>(real_body, "Velocity", Vecd::Zero());
+        }
 
         simulation_pipeline.insert_hook(
             SimulationHookPoint::BoundaryConditions, [&]()
-            { constraint.exec(); });
+            { constraint->exec(); });
         return;
     }
 

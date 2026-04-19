@@ -51,7 +51,25 @@
       },
       {
         "name": "WallBoundary",
-        "level_set": {}
+        "level_set": {},
+        "solid_body": {}
+      }
+    ],
+    "relaxation_constraints": [
+      {
+        "body_name": "BloodBody",
+        "aligned_box": "Inlet",
+        "type": "normal"
+      },
+      {
+        "body_name": "BloodBody",
+        "aligned_box": "UpperOutlet",
+        "type": "normal"
+      },
+      {
+        "body_name": "BloodBody",
+        "aligned_box": "LowerOutlet",
+        "type": "normal"
       }
     ],
     "relaxation_parameters": {

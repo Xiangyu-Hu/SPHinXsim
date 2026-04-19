@@ -74,7 +74,7 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     // Define optional methods using hooking point in stage pipelines.
     //----------------------------------------------------------------------
-    if (config.at("relaxation_constraints"))
+    if (config.contains("relaxation_constraints"))
     {
         auto &relaxation_constraints = addRelaxationConstraints(
             relaxation_system, entity_manager, main_methods, config.at("relaxation_constraints"));
@@ -125,12 +125,11 @@ void ParticleRelaxation::addRelaxationBodies(
         Shape &shape = entity_manager.getEntityByName<Shape>(body_config.name_);
         auto &real_body = relaxation_system.addBody<RealBody>(shape, body_config.name_);
 
-        if (rb.contains("with_level_set"))
+        if (rb.contains("level_set"))
         {
             body_config.with_level_set_ = true;
             LevelSetShape &level_set_shape = real_body.defineBodyLevelSetShape(par_ck, 2.0).writeLevelSet();
             entity_manager.addEntity(body_config.name_, &level_set_shape);
-            entity_manager.emplaceEntity<NearShapeSurface>(real_body.getName(), real_body);
         }
 
         if (rb.contains("solid_body"))
@@ -142,6 +141,7 @@ void ParticleRelaxation::addRelaxationBodies(
         {
             body_config.contact_bodies_ = rb.at("contact_bodies").get<std::vector<std::string>>();
         }
+
         real_body.generateParticles<BaseParticles, Lattice>();
         bodies_config_.relaxation_bodies_.push_back(body_config);
     }

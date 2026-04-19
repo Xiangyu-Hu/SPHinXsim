@@ -43,8 +43,8 @@ class BaseDynamics;
 struct RelaxationBodyConfig
 {
     std::string name_;
-    bool with_level_set_;
-    bool is_solid_body_;
+    bool with_level_set_ = false;
+    bool is_solid_body_ = false;
     std::vector<std::string> contact_bodies_;
 };
 

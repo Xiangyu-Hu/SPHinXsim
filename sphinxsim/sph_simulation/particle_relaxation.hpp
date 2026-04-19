@@ -118,8 +118,8 @@ ParticleDynamicsGroup &ParticleRelaxation::addRelaxationPositionUpdate(
         position_update.add(&main_methods.template addStateDynamics<PositionRelaxationCK>(real_body));
         if (body_config.with_level_set_)
         {
-            auto &near_body_surface = entity_manager.getEntityByName<NearShapeSurface>(body_config.name_);
-            position_update.add(&main_methods.template addStateDynamics<LevelsetBounding>(near_body_surface));
+            auto *near_body_surface = entity_manager.emplaceEntity<NearShapeSurface>(real_body.getName(), real_body);
+            position_update.add(&main_methods.template addStateDynamics<LevelsetBounding>(*near_body_surface));
         }
     }
     return position_update;

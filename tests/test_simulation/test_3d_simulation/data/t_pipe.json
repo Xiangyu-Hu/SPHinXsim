@@ -44,36 +44,39 @@
   },
 
   "particle_relaxation": {
-    "relaxation_bodies": [
-      {
-        "name": "BloodBody",
-        "contact_bodies": [["WallBoundary"]]
-      },
-      {
-        "name": "WallBoundary",
-        "level_set": {},
-        "solid_body": {}
+    "build_and_run": true,
+    "settings": {
+      "relaxation_bodies": [
+        {
+          "name": "BloodBody",
+          "contact_bodies": ["WallBoundary"]
+        },
+        {
+          "name": "WallBoundary",
+          "level_set": {},
+          "solid_body": {}
+        }
+      ],
+      "relaxation_constraints": [
+        {
+          "body_name": "BloodBody",
+          "aligned_box": "Inlet",
+          "type": "normal"
+        },
+        {
+          "body_name": "BloodBody",
+          "aligned_box": "UpperOutlet",
+          "type": "normal"
+        },
+        {
+          "body_name": "BloodBody",
+          "aligned_box": "LowerOutlet",
+          "type": "normal"
+        }
+      ],
+      "relaxation_parameters": {
+        "total_iterations": 1000
       }
-    ],
-    "relaxation_constraints": [
-      {
-        "body_name": "BloodBody",
-        "aligned_box": "Inlet",
-        "type": "normal"
-      },
-      {
-        "body_name": "BloodBody",
-        "aligned_box": "UpperOutlet",
-        "type": "normal"
-      },
-      {
-        "body_name": "BloodBody",
-        "aligned_box": "LowerOutlet",
-        "type": "normal"
-      }
-    ],
-    "relaxation_parameters": {
-      "total_iterations": 1000
     }
   },
 

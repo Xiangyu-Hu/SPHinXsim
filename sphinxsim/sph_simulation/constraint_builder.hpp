@@ -13,7 +13,6 @@ template <class MethodContainerType>
 void ConstraintBuilder::addConstraints(
     SPHSimulation &sim, MethodContainerType &method_container, const json &config)
 {
-    EntityManager &entity_manager = sim.getEntityManager();
     SPHSystem &sph_system = sim.getSPHSystem();
     for (const auto &constraint_config : config.at("body_constraints"))
     {
@@ -30,7 +29,6 @@ void ConstraintBuilder::addConstraint(
     EntityManager &entity_manager = sim.getEntityManager();
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
     RestartConfig &restart_config = entity_manager.getEntityByName<RestartConfig>("RestartConfig");
-    StagePipeline<InitializationHookPoint> &initialization_pipeline = sim.getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
 
     const std::string type = config.at("type").get<std::string>();
@@ -67,8 +65,6 @@ void ConstraintBuilder::addConstraint(
         SolidBodyPartForSimbody &body_part = real_body.addBodyPart<SolidBodyPartForSimbody>(shape);
         SimTK::Body::Rigid &simbody_body = *entity_manager.emplaceEntity<
             SimTK::Body::Rigid>(body_part.getName(), *body_part.body_part_mass_properties_);
-        SPH::SimbodyStateEngine &state_engine = *entity_manager.emplaceEntity<
-            SPH::SimbodyStateEngine>("SimbodyStateEngine", MBsystem);
 
         const std::string mobilized_body_type = config.at("mobilized_body").get<std::string>();
 

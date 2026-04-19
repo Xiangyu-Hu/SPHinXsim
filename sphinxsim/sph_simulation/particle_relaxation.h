@@ -70,7 +70,6 @@ class ParticleRelaxation
   public:
     ~ParticleRelaxation();
     void buildParticleRelaxation(SPHSimulation &sim, const json &config);
-    void updateRelaxationParameters(SPHSimulation &sim, const json &config);
     void runRelaxation();
 
   private:
@@ -82,6 +81,7 @@ class ParticleRelaxation
 
     RelaxationSystem &defineRelaxationSystem(EntityManager &entity_manager, const json &config);
     SPHSolver &defineSPHSolver(RelaxationSystem &relaxation_system, const json &config);
+    RelaxationParameters parseRelaxationParameters(const json &config);
     void addRelaxationBodies(
         RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
     void defineBodyRelations(RelaxationSystem &relaxation_system);
@@ -110,7 +110,7 @@ class ParticleRelaxation
     template <class MethodContainerType>
     ParticleDynamicsGroup &addBodyNormalDirection(
         RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods);
-    
+
     template <class MethodContainerType>
     ParticleDynamicsGroup &addRelaxationConstraints(
         RelaxationSystem &relaxation_system, EntityManager &entity_manager,

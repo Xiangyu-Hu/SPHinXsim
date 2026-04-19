@@ -48,7 +48,7 @@
                 "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
                 "BUILD_SIMPLE_BINDING": "OFF",
                 "SPHINXSYS_BUILD_TESTS": "OFF",
-                "SPHINXSYS_DEVELOPER_MODE": "OFF",
+                "SPHINXSYS_DEVELOPER_MODE": "ON",
                 "SPHINXSYS_USE_SYCL": "OFF"
             }
         },
@@ -91,7 +91,7 @@
                 "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
                 "BUILD_SIMPLE_BINDING": "OFF",
                 "SPHINXSYS_BUILD_TESTS": "OFF",
-                "SPHINXSYS_DEVELOPER_MODE": "OFF",
+                "SPHINXSYS_DEVELOPER_MODE": "ON",
                 "SPHINXSYS_USE_SYCL": "OFF"
             }
         }

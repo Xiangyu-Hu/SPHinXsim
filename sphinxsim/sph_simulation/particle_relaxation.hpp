@@ -157,13 +157,13 @@ class AlignedBoxConstraint : public BaseLocalDynamics<AlignedBoxPartType>
 
     class UpdateKernel
     {
-        DataType *variable_;
-
       public:
         template <class ExecutionPolicy, class EncloserType>
         UpdateKernel(const ExecutionPolicy &ex_policy, EncloserType &encloser)
             : aligned_box_(encloser.sv_aligned_box_->DelegatedData(ex_policy)),
+              variable_(encloser.dv_variable_->DelegatedData(ex_policy)),
               constraint_(encloser.constraint_){};
+
         void update(size_t index_i, Real dt = 0.0)
         {
             variable_[index_i] = constraint_(aligned_box_->getTransform(), variable_[index_i]);
@@ -171,6 +171,7 @@ class AlignedBoxConstraint : public BaseLocalDynamics<AlignedBoxPartType>
 
       protected:
         AlignedBox *aligned_box_;
+        DataType *variable_;
         ConstraintMethodType constraint_;
     };
 
@@ -182,8 +183,8 @@ class AlignedBoxConstraint : public BaseLocalDynamics<AlignedBoxPartType>
 
 class ConstraintVectorAxis : public ReturnFunction<Vecd>
 {
-    int axis_;
     Vecd constraint_value_;
+    int axis_;
 
   public:
     ConstraintVectorAxis(int axis) : constraint_value_(Vecd::Zero()), axis_(axis) {};

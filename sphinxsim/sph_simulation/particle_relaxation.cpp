@@ -22,7 +22,7 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
     // Define SPH solver with particle methods and execution policies.
     // Generally, the host methods should be able to run immediately.
     //----------------------------------------------------------------------
-    SPHSolver &sph_solver = defineSPHSolver(relaxation_system, config);
+    SPHSolver &sph_solver = defineSPHSolver(relaxation_system, config.at("relaxation_parameters"));
     auto &host_methods = sph_solver.addParticleMethodContainer(par_host);
     auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
 
@@ -41,17 +41,13 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
     auto &body_state_recorder = main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(relaxation_system);
     auto &write_particle_reload_files = main_methods.addIODynamics<ReloadParticleIOCK>(relaxation_system);
     //----------------------------------------------------------------------
-    //	First output before the particle relaxation.
-    //----------------------------------------------------------------------
-    body_state_recorder.writeToFile(0);
-    //----------------------------------------------------------------------
     //	Define particle relaxation simulation.
     //----------------------------------------------------------------------
-    ParticleRelaxation::updateRelaxationParameters(sim, config);
     relaxation_pipeline_.main_steps.push_back(
         [&]()
         {
             relaxation_pipeline_.run_hooks(RelaxationHookPoint::Initialization);
+            body_state_recorder.writeToFile(0);
 
             UnsignedInt ite_p = 0;
             while (ite_p < relaxation_parameters_.total_iterations)
@@ -87,17 +83,6 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
     }
 }
 //=================================================================================================//
-void ParticleRelaxation::updateRelaxationParameters(SPHSimulation &sim, const json &config)
-{
-    if (config.contains("relaxation_parameters"))
-    {
-        const json &relaxation_parameters_json = config.at("relaxation_parameters");
-        if (relaxation_parameters_json.contains("total_iterations"))
-            relaxation_parameters_.total_iterations =
-                relaxation_parameters_json.at("total_iterations").get<UnsignedInt>();
-    }
-}
-//=================================================================================================//
 void ParticleRelaxation::runRelaxation()
 {
     for (auto &step : relaxation_pipeline_.main_steps)
@@ -117,10 +102,18 @@ RelaxationSystem &ParticleRelaxation::defineRelaxationSystem(
 //=================================================================================================//
 SPHSolver &ParticleRelaxation::defineSPHSolver(RelaxationSystem &relaxation_system, const json &config)
 {
+    relaxation_parameters_ = parseRelaxationParameters(config);
     sph_solver_ptr_ = std::make_unique<SPHSolver>(relaxation_system);
     return *sph_solver_ptr_.get();
 }
-
+//=================================================================================================//
+RelaxationParameters ParticleRelaxation::parseRelaxationParameters(const json &config)
+{
+    RelaxationParameters parameters;
+    if (config.contains("total_iterations"))
+        parameters.total_iterations = config.at("total_iterations").get<UnsignedInt>();
+    return parameters;
+}
 //=================================================================================================//
 void ParticleRelaxation::addRelaxationBodies(
     RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config)
@@ -147,10 +140,7 @@ void ParticleRelaxation::addRelaxationBodies(
 
         if (rb.contains("contact_bodies"))
         {
-            for (const auto &contact_body : rb.at("contact_bodies"))
-            {
-                body_config.contact_bodies_.push_back(contact_body.get<std::string>());
-            }
+            body_config.contact_bodies_ = rb.at("contact_bodies").get<std::vector<std::string>>();
         }
         real_body.generateParticles<BaseParticles, Lattice>();
         bodies_config_.relaxation_bodies_.push_back(body_config);

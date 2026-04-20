@@ -61,8 +61,9 @@ ParticleDynamicsGroup &ParticleGeneration::addConfigurationDynamics(
         }
         else
         {
+            std::string relation_name = getContactRelationName(body_config);
             auto &contact_relation = relaxation_system.getRelationByName<
-                Contact<Relation<RealBody, RealBody>>>(body_config.name_);
+                Contact<Relation<RealBody, RealBody>>>(relation_name);
             configuration_update.add(&main_methods.addRelationDynamics(inner_relation, contact_relation));
         }
     }
@@ -90,8 +91,9 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationResidue(
 
         if (!body_config.contact_bodies_.empty())
         {
+            std::string relation_name = getContactRelationName(body_config);
             auto &contact_relation = relaxation_system.getRelationByName<
-                Contact<Relation<RealBody, RealBody>>>(body_config.name_);
+                Contact<Relation<RealBody, RealBody>>>(relation_name);
             residual_dynamics.template addPostContactInteraction<Boundary, NoKernelCorrectionCK>(contact_relation);
         }
         relaxation_residue.add(&residual_dynamics);

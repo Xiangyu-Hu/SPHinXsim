@@ -196,6 +196,11 @@ RelaxationBodyConfig ParticleGeneration::parseRelaxationBodyConfig(std::string b
     return relax_body_config;
 }
 //=================================================================================================//
+std::string ParticleGeneration::getContactRelationName(const RelaxationBodyConfig &body_config)
+{
+    return body_config.name_ + body_config.contact_bodies_.front();
+}
+//=================================================================================================//
 void ParticleGeneration::defineBodyRelations(RelaxationSystem &relaxation_system)
 {
     for (const auto &relax_body_config : bodies_config_.relaxation_bodies_)

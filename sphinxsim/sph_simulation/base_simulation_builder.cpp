@@ -64,11 +64,11 @@ void SimulationBuilder::addFluidBodies(
         {
             ParticleBuffer<ReserveSizeFactor> inlet_buffer(
                 fb.at("particle_reserve_factor").get<Real>());
-            fluid_body.generateParticlesWithReserve<BaseParticles, Lattice>(inlet_buffer);
+            fluid_body.generateParticlesWithReserve<BaseParticles, Reload>(inlet_buffer, name);
         }
         else
         {
-            fluid_body.generateParticles<BaseParticles, Lattice>();
+            fluid_body.generateParticles<BaseParticles, Reload>(name);
         }
         entity_manager.addEntity(name, &fluid_body);
     }
@@ -83,7 +83,7 @@ void SimulationBuilder::addContinuumBodies(
         Shape &shape = entity_manager.getEntityByName<Shape>(name);
         auto &continuum_body = sph_system.addBody<RealBody>(shape, name);
         material_builder_ptr_->addMaterial(entity_manager, continuum_body, cb.at("material"));
-        continuum_body.generateParticles<BaseParticles, Lattice>();
+        continuum_body.generateParticles<BaseParticles, Reload>(name);
         entity_manager.addEntity(name, &continuum_body);
     }
 }
@@ -97,15 +97,8 @@ void SimulationBuilder::addSolidBodies(
         Shape &solid_shape = entity_manager.getEntityByName<Shape>(name);
         auto &solid_body = sph_system.addBody<SolidBody>(solid_shape, name);
         material_builder_ptr_->addMaterial(entity_manager, solid_body, sb.at("material"));
-        if (sb.contains("particle_reload"))
-        {
-            BaseParticles &reload_particles = solid_body.generateParticles<BaseParticles, Reload>(name);
-            parseParticleReload(sb.at("particle_reload"), reload_particles);
-        }
-        else
-        {
-            solid_body.generateParticles<BaseParticles, Lattice>();
-        }
+        BaseParticles &reload_particles = solid_body.generateParticles<BaseParticles, Reload>(name);
+        reload_particles.reloadExtraVariable<Vecd>("NormalDirection");
         entity_manager.addEntity(name, &solid_body);
     }
 }
@@ -156,25 +149,6 @@ SolverCommonConfig SimulationBuilder::parseSolverCommonConfig(const json &config
         solver_common_config.output_interval_ = solver_common_config.end_time_ / 100.0; // default to 100 output frames
 
     return solver_common_config;
-}
-//=================================================================================================//
-void SimulationBuilder::parseParticleReload(const json &config, BaseParticles &reload_particles)
-{
-    if (config.contains("reload_variables"))
-    {
-        for (const auto &var : config.at("reload_variables"))
-        {
-            if (var == "NormalDirection")
-            {
-                reload_particles.reloadExtraVariable<Vecd>("NormalDirection");
-            }
-            else
-            {
-                throw std::runtime_error(
-                    "SPHSimulation::parseParticleReload: unsupported reload variable: " + var.get<std::string>());
-            }
-        }
-    }
 }
 //=================================================================================================//
 RestartConfig SimulationBuilder::parseRestartConfig(const json &config)

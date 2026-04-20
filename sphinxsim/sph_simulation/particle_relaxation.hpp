@@ -9,14 +9,17 @@ namespace SPH
 {
 //=================================================================================================//
 template <class MethodContainerType>
-void ParticleRelaxation::randomizeParticlePositions(
+ParticleDynamicsGroup &ParticleRelaxation::randomizeParticlePositions(
     RelaxationSystem &relaxation_system, MethodContainerType &main_methods)
 {
+    auto &randomize_particle_position = main_methods.addParticleDynamicsGroup();
     for (const auto &body_config : bodies_config_.relaxation_bodies_)
     {
         RealBody &real_body = relaxation_system.getBodyByName<RealBody>(body_config.name_);
-        main_methods.template addStateDynamics<RandomizeParticlePositionCK>(real_body).exec();
+        randomize_particle_position.add(
+            &main_methods.template addStateDynamics<RandomizeParticlePositionCK>(real_body));
     }
+    return randomize_particle_position;
 }
 //=================================================================================================//
 template <class MethodContainerType>
@@ -24,10 +27,13 @@ ParticleDynamicsGroup &ParticleRelaxation::addDummyBodiesCellLinkedListDynamics(
     RelaxationSystem &relaxation_system, MethodContainerType &main_methods)
 {
     ParticleDynamicsGroup &dummy_cell_linked_list = main_methods.addParticleDynamicsGroup();
-    for (const auto &name : bodies_config_.dummy_bodies_)
+    for (const auto &body_config : bodies_config_.all_bodies_)
     {
-        RealBody &real_body = relaxation_system.getBodyByName<RealBody>(name);
-        dummy_cell_linked_list.add(&main_methods.addCellLinkedListDynamics(real_body));
+        if (!body_config.is_relaxation_body_)
+        {
+            RealBody &real_body = relaxation_system.getBodyByName<RealBody>(body_config.name_);
+            dummy_cell_linked_list.add(&main_methods.addCellLinkedListDynamics(real_body));
+        }
     }
     return dummy_cell_linked_list;
 }
@@ -130,7 +136,7 @@ ParticleDynamicsGroup &ParticleRelaxation::addBodyNormalDirection(
     RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods)
 {
     ParticleDynamicsGroup &normal_direction_update = main_methods.addParticleDynamicsGroup();
-    for (const auto &body_config : bodies_config_.relaxation_bodies_)
+    for (const auto &body_config : bodies_config_.all_bodies_)
     {
         RealBody &real_body = relaxation_system.getBodyByName<RealBody>(body_config.name_);
         if (body_config.is_solid_body_)

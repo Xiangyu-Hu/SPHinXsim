@@ -40,18 +40,24 @@ class ParticleDynamicsGroup;
 template <class T>
 class BaseDynamics;
 
+struct CommonBodyConfig
+{
+    std::string name_;
+    bool is_relaxation_body_ = false;
+    bool is_solid_body_ = false;
+};
+
 struct RelaxationBodyConfig
 {
     std::string name_;
     bool with_level_set_ = false;
-    bool is_solid_body_ = false;
     std::vector<std::string> contact_bodies_;
 };
 
-struct RelaxationBodiesConfig
+struct AllBodiesConfig
 {
+    std::vector<CommonBodyConfig> all_bodies_;
     std::vector<RelaxationBodyConfig> relaxation_bodies_; // particles in these bodies will be relaxed
-    std::vector<std::string> dummy_bodies_;               // no relaxation
 };
 struct RelaxationParameters
 {
@@ -65,6 +71,11 @@ enum class RelaxationHookPoint
     NumHooks
 };
 
+enum class ReloadIOHookPoint
+{
+    NumHooks
+};
+
 class ParticleRelaxation
 {
   public:
@@ -73,24 +84,26 @@ class ParticleRelaxation
     void runRelaxation();
 
   private:
-    RelaxationBodiesConfig bodies_config_;
+    AllBodiesConfig bodies_config_;
     RelaxationParameters relaxation_parameters_;
     std::unique_ptr<RelaxationSystem> relaxation_system_ptr_;
     std::unique_ptr<SPHSolver> sph_solver_ptr_;
     StagePipeline<RelaxationHookPoint> relaxation_pipeline_;
+    StagePipeline<ReloadIOHookPoint> reload_io_pipeline_;
 
     RelaxationSystem &defineRelaxationSystem(EntityManager &entity_manager, const json &config);
     SPHSolver &defineSPHSolver(RelaxationSystem &relaxation_system, const json &config);
     RelaxationParameters parseRelaxationParameters(const json &config);
-    void addRelaxationBodies(
-        RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
+    void addAllBodies(RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config);
+    RelaxationBodyConfig parseRelaxationBodyConfig(std::string body_name, const json &config);
     void defineBodyRelations(RelaxationSystem &relaxation_system);
 
     template <class MethodContainerType>
-    void randomizeParticlePositions(RelaxationSystem &relaxation_system, MethodContainerType &main_methods);
+    ParticleDynamicsGroup &randomizeParticlePositions(RelaxationSystem &relaxation_system, MethodContainerType &main_methods);
 
     template <class MethodContainerType>
-    ParticleDynamicsGroup &addDummyBodiesCellLinkedListDynamics(RelaxationSystem &relaxation_system, MethodContainerType &main_methods);
+    ParticleDynamicsGroup &addDummyBodiesCellLinkedListDynamics(
+        RelaxationSystem &relaxation_system, MethodContainerType &main_methods);
 
     template <class MethodContainerType>
     ParticleDynamicsGroup &addConfigurationDynamics(RelaxationSystem &relaxation_system, MethodContainerType &main_methods);

@@ -61,7 +61,7 @@ EntityManager &SPHSimulation::getEntityManager()
     return entity_manager_;
 }
 //=================================================================================================//
-void SPHSimulation::createParticleRelaxation(const json &config)
+void SPHSimulation::createParticlesGeneration(const json &config)
 {
     if (config.at("build_and_run").get<bool>())
     {
@@ -74,11 +74,7 @@ void SPHSimulation::createParticleRelaxation(const json &config)
 void SPHSimulation::buildSimulationFromJson(const json &config)
 {
     geometry_builder_ptr_->createGeometries(entity_manager_, config.at("geometries"));
-
-    if (config.contains("particle_relaxation"))
-    {
-        createParticleRelaxation(config.at("particle_relaxation"));
-    }
+    createParticlesGeneration(config.at("particle_generation"));
 
     if (config.contains("simulation_type"))
     {

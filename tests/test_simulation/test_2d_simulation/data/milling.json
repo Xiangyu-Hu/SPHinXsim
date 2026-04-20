@@ -35,14 +35,17 @@
     ]
   },
 
-  "particle_relaxation": {
+  "particle_generation": {
     "build_and_run": true,
     "settings": {
-      "relaxation_bodies": [
+      "bodies": [
+        {
+          "name": "ProcessingPiece"
+        },
         {
           "name": "MillingTool",
-          "level_set": {},
-          "solid_body": {}
+          "solid_body": {},
+          "relaxation": { "level_set": {} }
         }
       ],
       "relaxation_parameters": {
@@ -73,9 +76,6 @@
       "name": "MillingTool",
       "material": {
         "type": "rigid_body"
-      },
-      "particle_reload": {
-        "reload_variables": ["NormalDirection"]
       }
     }
   ],

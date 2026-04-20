@@ -84,7 +84,7 @@ class SPHSimulation
     bool executable_simulation_state_ready_{false};
 
     void buildSimulationFromJson(const json &config);
-    void createParticleRelaxation(const json &config);
+    void createParticlesGeneration(const json &config);
 };
 } // namespace SPH
 #endif // SPH_SIMULATION_H

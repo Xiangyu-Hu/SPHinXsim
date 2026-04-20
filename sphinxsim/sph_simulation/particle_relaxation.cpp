@@ -68,7 +68,7 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
                 }
             }
 
-            std::cout << "\n ---------------------------------------" << std::endl;
+            std::cout << "\n---------------------------------------" << std::endl;
             std::cout << "The physics relaxation process finish !" << std::endl;
             std::cout << "---------------------------------------" << std::endl;
         });
@@ -98,7 +98,7 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
             body_normal_direction.exec();
             write_particle_reload_files.writeToFile();
 
-            std::cout << "\n ---------------------------------------" << std::endl;
+            std::cout << "\n---------------------------------------" << std::endl;
             std::cout << "The particle reload files ready !" << std::endl;
             std::cout << "---------------------------------------" << std::endl;
         });
@@ -149,27 +149,29 @@ void ParticleRelaxation ::addAllBodies(
 {
     for (const auto &bd : config)
     {
+        std::string body_name = bd.at("name").get<std::string>();
+
         CommonBodyConfig common_body_config;
-        common_body_config.name_ = bd.at("name").get<std::string>();
-        if (bd.contains("solid_body"))
-        {
-            common_body_config.is_solid_body_ = true;
-        }
-        Shape &shape = entity_manager.getEntityByName<Shape>(common_body_config.name_);
-        auto &real_body = relaxation_system.addBody<RealBody>(shape, common_body_config.name_);
+        common_body_config.name_ = body_name;
+        Shape &shape = entity_manager.getEntityByName<Shape>(body_name);
+        auto &real_body = relaxation_system.addBody<RealBody>(shape, body_name);
 
         if (bd.contains("relaxation"))
         {
             common_body_config.is_relaxation_body_ = true;
-            RelaxationBodyConfig relax_body_config = parseRelaxationBodyConfig(
-                relax_body_config.name_, bd.at("relaxation"));
+            RelaxationBodyConfig relax_body_config = parseRelaxationBodyConfig(body_name, bd.at("relaxation"));
             if (relax_body_config.with_level_set_)
             {
                 LevelSetShape &level_set_shape =
                     real_body.defineBodyLevelSetShape(par_ck, 2.0).writeLevelSet();
-                entity_manager.addEntity(relax_body_config.name_, &level_set_shape);
+                entity_manager.addEntity(body_name, &level_set_shape);
             }
             bodies_config_.relaxation_bodies_.push_back(relax_body_config);
+        }
+
+        if (bd.contains("solid_body"))
+        {
+            common_body_config.is_solid_body_ = true;
         }
 
         real_body.generateParticles<BaseParticles, Lattice>();

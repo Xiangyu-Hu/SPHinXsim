@@ -1,4 +1,4 @@
-#include "particle_relaxation.hpp"
+#include "particle_generation.hpp"
 
 #include "geometry_builder.h"
 #include "sph_simulation.h"
@@ -6,9 +6,9 @@
 namespace SPH
 {
 //=================================================================================================//
-ParticleRelaxation::~ParticleRelaxation() = default;
+ParticleGeneration::~ParticleGeneration() = default;
 //=================================================================================================//
-void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json &config)
+void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json &config)
 {
     //----------------------------------------------------------------------
     //	Build up an SPHSystem and IO environment.
@@ -104,7 +104,7 @@ void ParticleRelaxation::buildParticleRelaxation(SPHSimulation &sim, const json 
         });
 }
 //=================================================================================================//
-void ParticleRelaxation::runRelaxation()
+void ParticleGeneration::runRelaxation()
 {
     if (!bodies_config_.relaxation_bodies_.empty())
     {
@@ -120,7 +120,7 @@ void ParticleRelaxation::runRelaxation()
     }
 }
 //=================================================================================================//
-RelaxationSystem &ParticleRelaxation::defineRelaxationSystem(
+RelaxationSystem &ParticleGeneration::defineRelaxationSystem(
     EntityManager &entity_manager, const json &config)
 {
     auto &system_config = entity_manager.getEntityByName<SystemDomainConfig>("SystemDomainConfig");
@@ -129,14 +129,14 @@ RelaxationSystem &ParticleRelaxation::defineRelaxationSystem(
     return *relaxation_system_ptr_.get();
 }
 //=================================================================================================//
-SPHSolver &ParticleRelaxation::defineSPHSolver(RelaxationSystem &relaxation_system, const json &config)
+SPHSolver &ParticleGeneration::defineSPHSolver(RelaxationSystem &relaxation_system, const json &config)
 {
     relaxation_parameters_ = parseRelaxationParameters(config);
     sph_solver_ptr_ = std::make_unique<SPHSolver>(relaxation_system);
     return *sph_solver_ptr_.get();
 }
 //=================================================================================================//
-RelaxationParameters ParticleRelaxation::parseRelaxationParameters(const json &config)
+RelaxationParameters ParticleGeneration::parseRelaxationParameters(const json &config)
 {
     RelaxationParameters parameters;
     if (config.contains("total_iterations"))
@@ -144,7 +144,7 @@ RelaxationParameters ParticleRelaxation::parseRelaxationParameters(const json &c
     return parameters;
 }
 //=================================================================================================//
-void ParticleRelaxation ::addAllBodies(
+void ParticleGeneration ::addAllBodies(
     RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config)
 {
     for (const auto &bd : config)
@@ -179,7 +179,7 @@ void ParticleRelaxation ::addAllBodies(
     }
 }
 //=================================================================================================//
-RelaxationBodyConfig ParticleRelaxation::parseRelaxationBodyConfig(std::string body_name, const json &config)
+RelaxationBodyConfig ParticleGeneration::parseRelaxationBodyConfig(std::string body_name, const json &config)
 {
     RelaxationBodyConfig relax_body_config;
     relax_body_config.name_ = body_name;
@@ -196,7 +196,7 @@ RelaxationBodyConfig ParticleRelaxation::parseRelaxationBodyConfig(std::string b
     return relax_body_config;
 }
 //=================================================================================================//
-void ParticleRelaxation::defineBodyRelations(RelaxationSystem &relaxation_system)
+void ParticleGeneration::defineBodyRelations(RelaxationSystem &relaxation_system)
 {
     for (const auto &relax_body_config : bodies_config_.relaxation_bodies_)
     {

@@ -1,7 +1,7 @@
-#ifndef PARTICLE_RELAXATION_BUILDER_HPP
-#define PARTICLE_RELAXATION_BUILDER_HPP
+#ifndef PARTICLE_GENERATION_HPP
+#define PARTICLE_GENERATION_HPP
 
-#include "particle_relaxation.h"
+#include "particle_generation.h"
 
 #include "sph_simulation.h"
 
@@ -9,7 +9,7 @@ namespace SPH
 {
 //=================================================================================================//
 template <class MethodContainerType>
-ParticleDynamicsGroup &ParticleRelaxation::randomizeParticlePositions(
+ParticleDynamicsGroup &ParticleGeneration::randomizeParticlePositions(
     RelaxationSystem &relaxation_system, MethodContainerType &main_methods)
 {
     auto &randomize_particle_position = main_methods.addParticleDynamicsGroup();
@@ -23,7 +23,7 @@ ParticleDynamicsGroup &ParticleRelaxation::randomizeParticlePositions(
 }
 //=================================================================================================//
 template <class MethodContainerType>
-ParticleDynamicsGroup &ParticleRelaxation::addDummyBodiesCellLinkedListDynamics(
+ParticleDynamicsGroup &ParticleGeneration::addDummyBodiesCellLinkedListDynamics(
     RelaxationSystem &relaxation_system, MethodContainerType &main_methods)
 {
     ParticleDynamicsGroup &dummy_cell_linked_list = main_methods.addParticleDynamicsGroup();
@@ -39,7 +39,7 @@ ParticleDynamicsGroup &ParticleRelaxation::addDummyBodiesCellLinkedListDynamics(
 }
 //=================================================================================================//
 template <class MethodContainerType>
-ParticleDynamicsGroup &ParticleRelaxation::addConfigurationDynamics(
+ParticleDynamicsGroup &ParticleGeneration::addConfigurationDynamics(
     RelaxationSystem &relaxation_system, MethodContainerType &main_methods)
 {
     ParticleDynamicsGroup &configuration_update = main_methods.addParticleDynamicsGroup();
@@ -70,7 +70,7 @@ ParticleDynamicsGroup &ParticleRelaxation::addConfigurationDynamics(
 }
 //=================================================================================================//
 template <class MethodContainerType>
-ParticleDynamicsGroup &ParticleRelaxation::addRelaxationResidue(
+ParticleDynamicsGroup &ParticleGeneration::addRelaxationResidue(
     RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods)
 {
     ParticleDynamicsGroup &relaxation_residue = main_methods.addParticleDynamicsGroup();
@@ -100,7 +100,7 @@ ParticleDynamicsGroup &ParticleRelaxation::addRelaxationResidue(
 }
 //=================================================================================================//
 template <class MethodContainerType>
-BaseDynamics<Real> &ParticleRelaxation::addRelaxationScaling(
+BaseDynamics<Real> &ParticleGeneration::addRelaxationScaling(
     RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods)
 {
 
@@ -114,7 +114,7 @@ BaseDynamics<Real> &ParticleRelaxation::addRelaxationScaling(
 }
 //=================================================================================================//
 template <class MethodContainerType>
-ParticleDynamicsGroup &ParticleRelaxation::addRelaxationPositionUpdate(
+ParticleDynamicsGroup &ParticleGeneration::addRelaxationPositionUpdate(
     RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods)
 {
     ParticleDynamicsGroup &position_update = main_methods.addParticleDynamicsGroup();
@@ -132,7 +132,7 @@ ParticleDynamicsGroup &ParticleRelaxation::addRelaxationPositionUpdate(
 }
 //=================================================================================================//
 template <class MethodContainerType>
-ParticleDynamicsGroup &ParticleRelaxation::addBodyNormalDirection(
+ParticleDynamicsGroup &ParticleGeneration::addBodyNormalDirection(
     RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods)
 {
     ParticleDynamicsGroup &normal_direction_update = main_methods.addParticleDynamicsGroup();
@@ -204,7 +204,7 @@ class ConstraintVectorAxis : public ReturnFunction<Vecd>
 };
 //=================================================================================================//
 template <class MethodContainerType>
-ParticleDynamicsGroup &ParticleRelaxation::addRelaxationConstraints(
+ParticleDynamicsGroup &ParticleGeneration::addRelaxationConstraints(
     RelaxationSystem &relaxation_system, EntityManager &entity_manager,
     MethodContainerType &main_methods, const json &config)
 {
@@ -234,4 +234,4 @@ ParticleDynamicsGroup &ParticleRelaxation::addRelaxationConstraints(
 }
 //=================================================================================================//
 } // namespace SPH
-#endif // PARTICLE_RELAXATION_BUILDER_HPP
+#endif // PARTICLE_GENERATION_HPP

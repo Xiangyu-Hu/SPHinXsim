@@ -42,7 +42,7 @@ namespace SPH
 {
 class GeometryBuilder;
 class SimulationBuilder;
-class ParticleRelaxation;
+class ParticleGeneration;
 
 class SPHSimulation
 {
@@ -51,7 +51,7 @@ class SPHSimulation
     ~SPHSimulation();
     void resetOutputRoot(const fs::path &output_root, bool keep_existing = false);
     void loadConfig();
-    void runParticleRelaxation();
+    void runParticleGeneration();
     void initializeSimulation();
     void run();
     void stepTo(Real target_time);
@@ -59,7 +59,7 @@ class SPHSimulation
 
   protected:
     friend class SimulationBuilder;
-    friend class ParticleRelaxation;
+    friend class ParticleGeneration;
     friend class FluidSimulationBuilder;
     friend class ContinuumSimulationBuilder;
     friend class ConstraintBuilder;
@@ -78,7 +78,7 @@ class SPHSimulation
     StagePipeline<InitializationHookPoint> initialization_pipeline_;
     StagePipeline<SimulationHookPoint> simulation_pipeline_;
     std::unique_ptr<GeometryBuilder> geometry_builder_ptr_;
-    std::unique_ptr<ParticleRelaxation> particle_relaxation_ptr_;
+    std::unique_ptr<ParticleGeneration> particle_generation_ptr_;
     std::unique_ptr<SPHSystem> sph_system_ptr_;
     std::unique_ptr<SPHSolver> sph_solver_ptr_;
     bool executable_simulation_state_ready_{false};

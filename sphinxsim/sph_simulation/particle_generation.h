@@ -21,13 +21,13 @@
  *                                                                           *
  * ------------------------------------------------------------------------- */
 /**
- * @file    particle_relaxation_builder.h
+ * @file    particle_generation.h
  * @brief   TBD.
  * @author  Xiangyu Hu
  */
 
-#ifndef PARTICLE_RELAXATION_BUILDER_H
-#define PARTICLE_RELAXATION_BUILDER_H
+#ifndef PARTICLE_GENERATION_H
+#define PARTICLE_GENERATION_H
 
 #include "base_simulation_builder.h"
 
@@ -76,11 +76,11 @@ enum class ReloadIOHookPoint
     NumHooks
 };
 
-class ParticleRelaxation
+class ParticleGeneration
 {
   public:
-    ~ParticleRelaxation();
-    void buildParticleRelaxation(SPHSimulation &sim, const json &config);
+    ~ParticleGeneration();
+    void buildParticleGeneration(SPHSimulation &sim, const json &config);
     void runRelaxation();
 
   private:
@@ -130,4 +130,4 @@ class ParticleRelaxation
         MethodContainerType &main_methods, const json &config);
 };
 } // namespace SPH
-#endif // PARTICLE_RELAXATION_BUILDER_H
+#endif // PARTICLE_GENERATION_H

@@ -4,7 +4,7 @@
 #include "fluid_simulation_builder.h"
 #include "geometry_builder.h"
 #include "material_builder.h"
-#include "particle_relaxation.h"
+#include "particle_generation.h"
 
 namespace SPH
 {
@@ -65,9 +65,9 @@ void SPHSimulation::createParticlesGeneration(const json &config)
 {
     if (config.at("build_and_run").get<bool>())
     {
-        particle_relaxation_ptr_ = std::make_unique<ParticleRelaxation>();
-        particle_relaxation_ptr_->buildParticleRelaxation(*this, config.at("settings"));
-        particle_relaxation_ptr_->runRelaxation();
+        particle_generation_ptr_ = std::make_unique<ParticleGeneration>();
+        particle_generation_ptr_->buildParticleGeneration(*this, config.at("settings"));
+        particle_generation_ptr_->runRelaxation();
     }
 }
 //=================================================================================================//
@@ -164,14 +164,14 @@ void SPHSimulation::stepBy(Real interval)
     stepTo(present_time_ + interval);
 }
 //=================================================================================================//
-void SPHSimulation::runParticleRelaxation()
+void SPHSimulation::runParticleGeneration()
 {
-    if (!particle_relaxation_ptr_)
+    if (!particle_generation_ptr_)
     {
-        std::cerr << "SPHSimulation::ParticleRelaxation: ParticleRelaxation not found.\n";
+        std::cerr << "SPHSimulation::ParticleGeneration: ParticleGeneration not found.\n";
         exit(1);
     }
-    particle_relaxation_ptr_->runRelaxation();
+    particle_generation_ptr_->runRelaxation();
 }
 //=================================================================================================//
 } // namespace SPH

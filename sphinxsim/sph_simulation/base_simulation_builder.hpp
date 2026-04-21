@@ -20,9 +20,9 @@ ParticleDynamicsGroup &SimulationBuilder::addObserverConfigurationDynamics(
     {
         for (auto &observer_config : observer_configs)
         {
-            std::string relation_name = getObserverRelationName(*observer_config);
-            Contact<Relation<ObserverBody, RealBody>> &observer_relation = sph_system.getRelationByName<
-                Contact<Relation<ObserverBody, RealBody>>>(relation_name);
+            ObserverBody &observer_body = sph_system.getBodyByName<ObserverBody>(observer_config->name_);
+            RealBody &observed_body = sph_system.getBodyByName<RealBody>(observer_config->observed_body_);
+            auto &observer_relation = sph_system.addContactRelation(observer_body, observed_body);
             observer_config_dynamics.add(&main_methods.template addRelationDynamics(observer_relation));
         }
     }

@@ -129,21 +129,6 @@ void SimulationBuilder::addObservers(
     }
 }
 //=================================================================================================//
-void SimulationBuilder::defineObservationRelations(
-    SPHSystem &sph_system, EntityManager &entity_manager)
-{
-    StdVec<ObserverConfig *> observer_configs = entity_manager.entitiesWith<ObserverConfig>();
-    if (!observer_configs.empty())
-    {
-        for (auto &observer_config : observer_configs)
-        {
-            ObserverBody &observer_body = sph_system.getBodyByName<ObserverBody>(observer_config->name_);
-            RealBody &observed_body = sph_system.getBodyByName<RealBody>(observer_config->observed_body_);
-            sph_system.addContactRelation(observer_body, observed_body);
-        }
-    }
-}
-//=================================================================================================//
 void SimulationBuilder::parseSolverParameters(EntityManager &entity_manager, const json &config)
 {
     entity_manager.emplaceEntity<

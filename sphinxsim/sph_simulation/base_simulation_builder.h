@@ -141,7 +141,6 @@ class SimulationBuilder
     void addContinuumBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addSolidBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addObservers(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
-    void defineObservationRelations(SPHSystem &sph_system, EntityManager &entity_manager);
 
     template <class MethodContainerType>
     ParticleDynamicsGroup &addObserverConfigurationDynamics(

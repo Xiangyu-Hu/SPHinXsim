@@ -31,14 +31,12 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     StdVec<SolidBody *> solid_bodies = entity_manager.entitiesWith<SolidBody>();
     auto &fluid_inner = sph_system.addInnerRelation(fluid_body);
     auto &fluid_wall_contact = sph_system.addContactRelation(fluid_body, solid_bodies);
-    defineObservationRelations(sph_system, entity_manager);
     //----------------------------------------------------------------------
     // Define SPH solver with particle methods and execution policies.
     // Generally, the host methods should be able to run immediately.
     //----------------------------------------------------------------------
     SPHSolver &sph_solver = sim.defineSPHSolver(*this, config);
     auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
-    auto &host_methods = sph_solver.addParticleMethodContainer(par_host);
     //----------------------------------------------------------------------
     // Define the numerical methods used in the simulation.
     // Note that there may be data dependence on the sequence of constructions.
@@ -50,8 +48,6 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     // Finally, the auxiliary models such as time step estimator, initial condition,
     // boundary condition and other constraints should be defined.
     //----------------------------------------------------------------------
-    auto &solid_normal_direction = host_methods.addStateDynamics<NormalFromBodyShapeCK>(solid_bodies);
-
     auto &solid_cell_linked_list = main_methods.addCellLinkedListDynamics(solid_bodies);
     auto &fluid_update_configuration = main_methods.addParticleDynamicsGroup()
                                            .add(&main_methods.addCellLinkedListDynamics(fluid_body))
@@ -113,7 +109,6 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     initialization_pipeline.main_steps.push_back(
         [&]()
         {
-            solid_normal_direction.exec();
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialConditions);
 
             solid_cell_linked_list.exec();

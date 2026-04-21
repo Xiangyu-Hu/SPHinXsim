@@ -92,8 +92,6 @@
 
   "gravity": [0.0, -1.0],
 
-  "state_recording": [],
-
   "solver_parameters": {
     "end_time": 30.0,
     "output_interval": 0.01,

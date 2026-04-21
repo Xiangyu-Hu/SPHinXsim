@@ -119,8 +119,6 @@
     }
   ],
 
-  "state_recording": [],
-
   "solver_parameters": {
     "end_time": 0.05,
     "output_interval": 0.01,

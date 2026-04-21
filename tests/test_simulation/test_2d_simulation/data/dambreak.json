@@ -85,7 +85,7 @@
     }
   ],
 
-  "state_recording": [
+  "extra_state_recording": [
     {
       "name": "WaterBody",
       "variables": [{ "real_type": ["Density"] }]

@@ -92,7 +92,11 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
     //----------------------------------------------------------------------
-    auto &body_state_recorder = addBodyStateRecorder(sph_system, main_methods, config.at("state_recording"));
+    auto &body_state_recorder = main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(sph_system);
+    if (config.contains("extra_state_recording"))
+    {
+        addExtraStateToRecord(sph_system, body_state_recorder, config.at("extra_state_recording"));
+    }
     auto &observe_recorder = addObserveRecorder(sph_system, entity_manager, main_methods);
     //----------------------------------------------------------------------
     //	Define time-integration method, screen out uput and observation sample rate.

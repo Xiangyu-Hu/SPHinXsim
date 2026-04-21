@@ -108,21 +108,39 @@ void SimulationBuilder::addObservers(
 {
     for (const auto &ob : config)
     {
+        ObserverConfig observer_config;
         const std::string name = ob.at("name").get<std::string>();
+        observer_config.name_ = name;
+        observer_config.observed_body_ = ob.at("observed_body").get<std::string>();
+        observer_config.observed_variable_ = parseVariableConfig(ob.at("variable"));
+
         StdVec<Vecd> positions;
         if (ob.contains("positions"))
         {
             for (const auto &p : ob.at("positions"))
+            {
                 positions.push_back(jsonToVecd(p));
-        }
-        else if (ob.contains("position"))
-        {
-            positions.push_back(jsonToVecd(ob.at("position")));
+            }
         }
 
         ObserverBody &observer_body = sph_system.addBody<ObserverBody>(name);
         observer_body.generateParticles<ObserverParticles>(positions);
-        entity_manager.addEntity(name, &observer_body);
+        entity_manager.emplaceEntity<ObserverConfig>(name, observer_config);
+    }
+}
+//=================================================================================================//
+void SimulationBuilder::defineObservationRelations(
+    SPHSystem &sph_system, EntityManager &entity_manager)
+{
+    StdVec<ObserverConfig *> observer_configs = entity_manager.entitiesWith<ObserverConfig>();
+    if (!observer_configs.empty())
+    {
+        for (auto &observer_config : observer_configs)
+        {
+            ObserverBody &observer_body = sph_system.getBodyByName<ObserverBody>(observer_config->name_);
+            RealBody &observed_body = sph_system.getBodyByName<RealBody>(observer_config->observed_body_);
+            sph_system.addContactRelation(observer_body, observed_body);
+        }
     }
 }
 //=================================================================================================//
@@ -161,6 +179,31 @@ RestartConfig SimulationBuilder::parseRestartConfig(const json &config)
     if (config.contains("summary_enabled"))
         restart_config.summary_enabled_ = config.at("summary_enabled").get<bool>();
     return restart_config;
+}
+//=================================================================================================//
+std::string SimulationBuilder::getObserverRelationName(const ObserverConfig &observer_config)
+{
+    return observer_config.name_ + observer_config.observed_body_;
+}
+//=================================================================================================//
+VariableConfig SimulationBuilder::parseVariableConfig(const json &config)
+{
+    VariableConfig variable_config;
+    if (config.contains("real_type"))
+    {
+        variable_config.type_ = "Real";
+        variable_config.name_ = config.at("real_type").get<std::string>();
+        return variable_config;
+    }
+
+    if (config.contains("vector_type"))
+    {
+        variable_config.type_ = "Vecd";
+        variable_config.name_ = config.at("vector_type").get<std::string>();
+        return variable_config;
+    }
+
+    throw std::runtime_error("SimulationBuilder::parseVariableConfig not supported variable type.");
 }
 //=================================================================================================//
 } // namespace SPH

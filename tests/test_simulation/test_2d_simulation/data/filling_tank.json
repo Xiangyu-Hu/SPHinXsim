@@ -92,13 +92,6 @@
 
   "gravity": [0.0, -1.0],
 
-  "observers": [
-    {
-      "name": "FluidObserver",
-      "positions": [[5.366, 0.2]]
-    }
-  ],
-
   "solver_parameters": {
     "end_time": 30.0,
     "output_interval": 0.01,

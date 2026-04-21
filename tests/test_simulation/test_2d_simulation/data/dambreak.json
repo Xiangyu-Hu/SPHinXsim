@@ -79,6 +79,8 @@
   "observers": [
     {
       "name": "FluidObserver",
+      "observed_body": "WaterBody",
+      "variable": { "real_type": "Pressure" },
       "positions": [[5.366, 0.2]]
     }
   ],

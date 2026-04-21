@@ -1,5 +1,7 @@
 #include "fluid_simulation_builder.hpp"
 
+#include "base_simulation_builder.hpp"
+
 namespace SPH
 {
 //=================================================================================================//
@@ -27,11 +29,9 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     auto &fluid_body = *entity_manager.entitiesWith<FluidBody>().front(); // assume only one fluid body for now
     StdVec<SolidBody *> solid_bodies = entity_manager.entitiesWith<SolidBody>();
-    auto &fluid_observer = *entity_manager.entitiesWith<ObserverBody>().front(); // assume only one observer body for now
-
     auto &fluid_inner = sph_system.addInnerRelation(fluid_body);
     auto &fluid_wall_contact = sph_system.addContactRelation(fluid_body, solid_bodies);
-    auto &fluid_observer_contact = sph_system.addContactRelation(fluid_observer, fluid_body);
+    defineObservationRelations(sph_system, entity_manager);
     //----------------------------------------------------------------------
     // Define SPH solver with particle methods and execution policies.
     // Generally, the host methods should be able to run immediately.
@@ -56,8 +56,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     auto &fluid_update_configuration = main_methods.addParticleDynamicsGroup()
                                            .add(&main_methods.addCellLinkedListDynamics(fluid_body))
                                            .add(&main_methods.addRelationDynamics(fluid_inner, fluid_wall_contact));
-    auto &observer_update_configuration = main_methods.addRelationDynamics(fluid_observer_contact);
 
+    auto &observer_update_configuration = addObserverConfigurationDynamics(sph_system, entity_manager, main_methods);
     auto &fluid_advection_step_setup = main_methods.addStateDynamics<fluid_dynamics::AdvectionStepSetup>(fluid_body);
     auto &fluid_update_particle_position = main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(fluid_body);
 
@@ -98,7 +98,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         body_state_recorder.addToWrite<Vecd>(*solid_body, "NormalDirection");
     }
     body_state_recorder.addToWrite<Real>(fluid_body, "Density");
-    auto &observer_pressure_output = main_methods.addObserveRecorder<Real>("Pressure", fluid_observer_contact);
+    auto &observe_recorder = addObserveRecorder(sph_system, entity_manager, main_methods);
     //----------------------------------------------------------------------
     //	Define time-integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------
@@ -126,8 +126,11 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
 
             body_state_recorder.writeToFile();
 
-            observer_update_configuration.exec();
-            observer_pressure_output.writeToFile(time_stepper.getIterationStep());
+            if (observer_update_configuration.hasDynamics())
+            {
+                observer_update_configuration.exec();
+                observe_recorder.writeToFile(time_stepper.getIterationStep());
+            }
         });
     //----------------------------------------------------------------------
     //	Define time-integration method.
@@ -163,10 +166,10 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                               << "\n";
                 }
 
-                if (time_stepper.isObservationStep())
+                if (observer_update_configuration.hasDynamics() && time_stepper.isObservationStep())
                 {
                     observer_update_configuration.exec();
-                    observer_pressure_output.writeToFile(time_stepper.getIterationStep());
+                    observe_recorder.writeToFile(time_stepper.getIterationStep());
                 }
 
                 if (state_recording_trigger())

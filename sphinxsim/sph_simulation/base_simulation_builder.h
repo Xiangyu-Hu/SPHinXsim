@@ -92,6 +92,12 @@ class SPHSystem;
 class EntityManager;
 class BaseParticles;
 class MaterialBuilder;
+class ParticleDynamicsGroup;
+class IODynamicsGroup;
+class BaseIO;
+
+template <class ReturnType>
+class BaseDynamics;
 
 struct RestartConfig
 {
@@ -108,6 +114,18 @@ struct SolverCommonConfig
     UnsignedInt screen_interval_{100};
 };
 
+struct VariableConfig
+{
+    std::string type_;
+    std::string name_;
+};
+struct ObserverConfig
+{
+    std::string name_;
+    std::string observed_body_;
+    VariableConfig observed_variable_;
+};
+
 class SimulationBuilder
 {
   public:
@@ -121,12 +139,27 @@ class SimulationBuilder
     void addContinuumBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addSolidBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
     void addObservers(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
+    void defineObservationRelations(SPHSystem &sph_system, EntityManager &entity_manager);
+
+    template <class MethodContainerType>
+    ParticleDynamicsGroup &addObserverConfigurationDynamics(
+        SPHSystem &sph_system, EntityManager &entity_manager, MethodContainerType &main_methods);
+
+    template <class MethodContainerType>
+    IODynamicsGroup &addObserveRecorder(
+        SPHSystem &sph_system, EntityManager &entity_manager, MethodContainerType &main_methods);
 
   private:
     std::unique_ptr<MaterialBuilder> material_builder_ptr_;
     SolverCommonConfig parseSolverCommonConfig(const json &config);
-    void parseParticleReload(const json &config, BaseParticles &reload_particles);
     RestartConfig parseRestartConfig(const json &config);
+    std::string getObserverRelationName(const ObserverConfig &observer_config);
+    VariableConfig parseVariableConfig(const json &config);
+
+    template <class MethodContainerType, class ObserverRelationType>
+    BaseIO *addObserveRecorderWithVariableConfig(
+        const VariableConfig &variable_config, MethodContainerType &main_methods,
+        ObserverRelationType &observer_relation);
 };
 } // namespace SPH
 #endif // BASE_SIMULATION_BUILDER_H

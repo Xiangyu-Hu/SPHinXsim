@@ -13,11 +13,10 @@ template <class MethodContainerType>
 void FluidSimulationBuilder::addBoundaryConditions(
     SPHSimulation &sim, MethodContainerType &method_container, const json &config)
 {
-    EntityManager &entity_manager = sim.getEntityManager();
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
 
     const std::string body_name = config.at("body_name").get<std::string>();
-    FluidBody &fluid_body = entity_manager.getEntityByName<FluidBody>(body_name);
+    FluidBody &fluid_body = sim.getSPHSystem().getBodyByName<FluidBody>(body_name);
     const std::string type = config.at("type").get<std::string>();
 
     if (type == "emitter")

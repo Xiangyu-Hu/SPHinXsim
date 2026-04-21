@@ -23,8 +23,8 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //  or with other bodies within interaction range.
     //  Generally, we first define all the inner relations, then the contact relations.
     //----------------------------------------------------------------------
-    auto &continuum_body = *entity_manager.entitiesWith<RealBody>().front(); // assume only one continuum body for now
-    StdVec<SolidBody *> solid_bodies = entity_manager.entitiesWith<SolidBody>();
+    auto &continuum_body = *sph_system.collectBodies<RealBody>().front(); // assume only one continuum body for now
+    StdVec<SolidBody *> solid_bodies = sph_system.collectBodies<SolidBody>();
 
     auto &continuum_inner = sph_system.addInnerRelation(continuum_body);
     auto &continuum_solid_contact = sph_system.addContactRelation(continuum_body, solid_bodies);

@@ -70,7 +70,6 @@ void SimulationBuilder::addFluidBodies(
         {
             fluid_body.generateParticles<BaseParticles, Reload>(name);
         }
-        entity_manager.addEntity(name, &fluid_body);
     }
 }
 //=================================================================================================//
@@ -84,7 +83,6 @@ void SimulationBuilder::addContinuumBodies(
         auto &continuum_body = sph_system.addBody<RealBody>(shape, name);
         material_builder_ptr_->addMaterial(entity_manager, continuum_body, cb.at("material"));
         continuum_body.generateParticles<BaseParticles, Reload>(name);
-        entity_manager.addEntity(name, &continuum_body);
     }
 }
 //=================================================================================================//
@@ -99,7 +97,6 @@ void SimulationBuilder::addSolidBodies(
         material_builder_ptr_->addMaterial(entity_manager, solid_body, sb.at("material"));
         BaseParticles &reload_particles = solid_body.generateParticles<BaseParticles, Reload>(name);
         reload_particles.reloadExtraVariable<Vecd>("NormalDirection");
-        entity_manager.addEntity(name, &solid_body);
     }
 }
 //=================================================================================================//

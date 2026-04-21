@@ -27,8 +27,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //  or with other bodies within interaction range.
     //  Generally, we first define all the inner relations, then the contact relations.
     //----------------------------------------------------------------------
-    auto &fluid_body = *entity_manager.entitiesWith<FluidBody>().front(); // assume only one fluid body for now
-    StdVec<SolidBody *> solid_bodies = entity_manager.entitiesWith<SolidBody>();
+    auto &fluid_body = *sph_system.collectBodies<FluidBody>().front(); // assume only one fluid body for now
+    StdVec<SolidBody *> solid_bodies = sph_system.collectBodies<SolidBody>();
     auto &fluid_inner = sph_system.addInnerRelation(fluid_body);
     auto &fluid_wall_contact = sph_system.addContactRelation(fluid_body, solid_bodies);
     //----------------------------------------------------------------------

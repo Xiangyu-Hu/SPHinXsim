@@ -49,7 +49,7 @@
       "bodies": [
         {
           "name": "BloodBody",
-          "relaxation": { "contact_bodies": ["WallBoundary"] }
+          "relaxation": { "dependent_bodies": ["WallBoundary"] }
         },
         {
           "name": "WallBoundary",

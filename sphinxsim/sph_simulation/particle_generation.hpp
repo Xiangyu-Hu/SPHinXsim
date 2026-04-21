@@ -55,7 +55,7 @@ ParticleDynamicsGroup &ParticleGeneration::addConfigurationDynamics(
         auto &inner_relation = relaxation_system.getRelationByName<
             Inner<Relation<RealBody>>>(body_config.name_);
 
-        if (body_config.contact_bodies_.empty())
+        if (body_config.dependent_bodies_.empty())
         {
             configuration_update.add(&main_methods.addRelationDynamics(inner_relation));
         }
@@ -89,7 +89,7 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationResidue(
             residual_dynamics.template addPostStateDynamics<LevelsetKernelGradientIntegral>(real_body, level_set_shape);
         }
 
-        if (!body_config.contact_bodies_.empty())
+        if (!body_config.dependent_bodies_.empty())
         {
             std::string relation_name = getContactRelationName(body_config);
             auto &contact_relation = relaxation_system.getRelationByName<

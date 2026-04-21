@@ -188,9 +188,9 @@ RelaxationBodyConfig ParticleGeneration::parseRelaxationBodyConfig(std::string b
         relax_body_config.with_level_set_ = true;
     }
 
-    if (config.contains("contact_bodies"))
+    if (config.contains("dependent_bodies"))
     {
-        relax_body_config.contact_bodies_ = config.at("contact_bodies").get<std::vector<std::string>>();
+        relax_body_config.dependent_bodies_ = config.at("dependent_bodies").get<std::vector<std::string>>();
     }
 
     return relax_body_config;
@@ -198,7 +198,7 @@ RelaxationBodyConfig ParticleGeneration::parseRelaxationBodyConfig(std::string b
 //=================================================================================================//
 std::string ParticleGeneration::getContactRelationName(const RelaxationBodyConfig &body_config)
 {
-    return body_config.name_ + body_config.contact_bodies_.front();
+    return body_config.name_ + body_config.dependent_bodies_.front();
 }
 //=================================================================================================//
 void ParticleGeneration::defineBodyRelations(RelaxationSystem &relaxation_system)
@@ -208,15 +208,15 @@ void ParticleGeneration::defineBodyRelations(RelaxationSystem &relaxation_system
         RealBody &real_body = relaxation_system.getBodyByName<RealBody>(relax_body_config.name_);
         relaxation_system.addInnerRelation(real_body);
 
-        if (!relax_body_config.contact_bodies_.empty())
+        if (!relax_body_config.dependent_bodies_.empty())
         {
-            StdVec<RealBody *> contact_bodies;
-            for (const auto &contact_body_name : relax_body_config.contact_bodies_)
+            StdVec<RealBody *> dependent_bodies;
+            for (const auto &dependent_body_name : relax_body_config.dependent_bodies_)
             {
-                RealBody &contact_body = relaxation_system.getBodyByName<RealBody>(contact_body_name);
-                contact_bodies.push_back(&contact_body);
+                RealBody &dependent_body = relaxation_system.getBodyByName<RealBody>(dependent_body_name);
+                dependent_bodies.push_back(&dependent_body);
             }
-            relaxation_system.addContactRelation(real_body, contact_bodies);
+            relaxation_system.addContactRelation(real_body, dependent_bodies);
         }
     }
 }

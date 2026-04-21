@@ -51,7 +51,7 @@ struct RelaxationBodyConfig
 {
     std::string name_;
     bool with_level_set_ = false;
-    std::vector<std::string> contact_bodies_;
+    std::vector<std::string> dependent_bodies_;
 };
 
 struct AllBodiesConfig

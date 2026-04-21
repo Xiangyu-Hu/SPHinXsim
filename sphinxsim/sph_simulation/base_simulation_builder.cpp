@@ -206,4 +206,30 @@ VariableConfig SimulationBuilder::parseVariableConfig(const json &config)
     throw std::runtime_error("SimulationBuilder::parseVariableConfig not supported variable type.");
 }
 //=================================================================================================//
+void SimulationBuilder::addVariableToStateRecorder(
+    BodyStatesRecording &state_recording, SPHBody &sph_body, const json &config)
+{
+    if (config.contains("real_type"))
+    {
+        StdVec<std::string> real_variables = config.at("real_type").get<StdVec<std::string>>();
+        for (const auto &real_var : real_variables)
+        {
+            state_recording.template addToWrite<Real>(sph_body, real_var);
+        }
+        return;
+    }
+
+    if (config.contains("vector_type"))
+    {
+        StdVec<std::string> vector_variables = config.at("vector_type").get<StdVec<std::string>>();
+        for (const auto &vector_var : vector_variables)
+        {
+            state_recording.template addToWrite<Vecd>(sph_body, vector_var);
+        }
+        return;
+    }
+
+    throw std::runtime_error("SimulationBuilder::addVariableToStateRecorder not supported variable type.");
+}
+//=================================================================================================//
 } // namespace SPH

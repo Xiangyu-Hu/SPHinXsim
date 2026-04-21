@@ -85,6 +85,17 @@
     }
   ],
 
+  "state_recording": [
+    {
+      "name": "WaterBody",
+      "variables": [{ "real_type": ["Density"] }]
+    },
+    {
+      "name": "WallBoundary",
+      "variables": [{ "vector_type": ["NormalDirection"] }]
+    }
+  ],
+
   "solver_parameters": {
     "end_time": 20.0,
     "output_interval": 0.01,

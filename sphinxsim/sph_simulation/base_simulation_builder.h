@@ -95,6 +95,8 @@ class MaterialBuilder;
 class ParticleDynamicsGroup;
 class IODynamicsGroup;
 class BaseIO;
+class BodyStatesRecording;
+class SPHBody;
 
 template <class ReturnType>
 class BaseDynamics;
@@ -149,6 +151,10 @@ class SimulationBuilder
     IODynamicsGroup &addObserveRecorder(
         SPHSystem &sph_system, EntityManager &entity_manager, MethodContainerType &main_methods);
 
+    template <class MethodContainerType>
+    BodyStatesRecording &addBodyStateRecorder(
+        SPHSystem &sph_system, MethodContainerType &main_methods, const json &config);
+
   private:
     std::unique_ptr<MaterialBuilder> material_builder_ptr_;
     SolverCommonConfig parseSolverCommonConfig(const json &config);
@@ -160,6 +166,9 @@ class SimulationBuilder
     BaseIO *addObserveRecorderWithVariableConfig(
         const VariableConfig &variable_config, MethodContainerType &main_methods,
         ObserverRelationType &observer_relation);
+
+    void addVariableToStateRecorder(
+        BodyStatesRecording &state_recording, SPHBody &sph_body, const json &config);
 };
 } // namespace SPH
 #endif // BASE_SIMULATION_BUILDER_H

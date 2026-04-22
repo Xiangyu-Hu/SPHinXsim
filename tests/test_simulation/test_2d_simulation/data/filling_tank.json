@@ -1,6 +1,5 @@
 {
   "simulation_type": "fluid_dynamics",
-  "particle_sort_frequency": 100,
 
   "geometries": {
     "system_domain": {
@@ -33,6 +32,17 @@
             "upper_bound": [0.2, 1.125]
           }
         ]
+      }
+    ],
+    "aligned_boxes": [
+      {
+        "name": "Emitter",
+        "type": "region",
+        "half_size": [0.15, 0.0625],
+        "transform": {
+          "translation": [0.05, 1.0625],
+          "rotation_angle": 0.0
+        }
       }
     ]
   },
@@ -80,12 +90,7 @@
     {
       "body_name": "WaterBody",
       "type": "emitter",
-      "alignment_axis": 0,
-      "half_size": [0.15, 0.0625],
-      "transform": {
-        "translation": [0.05, 1.0625],
-        "rotation_angle": 0.0
-      },
+      "aligned_box": "Emitter",
       "inflow_speed": 2.0
     }
   ],
@@ -101,5 +106,7 @@
       "advection_cfl": 0.25,
       "free_surface_correction": true
     }
-  }
+  },
+
+  "particle_sort_frequency": 100
 }

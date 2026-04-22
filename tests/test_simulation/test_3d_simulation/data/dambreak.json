@@ -100,5 +100,7 @@
       "advection_cfl": 0.25,
       "free_surface_correction": true
     }
-  }
+  },
+
+  "particle_sort_frequency": 100
 }

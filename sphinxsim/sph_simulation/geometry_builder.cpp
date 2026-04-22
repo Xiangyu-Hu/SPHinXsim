@@ -28,7 +28,7 @@ void GeometryBuilder::createGeometries(EntityManager &entity_manager, const json
         entity_manager.addEntity<Shape>(shape->getName(), shape);
         system_domain_config->updateSystemDomainConfig(shape->getBounds());
     }
-    
+
     if (config.contains("aligned_boxes"))
     {
         for (const auto &ab : config.at("aligned_boxes"))
@@ -242,6 +242,13 @@ GeometricShapeBox GeometryBuilder::addAlignedBox(EntityManager &entity_manager, 
         Rotation rotation = getRotationFromXAxis(normal);
         AlignedBox *aligned_box = entity_manager.emplaceEntity<AlignedBox>(
             name, xAxis, Transform(rotation, translation), half_size);
+        return GeometricShapeBox(*aligned_box, name); // for visualization only
+    }
+
+    if (type == "region")
+    {
+        AlignedBox *aligned_box = entity_manager.emplaceEntity<AlignedBox>(
+            name, xAxis, GeometryBuilder::parseBox(config));
         return GeometricShapeBox(*aligned_box, name); // for visualization only
     }
 

@@ -33,12 +33,21 @@
 
 namespace SPH
 {
+
 class TimeStepper;
-struct FluidSolverParameters
+class AlignedBoxByParticle;
+class AlignedBoxByCell;
+namespace fluid_dynamics
+{
+class AbstractBidirectionalBoundary;
+}
+
+struct FluidSolverConfig
 {
     Real acoustic_cfl_{0.6};
     Real advection_cfl_{0.25};
     bool free_surface_correction_{true};
+    bool particle_deletion_{false};
 };
 
 class FluidSimulationBuilder : public SimulationBuilder
@@ -48,10 +57,16 @@ class FluidSimulationBuilder : public SimulationBuilder
     virtual void parseSolverParameters(EntityManager &entity_manager, const json &config) override;
 
   private:
+    FluidSolverConfig parseFluidSolverConfig(const json &config);
+
     template <class MethodContainerType>
     void addBoundaryConditions(
         SPHSimulation &sim, MethodContainerType &method_container, const json &config);
-    FluidSolverParameters parseFluidSolverParameters(const json &config);
+
+    template <class MethodContainerType>
+    fluid_dynamics::AbstractBidirectionalBoundary &addBiDirectionBoundary(
+        AlignedBoxByCell &aligned_box_by_cell, EntityManager &entity_manager,
+        MethodContainerType &main_methods, const json &config);
 };
 } // namespace SPH
 #endif // FLUID_SIMULATION_BUILDER_H

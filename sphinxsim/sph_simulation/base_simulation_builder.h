@@ -55,16 +55,18 @@ enum class SimulationHookPoint
     BoundaryConditions,
     PositionConstraints,
     ParticleCreation,
+    ParticleDeletionTagging,
     ParticleDeletion,
     ExtraOutputs,
     ParticleSort,
+    ParticleIndicationTagging,
     NumHooks
 };
 
 enum class InitializationHookPoint
 {
-    HostSteps,
     InitialConditions,
+    InitialParticleIndicationTagging,
     NumHooks
 };
 

@@ -13,17 +13,19 @@ template <class MethodContainerType>
 void FluidSimulationBuilder::addBoundaryConditions(
     SPHSimulation &sim, MethodContainerType &method_container, const json &config)
 {
+    StagePipeline<InitializationHookPoint> &initialization_pipeline = sim.getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
     EntityManager &entity_manager = sim.getEntityManager();
+    TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
 
     const std::string body_name = config.at("body_name").get<std::string>();
     FluidBody &fluid_body = sim.getSPHSystem().getBodyByName<FluidBody>(body_name);
+    AlignedBox &aligned_box = entity_manager.getEntityByName<AlignedBox>(
+        config.at("aligned_box").get<std::string>());
     const std::string type = config.at("type").get<std::string>();
 
     if (type == "emitter")
     { // must be aligned box for emitter
-        AlignedBox &aligned_box = entity_manager.getEntityByName<AlignedBox>(
-            config.at("aligned_box").get<std::string>());
         auto &emitter = fluid_body.addBodyPart<AlignedBoxByParticle>(aligned_box);
         auto &inflow_condition = method_container.template addStateDynamics<
             fluid_dynamics::EmitterInflowConditionCK, ConstantInflowSpeed>(
@@ -38,11 +40,70 @@ void FluidSimulationBuilder::addBoundaryConditions(
         simulation_pipeline.insert_hook(
             SimulationHookPoint::ParticleCreation, [&]()
             { injection.exec(); });
+
         return;
     }
 
+    if (type == "bi_directional")
+    {
+        auto &fluid_solver_config = entity_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
+        if (fluid_solver_config.particle_deletion_ == false)
+        {
+            auto &particle_deletion = method_container.template addStateDynamics<
+                fluid_dynamics::OutflowParticleDeletion>(fluid_body);
+            fluid_solver_config.particle_deletion_ = true; // enable particle deletion
+
+            simulation_pipeline.insert_hook(
+                SimulationHookPoint::ParticleDeletion, [&]()
+                { particle_deletion.exec(); });
+        }
+
+        auto &aligned_box_by_cell = fluid_body.addBodyPart<AlignedBoxByCell>(aligned_box);
+        auto &bi_directional_bd = addBiDirectionBoundary(
+            aligned_box_by_cell, entity_manager, method_container, config);
+
+        initialization_pipeline.insert_hook(
+            InitializationHookPoint::InitialParticleIndicationTagging, [&]()
+            { bi_directional_bd.tagBufferParticles(); });
+
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::BoundaryConditions, [&]()
+            {   
+                Real dt = time_stepper.getGlobalTimeStepSize();
+                bi_directional_bd.applyBoundaryCondition(dt); });
+
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::ParticleCreation, [&]()
+            { bi_directional_bd.injectParticles(); });
+
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::ParticleDeletionTagging, [&]()
+            { bi_directional_bd.indicateOutFlowParticles(); });
+
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::ParticleIndicationTagging, [&]()
+            { bi_directional_bd.tagBufferParticles(); });
+
+        return;
+    }
     throw std::runtime_error(
         "FluidSimulationBuilder::addBoundaryConditions: unsupported: " + type);
+}
+//=================================================================================================//
+template <class MethodContainerType>
+fluid_dynamics::AbstractBidirectionalBoundary &FluidSimulationBuilder::addBiDirectionBoundary(
+    AlignedBoxByCell &aligned_box_by_cell, EntityManager &entity_manager,
+    MethodContainerType &main_methods, const json &config)
+{
+    if (config.contains("pressure"))
+    {
+        auto &bi_directional_bd = main_methods.template addGeneralDynamics<
+            fluid_dynamics::BidirectionalBoundaryCK, LinearCorrectionCK, PressurePrescribed<>>(
+            aligned_box_by_cell, config.at("pressure").get<Real>());
+        return bi_directional_bd;
+    }
+    throw std::runtime_error(
+        "FluidSimulationBuilder::addBiDirectionBoundary: unsupported boundary condition type");
 }
 //=================================================================================================//
 } // namespace SPH

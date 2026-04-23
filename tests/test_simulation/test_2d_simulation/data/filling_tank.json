@@ -89,8 +89,8 @@
   "fluid_boundary_conditions": [
     {
       "body_name": "WaterBody",
-      "type": "emitter",
       "aligned_box": "Emitter",
+      "type": "emitter",
       "inflow_speed": 2.0
     }
   ],

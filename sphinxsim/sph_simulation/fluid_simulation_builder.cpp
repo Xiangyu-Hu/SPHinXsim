@@ -77,7 +77,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             .addPostStateDynamics<fluid_dynamics::DensityRegularization, FreeSurface>(fluid_body);
 
     auto &fluid_solver_parameters = entity_manager.getEntityByName<
-        FluidSolverParameters>("FluidSolverParameters");
+        FluidSolverConfig>("FluidSolverConfig");
     Fluid &fluid_material = DynamicCast<Fluid>(this, fluid_body.getBaseMaterial());
     const Real U_ref = fluid_material.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
     auto &fluid_advection_time_step = main_methods.addReduceDynamics<
@@ -117,6 +117,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             fluid_density_regularization.exec();
             fluid_advection_step_setup.exec();
             fluid_linear_correction_matrix.exec();
+            initialization_pipeline.run_hooks(InitializationHookPoint::InitialParticleIndicationTagging);
 
             body_state_recorder.writeToFile();
 
@@ -172,6 +173,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                 }
 
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleCreation);
+                simulation_pipeline.run_hooks(SimulationHookPoint::ParticleDeletionTagging);
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleDeletion);
 
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleSort);
@@ -179,6 +181,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                 fluid_density_regularization.exec();
                 fluid_advection_step_setup.exec();
                 fluid_linear_correction_matrix.exec();
+                simulation_pipeline.run_hooks(SimulationHookPoint::ParticleIndicationTagging);
             }
         });
     //----------------------------------------------------------------------
@@ -221,14 +224,14 @@ void FluidSimulationBuilder::parseSolverParameters(EntityManager &entity_manager
     SimulationBuilder::parseSolverParameters(entity_manager, config);
     if (config.contains("fluid_dynamics"))
     {
-        entity_manager.emplaceEntity<FluidSolverParameters>(
-            "FluidSolverParameters", parseFluidSolverParameters(config.at("fluid_dynamics")));
+        entity_manager.emplaceEntity<FluidSolverConfig>(
+            "FluidSolverConfig", parseFluidSolverConfig(config.at("fluid_dynamics")));
     }
 }
 //=================================================================================================//
-FluidSolverParameters FluidSimulationBuilder::parseFluidSolverParameters(const json &config)
+FluidSolverConfig FluidSimulationBuilder::parseFluidSolverConfig(const json &config)
 {
-    FluidSolverParameters params;
+    FluidSolverConfig params;
     if (config.contains("acoustic_cfl"))
         params.acoustic_cfl_ = config.at("acoustic_cfl").get<Real>();
     if (config.contains("advection_cfl"))

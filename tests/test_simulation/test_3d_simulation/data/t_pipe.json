@@ -108,14 +108,21 @@
   "fluid_boundary_conditions": [
     {
       "body_name": "BloodBody",
-      "type": "pressure",
-      "alignment_axis": 0,
-      "half_size": [1.0, 1.0, 1.0],
-      "transform": {
-        "translation": [0.0, 0.0, 0.0],
-        "rotation_angle": 0.0
-      },
-      "constant_value": 2.0
+      "aligned_box": "Inlet",
+      "type": "bi_directional",
+      "pressure": 133.0
+    },
+    {
+      "body_name": "BloodBody",
+      "aligned_box": "UpperOutlet",
+      "type": "bi_directional",
+      "pressure": 0.0
+    },
+    {
+      "body_name": "BloodBody",
+      "aligned_box": "LowerOutlet",
+      "type": "bi_directional",
+      "pressure": 0.0
     }
   ],
 

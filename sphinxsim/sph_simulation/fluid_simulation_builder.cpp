@@ -197,14 +197,6 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             { constant_gravity.exec(); });
     }
 
-    if (config.contains("fluid_boundary_conditions"))
-    {
-        for (const auto &bd : config.at("fluid_boundary_conditions"))
-        {
-            addBoundaryConditions(sim, main_methods, bd);
-        }
-    }
-
     if (fluid_solver_config.surface_type_ == "open_boundary")
     {
         auto &fluid_surface_indication =
@@ -249,6 +241,14 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         simulation_pipeline.insert_hook(
             SimulationHookPoint::AfterAdvectionStepSetup, [&]()
             { viscous_force.exec(); });
+    }
+
+    if (config.contains("fluid_boundary_conditions"))
+    {
+        for (const auto &bd : config.at("fluid_boundary_conditions"))
+        {
+            addBoundaryConditions(sim, main_methods, bd);
+        }
     }
 
     if (config.contains("particle_sort_frequency")) // after all body part by particles defined

@@ -124,7 +124,7 @@
   ],
 
   "solver_parameters": {
-    "end_time": 0.05,
+    "end_time": 0.1,
     "output_interval": 0.01,
     "screen_interval": 100,
     "fluid_dynamics": {

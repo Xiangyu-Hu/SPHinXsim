@@ -25,8 +25,8 @@ TEST(simulations, t_pipe)
     SPHSimulation sim("input/t_pipe.json");
     sim.resetOutputRoot("./t_pipe", true);
     sim.loadConfig();
-    //    sim.initializeSimulation();
-    //    sim.run();
+    sim.initializeSimulation();
+    sim.run();
 }
 
 int main(int argc, char *argv[])

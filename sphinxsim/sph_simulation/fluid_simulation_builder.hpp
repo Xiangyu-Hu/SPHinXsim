@@ -112,18 +112,6 @@ void FluidSimulationBuilder::addBoundaryConditions(
 
     if (type == "bi_directional")
     {
-        auto &fluid_solver_config = entity_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
-        if (fluid_solver_config.particle_deletion_ == false)
-        {
-            auto &particle_deletion = method_container.template addStateDynamics<
-                fluid_dynamics::OutflowParticleDeletion>(fluid_body);
-            fluid_solver_config.particle_deletion_ = true; // enable particle deletion
-
-            simulation_pipeline.insert_hook(
-                SimulationHookPoint::ParticleDeletion, [&]()
-                { particle_deletion.exec(); });
-        }
-
         auto &aligned_box_by_cell = fluid_body.addBodyPart<AlignedBoxByCell>(aligned_box);
         auto &bi_directional_bd = addBiDirectionBoundary(
             aligned_box_by_cell, entity_manager, method_container, config);
@@ -150,6 +138,18 @@ void FluidSimulationBuilder::addBoundaryConditions(
             SimulationHookPoint::ParticleIndicationTagging, [&]()
             { bi_directional_bd.tagBufferParticles(); });
 
+        auto &fluid_solver_config = entity_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
+        if (fluid_solver_config.particle_deletion_ == false)
+        {
+            auto &particle_deletion = method_container.template addStateDynamics<
+                fluid_dynamics::OutflowParticleDeletion>(fluid_body);
+            fluid_solver_config.particle_deletion_ = true; // enable particle deletion
+
+            simulation_pipeline.insert_hook(
+                SimulationHookPoint::ParticleDeletion, [&]()
+                { particle_deletion.exec(); });
+        }
+        
         return;
     }
     throw std::runtime_error(

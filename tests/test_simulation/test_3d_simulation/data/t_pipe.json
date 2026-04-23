@@ -98,9 +98,6 @@
       "name": "WallBoundary",
       "material": {
         "type": "rigid_body"
-      },
-      "particle_reload": {
-        "reload_variables": ["NormalDirection"]
       }
     }
   ],
@@ -133,7 +130,7 @@
     "fluid_dynamics": {
       "acoustic_cfl": 0.6,
       "advection_cfl": 0.25,
-      "free_surface_correction": false
+      "flow_type": "open_boundary"
     }
   }
 }

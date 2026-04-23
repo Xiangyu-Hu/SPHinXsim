@@ -9,6 +9,72 @@
 namespace SPH
 {
 //=================================================================================================//
+template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
+BaseDynamics<void> &FluidSimulationBuilder::addDensitySummationAndRegularization(
+    EntityManager &entity_manager, MethodContainerType &method_container,
+    InnerRelationType &inner_relation, ContactRelationType &contact_relation)
+{
+    auto &fluid_density_regularization =
+        method_container.template addInteractionDynamics<fluid_dynamics::DensitySummationCK>(inner_relation)
+            .addPostContactInteraction(contact_relation);
+
+    auto &fluid_solver_config = entity_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
+
+    if (fluid_solver_config.surface_type_ == "confined")
+    {
+        fluid_density_regularization.template addPostStateDynamics<
+            fluid_dynamics::DensityRegularization, Internal>(inner_relation.getSPHBody());
+        return fluid_density_regularization;
+    }
+
+    if (fluid_solver_config.surface_type_ == "free_surface")
+    {
+        fluid_density_regularization.template addPostStateDynamics<
+            fluid_dynamics::DensityRegularization, FreeSurface>(inner_relation.getSPHBody());
+        return fluid_density_regularization;
+    }
+
+    if (fluid_solver_config.surface_type_ == "open_boundary")
+    {
+        fluid_density_regularization.template addPostStateDynamics<
+            fluid_dynamics::DensityRegularization, Internal, ExcludeBufferParticles>(
+            inner_relation.getSPHBody());
+        return fluid_density_regularization;
+    }
+
+    throw std::runtime_error(
+        "FluidSimulationBuilder::addDensitySummationAndRegularization: no supported flow type found!");
+}
+//=================================================================================================//
+template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
+BaseDynamics<void> &FluidSimulationBuilder::addTransportVelocityCorrection(
+    EntityManager &entity_manager, MethodContainerType &method_container,
+    InnerRelationType &inner_relation, ContactRelationType &contact_relation)
+{
+    auto &transport_velocity_correction =
+        method_container.template addInteractionDynamics<KernelGradientIntegral, LinearCorrectionCK>(inner_relation)
+            .template addPostContactInteraction<Boundary, NoKernelCorrectionCK>(contact_relation);
+
+    auto &fluid_solver_config = entity_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
+
+    if (fluid_solver_config.surface_type_ == "confined")
+    {
+        transport_velocity_correction.template addPostStateDynamics<
+            fluid_dynamics::TransportVelocityCorrectionCK, TruncatedLinear>(inner_relation.getSPHBody());
+        return transport_velocity_correction;
+    }
+
+    if (fluid_solver_config.surface_type_ == "open_boundary")
+    {
+        transport_velocity_correction.template addPostStateDynamics<
+            fluid_dynamics::TransportVelocityCorrectionCK, TruncatedLinear, BulkParticles>(
+            inner_relation.getSPHBody());
+        return transport_velocity_correction;
+    }
+    throw std::runtime_error(
+        "FluidSimulationBuilder::addTransportVelocityCorrection: no supported flow type found!");
+}
+//=================================================================================================//
 template <class MethodContainerType>
 void FluidSimulationBuilder::addBoundaryConditions(
     SPHSimulation &sim, MethodContainerType &method_container, const json &config)

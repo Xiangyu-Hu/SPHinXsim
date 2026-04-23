@@ -46,7 +46,8 @@ struct FluidSolverConfig
 {
     Real acoustic_cfl_{0.6};
     Real advection_cfl_{0.25};
-    bool free_surface_correction_{true};
+    std::string surface_type_ = "free_surface";
+    std::string flow_type_ = "inviscid_flow";
     bool particle_deletion_{false};
 };
 
@@ -58,6 +59,16 @@ class FluidSimulationBuilder : public SimulationBuilder
 
   private:
     FluidSolverConfig parseFluidSolverConfig(const json &config);
+
+    template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
+    BaseDynamics<void> &addDensitySummationAndRegularization(
+        EntityManager &entity_manager, MethodContainerType &method_container,
+        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
+
+    template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
+    BaseDynamics<void> &addTransportVelocityCorrection(
+        EntityManager &entity_manager, MethodContainerType &method_container,
+        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
 
     template <class MethodContainerType>
     void addBoundaryConditions(

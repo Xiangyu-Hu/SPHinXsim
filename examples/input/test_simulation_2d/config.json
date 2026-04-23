@@ -42,7 +42,7 @@
       "positions": [[5.366, 0.2]]
     }
   ],
-  "fluid_solver_parameters": {
+  "fluid_solver_config": {
     "acoustic_cfl": 0.6,
     "advection_cfl": 0.25,
     "free_surface_correction": true

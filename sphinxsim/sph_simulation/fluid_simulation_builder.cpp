@@ -71,19 +71,17 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                                             AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_inner)
             .addPostContactInteraction<Wall, AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_wall_contact);
 
-    auto &fluid_density_regularization =
-        main_methods.addInteractionDynamics<fluid_dynamics::DensitySummationCK>(fluid_inner)
-            .addPostContactInteraction(fluid_wall_contact)
-            .addPostStateDynamics<fluid_dynamics::DensityRegularization, FreeSurface>(fluid_body);
+    auto &fluid_density_regularization = addDensitySummationAndRegularization(
+        entity_manager, main_methods, fluid_inner, fluid_wall_contact);
 
-    auto &fluid_solver_parameters = entity_manager.getEntityByName<
+    auto &fluid_solver_config = entity_manager.getEntityByName<
         FluidSolverConfig>("FluidSolverConfig");
     Fluid &fluid_material = DynamicCast<Fluid>(this, fluid_body.getBaseMaterial());
     const Real U_ref = fluid_material.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
     auto &fluid_advection_time_step = main_methods.addReduceDynamics<
-        fluid_dynamics::AdvectionTimeStepCK>(fluid_body, U_ref, fluid_solver_parameters.advection_cfl_);
+        fluid_dynamics::AdvectionTimeStepCK>(fluid_body, U_ref, fluid_solver_config.advection_cfl_);
     auto &fluid_acoustic_time_step = main_methods.addReduceDynamics<
-        fluid_dynamics::AcousticTimeStepCK<>>(fluid_body, fluid_solver_parameters.acoustic_cfl_);
+        fluid_dynamics::AcousticTimeStepCK<>>(fluid_body, fluid_solver_config.acoustic_cfl_);
     //----------------------------------------------------------------------
     //	Define the methods for I/O operations, observations
     //	and regression tests of the simulation.
@@ -114,10 +112,11 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             solid_cell_linked_list.exec();
             fluid_update_configuration.exec();
 
-            fluid_density_regularization.exec();
-            fluid_advection_step_setup.exec();
             fluid_linear_correction_matrix.exec();
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialParticleIndicationTagging);
+            fluid_density_regularization.exec();
+            fluid_advection_step_setup.exec();
+            initialization_pipeline.run_hooks(InitializationHookPoint::InitialAfterAdvectionStepSetup);
 
             body_state_recorder.writeToFile();
 
@@ -175,13 +174,14 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleCreation);
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleDeletionTagging);
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleDeletion);
-
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleSort);
+
                 fluid_update_configuration.exec();
-                fluid_density_regularization.exec();
-                fluid_advection_step_setup.exec();
                 fluid_linear_correction_matrix.exec();
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleIndicationTagging);
+                fluid_density_regularization.exec();
+                fluid_advection_step_setup.exec();
+                simulation_pipeline.run_hooks(SimulationHookPoint::AfterAdvectionStepSetup);
             }
         });
     //----------------------------------------------------------------------
@@ -203,6 +203,52 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         {
             addBoundaryConditions(sim, main_methods, bd);
         }
+    }
+
+    if (fluid_solver_config.surface_type_ == "open_boundary")
+    {
+        auto &fluid_surface_indication =
+            main_methods.addInteractionDynamicsWithUpdate<
+                            fluid_dynamics::FreeSurfaceIndicationCK>(fluid_inner)
+                .addPostContactInteraction(fluid_wall_contact);
+
+        initialization_pipeline.insert_hook(
+            InitializationHookPoint::InitialParticleIndicationTagging, [&]()
+            { fluid_surface_indication.exec(); });
+
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::ParticleIndicationTagging, [&]()
+            { fluid_surface_indication.exec(); });
+    }
+
+    if (fluid_solver_config.surface_type_ != "free_surface")
+    {
+        auto &transport_velocity_correction = addTransportVelocityCorrection(
+            entity_manager, main_methods, fluid_inner, fluid_wall_contact);
+
+        initialization_pipeline.insert_hook(
+            InitializationHookPoint::InitialAfterAdvectionStepSetup, [&]()
+            { transport_velocity_correction.exec(); });
+
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::AfterAdvectionStepSetup, [&]()
+            { transport_velocity_correction.exec(); });
+    }
+
+    if (entity_manager.hasEntity<Viscosity>(fluid_body.getName() + "Viscosity"))
+    {
+        auto &viscous_force =
+            main_methods.addInteractionDynamicsWithUpdate<
+                            fluid_dynamics::ViscousForceCK, Viscosity, NoKernelCorrectionCK>(fluid_inner)
+                .addPostContactInteraction<Wall, Viscosity, NoKernelCorrectionCK>(fluid_wall_contact);
+
+        initialization_pipeline.insert_hook(
+            InitializationHookPoint::InitialAfterAdvectionStepSetup, [&]()
+            { viscous_force.exec(); });
+
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::AfterAdvectionStepSetup, [&]()
+            { viscous_force.exec(); });
     }
 
     if (config.contains("particle_sort_frequency")) // after all body part by particles defined
@@ -236,8 +282,8 @@ FluidSolverConfig FluidSimulationBuilder::parseFluidSolverConfig(const json &con
         params.acoustic_cfl_ = config.at("acoustic_cfl").get<Real>();
     if (config.contains("advection_cfl"))
         params.advection_cfl_ = config.at("advection_cfl").get<Real>();
-    if (config.contains("free_surface_correction"))
-        params.free_surface_correction_ = config.at("free_surface_correction").get<bool>();
+    if (config.contains("flow_type"))
+        params.surface_type_ = config.at("flow_type").get<std::string>();
     return params;
 }
 //=================================================================================================//

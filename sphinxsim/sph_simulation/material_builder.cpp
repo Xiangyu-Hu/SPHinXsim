@@ -13,6 +13,15 @@ void MaterialBuilder::addMaterial(EntityManager &entity_manager, SPHBody &sph_bo
     {
         Real density = config.at("density").get<Real>();
         Real sound_speed = config.at("sound_speed").get<Real>();
+        if (config.contains("viscosity"))
+        {
+            Real viscosity = config.at("viscosity").get<Real>();
+            auto &material = sph_body.defineClosure<WeaklyCompressibleFluid, Viscosity>(
+                ConstructArgs(density, sound_speed), viscosity);
+            entity_manager.addEntity(sph_body.getName() + "WeaklyCompressibleFluid", &material);
+            entity_manager.addEntity(sph_body.getName() + "Viscosity", DynamicCast<Viscosity>(this, &material));
+            return;
+        }
         auto &material = sph_body.defineMaterial<WeaklyCompressibleFluid>(density, sound_speed);
         entity_manager.addEntity(sph_body.getName() + "WeaklyCompressibleFluid", &material);
         return;

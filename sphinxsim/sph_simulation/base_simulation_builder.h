@@ -60,6 +60,7 @@ enum class SimulationHookPoint
     ExtraOutputs,
     ParticleSort,
     ParticleIndicationTagging,
+    AfterAdvectionStepSetup,
     NumHooks
 };
 
@@ -67,6 +68,7 @@ enum class InitializationHookPoint
 {
     InitialConditions,
     InitialParticleIndicationTagging,
+    InitialAfterAdvectionStepSetup,
     NumHooks
 };
 

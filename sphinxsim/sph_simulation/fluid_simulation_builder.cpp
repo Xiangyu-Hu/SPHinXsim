@@ -20,10 +20,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     addFluidBodies(sph_system, config_manager, config.at("fluid_bodies"));
     addSolidBodies(sph_system, config_manager, config.at("solid_bodies"));
-    if (config.contains("observers"))
-    {
-        addObservers(sph_system, config_manager, config.at("observers"));
-    }
+    addObservers(sph_system, config_manager, config);
     //----------------------------------------------------------------------
     // Define body relation map.
     // The relations give the topological connections within (inner) a body
@@ -41,20 +38,20 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     SPHSolver &sph_solver = sim.defineSPHSolver(*this, config);
     auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
     //----------------------------------------------------------------------
-    // Define the numerical methods used in the simulation.
+    // Define the main numerical methods used in the simulation.
     // Note that there may be data dependence on the sequence of constructions.
     // Generally, the configuration dynamics, such as update cell linked list,
     // update body relations, are defined first.
     //----------------------------------------------------------------------
     auto &solid_cell_linked_list = main_methods.addCellLinkedListDynamics(solid_bodies);
-    auto &fluid_update_configuration =
+    auto &fluid_configuration =
         main_methods.addParticleDynamicsGroup()
             .add(&main_methods.addCellLinkedListDynamics(fluid_body))
             .add(&main_methods.addRelationDynamics(fluid_inner, fluid_wall_contact));
     auto &observer_configuration = addObserverConfigurationDynamics(sph_system, config_manager, main_methods);
 
     auto &fluid_advection_step_setup = main_methods.addStateDynamics<fluid_dynamics::AdvectionStepSetup>(fluid_body);
-    auto &fluid_update_particle_position = main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(fluid_body);
+    auto &fluid_particle_position = main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(fluid_body);
 
     auto &fluid_linear_correction_matrix =
         main_methods.addInteractionDynamics<LinearCorrectionMatrix, WithUpdate>(fluid_inner, 0.5)
@@ -108,7 +105,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialCondition);
 
             solid_cell_linked_list.exec();
-            fluid_update_configuration.exec();
+            fluid_configuration.exec();
 
             fluid_linear_correction_matrix.exec();
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialParticleIndicationTagging);
@@ -146,7 +143,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         {
             if (advection_step(fluid_advection_time_step))
             {
-                fluid_update_particle_position.exec();
+                fluid_particle_position.exec();
                 time_stepper.incrementIterationStep();
 
                 if (time_stepper.isFirstComputingStep() || time_stepper.isScreeningStep())
@@ -175,7 +172,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleDeletion);
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleSort);
 
-                fluid_update_configuration.exec();
+                fluid_configuration.exec();
                 fluid_linear_correction_matrix.exec();
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleIndicationTagging);
                 fluid_density_regularization.exec();

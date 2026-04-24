@@ -103,26 +103,29 @@ void SimulationBuilder::addSolidBodies(
 void SimulationBuilder::addObservers(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
-    for (const auto &ob : config)
+    if (config.contains("observers"))
     {
-        ObserverConfig observer_config;
-        const std::string name = ob.at("name").get<std::string>();
-        observer_config.name_ = name;
-        observer_config.observed_body_ = ob.at("observed_body").get<std::string>();
-        observer_config.observed_variable_ = parseVariableConfig(ob.at("variable"));
-
-        StdVec<Vecd> positions;
-        if (ob.contains("positions"))
+        for (const auto &ob : config.at("observers"))
         {
-            for (const auto &p : ob.at("positions"))
-            {
-                positions.push_back(jsonToVecd(p));
-            }
-        }
+            ObserverConfig observer_config;
+            const std::string name = ob.at("name").get<std::string>();
+            observer_config.name_ = name;
+            observer_config.observed_body_ = ob.at("observed_body").get<std::string>();
+            observer_config.observed_variable_ = parseVariableConfig(ob.at("variable"));
 
-        ObserverBody &observer_body = sph_system.addBody<ObserverBody>(name);
-        observer_body.generateParticles<ObserverParticles>(positions);
-        config_manager.emplaceEntity<ObserverConfig>(name, observer_config);
+            StdVec<Vecd> positions;
+            if (ob.contains("positions"))
+            {
+                for (const auto &p : ob.at("positions"))
+                {
+                    positions.push_back(jsonToVecd(p));
+                }
+            }
+
+            ObserverBody &observer_body = sph_system.addBody<ObserverBody>(name);
+            observer_body.generateParticles<ObserverParticles>(positions);
+            config_manager.emplaceEntity<ObserverConfig>(name, observer_config);
+        }
     }
 }
 //=================================================================================================//

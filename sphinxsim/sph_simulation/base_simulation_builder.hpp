@@ -93,6 +93,7 @@ BaseIO *SimulationBuilder::addObserveRecorderWithVariableConfig(
     throw std::runtime_error(
         "SimulationBuilder::addObserveRecorderWithVariableConfig: no supported variable type found!");
 }
+//=================================================================================================//
 template <class MethodContainerType>
 void SimulationBuilder::addExternalForce(
     SPHSimulation &sim, MethodContainerType &main_methods, SPHBody &sph_body, const json &config)

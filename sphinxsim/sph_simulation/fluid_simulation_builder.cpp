@@ -8,24 +8,28 @@ namespace SPH
 void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &config)
 {
     //----------------------------------------------------------------------
-    //	Build up an SPHSystem and IO environment.
+    // SPHSystem and entity manager.
+    // Basically, the SPHSystem is the container of all SPH simulation objects,
+    // and the entity manager is the container of all simulation setting 
+    // configurations and external (not SPH) simulation environments.
     //----------------------------------------------------------------------
     SPHSystem &sph_system = sim.defineSPHSystem();
-    EntityManager &entity_manager = sim.getEntityManager();
+    EntityManager &config_manager = sim.getConfigManager();
     //----------------------------------------------------------------------
-    //	Creating bodies with inital shape, materials and particles.
+    // Creating bodies with inital geometry, materials and particles.
     //----------------------------------------------------------------------
-    addFluidBodies(sph_system, entity_manager, config.at("fluid_bodies"));
-    addSolidBodies(sph_system, entity_manager, config.at("solid_bodies"));
+    addFluidBodies(sph_system, config_manager, config.at("fluid_bodies"));
+    addSolidBodies(sph_system, config_manager, config.at("solid_bodies"));
     if (config.contains("observers"))
     {
-        addObservers(sph_system, entity_manager, config.at("observers"));
+        addObservers(sph_system, config_manager, config.at("observers"));
     }
     //----------------------------------------------------------------------
-    //	Define body relation map.
-    //	The relations give the topological connections within a body
-    //  or with other bodies within interaction range.
-    //  Generally, we first define all the inner relations, then the contact relations.
+    // Define body relation map.
+    // The relations give the topological connections within (inner) a body
+    // or with (contact) other bodies within interaction range.
+    // Generally, we first define all the inner relations, 
+    // then the contact relations.
     //----------------------------------------------------------------------
     auto &fluid_body = *sph_system.collectBodies<FluidBody>().front(); // assume only one fluid body for now
     StdVec<SolidBody *> solid_bodies = sph_system.collectBodies<SolidBody>();
@@ -53,7 +57,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                                            .add(&main_methods.addCellLinkedListDynamics(fluid_body))
                                            .add(&main_methods.addRelationDynamics(fluid_inner, fluid_wall_contact));
 
-    auto &observer_update_configuration = addObserverConfigurationDynamics(sph_system, entity_manager, main_methods);
+    auto &observer_update_configuration = addObserverConfigurationDynamics(sph_system, config_manager, main_methods);
     auto &fluid_advection_step_setup = main_methods.addStateDynamics<fluid_dynamics::AdvectionStepSetup>(fluid_body);
     auto &fluid_update_particle_position = main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(fluid_body);
 
@@ -72,9 +76,9 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             .addPostContactInteraction<Wall, AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_wall_contact);
 
     auto &fluid_density_regularization = addDensitySummationAndRegularization(
-        entity_manager, main_methods, fluid_inner, fluid_wall_contact);
+        config_manager, main_methods, fluid_inner, fluid_wall_contact);
 
-    auto &fluid_solver_config = entity_manager.getEntityByName<
+    auto &fluid_solver_config = config_manager.getEntityByName<
         FluidSolverConfig>("FluidSolverConfig");
     Fluid &fluid_material = DynamicCast<Fluid>(this, fluid_body.getBaseMaterial());
     const Real U_ref = fluid_material.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
@@ -91,11 +95,11 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     {
         addExtraStateToRecord(sph_system, body_state_recorder, config.at("extra_state_recording"));
     }
-    auto &observe_recorder = addObserveRecorder(sph_system, entity_manager, main_methods);
+    auto &observe_recorder = addObserveRecorder(sph_system, config_manager, main_methods);
     //----------------------------------------------------------------------
     //	Define time-integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------
-    auto &solver_common_config = entity_manager.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
+    auto &solver_common_config = config_manager.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
     auto &time_stepper = sph_solver.getTimeStepper();
     auto &advection_step = time_stepper.addTriggerByInterval(fluid_advection_time_step.exec());
     auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config.output_interval_);
@@ -216,7 +220,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     if (fluid_solver_config.surface_type_ != "free_surface")
     {
         auto &transport_velocity_correction = addTransportVelocityCorrection(
-            entity_manager, main_methods, fluid_inner, fluid_wall_contact);
+            config_manager, main_methods, fluid_inner, fluid_wall_contact);
 
         initialization_pipeline.insert_hook(
             InitializationHookPoint::InitialAfterAdvectionStepSetup, [&]()
@@ -227,7 +231,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             { transport_velocity_correction.exec(); });
     }
 
-    if (entity_manager.hasEntity<Viscosity>(fluid_body.getName() + "Viscosity"))
+    if (config_manager.hasEntity<Viscosity>(fluid_body.getName() + "Viscosity"))
     {
         auto &viscous_force =
             main_methods.addInteractionDynamicsWithUpdate<
@@ -265,12 +269,12 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     }
 }
 //=================================================================================================//
-void FluidSimulationBuilder::parseSolverParameters(EntityManager &entity_manager, const json &config)
+void FluidSimulationBuilder::parseSolverParameters(EntityManager &config_manager, const json &config)
 {
-    SimulationBuilder::parseSolverParameters(entity_manager, config);
+    SimulationBuilder::parseSolverParameters(config_manager, config);
     if (config.contains("fluid_dynamics"))
     {
-        entity_manager.emplaceEntity<FluidSolverConfig>(
+        config_manager.emplaceEntity<FluidSolverConfig>(
             "FluidSolverConfig", parseFluidSolverConfig(config.at("fluid_dynamics")));
     }
 }

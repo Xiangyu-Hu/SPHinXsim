@@ -39,7 +39,7 @@ class SPHBody;
 class MaterialBuilder
 {
   public:
-    void addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config);
+    void addMaterial(EntityManager &config_manager, SPHBody &sph_body, const json &config);
 };
 } // namespace SPH
 #endif // MATERIAL_BUILDER_H

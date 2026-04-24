@@ -53,22 +53,22 @@ class ContinuumSimulationBuilder : public SimulationBuilder
 {
   public:
     void buildSimulation(SPHSimulation &sim, const json &config) override;
-    virtual void parseSolverParameters(EntityManager &entity_manager, const json &config) override;
+    virtual void parseSolverParameters(EntityManager &config_manager, const json &config) override;
 
   private:
     ContinuumSolverParameters parseContinuumSolverParameters(const json &config);
 
     template <class MethodContainerType, class InnerRelationType>
     BaseDynamics<void> &addAcousticStep1stHalf(
-        EntityManager &entity_manager, MethodContainerType &method_container, InnerRelationType &inner_relation);
+        EntityManager &config_manager, MethodContainerType &method_container, InnerRelationType &inner_relation);
 
     template <class MethodContainerType, class InnerRelationType>
     BaseDynamics<void> &addAcousticStep2ndHalf(
-        EntityManager &entity_manager, MethodContainerType &method_container, InnerRelationType &inner_relation);
+        EntityManager &config_manager, MethodContainerType &method_container, InnerRelationType &inner_relation);
 
     template <class MethodContainerType, class InnerRelationType>
     ParticleDynamicsGroup &addShearForceIntegration(
-        EntityManager &entity_manager, MethodContainerType &method_container, InnerRelationType &inner_relation);
+        EntityManager &config_manager, MethodContainerType &method_container, InnerRelationType &inner_relation);
 };
 } // namespace SPH
 #endif // CONTINUUM_SIMULATION_BUILDER_H

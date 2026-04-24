@@ -5,7 +5,7 @@
 namespace SPH
 {
 //=================================================================================================//
-void MaterialBuilder::addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config)
+void MaterialBuilder::addMaterial(EntityManager &config_manager, SPHBody &sph_body, const json &config)
 {
     const std::string type = config.at("type").get<std::string>();
 
@@ -18,19 +18,19 @@ void MaterialBuilder::addMaterial(EntityManager &entity_manager, SPHBody &sph_bo
             Real viscosity = config.at("viscosity").get<Real>();
             auto &material = sph_body.defineClosure<WeaklyCompressibleFluid, Viscosity>(
                 ConstructArgs(density, sound_speed), viscosity);
-            entity_manager.addEntity(sph_body.getName() + "WeaklyCompressibleFluid", &material);
-            entity_manager.addEntity(sph_body.getName() + "Viscosity", DynamicCast<Viscosity>(this, &material));
+            config_manager.addEntity(sph_body.getName() + "WeaklyCompressibleFluid", &material);
+            config_manager.addEntity(sph_body.getName() + "Viscosity", DynamicCast<Viscosity>(this, &material));
             return;
         }
         auto &material = sph_body.defineMaterial<WeaklyCompressibleFluid>(density, sound_speed);
-        entity_manager.addEntity(sph_body.getName() + "WeaklyCompressibleFluid", &material);
+        config_manager.addEntity(sph_body.getName() + "WeaklyCompressibleFluid", &material);
         return;
     }
 
     if (type == "rigid_body")
     {
         auto &material = sph_body.defineMaterial<Solid>();
-        entity_manager.addEntity(sph_body.getName() + "RigidBody", &material);
+        config_manager.addEntity(sph_body.getName() + "RigidBody", &material);
         return;
     }
 
@@ -44,7 +44,7 @@ void MaterialBuilder::addMaterial(EntityManager &entity_manager, SPHBody &sph_bo
         Real hardening_modulus = config.at("hardening_modulus").get<Real>();
         auto &material = sph_body.defineMaterial<J2Plasticity>(
             density, sound_speed, youngs_modulus, poisson_ratio, yield_stress, hardening_modulus);
-        entity_manager.addEntity(sph_body.getName() + "J2Plasticity", &material);
+        config_manager.addEntity(sph_body.getName() + "J2Plasticity", &material);
         return;
     }
 
@@ -56,7 +56,7 @@ void MaterialBuilder::addMaterial(EntityManager &entity_manager, SPHBody &sph_bo
         Real poisson_ratio = config.at("poisson_ratio").get<Real>();
         auto &material = sph_body.defineMaterial<GeneralContinuum>(
             density, sound_speed, youngs_modulus, poisson_ratio);
-        entity_manager.addEntity(sph_body.getName() + "GeneralContinuum", &material);
+        config_manager.addEntity(sph_body.getName() + "GeneralContinuum", &material);
         return;
     }
 

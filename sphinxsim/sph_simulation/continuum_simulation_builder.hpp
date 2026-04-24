@@ -10,10 +10,10 @@ namespace SPH
 //=================================================================================================//
 template <class MethodContainerType, class InnerRelationType>
 BaseDynamics<void> &ContinuumSimulationBuilder::addAcousticStep1stHalf(
-    EntityManager &entity_manager, MethodContainerType &method_container, InnerRelationType &inner_relation)
+    EntityManager &config_manager, MethodContainerType &method_container, InnerRelationType &inner_relation)
 {
     std::string body_name = inner_relation.getSPHBody().getName();
-    if (entity_manager.hasEntity<GeneralContinuum>(body_name + "GeneralContinuum"))
+    if (config_manager.hasEntity<GeneralContinuum>(body_name + "GeneralContinuum"))
     {
         using RiemannSolverType = RiemannSolver<GeneralContinuum, GeneralContinuum, NoLimiter>;
         return method_container.template addInteractionDynamics<
@@ -21,7 +21,7 @@ BaseDynamics<void> &ContinuumSimulationBuilder::addAcousticStep1stHalf(
             RiemannSolverType, NoKernelCorrectionCK>(inner_relation);
     }
 
-    if (entity_manager.hasEntity<J2Plasticity>(body_name + "J2Plasticity"))
+    if (config_manager.hasEntity<J2Plasticity>(body_name + "J2Plasticity"))
     {
         using RiemannSolverType = RiemannSolver<J2Plasticity, J2Plasticity, NoLimiter>;
         return method_container.template addInteractionDynamics<
@@ -35,10 +35,10 @@ BaseDynamics<void> &ContinuumSimulationBuilder::addAcousticStep1stHalf(
 //=================================================================================================//
 template <class MethodContainerType, class InnerRelationType>
 BaseDynamics<void> &ContinuumSimulationBuilder::addAcousticStep2ndHalf(
-    EntityManager &entity_manager, MethodContainerType &method_container, InnerRelationType &inner_relation)
+    EntityManager &config_manager, MethodContainerType &method_container, InnerRelationType &inner_relation)
 {
     std::string body_name = inner_relation.getSPHBody().getName();
-    if (entity_manager.hasEntity<GeneralContinuum>(body_name + "GeneralContinuum"))
+    if (config_manager.hasEntity<GeneralContinuum>(body_name + "GeneralContinuum"))
     {
         using RiemannSolverType = RiemannSolver<GeneralContinuum, GeneralContinuum, NoLimiter>;
         return method_container.template addInteractionDynamics<
@@ -46,7 +46,7 @@ BaseDynamics<void> &ContinuumSimulationBuilder::addAcousticStep2ndHalf(
             RiemannSolverType, NoKernelCorrectionCK>(inner_relation);
     }
 
-    if (entity_manager.hasEntity<J2Plasticity>(body_name + "J2Plasticity"))
+    if (config_manager.hasEntity<J2Plasticity>(body_name + "J2Plasticity"))
     {
         using RiemannSolverType = RiemannSolver<J2Plasticity, J2Plasticity, NoLimiter>;
         return method_container.template addInteractionDynamics<
@@ -60,9 +60,9 @@ BaseDynamics<void> &ContinuumSimulationBuilder::addAcousticStep2ndHalf(
 //=================================================================================================//
 template <class MethodContainerType, class InnerRelationType>
 ParticleDynamicsGroup &ContinuumSimulationBuilder::addShearForceIntegration(
-    EntityManager &entity_manager, MethodContainerType &method_container, InnerRelationType &inner_relation)
+    EntityManager &config_manager, MethodContainerType &method_container, InnerRelationType &inner_relation)
 {
-    auto &continuum_solver_parameters = entity_manager.getEntityByName<
+    auto &continuum_solver_parameters = config_manager.getEntityByName<
         ContinuumSolverParameters>("ContinuumSolverParameters");
     auto &continuum_shear_force =
         method_container.addParticleDynamicsGroup()
@@ -70,7 +70,7 @@ ParticleDynamicsGroup &ContinuumSimulationBuilder::addShearForceIntegration(
                   LinearGradient, Vecd>(inner_relation, "Velocity"));
 
     std::string body_name = inner_relation.getSPHBody().getName();
-    if (entity_manager.hasEntity<GeneralContinuum>(body_name + "GeneralContinuum"))
+    if (config_manager.hasEntity<GeneralContinuum>(body_name + "GeneralContinuum"))
     {
         continuum_shear_force.add(
             &method_container.template addInteractionDynamicsOneLevel<
@@ -80,7 +80,7 @@ ParticleDynamicsGroup &ContinuumSimulationBuilder::addShearForceIntegration(
         return continuum_shear_force;
     }
 
-    if (entity_manager.hasEntity<J2Plasticity>(body_name + "J2Plasticity"))
+    if (config_manager.hasEntity<J2Plasticity>(body_name + "J2Plasticity"))
     {
         continuum_shear_force.add(
             &method_container.template addInteractionDynamicsOneLevel<

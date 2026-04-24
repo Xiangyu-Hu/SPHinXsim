@@ -49,7 +49,7 @@ struct SystemDomainConfig
 class GeometryBuilder
 {
   public:
-    void createGeometries(EntityManager &entity_manager, const json &config);
+    void createGeometries(EntityManager &config_manager, const json &config);
     static BoundingBoxd parseBoundingBox(const json &config);
     static TransformGeometryBox parseBox(const json &config);
     GeometricOps parseGeometricOp(const std::string &op_str);
@@ -60,8 +60,8 @@ class GeometryBuilder
 #endif
 
   private:
-    Shape *addShape(EntityManager &entity_manager, const json &config);
-    GeometricShapeBox addAlignedBox(EntityManager &entity_manager, const json &config);
+    Shape *addShape(EntityManager &config_manager, const json &config);
+    GeometricShapeBox addAlignedBox(EntityManager &config_manager, const json &config);
 };
 } // namespace SPH
 #endif // GEOMETRY_BUILDER_H

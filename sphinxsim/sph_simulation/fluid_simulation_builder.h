@@ -55,19 +55,19 @@ class FluidSimulationBuilder : public SimulationBuilder
 {
   public:
     void buildSimulation(SPHSimulation &sim, const json &config) override;
-    virtual void parseSolverParameters(EntityManager &entity_manager, const json &config) override;
+    virtual void parseSolverParameters(EntityManager &config_manager, const json &config) override;
 
   private:
     FluidSolverConfig parseFluidSolverConfig(const json &config);
 
     template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
     BaseDynamics<void> &addDensitySummationAndRegularization(
-        EntityManager &entity_manager, MethodContainerType &method_container,
+        EntityManager &config_manager, MethodContainerType &method_container,
         InnerRelationType &inner_relation, ContactRelationType &contact_relation);
 
     template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
     BaseDynamics<void> &addTransportVelocityCorrection(
-        EntityManager &entity_manager, MethodContainerType &method_container,
+        EntityManager &config_manager, MethodContainerType &method_container,
         InnerRelationType &inner_relation, ContactRelationType &contact_relation);
 
     template <class MethodContainerType>
@@ -76,7 +76,7 @@ class FluidSimulationBuilder : public SimulationBuilder
 
     template <class MethodContainerType>
     fluid_dynamics::AbstractBidirectionalBoundary &addBiDirectionBoundary(
-        AlignedBoxByCell &aligned_box_by_cell, EntityManager &entity_manager,
+        AlignedBoxByCell &aligned_box_by_cell, EntityManager &config_manager,
         MethodContainerType &main_methods, const json &config);
 };
 } // namespace SPH

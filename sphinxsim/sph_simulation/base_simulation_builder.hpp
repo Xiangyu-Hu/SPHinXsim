@@ -11,11 +11,11 @@ namespace SPH
 //=================================================================================================//
 template <class MethodContainerType>
 ParticleDynamicsGroup &SimulationBuilder::addObserverConfigurationDynamics(
-    SPHSystem &sph_system, EntityManager &entity_manager, MethodContainerType &main_methods)
+    SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods)
 {
     auto &observer_config_dynamics = main_methods.addParticleDynamicsGroup();
 
-    StdVec<ObserverConfig *> observer_configs = entity_manager.entitiesWith<ObserverConfig>();
+    StdVec<ObserverConfig *> observer_configs = config_manager.entitiesWith<ObserverConfig>();
     if (!observer_configs.empty())
     {
         for (auto &observer_config : observer_configs)
@@ -31,11 +31,11 @@ ParticleDynamicsGroup &SimulationBuilder::addObserverConfigurationDynamics(
 //=================================================================================================//
 template <class MethodContainerType>
 IODynamicsGroup &SimulationBuilder::addObserveRecorder(
-    SPHSystem &sph_system, EntityManager &entity_manager, MethodContainerType &main_methods)
+    SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods)
 {
     auto &observer_io = main_methods.addIODynamicsGroup(sph_system);
 
-    StdVec<ObserverConfig *> observer_configs = entity_manager.entitiesWith<ObserverConfig>();
+    StdVec<ObserverConfig *> observer_configs = config_manager.entitiesWith<ObserverConfig>();
     if (!observer_configs.empty())
     {
         for (auto &observer_config : observer_configs)

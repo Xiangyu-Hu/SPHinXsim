@@ -13,10 +13,10 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     //	Build up an SPHSystem and IO environment.
     //----------------------------------------------------------------------
-    EntityManager &entity_manager = sim.getEntityManager();
-    RelaxationSystem &relaxation_system = defineRelaxationSystem(entity_manager, config);
+    EntityManager &config_manager = sim.getConfigManager();
+    RelaxationSystem &relaxation_system = defineRelaxationSystem(config_manager, config);
     //----------------------------------------------------------------------
-    addAllBodies(relaxation_system, entity_manager, config.at("bodies"));
+    addAllBodies(relaxation_system, config_manager, config.at("bodies"));
     defineBodyRelations(relaxation_system);
     //----------------------------------------------------------------------
     // Define SPH solver with particle methods and execution policies.
@@ -28,9 +28,9 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
 
     auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
     auto &body_update_configuration = addConfigurationDynamics(relaxation_system, main_methods);
-    auto &relaxation_residual = addRelaxationResidue(relaxation_system, entity_manager, main_methods);
-    auto &relaxation_scaling = addRelaxationScaling(relaxation_system, entity_manager, main_methods);
-    auto &update_particle_position = addRelaxationPositionUpdate(relaxation_system, entity_manager, main_methods);
+    auto &relaxation_residual = addRelaxationResidue(relaxation_system, config_manager, main_methods);
+    auto &relaxation_scaling = addRelaxationScaling(relaxation_system, config_manager, main_methods);
+    auto &update_particle_position = addRelaxationPositionUpdate(relaxation_system, config_manager, main_methods);
     auto &dummy_cell_linked_list = addDummyBodiesCellLinkedListDynamics(relaxation_system, main_methods);
     //----------------------------------------------------------------------
     //	Define simple file input and outputs functions.
@@ -79,7 +79,7 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     if (config.contains("relaxation_constraints"))
     {
         auto &relaxation_constraints = addRelaxationConstraints(
-            relaxation_system, entity_manager, main_methods, config.at("relaxation_constraints"));
+            relaxation_system, config_manager, main_methods, config.at("relaxation_constraints"));
         relaxation_pipeline_.insert_hook(RelaxationHookPoint::Constraints, [&]()
                                          { relaxation_constraints.exec(); });
     }
@@ -88,7 +88,7 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     //	Run on CPU after relaxation finished and output results.
     //----------------------------------------------------------------------
     auto &body_normal_direction = addBodyNormalDirection(
-        relaxation_system, entity_manager, main_methods);
+        relaxation_system, config_manager, main_methods);
     //----------------------------------------------------------------------
     // Define after relaxation steps using hooking point in stage pipelines.
     //----------------------------------------------------------------------
@@ -121,9 +121,9 @@ void ParticleGeneration::runRelaxation()
 }
 //=================================================================================================//
 RelaxationSystem &ParticleGeneration::defineRelaxationSystem(
-    EntityManager &entity_manager, const json &config)
+    EntityManager &config_manager, const json &config)
 {
-    auto &system_config = entity_manager.getEntityByName<SystemDomainConfig>("SystemDomainConfig");
+    auto &system_config = config_manager.getEntityByName<SystemDomainConfig>("SystemDomainConfig");
     relaxation_system_ptr_ = std::make_unique<RelaxationSystem>(
         system_config.system_bounds_, system_config.particle_spacing_);
     return *relaxation_system_ptr_.get();
@@ -145,7 +145,7 @@ RelaxationParameters ParticleGeneration::parseRelaxationParameters(const json &c
 }
 //=================================================================================================//
 void ParticleGeneration ::addAllBodies(
-    RelaxationSystem &relaxation_system, EntityManager &entity_manager, const json &config)
+    RelaxationSystem &relaxation_system, EntityManager &config_manager, const json &config)
 {
     for (const auto &bd : config)
     {
@@ -153,7 +153,7 @@ void ParticleGeneration ::addAllBodies(
 
         CommonBodyConfig common_body_config;
         common_body_config.name_ = body_name;
-        Shape &shape = entity_manager.getEntityByName<Shape>(body_name);
+        Shape &shape = config_manager.getEntityByName<Shape>(body_name);
         auto &real_body = relaxation_system.addBody<RealBody>(shape, body_name);
 
         if (bd.contains("relaxation"))
@@ -164,7 +164,7 @@ void ParticleGeneration ::addAllBodies(
             {
                 LevelSetShape &level_set_shape =
                     real_body.defineBodyLevelSetShape(par_ck, 2.0).writeLevelSet();
-                entity_manager.addEntity(body_name, &level_set_shape);
+                config_manager.addEntity(body_name, &level_set_shape);
             }
             bodies_config_.relaxation_bodies_.push_back(relax_body_config);
         }

@@ -32,7 +32,7 @@ void SPHSimulation::resetOutputRoot(const fs::path &output_root, bool keep_exist
 //=================================================================================================//
 SPHSystem &SPHSimulation::defineSPHSystem()
 {
-    SystemDomainConfig &system_config = entity_manager_.getEntityByName<
+    SystemDomainConfig &system_config = config_manager_.getEntityByName<
         SystemDomainConfig>("SystemDomainConfig");
     sph_system_ptr_ = std::make_unique<SPHSystem>(
         system_config.system_bounds_, system_config.particle_spacing_);
@@ -41,7 +41,7 @@ SPHSystem &SPHSimulation::defineSPHSystem()
 //=================================================================================================//
 SPHSolver &SPHSimulation::defineSPHSolver(SimulationBuilder &simulation_builder, const json &config)
 {
-    simulation_builder.parseSolverParameters(entity_manager_, config.at("solver_parameters"));
+    simulation_builder.parseSolverParameters(config_manager_, config.at("solver_parameters"));
     sph_solver_ptr_ = std::make_unique<SPHSolver>(getSPHSystem());
     return *sph_solver_ptr_.get();
 }
@@ -56,9 +56,9 @@ StagePipeline<SimulationHookPoint> &SPHSimulation::getSimulationPipeline()
     return simulation_pipeline_;
 }
 //=================================================================================================//
-EntityManager &SPHSimulation::getEntityManager()
+EntityManager &SPHSimulation::getConfigManager()
 {
-    return entity_manager_;
+    return config_manager_;
 }
 //=================================================================================================//
 void SPHSimulation::createParticlesGeneration(const json &config)
@@ -73,7 +73,7 @@ void SPHSimulation::createParticlesGeneration(const json &config)
 //=================================================================================================//
 void SPHSimulation::buildSimulationFromJson(const json &config)
 {
-    geometry_builder_ptr_->createGeometries(entity_manager_, config.at("geometries"));
+    geometry_builder_ptr_->createGeometries(config_manager_, config.at("geometries"));
     createParticlesGeneration(config.at("particle_generation"));
 
     if (config.contains("simulation_type"))
@@ -133,7 +133,7 @@ void SPHSimulation::initializeSimulation()
 void SPHSimulation::run()
 {
     SolverCommonConfig &solver_common_config =
-        entity_manager_.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
+        config_manager_.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
 
     stepTo(solver_common_config.end_time_);
 }

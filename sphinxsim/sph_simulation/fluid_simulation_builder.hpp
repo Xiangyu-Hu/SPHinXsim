@@ -11,14 +11,14 @@ namespace SPH
 //=================================================================================================//
 template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
 BaseDynamics<void> &FluidSimulationBuilder::addDensitySummationAndRegularization(
-    EntityManager &entity_manager, MethodContainerType &method_container,
+    EntityManager &config_manager, MethodContainerType &method_container,
     InnerRelationType &inner_relation, ContactRelationType &contact_relation)
 {
     auto &fluid_density_regularization =
         method_container.template addInteractionDynamics<fluid_dynamics::DensitySummationCK>(inner_relation)
             .addPostContactInteraction(contact_relation);
 
-    auto &fluid_solver_config = entity_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
+    auto &fluid_solver_config = config_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
 
     if (fluid_solver_config.surface_type_ == "confined")
     {
@@ -48,14 +48,14 @@ BaseDynamics<void> &FluidSimulationBuilder::addDensitySummationAndRegularization
 //=================================================================================================//
 template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
 BaseDynamics<void> &FluidSimulationBuilder::addTransportVelocityCorrection(
-    EntityManager &entity_manager, MethodContainerType &method_container,
+    EntityManager &config_manager, MethodContainerType &method_container,
     InnerRelationType &inner_relation, ContactRelationType &contact_relation)
 {
     auto &transport_velocity_correction =
         method_container.template addInteractionDynamics<KernelGradientIntegral, LinearCorrectionCK>(inner_relation)
             .template addPostContactInteraction<Boundary, NoKernelCorrectionCK>(contact_relation);
 
-    auto &fluid_solver_config = entity_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
+    auto &fluid_solver_config = config_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
 
     if (fluid_solver_config.surface_type_ == "confined")
     {
@@ -81,12 +81,12 @@ void FluidSimulationBuilder::addBoundaryConditions(
 {
     StagePipeline<InitializationHookPoint> &initialization_pipeline = sim.getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
-    EntityManager &entity_manager = sim.getEntityManager();
+    EntityManager &config_manager = sim.getConfigManager();
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
 
     const std::string body_name = config.at("body_name").get<std::string>();
     FluidBody &fluid_body = sim.getSPHSystem().getBodyByName<FluidBody>(body_name);
-    AlignedBox &aligned_box = entity_manager.getEntityByName<AlignedBox>(
+    AlignedBox &aligned_box = config_manager.getEntityByName<AlignedBox>(
         config.at("aligned_box").get<std::string>());
     const std::string type = config.at("type").get<std::string>();
 
@@ -114,7 +114,7 @@ void FluidSimulationBuilder::addBoundaryConditions(
     {
         auto &aligned_box_by_cell = fluid_body.addBodyPart<AlignedBoxByCell>(aligned_box);
         auto &bi_directional_bd = addBiDirectionBoundary(
-            aligned_box_by_cell, entity_manager, method_container, config);
+            aligned_box_by_cell, config_manager, method_container, config);
 
         initialization_pipeline.insert_hook(
             InitializationHookPoint::InitialParticleIndicationTagging, [&]()
@@ -138,7 +138,7 @@ void FluidSimulationBuilder::addBoundaryConditions(
             SimulationHookPoint::ParticleIndicationTagging, [&]()
             { bi_directional_bd.tagBufferParticles(); });
 
-        auto &fluid_solver_config = entity_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
+        auto &fluid_solver_config = config_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
         if (fluid_solver_config.particle_deletion_ == false)
         {
             auto &particle_deletion = method_container.template addStateDynamics<
@@ -158,7 +158,7 @@ void FluidSimulationBuilder::addBoundaryConditions(
 //=================================================================================================//
 template <class MethodContainerType>
 fluid_dynamics::AbstractBidirectionalBoundary &FluidSimulationBuilder::addBiDirectionBoundary(
-    AlignedBoxByCell &aligned_box_by_cell, EntityManager &entity_manager,
+    AlignedBoxByCell &aligned_box_by_cell, EntityManager &config_manager,
     MethodContainerType &main_methods, const json &config)
 {
     if (config.contains("pressure"))

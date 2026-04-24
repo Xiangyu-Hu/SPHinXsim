@@ -11,12 +11,12 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //	Build up an SPHSystem and IO environment.
     //----------------------------------------------------------------------
     SPHSystem &sph_system = sim.defineSPHSystem();
-    EntityManager &entity_manager = sim.getEntityManager();
+    EntityManager &config_manager = sim.getConfigManager();
     //----------------------------------------------------------------------
     //	Creating bodies with inital shape, materials and particles.
     //----------------------------------------------------------------------
-    addContinuumBodies(sph_system, entity_manager, config.at("continuum_bodies"));
-    addSolidBodies(sph_system, entity_manager, config.at("solid_bodies"));
+    addContinuumBodies(sph_system, config_manager, config.at("continuum_bodies"));
+    addSolidBodies(sph_system, config_manager, config.at("solid_bodies"));
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The relations give the topological connections within a body
@@ -57,10 +57,10 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     auto &continuum_update_particle_position = main_methods.addStateDynamics<
         fluid_dynamics::UpdateParticlePosition>(continuum_body);
 
-    auto &continuum_acoustic_step_1st_half = addAcousticStep1stHalf(entity_manager, main_methods, continuum_inner);
-    auto &continuum_acoustic_step_2nd_half = addAcousticStep2ndHalf(entity_manager, main_methods, continuum_inner);
+    auto &continuum_acoustic_step_1st_half = addAcousticStep1stHalf(config_manager, main_methods, continuum_inner);
+    auto &continuum_acoustic_step_2nd_half = addAcousticStep2ndHalf(config_manager, main_methods, continuum_inner);
 
-    auto &continuum_solver_parameters = entity_manager.getEntityByName<
+    auto &continuum_solver_parameters = config_manager.getEntityByName<
         ContinuumSolverParameters>("ContinuumSolverParameters");
     Fluid &continuum_eos = DynamicCast<Fluid>(this, continuum_body.getBaseMaterial());
     const Real U_ref = continuum_eos.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
@@ -72,7 +72,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     auto &continuum_linear_correction_matrix = main_methods.addInteractionDynamicsWithUpdate<
         LinearCorrectionMatrix>(continuum_inner, continuum_solver_parameters.linear_correction_matrix_coeff_);
 
-    auto &continuum_shear_force = addShearForceIntegration(entity_manager, main_methods, continuum_inner);
+    auto &continuum_shear_force = addShearForceIntegration(config_manager, main_methods, continuum_inner);
 
     auto &continuum_solid_contact_factor = main_methods.addInteractionDynamics<
         solid_dynamics::RepulsionFactor>(continuum_solid_contact);
@@ -113,7 +113,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     //	Define time-integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------
-    auto &solver_common_config = entity_manager.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
+    auto &solver_common_config = config_manager.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
     auto &time_stepper = sph_solver.getTimeStepper();
     auto &advection_step = time_stepper.addTriggerByInterval(continuum_advection_time_step.exec());
     auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config.output_interval_);
@@ -177,7 +177,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     // Initial condition from restart file if enabled.
     //----------------------------------------------------------------------
-    auto &restart_config = entity_manager.getEntityByName<RestartConfig>("RestartConfig");
+    auto &restart_config = config_manager.getEntityByName<RestartConfig>("RestartConfig");
     if (restart_config.enabled_)
     {
         sph_system.setRestartStep(restart_config.restore_step_);
@@ -208,17 +208,17 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     if (config.contains("body_constraints"))
     {
         ConstraintBuilder &constraint_builder =
-            *entity_manager.emplaceEntity<ConstraintBuilder>("ConstraintBuilder");
+            *config_manager.emplaceEntity<ConstraintBuilder>("ConstraintBuilder");
         constraint_builder.addConstraints(sim, main_methods, config);
     }
 }
 //=================================================================================================//
-void ContinuumSimulationBuilder::parseSolverParameters(EntityManager &entity_manager, const json &config)
+void ContinuumSimulationBuilder::parseSolverParameters(EntityManager &config_manager, const json &config)
 {
-    SimulationBuilder::parseSolverParameters(entity_manager, config);
+    SimulationBuilder::parseSolverParameters(config_manager, config);
     if (config.contains("continuum_dynamics"))
     {
-        entity_manager.emplaceEntity<ContinuumSolverParameters>(
+        config_manager.emplaceEntity<ContinuumSolverParameters>(
             "ContinuumSolverParameters", parseContinuumSolverParameters(config.at("continuum_dynamics")));
     }
 }

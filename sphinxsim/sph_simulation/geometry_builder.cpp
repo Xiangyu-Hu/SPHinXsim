@@ -18,14 +18,14 @@ void SystemDomainConfig::updateParticleSpacing()
     }
 }
 //=================================================================================================//
-void GeometryBuilder::createGeometries(EntityManager &entity_manager, const json &config)
+void GeometryBuilder::createGeometries(EntityManager &config_manager, const json &config)
 {
-    SystemDomainConfig *system_domain_config = entity_manager.emplaceEntity<
+    SystemDomainConfig *system_domain_config = config_manager.emplaceEntity<
         SystemDomainConfig>("SystemDomainConfig", parseSystemDomainConfig(config));
     for (const auto &geo : config.at("shapes"))
     {
-        Shape *shape = addShape(entity_manager, geo);
-        entity_manager.addEntity<Shape>(shape->getName(), shape);
+        Shape *shape = addShape(config_manager, geo);
+        config_manager.addEntity<Shape>(shape->getName(), shape);
         system_domain_config->updateSystemDomainConfig(shape->getBounds());
     }
 
@@ -33,7 +33,7 @@ void GeometryBuilder::createGeometries(EntityManager &entity_manager, const json
     {
         for (const auto &ab : config.at("aligned_boxes"))
         {
-            GeometricShapeBox aligned_box_shape = addAlignedBox(entity_manager, ab);
+            GeometricShapeBox aligned_box_shape = addAlignedBox(config_manager, ab);
             aligned_box_shape.writeGeometricShapeBoxToVtp();
         }
     }
@@ -124,7 +124,7 @@ MultiPolygon GeometryBuilder::parseMultiPolygon(const json &config)
 }
 #endif
 //=================================================================================================//
-Shape *GeometryBuilder::addShape(EntityManager &entity_manager, const json &config)
+Shape *GeometryBuilder::addShape(EntityManager &config_manager, const json &config)
 {
     const std::string name = config.at("name").get<std::string>();
     const std::string type = config.at("type").get<std::string>();
@@ -132,7 +132,7 @@ Shape *GeometryBuilder::addShape(EntityManager &entity_manager, const json &conf
     if (type == "box")
     {
         TransformGeometryBox box = parseBox(config);
-        GeometricShapeBox *shape = entity_manager.emplaceEntity<GeometricShapeBox>(name, box, name);
+        GeometricShapeBox *shape = config_manager.emplaceEntity<GeometricShapeBox>(name, box, name);
         shape->writeGeometricShapeBoxToVtp();
         return shape;
     }
@@ -140,8 +140,8 @@ Shape *GeometryBuilder::addShape(EntityManager &entity_manager, const json &conf
     if (type == "bounding_box")
     {
         BoundingBoxd bounding_box = parseBoundingBox(config);
-        entity_manager.emplaceEntity<BoundingBoxd>(name, bounding_box);
-        GeometricShapeBox *shape = entity_manager.emplaceEntity<GeometricShapeBox>(name, bounding_box, name);
+        config_manager.emplaceEntity<BoundingBoxd>(name, bounding_box);
+        GeometricShapeBox *shape = config_manager.emplaceEntity<GeometricShapeBox>(name, bounding_box, name);
         shape->writeGeometricShapeBoxToVtp();
         return shape;
     }
@@ -150,21 +150,21 @@ Shape *GeometryBuilder::addShape(EntityManager &entity_manager, const json &conf
     {
         const std::string original_name = config.at("original").get<std::string>();
         TransformGeometryBox expand_box =
-            entity_manager.getEntityByName<GeometricShapeBox>(original_name)
+            config_manager.getEntityByName<GeometricShapeBox>(original_name)
                 .getExpandedBox(config.at("expansion").get<Real>());
-        GeometricShapeBox *shape = entity_manager.emplaceEntity<GeometricShapeBox>(name, expand_box, name);
+        GeometricShapeBox *shape = config_manager.emplaceEntity<GeometricShapeBox>(name, expand_box, name);
         shape->writeGeometricShapeBoxToVtp();
         return shape;
     }
 
     if (type == "complex_shape")
     {
-        ComplexShape *complex_shape = entity_manager.emplaceEntity<ComplexShape>(name, name);
+        ComplexShape *complex_shape = config_manager.emplaceEntity<ComplexShape>(name, name);
 
         StdVec<Shape *> sub_shapes;
         for (const auto &sub_shape_name : config.at("sub_shapes"))
         {
-            sub_shapes.push_back(&entity_manager.getEntityByName<Shape>(sub_shape_name));
+            sub_shapes.push_back(&config_manager.getEntityByName<Shape>(sub_shape_name));
         }
 
         for (UnsignedInt i = 0; i < sub_shapes.size(); ++i)
@@ -192,7 +192,7 @@ Shape *GeometryBuilder::addShape(EntityManager &entity_manager, const json &conf
             GeometricOps op = parseGeometricOp(operation_name);
             multi_polygon.addMultiPolygon(parseMultiPolygon(plg), op);
         }
-        MultiPolygonShape *shape = entity_manager.emplaceEntity<MultiPolygonShape>(name, multi_polygon, name);
+        MultiPolygonShape *shape = config_manager.emplaceEntity<MultiPolygonShape>(name, multi_polygon, name);
         shape->writeMultiPolygonShapeToVtp();
         return shape;
     }
@@ -211,7 +211,7 @@ Shape *GeometryBuilder::addShape(EntityManager &entity_manager, const json &conf
             scale = config.at("scale").get<Real>();
         }
 
-        TriangleMeshShapeSTL *shape = entity_manager.emplaceEntity<TriangleMeshShapeSTL>(
+        TriangleMeshShapeSTL *shape = config_manager.emplaceEntity<TriangleMeshShapeSTL>(
             name, config.at("file_path").get<std::string>(), translation, scale, name);
         shape->writTriangleMeshShapeToVtp();
         return shape;
@@ -221,7 +221,7 @@ Shape *GeometryBuilder::addShape(EntityManager &entity_manager, const json &conf
     throw std::runtime_error("GeometryBuilder::addShape: unsupported shape: " + type);
 }
 //=================================================================================================//
-GeometricShapeBox GeometryBuilder::addAlignedBox(EntityManager &entity_manager, const json &config)
+GeometricShapeBox GeometryBuilder::addAlignedBox(EntityManager &config_manager, const json &config)
 {
     const std::string name = config.at("name").get<std::string>();
     const std::string type = config.at("type").get<std::string>();
@@ -233,21 +233,21 @@ GeometricShapeBox GeometryBuilder::addAlignedBox(EntityManager &entity_manager, 
         Real radius = config.at("radius").get<Real>();
 
         SystemDomainConfig &system_domain_config =
-            entity_manager.getEntityByName<SystemDomainConfig>("SystemDomainConfig");
+            config_manager.getEntityByName<SystemDomainConfig>("SystemDomainConfig");
         Real expansion_length = 4.0 * system_domain_config.particle_spacing_;
 
         Vecd half_size = Vecd::Constant(radius + expansion_length);
         half_size[xAxis] = expansion_length * 0.5;
         Vecd translation = center + normal * half_size[xAxis];
         Rotation rotation = getRotationFromXAxis(normal);
-        AlignedBox *aligned_box = entity_manager.emplaceEntity<AlignedBox>(
+        AlignedBox *aligned_box = config_manager.emplaceEntity<AlignedBox>(
             name, xAxis, Transform(rotation, translation), half_size);
         return GeometricShapeBox(*aligned_box, name); // for visualization only
     }
 
     if (type == "region")
     {
-        AlignedBox *aligned_box = entity_manager.emplaceEntity<AlignedBox>(
+        AlignedBox *aligned_box = config_manager.emplaceEntity<AlignedBox>(
             name, xAxis, GeometryBuilder::parseBox(config));
         return GeometricShapeBox(*aligned_box, name); // for visualization only
     }

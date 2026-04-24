@@ -72,7 +72,7 @@ ParticleDynamicsGroup &ParticleGeneration::addConfigurationDynamics(
 //=================================================================================================//
 template <class MethodContainerType>
 ParticleDynamicsGroup &ParticleGeneration::addRelaxationResidue(
-    RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods)
+    RelaxationSystem &relaxation_system, EntityManager &config_manager, MethodContainerType &main_methods)
 {
     ParticleDynamicsGroup &relaxation_residue = main_methods.addParticleDynamicsGroup();
     for (const auto &body_config : bodies_config_.relaxation_bodies_)
@@ -85,7 +85,7 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationResidue(
         if (body_config.with_level_set_)
         {
             RealBody &real_body = relaxation_system.getBodyByName<RealBody>(body_config.name_);
-            LevelSetShape &level_set_shape = entity_manager.getEntityByName<LevelSetShape>(body_config.name_);
+            LevelSetShape &level_set_shape = config_manager.getEntityByName<LevelSetShape>(body_config.name_);
             residual_dynamics.template addPostStateDynamics<LevelsetKernelGradientIntegral>(real_body, level_set_shape);
         }
 
@@ -103,7 +103,7 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationResidue(
 //=================================================================================================//
 template <class MethodContainerType>
 BaseDynamics<Real> &ParticleGeneration::addRelaxationScaling(
-    RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods)
+    RelaxationSystem &relaxation_system, EntityManager &config_manager, MethodContainerType &main_methods)
 {
 
     auto &relaxation_scaling = main_methods.template addReduceDynamicsGroup<ReduceMin>();
@@ -117,7 +117,7 @@ BaseDynamics<Real> &ParticleGeneration::addRelaxationScaling(
 //=================================================================================================//
 template <class MethodContainerType>
 ParticleDynamicsGroup &ParticleGeneration::addRelaxationPositionUpdate(
-    RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods)
+    RelaxationSystem &relaxation_system, EntityManager &config_manager, MethodContainerType &main_methods)
 {
     ParticleDynamicsGroup &position_update = main_methods.addParticleDynamicsGroup();
     for (const auto &body_config : bodies_config_.relaxation_bodies_)
@@ -126,7 +126,7 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationPositionUpdate(
         position_update.add(&main_methods.template addStateDynamics<PositionRelaxationCK>(real_body));
         if (body_config.with_level_set_)
         {
-            auto *near_body_surface = entity_manager.emplaceEntity<NearShapeSurface>(real_body.getName(), real_body);
+            auto *near_body_surface = config_manager.emplaceEntity<NearShapeSurface>(real_body.getName(), real_body);
             position_update.add(&main_methods.template addStateDynamics<LevelsetBounding>(*near_body_surface));
         }
     }
@@ -135,7 +135,7 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationPositionUpdate(
 //=================================================================================================//
 template <class MethodContainerType>
 ParticleDynamicsGroup &ParticleGeneration::addBodyNormalDirection(
-    RelaxationSystem &relaxation_system, EntityManager &entity_manager, MethodContainerType &main_methods)
+    RelaxationSystem &relaxation_system, EntityManager &config_manager, MethodContainerType &main_methods)
 {
     ParticleDynamicsGroup &normal_direction_update = main_methods.addParticleDynamicsGroup();
     for (const auto &body_config : bodies_config_.all_bodies_)
@@ -207,7 +207,7 @@ class ConstraintVectorAxis : public ReturnFunction<Vecd>
 //=================================================================================================//
 template <class MethodContainerType>
 ParticleDynamicsGroup &ParticleGeneration::addRelaxationConstraints(
-    RelaxationSystem &relaxation_system, EntityManager &entity_manager,
+    RelaxationSystem &relaxation_system, EntityManager &config_manager,
     MethodContainerType &main_methods, const json &config)
 {
     ParticleDynamicsGroup &relaxation_constraints = main_methods.addParticleDynamicsGroup();
@@ -215,7 +215,7 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationConstraints(
     {
         const std::string body_name = rc.at("body_name").get<std::string>();
         RealBody &real_body = relaxation_system.getBodyByName<RealBody>(body_name);
-        AlignedBox &constraint_region = entity_manager.getEntityByName<
+        AlignedBox &constraint_region = config_manager.getEntityByName<
             AlignedBox>(rc.at("aligned_box").get<std::string>());
         auto &body_part = real_body.addBodyPart<AlignedBoxByParticle>(constraint_region);
         std::string type = rc.at("type").get<std::string>();

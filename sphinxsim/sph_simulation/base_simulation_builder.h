@@ -138,21 +138,21 @@ class SimulationBuilder
     SimulationBuilder();
     virtual ~SimulationBuilder();
     virtual void buildSimulation(SPHSimulation &sim, const json &config) = 0;
-    virtual void parseSolverParameters(EntityManager &entity_manager, const json &config);
+    virtual void parseSolverParameters(EntityManager &config_manager, const json &config);
 
   protected:
-    void addFluidBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
-    void addContinuumBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
-    void addSolidBodies(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
-    void addObservers(SPHSystem &sph_system, EntityManager &entity_manager, const json &config);
+    void addFluidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
+    void addContinuumBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
+    void addSolidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
+    void addObservers(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
 
     template <class MethodContainerType>
     ParticleDynamicsGroup &addObserverConfigurationDynamics(
-        SPHSystem &sph_system, EntityManager &entity_manager, MethodContainerType &main_methods);
+        SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
 
     template <class MethodContainerType>
     IODynamicsGroup &addObserveRecorder(
-        SPHSystem &sph_system, EntityManager &entity_manager, MethodContainerType &main_methods);
+        SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
 
     void addExtraStateToRecord(
         SPHSystem &sph_system, BodyStatesRecording &state_recording, const json &config);

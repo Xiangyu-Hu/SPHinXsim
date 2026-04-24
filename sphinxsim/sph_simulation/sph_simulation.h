@@ -68,13 +68,13 @@ class SPHSimulation
     SPHSolver &defineSPHSolver(SimulationBuilder &simulation_builder, const json &config);
     SPHSystem &getSPHSystem() { return *sph_system_ptr_; };
     SPHSolver &getSPHSolver() { return *sph_solver_ptr_; };
-    EntityManager &getEntityManager();
+    EntityManager &getConfigManager();
     StagePipeline<InitializationHookPoint> &getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &getSimulationPipeline();
 
   private:
     std::filesystem::path config_path_;
-    EntityManager entity_manager_;
+    EntityManager config_manager_;
     StagePipeline<InitializationHookPoint> initialization_pipeline_;
     StagePipeline<SimulationHookPoint> simulation_pipeline_;
     std::unique_ptr<GeometryBuilder> geometry_builder_ptr_;

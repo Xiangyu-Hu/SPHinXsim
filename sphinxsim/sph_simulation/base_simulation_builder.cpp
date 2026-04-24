@@ -52,14 +52,14 @@ SimulationBuilder::SimulationBuilder()
 SimulationBuilder ::~SimulationBuilder() = default;
 //=================================================================================================//
 void SimulationBuilder::addFluidBodies(
-    SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
+    SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
     for (const auto &fb : config)
     {
         const std::string name = fb.at("name").get<std::string>();
-        Shape &fluid_shape = entity_manager.getEntityByName<Shape>(name);
+        Shape &fluid_shape = config_manager.getEntityByName<Shape>(name);
         auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
-        material_builder_ptr_->addMaterial(entity_manager, fluid_body, fb.at("material"));
+        material_builder_ptr_->addMaterial(config_manager, fluid_body, fb.at("material"));
         if (fb.contains("particle_reserve_factor"))
         {
             ParticleBuffer<ReserveSizeFactor> inlet_buffer(
@@ -74,34 +74,34 @@ void SimulationBuilder::addFluidBodies(
 }
 //=================================================================================================//
 void SimulationBuilder::addContinuumBodies(
-    SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
+    SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
     for (const auto &cb : config)
     {
         const std::string name = cb.at("name").get<std::string>();
-        Shape &shape = entity_manager.getEntityByName<Shape>(name);
+        Shape &shape = config_manager.getEntityByName<Shape>(name);
         auto &continuum_body = sph_system.addBody<RealBody>(shape, name);
-        material_builder_ptr_->addMaterial(entity_manager, continuum_body, cb.at("material"));
+        material_builder_ptr_->addMaterial(config_manager, continuum_body, cb.at("material"));
         continuum_body.generateParticles<BaseParticles, Reload>(name);
     }
 }
 //=================================================================================================//
 void SimulationBuilder::addSolidBodies(
-    SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
+    SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
     for (const auto &sb : config)
     {
         const std::string name = sb.at("name").get<std::string>();
-        Shape &solid_shape = entity_manager.getEntityByName<Shape>(name);
+        Shape &solid_shape = config_manager.getEntityByName<Shape>(name);
         auto &solid_body = sph_system.addBody<SolidBody>(solid_shape, name);
-        material_builder_ptr_->addMaterial(entity_manager, solid_body, sb.at("material"));
+        material_builder_ptr_->addMaterial(config_manager, solid_body, sb.at("material"));
         BaseParticles &reload_particles = solid_body.generateParticles<BaseParticles, Reload>(name);
         reload_particles.reloadExtraVariable<Vecd>("NormalDirection");
     }
 }
 //=================================================================================================//
 void SimulationBuilder::addObservers(
-    SPHSystem &sph_system, EntityManager &entity_manager, const json &config)
+    SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
     for (const auto &ob : config)
     {
@@ -122,18 +122,18 @@ void SimulationBuilder::addObservers(
 
         ObserverBody &observer_body = sph_system.addBody<ObserverBody>(name);
         observer_body.generateParticles<ObserverParticles>(positions);
-        entity_manager.emplaceEntity<ObserverConfig>(name, observer_config);
+        config_manager.emplaceEntity<ObserverConfig>(name, observer_config);
     }
 }
 //=================================================================================================//
-void SimulationBuilder::parseSolverParameters(EntityManager &entity_manager, const json &config)
+void SimulationBuilder::parseSolverParameters(EntityManager &config_manager, const json &config)
 {
-    entity_manager.emplaceEntity<
+    config_manager.emplaceEntity<
         SolverCommonConfig>("SolverCommonConfig", parseSolverCommonConfig(config));
 
     if (config.contains("restart"))
     {
-        entity_manager.emplaceEntity<RestartConfig>(
+        config_manager.emplaceEntity<RestartConfig>(
             "RestartConfig", parseRestartConfig(config.at("restart")));
     }
 }

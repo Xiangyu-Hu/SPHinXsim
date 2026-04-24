@@ -98,9 +98,8 @@
     "fluid_dynamics": {
       "acoustic_cfl": 0.6,
       "advection_cfl": 0.25,
-      "free_surface_correction": true
+      "flow_type": "free_surface",
+      "particle_sort_frequency": 100
     }
-  },
-
-  "particle_sort_frequency": 100
+  }
 }

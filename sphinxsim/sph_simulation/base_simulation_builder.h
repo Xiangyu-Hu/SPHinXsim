@@ -159,6 +159,10 @@ class SimulationBuilder
         SPHSystem &sph_system, EntityManager &config_manager,
         MethodContainerType &main_methods, const json &config);
 
+    template <class MethodContainerType>
+    void addExternalForce(
+        SPHSimulation &sim, MethodContainerType &main_methods, SPHBody &sph_body, const json &config);
+
   private:
     std::unique_ptr<MaterialBuilder> material_builder_ptr_;
     SolverCommonConfig parseSolverCommonConfig(const json &config);

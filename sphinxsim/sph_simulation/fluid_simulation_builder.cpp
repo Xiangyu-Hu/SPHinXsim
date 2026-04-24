@@ -179,82 +179,12 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     // Define optional methods using hooking point in stage pipelines.
     //----------------------------------------------------------------------
-    if (config.contains("gravity"))
-    {
-        auto &constant_gravity =
-            main_methods.addStateDynamics<GravityForceCK<Gravity>>(
-                fluid_body, Gravity(jsonToVecd(config.at("gravity"))));
-        initialization_pipeline.insert_hook(
-            InitializationHookPoint::InitialCondition, [&]()
-            { constant_gravity.exec(); });
-    }
-
-    if (fluid_solver_config.surface_type_ == "open_boundary")
-    {
-        auto &fluid_surface_indication =
-            main_methods.addInteractionDynamicsWithUpdate<
-                            fluid_dynamics::FreeSurfaceIndicationCK>(fluid_inner)
-                .addPostContactInteraction(fluid_wall_contact);
-
-        initialization_pipeline.insert_hook(
-            InitializationHookPoint::InitialParticleIndicationTagging, [&]()
-            { fluid_surface_indication.exec(); });
-
-        simulation_pipeline.insert_hook(
-            SimulationHookPoint::ParticleIndicationTagging, [&]()
-            { fluid_surface_indication.exec(); });
-    }
-
-    if (fluid_solver_config.surface_type_ != "free_surface")
-    {
-        auto &transport_velocity_correction = addTransportVelocityCorrection(
-            config_manager, main_methods, fluid_inner, fluid_wall_contact);
-
-        initialization_pipeline.insert_hook(
-            InitializationHookPoint::InitialAfterAdvectionStepSetup, [&]()
-            { transport_velocity_correction.exec(); });
-
-        simulation_pipeline.insert_hook(
-            SimulationHookPoint::AfterAdvectionStepSetup, [&]()
-            { transport_velocity_correction.exec(); });
-    }
-
-    if (config_manager.hasEntity<Viscosity>(fluid_body.getName() + "Viscosity"))
-    {
-        auto &viscous_force =
-            main_methods.addInteractionDynamicsWithUpdate<
-                            fluid_dynamics::ViscousForceCK, Viscosity, NoKernelCorrectionCK>(fluid_inner)
-                .addPostContactInteraction<Wall, Viscosity, NoKernelCorrectionCK>(fluid_wall_contact);
-
-        initialization_pipeline.insert_hook(
-            InitializationHookPoint::InitialAfterAdvectionStepSetup, [&]()
-            { viscous_force.exec(); });
-
-        simulation_pipeline.insert_hook(
-            SimulationHookPoint::AfterAdvectionStepSetup, [&]()
-            { viscous_force.exec(); });
-    }
-
-    if (config.contains("fluid_boundary_conditions"))
-    {
-        for (const auto &bd : config.at("fluid_boundary_conditions"))
-        {
-            addBoundaryConditions(sim, main_methods, bd);
-        }
-    }
-
-    if (config.contains("particle_sort_frequency")) // after all body part by particles defined
-    {
-        UnsignedInt frequency = config.at("particle_sort_frequency").get<UnsignedInt>();
-        auto &particle_sort = main_methods.addSortDynamics(fluid_body);
-        simulation_pipeline.insert_hook(
-            SimulationHookPoint::ParticleSort, [&, frequency]()
-            {
-                if (time_stepper.getIterationStep() % frequency == 0)
-                {
-                    particle_sort.exec();
-                } });
-    }
+    addExternalForce(sim, main_methods, fluid_body, config);
+    addSurfaceIndication(sim, main_methods, fluid_inner, fluid_wall_contact);
+    addTransportVelocityFormulation(sim, main_methods, fluid_inner, fluid_wall_contact);
+    addViscousForce(sim, main_methods, fluid_inner, fluid_wall_contact);
+    addBoundaryConditions(sim, main_methods, config);
+    addParticleSort(sim, main_methods, fluid_body);
 }
 //=================================================================================================//
 void FluidSimulationBuilder::parseSolverParameters(EntityManager &config_manager, const json &config)
@@ -276,6 +206,11 @@ FluidSolverConfig FluidSimulationBuilder::parseFluidSolverConfig(const json &con
         params.advection_cfl_ = config.at("advection_cfl").get<Real>();
     if (config.contains("flow_type"))
         params.surface_type_ = config.at("flow_type").get<std::string>();
+    if (config.contains("particle_sort_frequency"))
+    {
+        params.particle_sorting_ = true;
+        params.sort_frequency_ = config.at("particle_sort_frequency").get<UnsignedInt>();
+    }
     return params;
 }
 //=================================================================================================//

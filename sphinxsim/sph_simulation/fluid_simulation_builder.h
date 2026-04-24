@@ -37,6 +37,7 @@ namespace SPH
 class TimeStepper;
 class AlignedBoxByParticle;
 class AlignedBoxByCell;
+class RealBody;
 namespace fluid_dynamics
 {
 class AbstractBidirectionalBoundary;
@@ -49,6 +50,8 @@ struct FluidSolverConfig
     std::string surface_type_ = "free_surface";
     std::string flow_type_ = "inviscid_flow";
     bool particle_deletion_{false};
+    bool particle_sorting_{false};
+    UnsignedInt sort_frequency_{0};
 };
 
 class FluidSimulationBuilder : public SimulationBuilder
@@ -62,22 +65,41 @@ class FluidSimulationBuilder : public SimulationBuilder
 
     template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
     BaseDynamics<void> &addDensitySummationAndRegularization(
-        EntityManager &config_manager, MethodContainerType &method_container,
+        EntityManager &config_manager, MethodContainerType &main_methods,
         InnerRelationType &inner_relation, ContactRelationType &contact_relation);
 
     template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
-    BaseDynamics<void> &addTransportVelocityCorrection(
-        EntityManager &config_manager, MethodContainerType &method_container,
+    void addTransportVelocityFormulation(
+        SPHSimulation &sim, MethodContainerType &main_methods,
+        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
+
+    template <class KernelGradientIntegralType>
+    void addTransportVelocityCorrection(
+        KernelGradientIntegralType &kernel_gradient_integral,
+        SPHBody &sph_body, FluidSolverConfig &fluid_solver_config);
+
+    template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
+    void addViscousForce(
+        SPHSimulation &sim, MethodContainerType &main_methods,
         InnerRelationType &inner_relation, ContactRelationType &contact_relation);
 
     template <class MethodContainerType>
     void addBoundaryConditions(
-        SPHSimulation &sim, MethodContainerType &method_container, const json &config);
+        SPHSimulation &sim, MethodContainerType &main_methods, const json &config);
+
+    template <class MethodContainerType>
+    void addParticleSort(
+        SPHSimulation &sim, MethodContainerType &main_methods, RealBody &real_body);
 
     template <class MethodContainerType>
     fluid_dynamics::AbstractBidirectionalBoundary &addBiDirectionBoundary(
         AlignedBoxByCell &aligned_box_by_cell, EntityManager &config_manager,
         MethodContainerType &main_methods, const json &config);
+
+    template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
+    void addSurfaceIndication(
+        SPHSimulation &sim, MethodContainerType &main_methods,
+        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
 };
 } // namespace SPH
 #endif // FLUID_SIMULATION_BUILDER_H

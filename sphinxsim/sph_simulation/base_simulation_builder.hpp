@@ -93,6 +93,23 @@ BaseIO *SimulationBuilder::addObserveRecorderWithVariableConfig(
     throw std::runtime_error(
         "SimulationBuilder::addObserveRecorderWithVariableConfig: no supported variable type found!");
 }
+template <class MethodContainerType>
+void SimulationBuilder::addExternalForce(
+    SPHSimulation &sim, MethodContainerType &main_methods, SPHBody &sph_body, const json &config)
+{
+    auto &initialization_pipeline = sim.getInitializationPipeline();
+
+    if (config.contains("gravity"))
+    {
+        auto &constant_gravity =
+            main_methods.template addStateDynamics<GravityForceCK<Gravity>>(
+                sph_body, Gravity(jsonToVecd(config.at("gravity"))));
+
+        initialization_pipeline.insert_hook(
+            InitializationHookPoint::InitialCondition, [&]()
+            { constant_gravity.exec(); });
+    }
+}
 //=================================================================================================//
 } // namespace SPH
 #endif // BASE_SIMULATION_BUILDER_HPP

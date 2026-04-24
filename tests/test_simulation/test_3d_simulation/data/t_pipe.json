@@ -1,6 +1,5 @@
 {
   "simulation_type": "fluid_dynamics",
-  "particle_sort_frequency": 100,
 
   "geometries": {
     "global_resolution": { "min_dimension_particles": 25 },
@@ -130,7 +129,8 @@
     "fluid_dynamics": {
       "acoustic_cfl": 0.6,
       "advection_cfl": 0.25,
-      "flow_type": "open_boundary"
+      "flow_type": "open_boundary",
+      "particle_sort_frequency": 100
     }
   }
 }

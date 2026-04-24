@@ -81,11 +81,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     // Define the methods for I/O operations, observations
     // and monitoring of reduced information
     //----------------------------------------------------------------------
-    auto &body_state_recorder = main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(sph_system);
-    if (config.contains("extra_state_recording"))
-    {
-        addExtraStateToRecord(sph_system, body_state_recorder, config.at("extra_state_recording"));
-    }
+    auto &body_state_recorder = addBodyStatesRecording(sph_system, config_manager, main_methods, config);
     auto &observe_recorder = addObserveRecorder(sph_system, config_manager, main_methods);
     //----------------------------------------------------------------------
     //	Define time integration method, screen out uput and observation sample rate.

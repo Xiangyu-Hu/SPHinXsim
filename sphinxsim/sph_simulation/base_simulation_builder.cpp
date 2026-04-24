@@ -191,20 +191,6 @@ VariableConfig SimulationBuilder::parseVariableConfig(const json &config)
     throw std::runtime_error("SimulationBuilder::parseVariableConfig not supported variable type.");
 }
 //=================================================================================================//
-void SimulationBuilder::addExtraStateToRecord(
-    SPHSystem &sph_system, BodyStatesRecording &state_recording, const json &config)
-{
-    for (auto &body : config)
-    {
-        std::string body_name = body.at("name").get<std::string>();
-        auto &real_body = sph_system.getBodyByName<RealBody>(body_name);
-        for (auto &var : body.at("variables"))
-        {
-            addVariableToStateRecorder(state_recording, real_body, var);
-        }
-    }
-}
-//=================================================================================================//
 void SimulationBuilder::addVariableToStateRecorder(
     BodyStatesRecording &state_recording, SPHBody &sph_body, const json &config)
 {

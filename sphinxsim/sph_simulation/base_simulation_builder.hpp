@@ -10,6 +10,28 @@ namespace SPH
 {
 //=================================================================================================//
 template <class MethodContainerType>
+BodyStatesRecording &SimulationBuilder::addBodyStatesRecording(
+    SPHSystem &sph_system, EntityManager &config_manager,
+    MethodContainerType &main_methods, const json &config)
+{
+    auto &state_recorder = main_methods.template addBodyStateRecorder<
+        BodyStatesRecordingToVtpCK>(sph_system);
+    if (config.contains("extra_state_recording"))
+    {
+        for (auto &body : config.at("extra_state_recording"))
+        {
+            std::string body_name = body.at("name").get<std::string>();
+            auto &real_body = sph_system.getBodyByName<RealBody>(body_name);
+            for (auto &var : body.at("variables"))
+            {
+                addVariableToStateRecorder(state_recorder, real_body, var);
+            }
+        }
+    }
+    return state_recorder;
+}
+//=================================================================================================//
+template <class MethodContainerType>
 ParticleDynamicsGroup &SimulationBuilder::addObserverConfigurationDynamics(
     SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods)
 {

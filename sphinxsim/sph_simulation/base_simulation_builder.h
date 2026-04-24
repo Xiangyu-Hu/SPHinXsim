@@ -154,8 +154,10 @@ class SimulationBuilder
     IODynamicsGroup &addObserveRecorder(
         SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
 
-    void addExtraStateToRecord(
-        SPHSystem &sph_system, BodyStatesRecording &state_recording, const json &config);
+    template <class MethodContainerType>
+    BodyStatesRecording &addBodyStatesRecording(
+        SPHSystem &sph_system, EntityManager &config_manager,
+        MethodContainerType &main_methods, const json &config);
 
   private:
     std::unique_ptr<MaterialBuilder> material_builder_ptr_;

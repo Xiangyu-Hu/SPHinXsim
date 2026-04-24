@@ -51,7 +51,7 @@ void ConstraintBuilder::addConstraint(
         }
 
         simulation_pipeline.insert_hook(
-            SimulationHookPoint::BoundaryConditions, [&]()
+            SimulationHookPoint::BoundaryCondition, [&]()
             { constraint.exec(); });
         return;
     }
@@ -94,7 +94,7 @@ void ConstraintBuilder::addConstraint(
                     SPH::SimbodyStateEngine>("SimbodyStateEngine", MBsystem);
 
                 simulation_pipeline.insert_hook(
-                    SimulationHookPoint::ExtraOutputs, [&]()
+                    SimulationHookPoint::ExtraOutput, [&]()
                     { 
                         UnsignedInt iteration_step = time_stepper.getIterationStep();
                         if (iteration_step % restart_config.save_interval_ == 0)
@@ -113,7 +113,7 @@ void ConstraintBuilder::addConstraint(
             auto &constraint = method_container.template addStateDynamics<
                 solid_dynamics::ConstraintBodyPartBySimBodyCK>(body_part, MBsystem, mobilized_body, integ);
             simulation_pipeline.insert_hook(
-                SimulationHookPoint::PositionConstraints, [&]()
+                SimulationHookPoint::PositionConstraint, [&]()
                 {
                 // (A) move the mobilized body to the target state at the current physical time
                 Real t_target = time_stepper.getPhysicalTime();

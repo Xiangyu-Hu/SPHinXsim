@@ -10,7 +10,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     // SPHSystem and entity manager.
     // Basically, the SPHSystem is the container of all SPH simulation objects,
-    // and the entity manager is the container of all simulation setting 
+    // and the entity manager is the container of all simulation setting
     // configurations and external (not SPH) simulation environments.
     //----------------------------------------------------------------------
     SPHSystem &sph_system = sim.defineSPHSystem();
@@ -28,7 +28,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     // Define body relation map.
     // The relations give the topological connections within (inner) a body
     // or with (contact) other bodies within interaction range.
-    // Generally, we first define all the inner relations, 
+    // Generally, we first define all the inner relations,
     // then the contact relations.
     //----------------------------------------------------------------------
     auto &fluid_body = *sph_system.collectBodies<FluidBody>().front(); // assume only one fluid body for now
@@ -37,7 +37,6 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     auto &fluid_wall_contact = sph_system.addContactRelation(fluid_body, solid_bodies);
     //----------------------------------------------------------------------
     // Define SPH solver with particle methods and execution policies.
-    // Generally, the host methods should be able to run immediately.
     //----------------------------------------------------------------------
     SPHSolver &sph_solver = sim.defineSPHSolver(*this, config);
     auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
@@ -46,18 +45,14 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     // Note that there may be data dependence on the sequence of constructions.
     // Generally, the configuration dynamics, such as update cell linked list,
     // update body relations, are defined first.
-    // Then the geometric models or simple objects without data dependencies,
-    // such as gravity, initialized normal direction.
-    // After that, the major physical particle dynamics model should be introduced.
-    // Finally, the auxiliary models such as time step estimator, initial condition,
-    // boundary condition and other constraints should be defined.
     //----------------------------------------------------------------------
     auto &solid_cell_linked_list = main_methods.addCellLinkedListDynamics(solid_bodies);
-    auto &fluid_update_configuration = main_methods.addParticleDynamicsGroup()
-                                           .add(&main_methods.addCellLinkedListDynamics(fluid_body))
-                                           .add(&main_methods.addRelationDynamics(fluid_inner, fluid_wall_contact));
+    auto &fluid_update_configuration =
+        main_methods.addParticleDynamicsGroup()
+            .add(&main_methods.addCellLinkedListDynamics(fluid_body))
+            .add(&main_methods.addRelationDynamics(fluid_inner, fluid_wall_contact));
+    auto &observer_configuration = addObserverConfigurationDynamics(sph_system, config_manager, main_methods);
 
-    auto &observer_update_configuration = addObserverConfigurationDynamics(sph_system, config_manager, main_methods);
     auto &fluid_advection_step_setup = main_methods.addStateDynamics<fluid_dynamics::AdvectionStepSetup>(fluid_body);
     auto &fluid_update_particle_position = main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(fluid_body);
 
@@ -66,29 +61,28 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             .addPostContactInteraction(fluid_wall_contact);
 
     auto &fluid_acoustic_step_1st_half =
-        main_methods.addInteractionDynamics<fluid_dynamics::AcousticStep1stHalf, OneLevel,
-                                            AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_inner)
+        main_methods.addInteractionDynamicsOneLevel<
+                        fluid_dynamics::AcousticStep1stHalf, AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_inner)
             .addPostContactInteraction<Wall, AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_wall_contact);
 
     auto &fluid_acoustic_step_2nd_half =
-        main_methods.addInteractionDynamics<fluid_dynamics::AcousticStep2ndHalf, OneLevel,
-                                            AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_inner)
+        main_methods.addInteractionDynamicsOneLevel<
+                        fluid_dynamics::AcousticStep2ndHalf, AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_inner)
             .addPostContactInteraction<Wall, AcousticRiemannSolverCK, LinearCorrectionCK>(fluid_wall_contact);
 
     auto &fluid_density_regularization = addDensitySummationAndRegularization(
         config_manager, main_methods, fluid_inner, fluid_wall_contact);
 
-    auto &fluid_solver_config = config_manager.getEntityByName<
-        FluidSolverConfig>("FluidSolverConfig");
+    auto &fluid_solver_config = config_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
     Fluid &fluid_material = DynamicCast<Fluid>(this, fluid_body.getBaseMaterial());
     const Real U_ref = fluid_material.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
-    auto &fluid_advection_time_step = main_methods.addReduceDynamics<
-        fluid_dynamics::AdvectionTimeStepCK>(fluid_body, U_ref, fluid_solver_config.advection_cfl_);
-    auto &fluid_acoustic_time_step = main_methods.addReduceDynamics<
-        fluid_dynamics::AcousticTimeStepCK<>>(fluid_body, fluid_solver_config.acoustic_cfl_);
+    auto &fluid_advection_time_step = main_methods.addReduceDynamics<fluid_dynamics::AdvectionTimeStepCK>(
+        fluid_body, U_ref, fluid_solver_config.advection_cfl_);
+    auto &fluid_acoustic_time_step = main_methods.addReduceDynamics<fluid_dynamics::AcousticTimeStepCK<>>(
+        fluid_body, fluid_solver_config.acoustic_cfl_);
     //----------------------------------------------------------------------
-    //	Define the methods for I/O operations, observations
-    //	and regression tests of the simulation.
+    // Define the methods for I/O operations, observations
+    // and monitoring of reduced information
     //----------------------------------------------------------------------
     auto &body_state_recorder = main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(sph_system);
     if (config.contains("extra_state_recording"))
@@ -97,7 +91,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     }
     auto &observe_recorder = addObserveRecorder(sph_system, config_manager, main_methods);
     //----------------------------------------------------------------------
-    //	Define time-integration method, screen out uput and observation sample rate.
+    //	Define time integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------
     auto &solver_common_config = config_manager.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
     auto &time_stepper = sph_solver.getTimeStepper();
@@ -105,13 +99,13 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config.output_interval_);
     time_stepper.setScreeningInterval(solver_common_config.screen_interval_);
     //----------------------------------------------------------------------
-    //	Define Preparation or initialization step for the time integration loop.
+    //	Define preparation or initialization step before the main integration.
     //----------------------------------------------------------------------
-    StagePipeline<InitializationHookPoint> &initialization_pipeline = sim.getInitializationPipeline();
+    auto &initialization_pipeline = sim.getInitializationPipeline();
     initialization_pipeline.main_steps.push_back(
         [&]()
         {
-            initialization_pipeline.run_hooks(InitializationHookPoint::InitialConditions);
+            initialization_pipeline.run_hooks(InitializationHookPoint::InitialCondition);
 
             solid_cell_linked_list.exec();
             fluid_update_configuration.exec();
@@ -124,29 +118,30 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
 
             body_state_recorder.writeToFile();
 
-            if (observer_update_configuration.hasDynamics())
+            if (observer_configuration.hasDynamics())
             {
-                observer_update_configuration.exec();
+                observer_configuration.exec();
                 observe_recorder.writeToFile(time_stepper.getIterationStep());
             }
         });
     //----------------------------------------------------------------------
-    //	Define time-integration method.
-    //  Here we use dual time stepping with acoustic and advection steps.
-    //  The acoustic step is executed every physical time step, while the advection step is
-    //  executed at a lower frequency determined by the advection time step.
+    // Define the time integration method.
+    // Here we use dual time stepping with acoustic and advection steps.
+    // The acoustic step is executed every physical time step, while the advection step is
+    // executed at a lower frequency determined by the advection time step.
+    // Note that only in acoustic steps the time integration is carried out.
     //----------------------------------------------------------------------
-    StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
-    simulation_pipeline.main_steps.push_back( // acoustic step
+    auto &simulation_pipeline = sim.getSimulationPipeline();
+    simulation_pipeline.main_steps.push_back( // acoustic or integration step
         [&]()
         {
             Real dt = time_stepper.incrementPhysicalTime(fluid_acoustic_time_step);
             fluid_acoustic_step_1st_half.exec(dt);
-            simulation_pipeline.run_hooks(SimulationHookPoint::BoundaryConditions);
+            simulation_pipeline.run_hooks(SimulationHookPoint::BoundaryCondition);
             fluid_acoustic_step_2nd_half.exec(dt);
         });
 
-    simulation_pipeline.main_steps.push_back( // advection step
+    simulation_pipeline.main_steps.push_back( // advection or particle configuration step
         [&]()
         {
             if (advection_step(fluid_advection_time_step))
@@ -164,9 +159,9 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                               << "\n";
                 }
 
-                if (observer_update_configuration.hasDynamics() && time_stepper.isObservationStep())
+                if (observer_configuration.hasDynamics() && time_stepper.isObservationStep())
                 {
-                    observer_update_configuration.exec();
+                    observer_configuration.exec();
                     observe_recorder.writeToFile(time_stepper.getIterationStep());
                 }
 
@@ -197,7 +192,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             main_methods.addStateDynamics<GravityForceCK<Gravity>>(
                 fluid_body, Gravity(jsonToVecd(config.at("gravity"))));
         initialization_pipeline.insert_hook(
-            InitializationHookPoint::InitialConditions, [&]()
+            InitializationHookPoint::InitialCondition, [&]()
             { constant_gravity.exec(); });
     }
 

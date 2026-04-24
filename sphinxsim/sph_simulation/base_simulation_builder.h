@@ -52,12 +52,12 @@ Rotation getRotationFromXAxis(const Vecd &direction);
 enum class SimulationHookPoint
 {
     ForcePrior,
-    BoundaryConditions,
-    PositionConstraints,
+    BoundaryCondition,
+    PositionConstraint,
     ParticleCreation,
     ParticleDeletionTagging,
     ParticleDeletion,
-    ExtraOutputs,
+    ExtraOutput,
     ParticleSort,
     ParticleIndicationTagging,
     AfterAdvectionStepSetup,
@@ -66,7 +66,7 @@ enum class SimulationHookPoint
 
 enum class InitializationHookPoint
 {
-    InitialConditions,
+    InitialCondition,
     InitialParticleIndicationTagging,
     InitialAfterAdvectionStepSetup,
     NumHooks

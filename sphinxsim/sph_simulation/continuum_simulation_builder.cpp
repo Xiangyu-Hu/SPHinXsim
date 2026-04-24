@@ -98,7 +98,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     initialization_pipeline.main_steps.push_back(
         [&]()
         {
-            initialization_pipeline.run_hooks(InitializationHookPoint::InitialConditions);
+            initialization_pipeline.run_hooks(InitializationHookPoint::InitialCondition);
 
             solid_cell_linked_list.exec();
             continuum_update_configuration.exec();
@@ -132,7 +132,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
             continuum_shear_force.exec(dt);
             continuum_solid_contact_force.exec();
             continuum_acoustic_step_1st_half.exec(dt);
-            simulation_pipeline.run_hooks(SimulationHookPoint::BoundaryConditions);
+            simulation_pipeline.run_hooks(SimulationHookPoint::BoundaryCondition);
             continuum_acoustic_step_2nd_half.exec(dt);
 
             if (time_stepper.isFirstComputingStep() || time_stepper.isScreeningStep())
@@ -152,7 +152,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
             if (advection_step(continuum_advection_time_step))
             {
                 continuum_update_particle_position.exec();
-                simulation_pipeline.run_hooks(SimulationHookPoint::PositionConstraints);
+                simulation_pipeline.run_hooks(SimulationHookPoint::PositionConstraint);
                 time_stepper.incrementIterationStep();
 
                 if (state_recording_trigger())
@@ -160,7 +160,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
                     body_state_recorder.writeToFile();
                 }
 
-                simulation_pipeline.run_hooks(SimulationHookPoint::ExtraOutputs);
+                simulation_pipeline.run_hooks(SimulationHookPoint::ExtraOutput);
 
                 solid_cell_linked_list.exec();
                 continuum_update_configuration.exec();
@@ -185,7 +185,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
             sph_system, restart_config.summary_enabled_);
 
         simulation_pipeline.insert_hook(
-            SimulationHookPoint::ExtraOutputs, [&]()
+            SimulationHookPoint::ExtraOutput, [&]()
             { 
                 if (time_stepper.getIterationStep() % restart_config.save_interval_ == 0)
                 {
@@ -195,7 +195,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
         if (restart_config.restore_step_ != 0)
         {
             initialization_pipeline.insert_hook(
-                InitializationHookPoint::InitialConditions, [&]()
+                InitializationHookPoint::InitialCondition, [&]()
                 { 
                     time_stepper.setRestartStep(restart_config.restore_step_);
                     restart_io.readRestartFiles(restart_config.restore_step_); });

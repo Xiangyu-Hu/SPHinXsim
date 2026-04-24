@@ -100,7 +100,7 @@ void FluidSimulationBuilder::addBoundaryConditions(
             fluid_dynamics::EmitterInflowInjectionCK>(emitter);
 
         simulation_pipeline.insert_hook(
-            SimulationHookPoint::BoundaryConditions, [&]()
+            SimulationHookPoint::BoundaryCondition, [&]()
             { inflow_condition.exec(); });
 
         simulation_pipeline.insert_hook(
@@ -121,7 +121,7 @@ void FluidSimulationBuilder::addBoundaryConditions(
             { bi_directional_bd.tagBufferParticles(); });
 
         simulation_pipeline.insert_hook(
-            SimulationHookPoint::BoundaryConditions, [&]()
+            SimulationHookPoint::BoundaryCondition, [&]()
             {   
                 Real dt = time_stepper.getGlobalTimeStepSize();
                 bi_directional_bd.applyBoundaryCondition(dt); });

@@ -92,6 +92,10 @@ class FluidSimulationBuilder : public SimulationBuilder
         SPHSimulation &sim, MethodContainerType &main_methods, RealBody &real_body);
 
     template <class MethodContainerType>
+    void parseBoundaryCondition(
+        SPHSimulation &sim, MethodContainerType &main_methods, const json &config);
+
+    template <class MethodContainerType>
     fluid_dynamics::AbstractBidirectionalBoundary &addBiDirectionBoundary(
         AlignedBoxByCell &aligned_box_by_cell, EntityManager &config_manager,
         MethodContainerType &main_methods, const json &config);

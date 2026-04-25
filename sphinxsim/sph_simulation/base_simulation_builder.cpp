@@ -100,35 +100,6 @@ void SimulationBuilder::buildSolidBodies(
     }
 }
 //=================================================================================================//
-void SimulationBuilder::addObservers(
-    SPHSystem &sph_system, EntityManager &config_manager, const json &config)
-{
-    if (config.contains("observers"))
-    {
-        for (const auto &ob : config.at("observers"))
-        {
-            ObserverConfig observer_config;
-            const std::string name = ob.at("name").get<std::string>();
-            observer_config.name_ = name;
-            observer_config.observed_body_ = ob.at("observed_body").get<std::string>();
-            observer_config.observed_variable_ = parseVariableConfig(ob.at("variable"));
-
-            StdVec<Vecd> positions;
-            if (ob.contains("positions"))
-            {
-                for (const auto &p : ob.at("positions"))
-                {
-                    positions.push_back(jsonToVecd(p));
-                }
-            }
-
-            ObserverBody &observer_body = sph_system.addBody<ObserverBody>(name);
-            observer_body.generateParticles<ObserverParticles>(positions);
-            config_manager.emplaceEntity<ObserverConfig>(name, observer_config);
-        }
-    }
-}
-//=================================================================================================//
 void SimulationBuilder::parseSolverParameters(EntityManager &config_manager, const json &config)
 {
     config_manager.emplaceEntity<
@@ -169,6 +140,38 @@ RestartConfig SimulationBuilder::parseRestartConfig(const json &config)
 std::string SimulationBuilder::getObserverRelationName(const ObserverConfig &observer_config)
 {
     return observer_config.name_ + observer_config.observed_body_;
+}
+//=================================================================================================//
+ObserverConfig SimulationBuilder::parseObserverConfig(const json &config)
+{
+    ObserverConfig observer_config;
+    observer_config.name_ = config.at("name").get<std::string>();
+    observer_config.observed_body_ = config.at("observed_body").get<std::string>();
+    observer_config.observed_variable_ = parseVariableConfig(config.at("variable"));
+    return observer_config;
+}
+//=================================================================================================//
+void SimulationBuilder::addObserves(
+    SPHSystem &sph_system, EntityManager &config_manager, const json &config)
+{
+    for (const auto &ob : config)
+    {
+        ObserverConfig observer_config = parseObserverConfig(ob);
+        std::string name = observer_config.name_;
+        config_manager.emplaceEntity<ObserverConfig>(name, observer_config);
+
+        StdVec<Vecd> positions;
+        if (ob.contains("positions"))
+        {
+            for (const auto &p : ob.at("positions"))
+            {
+                positions.push_back(jsonToVecd(p));
+            }
+        }
+
+        ObserverBody &observer_body = sph_system.addBody<ObserverBody>(name);
+        observer_body.generateParticles<ObserverParticles>(positions);
+    }
 }
 //=================================================================================================//
 VariableConfig SimulationBuilder::parseVariableConfig(const json &config)

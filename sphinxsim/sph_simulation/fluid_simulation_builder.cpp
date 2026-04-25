@@ -20,7 +20,6 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     buildFluidBodies(sph_system, config_manager, config.at("fluid_bodies"));
     buildSolidBodies(sph_system, config_manager, config.at("solid_bodies"));
-    addObservers(sph_system, config_manager, config);
     //----------------------------------------------------------------------
     // Define body relation map.
     // The relations give the topological connections within (inner) a body
@@ -48,7 +47,6 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         main_methods.addParticleDynamicsGroup()
             .add(&main_methods.addCellLinkedListDynamics(fluid_body))
             .add(&main_methods.addRelationDynamics(fluid_inner, fluid_wall_contact));
-    auto &observer_configuration = addObserverConfigurationDynamics(sph_system, config_manager, main_methods);
 
     auto &fluid_advection_step_setup = main_methods.addStateDynamics<fluid_dynamics::AdvectionStepSetup>(fluid_body);
     auto &fluid_particle_position = main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(fluid_body);
@@ -82,7 +80,6 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     // and monitoring of reduced information
     //----------------------------------------------------------------------
     auto &body_state_recorder = createBodyStatesRecording(sph_system, config_manager, main_methods, config);
-    auto &observe_recorder = addObserveRecorder(sph_system, config_manager, main_methods);
     //----------------------------------------------------------------------
     //	Define time integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------
@@ -109,13 +106,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             fluid_advection_step_setup.exec();
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialAfterAdvectionStepSetup);
 
+            initialization_pipeline.run_hooks(InitializationHookPoint::InitialObservation);
             body_state_recorder.writeToFile();
-
-            if (observer_configuration.hasDynamics())
-            {
-                observer_configuration.exec();
-                observe_recorder.writeToFile(time_stepper.getIterationStep());
-            }
         });
     //----------------------------------------------------------------------
     // Define the time integration method.
@@ -152,10 +144,9 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                               << "\n";
                 }
 
-                if (observer_configuration.hasDynamics() && time_stepper.isObservationStep())
+                if (time_stepper.isObservationStep())
                 {
-                    observer_configuration.exec();
-                    observe_recorder.writeToFile(time_stepper.getIterationStep());
+                    simulation_pipeline.run_hooks(SimulationHookPoint::Observation);
                 }
 
                 if (state_recording_trigger())
@@ -179,6 +170,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     // Define optional methods using hooking point in stage pipelines.
     //----------------------------------------------------------------------
+    buildObservationIfPresent(sim, main_methods, config);
     addExternalForce(sim, main_methods, fluid_body, config);
     addSurfaceIndication(sim, main_methods, fluid_inner, fluid_wall_contact);
     addTransportVelocityFormulation(sim, main_methods, fluid_inner, fluid_wall_contact);

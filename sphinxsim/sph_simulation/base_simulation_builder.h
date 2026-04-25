@@ -51,12 +51,12 @@ Rotation getRotationFromXAxis(const Vecd &direction);
 // Enum for hook points for fast O(1) access
 enum class SimulationHookPoint
 {
-    ForcePrior,
     BoundaryCondition,
     PositionConstraint,
     ParticleCreation,
     ParticleDeletionTagging,
     ParticleDeletion,
+    Observation,
     ExtraOutput,
     ParticleSort,
     ParticleIndicationTagging,
@@ -67,6 +67,7 @@ enum class SimulationHookPoint
 enum class InitializationHookPoint
 {
     InitialCondition,
+    InitialObservation,
     InitialParticleIndicationTagging,
     InitialAfterAdvectionStepSetup,
     NumHooks
@@ -144,11 +145,9 @@ class SimulationBuilder
     void buildFluidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void addContinuumBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void buildSolidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
-    void addObservers(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
 
     template <class MethodContainerType>
-    ParticleDynamicsGroup &addObserverConfigurationDynamics(
-        SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
+    void buildObservationIfPresent(SPHSimulation &sim, MethodContainerType &main_methods, const json &config);
 
     template <class MethodContainerType>
     IODynamicsGroup &addObserveRecorder(
@@ -168,7 +167,13 @@ class SimulationBuilder
     SolverCommonConfig parseSolverCommonConfig(const json &config);
     RestartConfig parseRestartConfig(const json &config);
     std::string getObserverRelationName(const ObserverConfig &observer_config);
+    ObserverConfig parseObserverConfig(const json &config);
     VariableConfig parseVariableConfig(const json &config);
+
+    void addObserves(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
+    template <class MethodContainerType>
+    ParticleDynamicsGroup &createObserverConfigurationDynamics(
+        SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
 
     template <class MethodContainerType, class ObserverRelationType>
     BaseIO *addObserveRecorderWithVariableConfig(

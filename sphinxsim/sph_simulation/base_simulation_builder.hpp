@@ -32,7 +32,39 @@ BodyStatesRecording &SimulationBuilder::createBodyStatesRecording(
 }
 //=================================================================================================//
 template <class MethodContainerType>
-ParticleDynamicsGroup &SimulationBuilder::addObserverConfigurationDynamics(
+void SimulationBuilder::buildObservationIfPresent(
+    SPHSimulation &sim, MethodContainerType &main_methods, const json &config)
+{
+    auto &sph_system = sim.getSPHSystem();
+    auto &config_manager = sim.getConfigManager();
+
+    if (config.contains("observers"))
+    {
+        addObserves(sph_system, config_manager, config.at("observers"));
+        auto &observer_config_dynamics =
+            createObserverConfigurationDynamics(sph_system, config_manager, main_methods);
+        auto &observer_io = addObserveRecorder(sph_system, config_manager, main_methods);
+
+        auto &time_stepper = sim.getSPHSolver().getTimeStepper();
+
+        auto &initialization_pipeline = sim.getInitializationPipeline();
+        initialization_pipeline.insert_hook(
+            InitializationHookPoint::InitialObservation, [&]()
+            {
+                observer_config_dynamics.exec();
+                observer_io.writeToFile(time_stepper.getIterationStep()); });
+
+        auto &simulation_pipeline = sim.getSimulationPipeline();
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::Observation, [&]()
+            {
+                    observer_config_dynamics.exec();
+                    observer_io.writeToFile(time_stepper.getIterationStep()); });
+    }
+}
+//=================================================================================================//
+template <class MethodContainerType>
+ParticleDynamicsGroup &SimulationBuilder::createObserverConfigurationDynamics(
     SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods)
 {
     auto &observer_config_dynamics = main_methods.addParticleDynamicsGroup();

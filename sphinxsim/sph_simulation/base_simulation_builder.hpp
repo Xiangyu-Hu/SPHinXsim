@@ -18,14 +18,13 @@ BodyStatesRecording &SimulationBuilder::createBodyStatesRecording(
         BodyStatesRecordingToVtpCK>(sph_system);
     if (config.contains("extra_state_recording"))
     {
-        for (auto &body : config.at("extra_state_recording"))
+        const auto &extra_state_recording = config.at("extra_state_recording");
+
+        // Format: { "BodyName": { "real_type": [...], "vector_type": [...] } }
+        for (const auto &[body_name, variable_config] : extra_state_recording.items())
         {
-            std::string body_name = body.at("name").get<std::string>();
             auto &real_body = sph_system.getBodyByName<RealBody>(body_name);
-            for (auto &var : body.at("variables"))
-            {
-                addVariableToStateRecorder(state_recorder, real_body, var);
-            }
+            addVariableToStateRecorder(state_recorder, real_body, variable_config);
         }
     }
     return state_recorder;

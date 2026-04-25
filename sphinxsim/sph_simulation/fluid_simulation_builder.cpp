@@ -171,12 +171,12 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     // Define optional methods using hooking point in stage pipelines.
     //----------------------------------------------------------------------
     buildObservationIfPresent(sim, main_methods, config);
-    addExternalForce(sim, main_methods, fluid_body, config);
-    addSurfaceIndication(sim, main_methods, fluid_inner, fluid_wall_contact);
-    addTransportVelocityFormulation(sim, main_methods, fluid_inner, fluid_wall_contact);
-    addViscousForce(sim, main_methods, fluid_inner, fluid_wall_contact);
-    addBoundaryConditions(sim, main_methods, config);
-    addParticleSort(sim, main_methods, fluid_body);
+    buildExternalForceIfPresent(sim, main_methods, fluid_body, config);
+    buildSurfaceIndicationIfOpenBoundary(sim, main_methods, fluid_inner, fluid_wall_contact);
+    buildTransportVelocityFormulationIfNotFreeSurface(sim, main_methods, fluid_inner, fluid_wall_contact);
+    buildViscousForceIfPresent(sim, main_methods, fluid_inner, fluid_wall_contact);
+    buildBoundaryConditionsIfPresent(sim, main_methods, config);
+    buildParticleSortIfPresent(sim, main_methods, fluid_body);
 }
 //=================================================================================================//
 void FluidSimulationBuilder::parseSolverParameters(EntityManager &config_manager, const json &config)

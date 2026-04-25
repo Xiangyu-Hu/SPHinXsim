@@ -159,7 +159,7 @@ class SimulationBuilder
         MethodContainerType &main_methods, const json &config);
 
     template <class MethodContainerType>
-    void addExternalForce(
+    void buildExternalForceIfPresent(
         SPHSimulation &sim, MethodContainerType &main_methods, SPHBody &sph_body, const json &config);
 
   private:
@@ -169,8 +169,8 @@ class SimulationBuilder
     std::string getObserverRelationName(const ObserverConfig &observer_config);
     ObserverConfig parseObserverConfig(const json &config);
     VariableConfig parseVariableConfig(const json &config);
-
     void addObserves(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
+
     template <class MethodContainerType>
     ParticleDynamicsGroup &createObserverConfigurationDynamics(
         SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);

@@ -47,7 +47,7 @@ BaseDynamics<void> &FluidSimulationBuilder::addDensitySummationAndRegularization
 }
 //=================================================================================================//
 template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
-void FluidSimulationBuilder::addTransportVelocityFormulation(
+void FluidSimulationBuilder::buildTransportVelocityFormulationIfNotFreeSurface(
     SPHSimulation &sim, MethodContainerType &main_methods,
     InnerRelationType &inner_relation, ContactRelationType &contact_relation)
 {
@@ -99,7 +99,7 @@ void FluidSimulationBuilder::addTransportVelocityCorrection(
 }
 //=================================================================================================//
 template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
-void FluidSimulationBuilder::addViscousForce(
+void FluidSimulationBuilder::buildViscousForceIfPresent(
     SPHSimulation &sim, MethodContainerType &main_methods,
     InnerRelationType &inner_relation, ContactRelationType &contact_relation)
 {
@@ -126,20 +126,20 @@ void FluidSimulationBuilder::addViscousForce(
 }
 //=================================================================================================//
 template <class MethodContainerType>
-void FluidSimulationBuilder::addBoundaryConditions(
+void FluidSimulationBuilder::buildBoundaryConditionsIfPresent(
     SPHSimulation &sim, MethodContainerType &main_methods, const json &config)
 {
     if (config.contains("fluid_boundary_conditions"))
     {
         for (const auto &bd : config.at("fluid_boundary_conditions"))
         {
-            parseBoundaryCondition(sim, main_methods, bd);
+            addBoundaryCondition(sim, main_methods, bd);
         }
     }
 }
 //=================================================================================================//
 template <class MethodContainerType>
-void FluidSimulationBuilder::parseBoundaryCondition(
+void FluidSimulationBuilder::addBoundaryCondition(
     SPHSimulation &sim, MethodContainerType &main_methods, const json &config)
 {
     StagePipeline<InitializationHookPoint> &initialization_pipeline = sim.getInitializationPipeline();
@@ -176,7 +176,7 @@ void FluidSimulationBuilder::parseBoundaryCondition(
     if (type == "bi_directional")
     {
         auto &aligned_box_by_cell = fluid_body.addBodyPart<AlignedBoxByCell>(aligned_box);
-        auto &bi_directional_bd = addBiDirectionBoundary(
+        auto &bi_directional_bd = createBiDirectionBoundary(
             aligned_box_by_cell, config_manager, main_methods, config);
 
         initialization_pipeline.insert_hook(
@@ -216,11 +216,11 @@ void FluidSimulationBuilder::parseBoundaryCondition(
         return;
     }
     throw std::runtime_error(
-        "FluidSimulationBuilder::addBoundaryConditions: unsupported: " + type);
+        "FluidSimulationBuilder::buildBoundaryConditionsIfPresent: unsupported: " + type);
 }
 //=================================================================================================//
 template <class MethodContainerType>
-fluid_dynamics::AbstractBidirectionalBoundary &FluidSimulationBuilder::addBiDirectionBoundary(
+fluid_dynamics::AbstractBidirectionalBoundary &FluidSimulationBuilder::createBiDirectionBoundary(
     AlignedBoxByCell &aligned_box_by_cell, EntityManager &config_manager,
     MethodContainerType &main_methods, const json &config)
 {
@@ -232,16 +232,17 @@ fluid_dynamics::AbstractBidirectionalBoundary &FluidSimulationBuilder::addBiDire
         return bi_directional_bd;
     }
     throw std::runtime_error(
-        "FluidSimulationBuilder::addBiDirectionBoundary: unsupported boundary condition type");
+        "FluidSimulationBuilder::createBiDirectionBoundary: unsupported boundary condition type");
 }
 //=================================================================================================//
 template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
-void FluidSimulationBuilder::addSurfaceIndication(
+void FluidSimulationBuilder::buildSurfaceIndicationIfOpenBoundary(
     SPHSimulation &sim, MethodContainerType &main_methods,
     InnerRelationType &inner_relation, ContactRelationType &contact_relation)
 {
     auto &config_manager = sim.getConfigManager();
     auto &fluid_solver_config = config_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
+
     if (fluid_solver_config.surface_type_ == "open_boundary")
     {
         auto &fluid_surface_indication =
@@ -262,7 +263,7 @@ void FluidSimulationBuilder::addSurfaceIndication(
 }
 //=================================================================================================//
 template <class MethodContainerType>
-void FluidSimulationBuilder::addParticleSort(
+void FluidSimulationBuilder::buildParticleSortIfPresent(
     SPHSimulation &sim, MethodContainerType &main_methods, RealBody &real_body)
 {
     auto &config_manager = sim.getConfigManager();

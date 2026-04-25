@@ -127,7 +127,7 @@ BaseIO *SimulationBuilder::addObserveRecorderWithVariableConfig(
 }
 //=================================================================================================//
 template <class MethodContainerType>
-void SimulationBuilder::addExternalForce(
+void SimulationBuilder::buildExternalForceIfPresent(
     SPHSimulation &sim, MethodContainerType &main_methods, SPHBody &sph_body, const json &config)
 {
     auto &initialization_pipeline = sim.getInitializationPipeline();

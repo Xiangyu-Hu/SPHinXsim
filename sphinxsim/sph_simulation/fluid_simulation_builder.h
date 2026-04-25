@@ -69,7 +69,7 @@ class FluidSimulationBuilder : public SimulationBuilder
         InnerRelationType &inner_relation, ContactRelationType &contact_relation);
 
     template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
-    void addTransportVelocityFormulation(
+    void buildTransportVelocityFormulationIfNotFreeSurface(
         SPHSimulation &sim, MethodContainerType &main_methods,
         InnerRelationType &inner_relation, ContactRelationType &contact_relation);
 
@@ -79,29 +79,29 @@ class FluidSimulationBuilder : public SimulationBuilder
         SPHBody &sph_body, FluidSolverConfig &fluid_solver_config);
 
     template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
-    void addViscousForce(
+    void buildViscousForceIfPresent(
         SPHSimulation &sim, MethodContainerType &main_methods,
         InnerRelationType &inner_relation, ContactRelationType &contact_relation);
 
     template <class MethodContainerType>
-    void addBoundaryConditions(
+    void buildBoundaryConditionsIfPresent(
         SPHSimulation &sim, MethodContainerType &main_methods, const json &config);
 
     template <class MethodContainerType>
-    void addParticleSort(
+    void buildParticleSortIfPresent(
         SPHSimulation &sim, MethodContainerType &main_methods, RealBody &real_body);
 
     template <class MethodContainerType>
-    void parseBoundaryCondition(
+    void addBoundaryCondition(
         SPHSimulation &sim, MethodContainerType &main_methods, const json &config);
 
     template <class MethodContainerType>
-    fluid_dynamics::AbstractBidirectionalBoundary &addBiDirectionBoundary(
+    fluid_dynamics::AbstractBidirectionalBoundary &createBiDirectionBoundary(
         AlignedBoxByCell &aligned_box_by_cell, EntityManager &config_manager,
         MethodContainerType &main_methods, const json &config);
 
     template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
-    void addSurfaceIndication(
+    void buildSurfaceIndicationIfOpenBoundary(
         SPHSimulation &sim, MethodContainerType &main_methods,
         InnerRelationType &inner_relation, ContactRelationType &contact_relation);
 };

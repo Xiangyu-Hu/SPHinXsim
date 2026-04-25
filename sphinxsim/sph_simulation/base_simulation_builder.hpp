@@ -10,7 +10,7 @@ namespace SPH
 {
 //=================================================================================================//
 template <class MethodContainerType>
-BodyStatesRecording &SimulationBuilder::addBodyStatesRecording(
+BodyStatesRecording &SimulationBuilder::createBodyStatesRecording(
     SPHSystem &sph_system, EntityManager &config_manager,
     MethodContainerType &main_methods, const json &config)
 {

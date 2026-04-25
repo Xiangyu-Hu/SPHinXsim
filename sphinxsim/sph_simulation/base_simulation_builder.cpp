@@ -51,7 +51,7 @@ SimulationBuilder::SimulationBuilder()
 //=================================================================================================//
 SimulationBuilder ::~SimulationBuilder() = default;
 //=================================================================================================//
-void SimulationBuilder::addFluidBodies(
+void SimulationBuilder::buildFluidBodies(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
     for (const auto &fb : config)
@@ -86,7 +86,7 @@ void SimulationBuilder::addContinuumBodies(
     }
 }
 //=================================================================================================//
-void SimulationBuilder::addSolidBodies(
+void SimulationBuilder::buildSolidBodies(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
     for (const auto &sb : config)

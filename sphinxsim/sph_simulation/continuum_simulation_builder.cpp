@@ -16,7 +16,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //	Creating bodies with inital shape, materials and particles.
     //----------------------------------------------------------------------
     addContinuumBodies(sph_system, config_manager, config.at("continuum_bodies"));
-    addSolidBodies(sph_system, config_manager, config.at("solid_bodies"));
+    buildSolidBodies(sph_system, config_manager, config.at("solid_bodies"));
     //----------------------------------------------------------------------
     //	Define body relation map.
     //	The relations give the topological connections within a body

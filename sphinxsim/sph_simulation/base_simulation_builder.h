@@ -141,9 +141,9 @@ class SimulationBuilder
     virtual void parseSolverParameters(EntityManager &config_manager, const json &config);
 
   protected:
-    void addFluidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
+    void buildFluidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void addContinuumBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
-    void addSolidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
+    void buildSolidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void addObservers(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
 
     template <class MethodContainerType>
@@ -155,7 +155,7 @@ class SimulationBuilder
         SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
 
     template <class MethodContainerType>
-    BodyStatesRecording &addBodyStatesRecording(
+    BodyStatesRecording &createBodyStatesRecording(
         SPHSystem &sph_system, EntityManager &config_manager,
         MethodContainerType &main_methods, const json &config);
 

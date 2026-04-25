@@ -18,8 +18,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     // Creating bodies with inital geometry, materials and particles.
     //----------------------------------------------------------------------
-    addFluidBodies(sph_system, config_manager, config.at("fluid_bodies"));
-    addSolidBodies(sph_system, config_manager, config.at("solid_bodies"));
+    buildFluidBodies(sph_system, config_manager, config.at("fluid_bodies"));
+    buildSolidBodies(sph_system, config_manager, config.at("solid_bodies"));
     addObservers(sph_system, config_manager, config);
     //----------------------------------------------------------------------
     // Define body relation map.
@@ -81,7 +81,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     // Define the methods for I/O operations, observations
     // and monitoring of reduced information
     //----------------------------------------------------------------------
-    auto &body_state_recorder = addBodyStatesRecording(sph_system, config_manager, main_methods, config);
+    auto &body_state_recorder = createBodyStatesRecording(sph_system, config_manager, main_methods, config);
     auto &observe_recorder = addObserveRecorder(sph_system, config_manager, main_methods);
     //----------------------------------------------------------------------
     //	Define time integration method, screen out uput and observation sample rate.

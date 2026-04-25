@@ -84,14 +84,16 @@
     }
   ],
 
-  "extra_state_recording": {
-    "WaterBody": {
-      "real_type": ["Density"]
+  "extra_state_recording": [
+    {
+      "name": "WaterBody",
+      "variables": [{ "real_type": ["Density"] }]
     },
-    "WallBoundary": {
-      "vector_type": ["NormalDirection"]
+    {
+      "name": "WallBoundary",
+      "variables": [{ "vector_type": ["NormalDirection"] }]
     }
-  },
+  ],
 
   "solver_parameters": {
     "end_time": 20.0,

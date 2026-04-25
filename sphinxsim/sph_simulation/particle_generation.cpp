@@ -88,7 +88,7 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     //	Run on CPU after relaxation finished and output results.
     //----------------------------------------------------------------------
     auto &body_normal_direction = addBodyNormalDirection(
-        relaxation_system, config_manager, main_methods);
+        relaxation_system, config_manager, host_methods);
     //----------------------------------------------------------------------
     // Define after relaxation steps using hooking point in stage pipelines.
     //----------------------------------------------------------------------

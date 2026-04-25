@@ -77,7 +77,7 @@ ParticleDynamicsGroup &SimulationBuilder::createObserverConfigurationDynamics(
             ObserverBody &observer_body = sph_system.getBodyByName<ObserverBody>(observer_config->name_);
             RealBody &observed_body = sph_system.getBodyByName<RealBody>(observer_config->observed_body_);
             auto &observer_relation = sph_system.addContactRelation(observer_body, observed_body);
-            observer_config_dynamics.add(&main_methods.template addRelationDynamics(observer_relation));
+            observer_config_dynamics.add(&main_methods.addRelationDynamics(observer_relation));
         }
     }
     return observer_config_dynamics;

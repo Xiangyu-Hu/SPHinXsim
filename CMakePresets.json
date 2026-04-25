@@ -1,126 +1,108 @@
 {
-    "version": 3,
-    "configurePresets": [
-        {
-            "name": "python-binding-release",
-            "displayName": "Python Binding Release",
-            "description": "Release build of SPHinXsys Python bindings with full C++ library",
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_TOOLCHAIN_FILE": "$env{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-                "CMAKE_CXX_STANDARD": "17",
-                "BUILD_SIMPLE_BINDING": "OFF",
-                "SPHINXSYS_BUILD_TESTS": "OFF",
-                "SPHINXSYS_DEVELOPER_MODE": "OFF",
-                "SPHINXSYS_USE_SYCL": "OFF"
-            }
-        },
-        {
-            "name": "python-binding-debug",
-            "displayName": "Python Binding Debug",
-            "description": "Debug build of SPHinXsys Python bindings with full C++ library",
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build-debug",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_TOOLCHAIN_FILE": "$env{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-                "CMAKE_CXX_STANDARD": "17",
-                "BUILD_SIMPLE_BINDING": "OFF",
-                "SPHINXSYS_BUILD_TESTS": "OFF",
-                "SPHINXSYS_DEVELOPER_MODE": "ON",
-                "SPHINXSYS_USE_SYCL": "OFF"
-            }
-        },
-        {
-            "name": "integrated-build-debug",
-            "displayName": "Integrated SPHinXsys + Python Debug Build",
-            "description": "Build SPHinXsys libraries and Python bindings together",
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build-integrated",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "CMAKE_TOOLCHAIN_FILE": "$env{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-                "Python3_EXECUTABLE": "/usr/bin/python3.11",
-                "CMAKE_CXX_STANDARD": "17",
-                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
-                "BUILD_SIMPLE_BINDING": "OFF",
-                "SPHINXSYS_BUILD_TESTS": "OFF",
-                "SPHINXSYS_DEVELOPER_MODE": "ON",
-                "SPHINXSYS_USE_SYCL": "OFF"
-            }
-        },
-        {
-            "name": "sycl-binding",
-            "displayName": "Python Binding with SYCL",
-            "description": "SPHinXsys Python bindings with SYCL acceleration",
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build-sycl",
-            "condition": {
-                "type": "equals",
-                "lhs": "${hostSystemName}",
-                "rhs": "Linux"
-            },
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_TOOLCHAIN_FILE": "$env{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-                "CMAKE_CXX_STANDARD": "17",
-                "CMAKE_C_COMPILER": "icx",
-                "CMAKE_CXX_COMPILER": "icpx",
-                "BUILD_SIMPLE_BINDING": "OFF",
-                "SPHINXSYS_BUILD_TESTS": "OFF",
-                "SPHINXSYS_DEVELOPER_MODE": "OFF",
-                "SPHINXSYS_USE_SYCL": "ON",
-                "SPHINXSYS_USE_FLOAT": "ON"
-            }
-        },
-        {
-            "name": "integrated-build-release",
-            "displayName": "Integrated SPHinXsys + Python Release Build",
-            "description": "Build SPHinXsys libraries and Python bindings together",
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/build-integrated",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "CMAKE_TOOLCHAIN_FILE": "$env{HOME}/vcpkg/scripts/buildsystems/vcpkg.cmake",
-                "Python3_EXECUTABLE": "/usr/bin/python3.11",
-                "CMAKE_CXX_STANDARD": "17",
-                "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-                "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
-                "BUILD_SIMPLE_BINDING": "OFF",
-                "SPHINXSYS_BUILD_TESTS": "OFF",
-                "SPHINXSYS_DEVELOPER_MODE": "ON",
-                "SPHINXSYS_USE_SYCL": "OFF"
-            }
-        }
-    ],
-    "buildPresets": [
-        {
-            "name": "python-binding-release",
-            "displayName": "Build Python Binding Release",
-            "configurePreset": "python-binding-release"
-        },
-        {
-            "name": "python-binding-debug",
-            "displayName": "Build Python Binding Debug",
-            "configurePreset": "python-binding-debug"
-        },
-        {
-            "name": "integrated-build-debug",
-            "displayName": "Build Integrated SPHinXsys + Python Debug",
-            "configurePreset": "integrated-build-debug"
-        },
-        {
-            "name": "sycl-binding",
-            "displayName": "Build SYCL Binding",
-            "configurePreset": "sycl-binding"
-        },
-        {
-            "name": "integrated-build-release",
-            "displayName": "Build Integrated SPHinXsys + Python Release",
-            "configurePreset": "integrated-build-release"
-        }
-    ]
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "sycl-cpu-binding",
+      "displayName": "Python Binding with SYCL CPU Backend",
+      "description": "SPHinXsys Python bindings with SYCL acceleration",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-integrated",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "'${sourceDir}/../vcpkg/scripts/buildsystems/vcpkg.cmake'",
+        "CMAKE_CXX_STANDARD": "17",
+        "CMAKE_C_COMPILER": "icx",
+        "CMAKE_CXX_COMPILER": "icpx",
+        "SPHINXSYS_BUILD_TESTS": "OFF",
+        "SPHINXSYS_DEVELOPER_MODE": "OFF",
+        "SPHINXSYS_USE_SYCL": "ON"
+      }
+    },
+    {
+      "name": "integrated-build-debug",
+      "displayName": "Integrated SPHinXsys + Python Debug Build",
+      "description": "Build SPHinXsys libraries and Python bindings together",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-integrated",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": "'${sourceDir}/../vcpkg/scripts/buildsystems/vcpkg.cmake'",
+        "Python3_EXECUTABLE": "/usr/bin/python3.11",
+        "CMAKE_CXX_STANDARD": "17",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "SPHINXSYS_BUILD_TESTS": "OFF",
+        "SPHINXSYS_DEVELOPER_MODE": "ON",
+        "SPHINXSYS_USE_SYCL": "OFF"
+      }
+    },
+    {
+      "name": "sycl-gpu-binding",
+      "displayName": "Python Binding with SYCL GPU Backend",
+      "description": "SPHinXsys Python bindings with SYCL acceleration",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-integrated",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "'${sourceDir}/../vcpkg/scripts/buildsystems/vcpkg.cmake'",
+        "CMAKE_CXX_STANDARD": "17",
+        "CMAKE_C_COMPILER": "icx",
+        "CMAKE_CXX_COMPILER": "icpx",
+        "SPHINXSYS_BUILD_TESTS": "OFF",
+        "SPHINXSYS_DEVELOPER_MODE": "OFF",
+        "SPHINXSYS_USE_SYCL": "ON",
+        "SPHINXSYS_SYCL_TARGETS": "nvptx64-nvidia-cuda"
+      }
+    },
+    {
+      "name": "integrated-build-release",
+      "displayName": "Integrated SPHinXsys + Python Release Build",
+      "description": "Build SPHinXsys libraries and Python bindings together",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-integrated",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "'${sourceDir}/../vcpkg/scripts/buildsystems/vcpkg.cmake'",
+        "Python3_EXECUTABLE": "/usr/bin/python3.11",
+        "CMAKE_CXX_STANDARD": "17",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "SPHINXSYS_BUILD_TESTS": "OFF",
+        "SPHINXSYS_DEVELOPER_MODE": "ON",
+        "SPHINXSYS_USE_SYCL": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "sycl-cpu-binding",
+      "displayName": "Python Binding with SYCL CPU Backend",
+      "configurePreset": "sycl-cpu-binding"
+    },
+    {
+      "name": "integrated-build-debug",
+      "displayName": "Build Integrated SPHinXsys + Python Debug",
+      "configurePreset": "integrated-build-debug"
+    },
+    {
+      "name": "sycl-gpu-binding",
+      "displayName": "Python Binding with SYCL GPU Backend",
+      "configurePreset": "sycl-gpu-binding"
+    },
+    {
+      "name": "integrated-build-release",
+      "displayName": "Build Integrated SPHinXsys + Python Release",
+      "configurePreset": "integrated-build-release"
+    }
+  ]
 }

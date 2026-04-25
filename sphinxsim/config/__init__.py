@@ -1,21 +1,33 @@
 """sphinxsim.config – simulation configuration schemas."""
 
 from sphinxsim.config.schemas import (
+    BodyConstraintConfig,
     DomainConfig,
-    GeometryConfig,
+    FluidBodyConfig,
+    FluidBoundaryConditionConfig,
+    GeometriesConfig,
     MaterialConfig,
     ObserverConfig,
+    ParticleGenerationConfig,
     PhysicsType,
+    ShapeConfig,
     SimulationConfig,
-    SolverConfig,
+    SimulationType,
+    SolverParametersConfig,
 )
 
 __all__ = [
+    "BodyConstraintConfig",
     "DomainConfig",
-    "GeometryConfig",
+    "FluidBodyConfig",
+    "FluidBoundaryConditionConfig",
+    "GeometriesConfig",
     "MaterialConfig",
     "ObserverConfig",
+    "ParticleGenerationConfig",
     "PhysicsType",
+    "ShapeConfig",
     "SimulationConfig",
-    "SolverConfig",
+    "SimulationType",
+    "SolverParametersConfig",
 ]

@@ -1,5 +1,6 @@
 #include "continuum_simulation_builder.hpp"
 
+#include "base_simulation_builder.hpp"
 #include "constraint_builder.hpp"
 
 namespace SPH

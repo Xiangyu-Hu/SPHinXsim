@@ -1,19 +1,60 @@
 {
   "simulation_type": "fluid_dynamics",
-  "domain": {
-    "upper_bound": [5.366, 5.366],
-    "lower_bound": [0.0, 0.0]
-  },
-  "particle_spacing": 0.025,
-  "particle_boundary_buffer": 4,
-  "fluid_bodies": [
-    {
-      "name": "WaterBody",
-      "geometry": {
+  "geometries": {
+    "system_domain": {
+      "upper_bound": [5.366, 5.366],
+      "lower_bound": [0.0, 0.0]
+    },
+    "global_resolution": {
+      "particle_spacing": 0.025
+    },
+    "shapes": [
+      {
+        "name": "WaterBody",
         "type": "bounding_box",
         "lower_bound": [0.0, 0.0],
         "upper_bound": [2.0, 1.0]
       },
+      {
+        "name": "WallInnerBox",
+        "type": "bounding_box",
+        "lower_bound": [0.0, 0.0],
+        "upper_bound": [5.366, 5.366]
+      },
+      {
+        "name": "WallOuterBox",
+        "type": "expanded_box",
+        "original": "WallInnerBox",
+        "expansion": 0.1
+      },
+      {
+        "name": "WallBoundary",
+        "type": "complex_shape",
+        "sub_shapes": ["WallOuterBox", "WallInnerBox"],
+        "operations": ["union", "subtraction"]
+      }
+    ]
+  },
+  "particle_generation": {
+    "build_and_run": true,
+    "settings": {
+      "bodies": [
+        {
+          "name": "WaterBody"
+        },
+        {
+          "name": "WallBoundary",
+          "solid_body": {}
+        }
+      ],
+      "relaxation_parameters": {
+        "total_iterations": 1
+      }
+    }
+  },
+  "fluid_bodies": [
+    {
+      "name": "WaterBody",
       "material": {
         "type": "weakly_compressible_fluid",
         "density": 1.0,
@@ -26,12 +67,6 @@
       "name": "WallBoundary",
       "material": {
         "type": "rigid_body"
-      },
-      "geometry": {
-        "type": "container_box",
-        "inner_lower_bound": [0.0, 0.0],
-        "inner_upper_bound": [5.366, 5.366],
-        "thickness": 0.1
       }
     }
   ],
@@ -39,13 +74,22 @@
   "observers": [
     {
       "name": "FluidObserver",
+      "observed_body": "WaterBody",
+      "variable": {
+        "real_type": "Pressure"
+      },
       "positions": [[5.366, 0.2]]
     }
   ],
-  "fluid_solver_config": {
-    "acoustic_cfl": 0.6,
-    "advection_cfl": 0.25,
-    "free_surface_correction": true
-  },
-  "end_time": 20.0
+  "solver_parameters": {
+    "end_time": 20.0,
+    "output_interval": 0.01,
+    "screen_interval": 100,
+    "fluid_dynamics": {
+      "acoustic_cfl": 0.6,
+      "advection_cfl": 0.25,
+      "flow_type": "free_surface",
+      "particle_sort_frequency": 100
+    }
+  }
 }

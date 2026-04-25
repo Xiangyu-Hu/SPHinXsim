@@ -9,6 +9,8 @@ import sys
 import os
 import time
 import math
+import importlib.util
+import importlib
 from pathlib import Path
 
 def find_project_root(start: Path | None = None):
@@ -55,7 +57,7 @@ def main(simulation_time=2.0):
         print("\n🚀 Running simulation...")
         
         start_time = time.time()
-        sim.run(simulation_time)
+        sim.stepTo(simulation_time)
         elapsed_time = time.time() - start_time
         
         print(f"\n🎉 Simulation completed!")
@@ -77,6 +79,14 @@ def main(simulation_time=2.0):
         os.chdir(original_dir)
 
 def test_example_dambreak_2d():
+    if importlib.util.find_spec("_sphinxsys_core_2d") is None:
+        import pytest
+        pytest.skip("_sphinxsys_core_2d is not available in this environment")
+    try:
+        importlib.import_module("_sphinxsys_core_2d")
+    except ImportError:
+        import pytest
+        pytest.skip("_sphinxsys_core_2d cannot be imported in this environment")
     assert main()
 
 if __name__ == "__main__":

@@ -5,6 +5,9 @@ project(sphinxsim_python_binding)
 
 include(CTest)
 option(SPHINXSIM_BUILD_SIMULATION_TESTS "Build and register simulation class C++ tests" ON)
+option(SPHINXSIM_COPY_BINDINGS_AFTER_BUILD "Copy Python bindings to a stable folder after build" OFF)
+set(SPHINXSIM_BINDINGS_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/sphinxsim/bindings/native"
+    CACHE PATH "Stable output directory for copied Python binding modules")
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
@@ -31,6 +34,32 @@ find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 find_package(VTK REQUIRED COMPONENTS CommonCore CommonDataModel IOXML)
 find_package(nlohmann_json CONFIG REQUIRED)
+
+# Install bindings into Python's import path by default.
+# Keep destination prefix-relative so `cmake --install --prefix ...` works.
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" -c
+            "import os, sys, sysconfig; p=sysconfig.get_path('platlib') or ''; b=sys.prefix or ''; print(os.path.relpath(p, b) if p.startswith(b) else p.lstrip('/'))"
+    OUTPUT_VARIABLE _SPHINXSIM_DEFAULT_PYTHON_INSTALL_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(NOT _SPHINXSIM_DEFAULT_PYTHON_INSTALL_DIR)
+    set(_SPHINXSIM_DEFAULT_PYTHON_INSTALL_DIR ".")
+endif()
+set(SPHINXSIM_PYTHON_INSTALL_DIR "${_SPHINXSIM_DEFAULT_PYTHON_INSTALL_DIR}"
+    CACHE PATH "Install destination for Python extension modules")
+if(IS_ABSOLUTE "${SPHINXSIM_PYTHON_INSTALL_DIR}")
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" -c
+                "import os, sys; p=os.path.abspath(r'''${SPHINXSIM_PYTHON_INSTALL_DIR}'''); b=sys.prefix or ''; print(os.path.relpath(p, b) if p.startswith(b) else p.lstrip('/'))"
+        OUTPUT_VARIABLE _SPHINXSIM_NORMALIZED_PYTHON_INSTALL_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if(_SPHINXSIM_NORMALIZED_PYTHON_INSTALL_DIR)
+        set(SPHINXSIM_PYTHON_INSTALL_DIR "${_SPHINXSIM_NORMALIZED_PYTHON_INSTALL_DIR}"
+            CACHE PATH "Install destination for Python extension modules" FORCE)
+    endif()
+endif()
 
 find_package(GTest CONFIG REQUIRED)
 include(GoogleTest)
@@ -65,7 +94,16 @@ if(SPHINXSYS_2D)
     pybind11_add_module(_sphinxsys_core_2d ${BIND_SOURCE_FILES})
     target_link_libraries(_sphinxsys_core_2d PRIVATE sph_simulation_2d)
     target_compile_features(_sphinxsys_core_2d PRIVATE cxx_std_17)
-    install(TARGETS _sphinxsys_core_2d  DESTINATION .)
+    install(TARGETS _sphinxsys_core_2d DESTINATION ${SPHINXSIM_PYTHON_INSTALL_DIR})
+
+    if(SPHINXSIM_COPY_BINDINGS_AFTER_BUILD)
+        add_custom_command(TARGET _sphinxsys_core_2d POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${SPHINXSIM_BINDINGS_OUTPUT_DIR}
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:_sphinxsys_core_2d>
+                ${SPHINXSIM_BINDINGS_OUTPUT_DIR}/
+            COMMENT "Copying _sphinxsys_core_2d to ${SPHINXSIM_BINDINGS_OUTPUT_DIR}")
+    endif()
 
     if(SPHINXSIM_BUILD_SIMULATION_TESTS)
         add_subdirectory(tests/test_simulation/test_2d_simulation)
@@ -85,7 +123,16 @@ if(SPHINXSYS_3D)
     pybind11_add_module(_sphinxsys_core_3d ${BIND_SOURCE_FILES})
     target_link_libraries(_sphinxsys_core_3d PRIVATE sph_simulation_3d)
     target_compile_features(_sphinxsys_core_3d PRIVATE cxx_std_17)
-    install(TARGETS _sphinxsys_core_3d  DESTINATION .)
+    install(TARGETS _sphinxsys_core_3d DESTINATION ${SPHINXSIM_PYTHON_INSTALL_DIR})
+
+    if(SPHINXSIM_COPY_BINDINGS_AFTER_BUILD)
+        add_custom_command(TARGET _sphinxsys_core_3d POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${SPHINXSIM_BINDINGS_OUTPUT_DIR}
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                $<TARGET_FILE:_sphinxsys_core_3d>
+                ${SPHINXSIM_BINDINGS_OUTPUT_DIR}/
+            COMMENT "Copying _sphinxsys_core_3d to ${SPHINXSIM_BINDINGS_OUTPUT_DIR}")
+    endif()
 
     if(SPHINXSIM_BUILD_SIMULATION_TESTS)
         add_subdirectory(tests/test_simulation/test_3d_simulation)

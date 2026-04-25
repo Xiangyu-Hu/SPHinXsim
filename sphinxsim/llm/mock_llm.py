@@ -21,17 +21,38 @@ from sphinxsim.config.schemas import (
 # ---------------------------------------------------------------------------
 
 _FLUID_TEMPLATE: Dict[str, Any] = {
-    "domain": {"lower_bound": [0.0, 0.0], "upper_bound": [5.366, 5.366]},
-    "particle_spacing": 0.025,
-    "particle_boundary_buffer": 4,
-    "fluid_bodies": [
-        {
-            "name": "WaterBody",
-            "geometry": {
+    "simulation_type": "fluid_dynamics",
+    "geometries": {
+        "system_domain": {"lower_bound": [0.0, 0.0], "upper_bound": [5.366, 5.366]},
+        "global_resolution": {"particle_spacing": 0.025},
+        "shapes": [
+            {
+                "name": "WaterBody",
                 "type": "bounding_box",
                 "lower_bound": [0.0, 0.0],
                 "upper_bound": [2.0, 1.0],
             },
+            {
+                "name": "WallBoundary",
+                "type": "bounding_box",
+                "lower_bound": [0.0, 0.0],
+                "upper_bound": [5.366, 5.366],
+            },
+        ],
+    },
+    "particle_generation": {
+        "build_and_run": True,
+        "settings": {
+            "bodies": [
+                {"name": "WaterBody"},
+                {"name": "WallBoundary", "solid_body": {}},
+            ],
+            "relaxation_parameters": {"total_iterations": 1},
+        },
+    },
+    "fluid_bodies": [
+        {
+            "name": "WaterBody",
             "material": {
                 "type": "weakly_compressible_fluid",
                 "density": 1.0,
@@ -42,72 +63,129 @@ _FLUID_TEMPLATE: Dict[str, Any] = {
     "solid_bodies": [
         {
             "name": "WallBoundary",
-            "geometry": {
-                "type": "container_box",
-                "inner_lower_bound": [0.0, 0.0],
-                "inner_upper_bound": [5.366, 5.366],
-                "thickness": 0.1,
-            },
             "material": {"type": "rigid_body"},
         }
     ],
     "gravity": [0.0, -1.0],
     "observers": [
-        {"name": "FluidObserver", "positions": [[5.366, 0.2]]}
+        {
+            "name": "FluidObserver",
+            "observed_body": "WaterBody",
+            "variable": {"real_type": "Pressure"},
+            "positions": [[5.0, 0.2]],
+        }
     ],
-    "solver": {"dual_time_stepping": True, "free_surface_correction": True},
-    "end_time": 1.0,
+    "solver_parameters": {
+        "end_time": 1.0,
+        "output_interval": 0.01,
+        "screen_interval": 100,
+        "fluid_dynamics": {
+            "acoustic_cfl": 0.6,
+            "advection_cfl": 0.25,
+            "flow_type": "free_surface",
+            "particle_sort_frequency": 100,
+        },
+    },
 }
 
 _SOLID_TEMPLATE: Dict[str, Any] = {
-    "domain": {"lower_bound": [0.0, 0.0], "upper_bound": [1.0, 0.2]},
-    "particle_spacing": 0.01,
-    "particle_boundary_buffer": 4,
-    "fluid_bodies": [
-        {
-            "name": "ReferenceBody",
-            "geometry": {
+    "simulation_type": "continuum_dynamics",
+    "geometries": {
+        "system_domain": {"lower_bound": [0.0, 0.0], "upper_bound": [1.0, 0.2]},
+        "global_resolution": {"particle_spacing": 0.01},
+        "shapes": [
+            {
+                "name": "ProcessingPiece",
                 "type": "bounding_box",
                 "lower_bound": [0.0, 0.0],
-                "upper_bound": [0.5, 0.1],
+                "upper_bound": [0.8, 0.18],
             },
+            {
+                "name": "WallBoundary",
+                "type": "bounding_box",
+                "lower_bound": [0.0, 0.0],
+                "upper_bound": [1.0, 0.2],
+            },
+        ],
+    },
+    "particle_generation": {
+        "build_and_run": True,
+        "settings": {
+            "bodies": [
+                {"name": "ProcessingPiece"},
+                {"name": "WallBoundary", "solid_body": {}},
+            ],
+            "relaxation_parameters": {"total_iterations": 1},
+        },
+    },
+    "continuum_bodies": [
+        {
+            "name": "ProcessingPiece",
             "material": {
-                "type": "weakly_compressible_fluid",
+                "type": "general_continuum",
                 "density": 7850.0,
                 "sound_speed": 50.0,
+                "youngs_modulus": 2.0e5,
+                "poisson_ratio": 0.3,
             },
         }
     ],
     "solid_bodies": [
         {
             "name": "WallBoundary",
-            "geometry": {
-                "type": "container_box",
-                "inner_lower_bound": [0.0, 0.0],
-                "inner_upper_bound": [5.366, 5.366],
-                "thickness": 0.1,
-            },
             "material": {"type": "rigid_body"},
         }
     ],
     "gravity": [0.0, -1.0],
     "observers": [],
-    "solver": {"dual_time_stepping": True, "free_surface_correction": True},
-    "end_time": 0.5,
+    "solver_parameters": {
+        "end_time": 0.5,
+        "output_interval": 0.01,
+        "screen_interval": 100,
+        "continuum_dynamics": {
+            "acoustic_cfl": 0.4,
+            "advection_cfl": 0.2,
+            "linear_correction_matrix_coeff": 0.5,
+            "contact_numerical_damping": 0.5,
+            "shear_stress_damping": 0.0,
+            "hourglass_factor": 2.0,
+        },
+    },
 }
 
 _FSI_TEMPLATE: Dict[str, Any] = {
-    "domain": {"lower_bound": [0.0, 0.0], "upper_bound": [2.0, 1.0]},
-    "particle_spacing": 0.02,
-    "particle_boundary_buffer": 4,
-    "fluid_bodies": [
-        {
-            "name": "WaterBody",
-            "geometry": {
+    "simulation_type": "fluid_dynamics",
+    "geometries": {
+        "system_domain": {"lower_bound": [0.0, 0.0], "upper_bound": [2.0, 1.0]},
+        "global_resolution": {"particle_spacing": 0.02},
+        "shapes": [
+            {
+                "name": "WaterBody",
                 "type": "bounding_box",
                 "lower_bound": [0.0, 0.0],
                 "upper_bound": [0.8, 0.4],
             },
+            {
+                "name": "WallBoundary",
+                "type": "bounding_box",
+                "lower_bound": [0.0, 0.0],
+                "upper_bound": [2.0, 1.0],
+            },
+        ],
+    },
+    "particle_generation": {
+        "build_and_run": True,
+        "settings": {
+            "bodies": [
+                {"name": "WaterBody"},
+                {"name": "WallBoundary", "solid_body": {}},
+            ],
+            "relaxation_parameters": {"total_iterations": 1},
+        },
+    },
+    "fluid_bodies": [
+        {
+            "name": "WaterBody",
             "material": {
                 "type": "weakly_compressible_fluid",
                 "density": 1000.0,
@@ -118,21 +196,29 @@ _FSI_TEMPLATE: Dict[str, Any] = {
     "solid_bodies": [
         {
             "name": "WallBoundary",
-            "geometry": {
-                "type": "container_box",
-                "inner_lower_bound": [0.0, 0.0],
-                "inner_upper_bound": [5.366, 5.366],
-                "thickness": 0.1,
-            },
             "material": {"type": "rigid_body"},
         }
     ],
     "gravity": [0.0, -1.0],
     "observers": [
-        {"name": "FluidObserver", "positions": [[2.0, 0.2]]}
+        {
+            "name": "FluidObserver",
+            "observed_body": "WaterBody",
+            "variable": {"real_type": "Pressure"},
+            "positions": [[2.0, 0.2]],
+        }
     ],
-    "solver": {"dual_time_stepping": True, "free_surface_correction": True},
-    "end_time": 2.0,
+    "solver_parameters": {
+        "end_time": 2.0,
+        "output_interval": 0.01,
+        "screen_interval": 100,
+        "fluid_dynamics": {
+            "acoustic_cfl": 0.6,
+            "advection_cfl": 0.25,
+            "flow_type": "free_surface",
+            "particle_sort_frequency": 100,
+        },
+    },
 }
 
 _TEMPLATES = {
@@ -185,15 +271,15 @@ def _extract_name(description: str) -> str:
 
 
 def _sync_geometry(cfg: Dict[str, Any]) -> None:
-    dims = cfg["domain"]["upper_bound"]
+    dims = cfg["geometries"]["system_domain"]["upper_bound"]
     domain_x = dims[0]
     domain_y = dims[1] if len(dims) > 1 else dims[0]
 
-    if cfg.get("fluid_bodies"):
-        cfg["fluid_bodies"][0]["geometry"]["upper_bound"] = [0.4 * domain_x, 0.2 * domain_y]
-
-    if cfg.get("solid_bodies"):
-        cfg["solid_bodies"][0]["geometry"]["inner_upper_bound"] = [domain_x, domain_y]
+    shape_by_name = {s["name"]: s for s in cfg["geometries"].get("shapes", [])}
+    if "WaterBody" in shape_by_name:
+        shape_by_name["WaterBody"]["upper_bound"] = [0.4 * domain_x, 0.2 * domain_y]
+    if "WallBoundary" in shape_by_name:
+        shape_by_name["WallBoundary"]["upper_bound"] = [domain_x, domain_y]
 
     if cfg.get("observers") and cfg["observers"][0].get("positions"):
         cfg["observers"][0]["positions"] = [[domain_x, min(0.2, domain_y)]]
@@ -226,19 +312,21 @@ def _apply_overrides(template: Dict[str, Any], description: str) -> Dict[str, An
         re.IGNORECASE,
     )
     if time_match:
-        cfg["end_time"] = float(time_match.group(1))
+        cfg.setdefault("solver_parameters", {})["end_time"] = float(time_match.group(1))
 
     # Domain size override (e.g. "2 m domain")
     domain_match = re.search(r"(\d+(?:\.\d+)?)\s*m\s+domain", description, re.IGNORECASE)
     if domain_match:
         size = float(domain_match.group(1))
-        dim = len(cfg["domain"]["upper_bound"])
-        cfg["domain"]["upper_bound"] = [size] * dim
+        dim = len(cfg["geometries"]["system_domain"]["upper_bound"])
+        cfg["geometries"]["system_domain"]["upper_bound"] = [size] * dim
 
     # Resolution override (e.g. "5 mm resolution")
     res_match = re.search(r"(\d+(?:\.\d+)?)\s*mm\s+resolution", description, re.IGNORECASE)
     if res_match:
-        cfg["particle_spacing"] = float(res_match.group(1)) / 1000.0
+        cfg.setdefault("geometries", {}).setdefault("global_resolution", {})["particle_spacing"] = (
+            float(res_match.group(1)) / 1000.0
+        )
 
     _sync_geometry(cfg)
 
@@ -262,29 +350,47 @@ def _apply_additions(cfg: Dict[str, Any], description: str) -> None:
         at_match = re.search(r"(?:at|position(?:s)?)\s*[:=]?\s*\(?([^\)]*)\)?", description, re.IGNORECASE)
         if at_match:
             coords = _extract_float_list(at_match.group(1))
-            dim = len(cfg.get("domain", {}).get("upper_bound", [0.0, 0.0]))
+            dim = len(
+                cfg.get("geometries", {}).get("system_domain", {}).get("upper_bound", [0.0, 0.0])
+            )
             if len(coords) == dim:
-                cfg.setdefault("observers", []).append({"name": obs_name, "positions": [coords]})
+                observed_body = "ProcessingPiece"
+                if cfg.get("fluid_bodies"):
+                    observed_body = cfg["fluid_bodies"][0].get("name", "WaterBody")
+                cfg.setdefault("observers", []).append(
+                    {
+                        "name": obs_name,
+                        "observed_body": observed_body,
+                        "variable": {"real_type": "Pressure"},
+                        "positions": [coords],
+                    }
+                )
 
     if "add fluid block" in lower:
         name_match = re.search(r"add\s+fluid\s+block(?:\s+named\s+([\w\- ]+))?", description, re.IGNORECASE)
         block_name = (name_match.group(1).strip() if name_match and name_match.group(1) else "FluidBlock")
         dims_match = re.search(r"dimensions?\s*[:=]?\s*([^,;]+)", description, re.IGNORECASE)
         dims = _extract_float_list(dims_match.group(1)) if dims_match else []
-        dim = len(cfg.get("domain", {}).get("upper_bound", [0.0, 0.0]))
+        dim = len(
+            cfg.get("geometries", {}).get("system_domain", {}).get("upper_bound", [0.0, 0.0])
+        )
         if len(dims) == dim:
             density_match = re.search(r"density\s*[:=]?\s*(\d+(?:\.\d+)?)", description, re.IGNORECASE)
             sound_speed_match = re.search(r"sound\s*speed\s*[:=]?\s*(\d+(?:\.\d+)?)", description, re.IGNORECASE)
             density = float(density_match.group(1)) if density_match else 1.0
             sound_speed = float(sound_speed_match.group(1)) if sound_speed_match else 20.0
+            block_shape_name = f"{block_name}Shape"
+            cfg.setdefault("geometries", {}).setdefault("shapes", []).append(
+                {
+                    "name": block_shape_name,
+                    "type": "bounding_box",
+                    "lower_bound": [0.0] * dim,
+                    "upper_bound": dims,
+                }
+            )
             cfg.setdefault("fluid_bodies", []).append(
                 {
-                    "name": block_name,
-                    "geometry": {
-                        "type": "bounding_box",
-                        "lower_bound": [0.0] * dim,
-                        "upper_bound": dims,
-                    },
+                    "name": block_shape_name,
                     "material": {
                         "type": "weakly_compressible_fluid",
                         "density": density,
@@ -348,6 +454,15 @@ class MockLLM:
         template = _apply_overrides(_TEMPLATES[physics], description)
         if template.get("fluid_bodies"):
             template["fluid_bodies"][0]["name"] = _extract_name(description)
+            template["geometries"]["shapes"][0]["name"] = template["fluid_bodies"][0]["name"]
+            if template.get("observers"):
+                template["observers"][0]["observed_body"] = template["fluid_bodies"][0]["name"]
+
+            # Keep particle-generation body list in sync with body name.
+            settings = template.get("particle_generation", {}).get("settings", {})
+            for body in settings.get("bodies", []):
+                if body.get("name") == "WaterBody":
+                    body["name"] = template["fluid_bodies"][0]["name"]
 
         return SimulationConfig(**template)
 

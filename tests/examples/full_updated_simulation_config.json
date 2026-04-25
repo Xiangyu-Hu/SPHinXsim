@@ -1,34 +1,22 @@
 {
-  "domain": {
-    "upper_bound": [5.366, 5.366],
-    "lower_bound": [0.0, 0.0]
-  },
-  "particle_spacing": 0.025,
-  "particle_boundary_buffer": 4,
-  "particle_sort_frequency": 100,
-  "fluid_bodies": [
-    {
-      "name": "WaterBody",
-      "geometry": {
+  "simulation_type": "fluid_dynamics",
+  "geometries": {
+    "system_domain": {
+      "upper_bound": [5.366, 5.366],
+      "lower_bound": [0.0, 0.0]
+    },
+    "global_resolution": {
+      "particle_spacing": 0.025
+    },
+    "shapes": [
+      {
+        "name": "WaterBody",
         "type": "bounding_box",
         "lower_bound": [-0.1, 1.0],
         "upper_bound": [0.2, 1.125]
       },
-      "material": {
-        "type": "weakly_compressible_fluid",
-        "density": 1.0,
-        "sound_speed": 20.0
-      },
-      "particle_reserve_factor": 350.0
-    }
-  ],
-  "solid_bodies": [
-    {
-      "name": "WallBoundary",
-      "material": {
-        "type": "rigid_body"
-      },
-      "geometry": {
+      {
+        "name": "WallBoundary",
         "type": "multipolygon",
         "polygons": [
           {
@@ -46,16 +34,60 @@
           }
         ]
       }
+    ],
+    "aligned_boxes": [
+      {
+        "name": "Inlet",
+        "type": "region",
+        "half_size": [0.15, 0.0625],
+        "transform": {
+          "translation": [0.05, 1.0625],
+          "rotation_angle": 0.0
+        }
+      }
+    ]
+  },
+  "particle_generation": {
+    "build_and_run": false,
+    "settings": {
+      "bodies": [
+        {
+          "name": "WaterBody"
+        },
+        {
+          "name": "WallBoundary",
+          "solid_body": {}
+        }
+      ],
+      "relaxation_parameters": {
+        "total_iterations": 1000
+      }
+    }
+  },
+  "fluid_bodies": [
+    {
+      "name": "WaterBody",
+      "material": {
+        "type": "weakly_compressible_fluid",
+        "density": 1.0,
+        "sound_speed": 20.0
+      },
+      "particle_reserve_factor": 350.0
+    }
+  ],
+  "solid_bodies": [
+    {
+      "name": "WallBoundary",
+      "material": {
+        "type": "rigid_body"
+      }
     }
   ],
   "fluid_boundary_conditions": [
     {
       "body_name": "WaterBody",
+      "aligned_box": "Inlet",
       "type": "emitter",
-      "alignment_axis": 0,
-      "half_size": [0.15, 0.0625],
-      "translation": [0.05, 1.0625],
-      "rotation_angle": 0.0,
       "inflow_speed": 2.0
     }
   ],
@@ -63,12 +95,22 @@
   "observers": [
     {
       "name": "FluidObserver",
+      "observed_body": "WaterBody",
+      "variable": {
+        "real_type": "Pressure"
+      },
       "positions": [[5.366, 0.2]]
     }
   ],
-  "solver": {
-    "dual_time_stepping": true,
-    "free_surface_correction": true
-  },
-  "end_time": 30.0
+  "solver_parameters": {
+    "end_time": 30.0,
+    "output_interval": 0.01,
+    "screen_interval": 100,
+    "fluid_dynamics": {
+      "acoustic_cfl": 0.6,
+      "advection_cfl": 0.25,
+      "flow_type": "free_surface",
+      "particle_sort_frequency": 100
+    }
+  }
 }

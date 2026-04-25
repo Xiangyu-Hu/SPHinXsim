@@ -48,35 +48,37 @@ class TestMockLLM:
 
     def test_physics_fluid(self):
         cfg = self.llm.generate("water dam break simulation")
-        assert cfg.fluid_bodies[0]["name"]
+        assert cfg.fluid_bodies[0].name
 
     def test_physics_solid(self):
         cfg = self.llm.generate("elastic beam bending under load")
-        assert cfg.particle_spacing > 0
+        assert cfg.simulation_type.value == "continuum_dynamics"
 
     def test_physics_fsi(self):
         cfg = self.llm.generate("hydroelastic fluid-structure interaction")
-        assert cfg.end_time is not None
+        assert cfg.solver_parameters.end_time is not None
 
     def test_name_extracted(self):
         cfg = self.llm.generate("water flowing through a pipe at 2 m/s")
-        assert len(cfg.fluid_bodies[0]["name"]) > 0
+        assert len(cfg.fluid_bodies[0].name) > 0
 
     def test_velocity_override(self):
         cfg = self.llm.generate("water flowing at 3 m/s through a channel")
-        assert cfg.fluid_bodies[0]["material"]["sound_speed"] == pytest.approx(30.0)
+        assert cfg.fluid_bodies[0].material.sound_speed == pytest.approx(30.0)
 
     def test_end_time_override(self):
         cfg = self.llm.generate("simulate for 5 s")
-        assert cfg.end_time == pytest.approx(5.0)
+        assert cfg.solver_parameters.end_time == pytest.approx(5.0)
 
     def test_domain_override(self):
         cfg = self.llm.generate("simulate water in a 2 m domain")
-        assert cfg.domain.dimensions == [2.0, 2.0]
+        assert cfg.geometries.system_domain is not None
+        assert cfg.geometries.system_domain.upper_bound == [2.0, 2.0]
 
     def test_resolution_override(self):
         cfg = self.llm.generate("water flow with 5 mm resolution")
-        assert cfg.particle_spacing == pytest.approx(0.005)
+        assert cfg.geometries.global_resolution is not None
+        assert cfg.geometries.global_resolution.particle_spacing == pytest.approx(0.005)
 
     def test_empty_description_raises(self):
         with pytest.raises(ValueError, match="description must not be empty"):
@@ -105,12 +107,12 @@ class TestMockLLM:
     def test_update_changes_existing_end_time(self):
         base = self.llm.generate("water flow")
         updated = self.llm.update(base, "simulate for 3 s")
-        assert updated.end_time == pytest.approx(3.0)
+        assert updated.solver_parameters.end_time == pytest.approx(3.0)
 
     def test_update_changes_end_time_with_second_wording(self):
         base = self.llm.generate("water flow")
         updated = self.llm.update(base, "the end time is 3 second.")
-        assert updated.end_time == pytest.approx(3.0)
+        assert updated.solver_parameters.end_time == pytest.approx(3.0)
 
     def test_update_adds_observer(self):
         base = self.llm.generate("water flow")

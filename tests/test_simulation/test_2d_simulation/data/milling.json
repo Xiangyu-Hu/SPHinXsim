@@ -95,6 +95,17 @@
     }
   ],
 
+  "extra_state_recording": [
+    {
+      "name": "ProcessingPiece",
+      "variables": [{ "real_type": ["Pressure", "IntactFactor"] }]
+    },
+    {
+      "name": "MillingTool",
+      "variables": [{ "vector_type": ["NormalDirection", "Velocity"] }]
+    }
+  ],
+
   "solver_parameters": {
     "end_time": 0.1,
     "output_interval": 0.01,

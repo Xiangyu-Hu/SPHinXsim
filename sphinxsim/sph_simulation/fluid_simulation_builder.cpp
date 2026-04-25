@@ -76,8 +76,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     auto &fluid_acoustic_time_step = main_methods.addReduceDynamics<fluid_dynamics::AcousticTimeStepCK<>>(
         fluid_body, fluid_solver_config.acoustic_cfl_);
     //----------------------------------------------------------------------
-    // Define the methods for I/O operations, observations
-    // and monitoring of reduced information
+    // Define basic state recording for visualization the simulation results.
     //----------------------------------------------------------------------
     auto &body_state_recorder = createBodyStatesRecording(sph_system, config_manager, main_methods, config);
     //----------------------------------------------------------------------

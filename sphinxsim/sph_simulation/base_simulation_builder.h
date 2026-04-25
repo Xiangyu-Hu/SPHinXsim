@@ -143,15 +143,11 @@ class SimulationBuilder
 
   protected:
     void buildFluidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
-    void addContinuumBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
+    void buildContinuumBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void buildSolidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
 
     template <class MethodContainerType>
     void buildObservationIfPresent(SPHSimulation &sim, MethodContainerType &main_methods, const json &config);
-
-    template <class MethodContainerType>
-    IODynamicsGroup &addObserveRecorder(
-        SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
 
     template <class MethodContainerType>
     BodyStatesRecording &createBodyStatesRecording(
@@ -173,6 +169,10 @@ class SimulationBuilder
 
     template <class MethodContainerType>
     ParticleDynamicsGroup &createObserverConfigurationDynamics(
+        SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
+
+    template <class MethodContainerType>
+    IODynamicsGroup &addObserveRecorder(
         SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
 
     template <class MethodContainerType, class ObserverRelationType>

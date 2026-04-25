@@ -73,7 +73,7 @@ void SimulationBuilder::buildFluidBodies(
     }
 }
 //=================================================================================================//
-void SimulationBuilder::addContinuumBodies(
+void SimulationBuilder::buildContinuumBodies(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
     for (const auto &cb : config)

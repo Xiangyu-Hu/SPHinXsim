@@ -15,7 +15,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     //	Creating bodies with inital shape, materials and particles.
     //----------------------------------------------------------------------
-    addContinuumBodies(sph_system, config_manager, config.at("continuum_bodies"));
+    buildContinuumBodies(sph_system, config_manager, config.at("continuum_bodies"));
     buildSolidBodies(sph_system, config_manager, config.at("solid_bodies"));
     //----------------------------------------------------------------------
     //	Define body relation map.
@@ -80,17 +80,17 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
         solid_dynamics::RepulsionForceCK, Wall>(
         continuum_solid_contact, continuum_solver_parameters.contact_numerical_damping_);
     //----------------------------------------------------------------------
-    //	Define the methods for I/O operations, observations
-    //	and regression tests of the simulation.
+    // Define basic state recording for visualization the simulation results.
     //----------------------------------------------------------------------
-    auto &body_state_recorder = main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(sph_system);
-    for (auto &solid_body : solid_bodies)
-    {
-        body_state_recorder.addToWrite<Vecd>(*solid_body, "NormalDirection");
-        body_state_recorder.addToWrite<Vecd>(*solid_body, "Velocity");
-    }
-    body_state_recorder.addToWrite<Real>(continuum_body, "Pressure");
-    body_state_recorder.addToWrite<Real>(continuum_body, "IntactFactor");
+    auto &body_state_recorder = createBodyStatesRecording(sph_system, config_manager, main_methods, config);
+    //----------------------------------------------------------------------
+    //	Define time-integration method, screen out uput and observation sample rate.
+    //----------------------------------------------------------------------
+    auto &solver_common_config = config_manager.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
+    auto &time_stepper = sph_solver.getTimeStepper();
+    auto &advection_step = time_stepper.addTriggerByInterval(continuum_advection_time_step.exec());
+    auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config.output_interval_);
+    time_stepper.setScreeningInterval(solver_common_config.screen_interval_);
     //----------------------------------------------------------------------
     //	Define Preparation or initialization step for the time integration loop.
     //----------------------------------------------------------------------
@@ -109,15 +109,6 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
 
             body_state_recorder.writeToFile();
         });
-
-    //----------------------------------------------------------------------
-    //	Define time-integration method, screen out uput and observation sample rate.
-    //----------------------------------------------------------------------
-    auto &solver_common_config = config_manager.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
-    auto &time_stepper = sph_solver.getTimeStepper();
-    auto &advection_step = time_stepper.addTriggerByInterval(continuum_advection_time_step.exec());
-    auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config.output_interval_);
-    time_stepper.setScreeningInterval(solver_common_config.screen_interval_);
     //----------------------------------------------------------------------
     //	Define time-integration method.
     //  Here we use dual time stepping with acoustic and advection steps.

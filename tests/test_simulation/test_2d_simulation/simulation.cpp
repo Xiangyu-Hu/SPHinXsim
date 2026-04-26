@@ -11,18 +11,29 @@
 
 TEST(simulations, dambreak)
 {
-    SPH::SPHSimulation sim("input/dambreak.json");
+    SPH::SPHSimulation sim("./input/dambreak.json");
+    sim.resetOutputRoot("./dambreak");
     sim.loadConfig();
     sim.initializeSimulation();
-    sim.run(20.0);
+    sim.run();
 }
 
 TEST(simulations, filling_tank)
 {
-    SPH::SPHSimulation sim("input/filling_tank.json");
+    SPH::SPHSimulation sim("./input/filling_tank.json");
+    sim.resetOutputRoot("./filling_tank", true);
     sim.loadConfig();
     sim.initializeSimulation();
-    sim.run(30.0);
+    sim.run();
+}
+
+TEST(simulations, milling)
+{
+    SPH::SPHSimulation sim("./input/milling.json");
+    sim.resetOutputRoot("./milling", true);
+    sim.loadConfig();
+    sim.initializeSimulation();
+    sim.run();
 }
 
 int main(int argc, char *argv[])

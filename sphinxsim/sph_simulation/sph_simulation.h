@@ -32,101 +32,59 @@
 #ifndef SPH_SIMULATION_H
 #define SPH_SIMULATION_H
 
-#include "base_data_type_package.h"
-#include "sph_simulation_builder.h"
-#include "sph_simulation_json.h"
+#include "base_simulation_builder.h"
 #include "sphinxsys.h"
 
-#include <optional>
+#include <filesystem>
+namespace fs = std::filesystem;
 
 namespace SPH
 {
-/**
- * @class SPHSimulation
- * @brief High-level facade for a 2D or 3D SPH simulation using the CK execution
- * backend.
- *
- * Typical usage:
- * @code
- *   SPHSimulation sim("config.json");
- *   sim.loadConfig();
- *   sim.initializeSimulation();
- *   sim.run(20.0);
- * @endcode
- *
- * The JSON config schema is:
- * @code
- * {
- *   "domain"      : { "lower_bound": [0.0, 0.0], "upper_bound": [DL, DH] },
- *   "particle_spacing": 0.02,
- *   "particle_boundary_buffer": 4,
- *   "fluid_bodies" : [{
- *     "name": "Water",
- *     "geometry": { "type": "bounding_box",
- *                   "lower_bound": [0.0, 0.0], "upper_bound": [LL, LH] },
- *     "material": { "type": "weakly_compressible_fluid",
- *                   "density": 1000.0, "sound_speed": 20.0 }
- *   }],
- *   "solid_bodies" : [{
- *     "name": "Tank",
- *     "geometry": { "type": "container_box",
- *                   "inner_lower_bound": [0.0, 0.0], "inner_upper_bound": [DL, DH],
- *                   "thickness": 0.08 },
- *     "material": { "type": "rigid_body" }
- *   }],
- *   "gravity"     : [0.0, -9.81],
- *   "observers"   : [{ "name": "Probe", "positions": [[0.5, 0.2]] }],
- *   "solver"      : { "dual_time_stepping": true, "free_surface_correction": true },
- *   "end_time"    : 20.0
- * }
- * @endcode
- */
+class GeometryBuilder;
+class SimulationBuilder;
+class ParticleGeneration;
+
 class SPHSimulation
 {
   public:
     SPHSimulation(const fs::path &config_path);
-    ~SPHSimulation() {};
-
-    /** Override output/restart/reload root folder (mainly for tests). */
-    void resetOutputRoot(const fs::path &output_root);
-
-    /** Build all SPH objects and run the simulation until end_time. */
-    void run(Real end_time);
-
-    /** Build the simulation from a JSON object (see class docstring). */
-    void buildSimulationFromJson(const json &config);
-
-    /** Initialize all executable dynamics after a successful build. */
-    void initializeSimulation();
-
-    /** Load JSON config from the path given at construction, then build simulation. */
+    ~SPHSimulation();
+    void resetOutputRoot(const fs::path &output_root, bool keep_existing = false);
     void loadConfig();
+    void runParticleGeneration();
+    void initializeSimulation();
+    void run();
+    void stepTo(Real target_time);
+    void stepBy(Real interval);
+
+  protected:
+    friend class SimulationBuilder;
+    friend class ParticleGeneration;
+    friend class FluidSimulationBuilder;
+    friend class ContinuumSimulationBuilder;
+    friend class ConstraintBuilder;
+
+    SPHSystem &defineSPHSystem();
+    SPHSolver &defineSPHSolver(SimulationBuilder &simulation_builder, const json &config);
+    SPHSystem &getSPHSystem() { return *sph_system_ptr_; };
+    SPHSolver &getSPHSolver() { return *sph_solver_ptr_; };
+    EntityManager &getConfigManager();
+    StagePipeline<InitializationHookPoint> &getInitializationPipeline();
+    StagePipeline<SimulationHookPoint> &getSimulationPipeline();
 
   private:
     std::filesystem::path config_path_;
-    std::unique_ptr<SPHSystem> sph_system_ptr_;
-    EntityManager entity_manager_;
+    EntityManager config_manager_;
     StagePipeline<InitializationHookPoint> initialization_pipeline_;
     StagePipeline<SimulationHookPoint> simulation_pipeline_;
-    std::unique_ptr<SPHSolver> sph_solver_;
-    std::unique_ptr<SolverConfig> solver_config_;
-    Real end_time_{0.0};
-    size_t advection_steps_{1};
-    bool executable_state_ready_{false};
+    std::unique_ptr<GeometryBuilder> geometry_builder_ptr_;
+    std::unique_ptr<ParticleGeneration> particle_generation_ptr_;
+    std::unique_ptr<SPHSystem> sph_system_ptr_;
+    std::unique_ptr<SPHSolver> sph_solver_ptr_;
+    bool executable_simulation_state_ready_{false};
 
-    SPHSystem &defineSPHSystem(const json &config);
-    Shape &addShape(SPHSystem &sph_system, const json &config);
-    void addMaterial(EntityManager &entity_manager, SPHBody &sph_body, const json &config);
-    template <class MethodContainerType>
-    void addFluidBoundaryConditions(MethodContainerType &method_container, EntityManager &entity_manager, const json &config);
-    GeometricOps parseGeometricOp(const std::string &op_str);
-#ifdef SPHINXSYS_2D
-    MultiPolygon parseMultiPolygon(const json &config);
-#endif
-    FluidBody &addFluidBody(SPHSystem &sph_system, const json &config);
-    SolidBody &addSolidBody(SPHSystem &sph_system, const json &config);
-    ObserverBody &addObserver(SPHSystem &sph_system, const json &config);
-    SolverConfig &useSolver(const json &config);
+    void buildSimulationFromJson(const json &config);
+    void createParticlesGeneration(const json &config);
 };
 } // namespace SPH
 #endif // SPH_SIMULATION_H

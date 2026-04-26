@@ -1,0 +1,136 @@
+{
+  "simulation_type": "fluid_dynamics",
+
+  "geometries": {
+    "global_resolution": { "min_dimension_particles": 25 },
+    "shapes": [
+      {
+        "name": "BloodBody",
+        "type": "triangle_mesh",
+        "file_path": "./input/blood.stl",
+        "scale": 0.001
+      },
+      {
+        "name": "WallBoundary",
+        "type": "triangle_mesh",
+        "file_path": "./input/t_pipe.stl",
+        "scale": 0.001
+      }
+    ],
+    "aligned_boxes": [
+      {
+        "name": "Inlet",
+        "type": "in_outlet",
+        "center": [-0.01, 0.0, 0.0],
+        "normal": [1.0, 0.0, 0.0],
+        "radius": 0.00185
+      },
+      {
+        "name": "UpperOutlet",
+        "type": "in_outlet",
+        "center": [0.005, 0.03, 0.0],
+        "normal": [0.0, -1.0, 0.0],
+        "radius": 0.00145
+      },
+      {
+        "name": "LowerOutlet",
+        "type": "in_outlet",
+        "center": [0.005, -0.03, 0.0],
+        "normal": [0.0, 1.0, 0.0],
+        "radius": 0.00121
+      }
+    ]
+  },
+
+  "particle_generation": {
+    "build_and_run": true,
+    "settings": {
+      "bodies": [
+        {
+          "name": "BloodBody",
+          "relaxation": { "dependent_bodies": ["WallBoundary"] }
+        },
+        {
+          "name": "WallBoundary",
+          "relaxation": { "level_set": {} },
+          "solid_body": {}
+        }
+      ],
+      "relaxation_constraints": [
+        {
+          "body_name": "BloodBody",
+          "aligned_box": "Inlet",
+          "type": "normal"
+        },
+        {
+          "body_name": "BloodBody",
+          "aligned_box": "UpperOutlet",
+          "type": "normal"
+        },
+        {
+          "body_name": "BloodBody",
+          "aligned_box": "LowerOutlet",
+          "type": "normal"
+        }
+      ],
+      "relaxation_parameters": {
+        "total_iterations": 1000
+      }
+    }
+  },
+
+  "fluid_bodies": [
+    {
+      "name": "BloodBody",
+      "material": {
+        "type": "weakly_compressible_fluid",
+        "density": 1060.0,
+        "sound_speed": 6.0,
+        "viscosity": 0.0035
+      },
+      "particle_reserve_factor": 0.2
+    }
+  ],
+
+  "solid_bodies": [
+    {
+      "name": "WallBoundary",
+      "material": {
+        "type": "rigid_body"
+      }
+    }
+  ],
+
+  "fluid_boundary_conditions": [
+    {
+      "body_name": "BloodBody",
+      "aligned_box": "Inlet",
+      "type": "bi_directional",
+      "pressure": 133.0
+    },
+    {
+      "body_name": "BloodBody",
+      "aligned_box": "UpperOutlet",
+      "type": "bi_directional",
+      "pressure": 0.0
+    },
+    {
+      "body_name": "BloodBody",
+      "aligned_box": "LowerOutlet",
+      "type": "bi_directional",
+      "pressure": 0.0
+    }
+  ],
+
+  "solver_parameters": {
+    "end_time": 0.1,
+    "output_interval": 0.01,
+    "screen_interval": 100,
+    "fluid_dynamics": {
+      "acoustic_cfl": 0.6,
+      "advection_cfl": 0.25,
+      "flow_type": "open_boundary",
+      "particle_sort_frequency": 100
+    }
+  }
+}

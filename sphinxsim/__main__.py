@@ -20,6 +20,7 @@ def _find_project_root(start=None):
 PROJECT_ROOT = _find_project_root()
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "build-integrated"))
+sys.path.insert(0, os.path.join(PROJECT_ROOT, "sphinxsim", "bindings", "native"))
 
 from sphinxsim.cli import main
 

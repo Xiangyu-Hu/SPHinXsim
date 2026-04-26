@@ -35,14 +35,20 @@ PYBIND11_MODULE(MODULE_NAME, m)
     py::class_<SPHSimulation>(m, "SPHSimulation")
         .def(py::init<const std::filesystem::path &>(), py::arg("config_path"),
              "Initialize SPHSimulation with path to JSON config file")
-        .def("resetOutputRoot", &SPHSimulation::resetOutputRoot, py::arg("output_root"),
+        .def("resetOutputRoot", &SPHSimulation::resetOutputRoot, py::arg("output_root"), py::arg("keep_existing") = false,
              "Override output/restart/reload root folder. Call before loadConfig().")
         .def("loadConfig", &SPHSimulation::loadConfig,
              "Build simulation from JSON file specified at initialization")
+        .def("runParticleGeneration", &SPHSimulation::runParticleGeneration,
+             "Run particle generation / relaxation workflow when configured")
         .def("initializeSimulation", &SPHSimulation::initializeSimulation,
              "Initialize executable simulation state after build and before run")
-        .def("run", &SPHSimulation::run, py::arg("end_time"),
-             "Run simulation until end_time (requires initializeSimulation first)");
+        .def("run", &SPHSimulation::run,
+             "Run simulation until solver_parameters.end_time (requires initializeSimulation first)")
+        .def("stepTo", &SPHSimulation::stepTo, py::arg("target_time"),
+             "Advance simulation to target physical time")
+        .def("stepBy", &SPHSimulation::stepBy, py::arg("interval"),
+             "Advance simulation by interval in physical time");
 
     // Module version info
     m.attr("__version__") = "0.1.0";

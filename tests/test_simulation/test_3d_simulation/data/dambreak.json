@@ -1,0 +1,105 @@
+{
+  "simulation_type": "fluid_dynamics",
+
+  "geometries": {
+    "system_domain": {
+      "upper_bound": [5.366, 2.0, 0.5],
+      "lower_bound": [0.0, 0.0, 0.0]
+    },
+    "global_resolution": { "particle_spacing": 0.05 },
+    "shapes": [
+      {
+        "name": "WaterBody",
+        "type": "bounding_box",
+        "lower_bound": [0.0, 0.0, 0.0],
+        "upper_bound": [2.0, 1.0, 0.5]
+      },
+      {
+        "name": "WallInnerBox",
+        "type": "bounding_box",
+        "lower_bound": [0.0, 0.0, 0.0],
+        "upper_bound": [5.366, 2.0, 0.5]
+      },
+      {
+        "name": "WallOuterBox",
+        "type": "expanded_box",
+        "original": "WallInnerBox",
+        "expansion": 0.1
+      },
+      {
+        "name": "WallBoundary",
+        "type": "complex_shape",
+        "sub_shapes": ["WallOuterBox", "WallInnerBox"],
+        "operations": ["union", "subtraction"]
+      }
+    ]
+  },
+
+  "particle_generation": {
+    "build_and_run": true,
+    "settings": {
+      "bodies": [
+        {
+          "name": "WaterBody"
+        },
+        {
+          "name": "WallBoundary",
+          "solid_body": {}
+        }
+      ],
+      "relaxation_parameters": {
+        "total_iterations": 1000
+      }
+    }
+  },
+
+  "fluid_bodies": [
+    {
+      "name": "WaterBody",
+      "material": {
+        "type": "weakly_compressible_fluid",
+        "density": 1.0,
+        "sound_speed": 10.0
+      }
+    }
+  ],
+
+  "solid_bodies": [
+    {
+      "name": "WallBoundary",
+      "material": {
+        "type": "rigid_body"
+      }
+    }
+  ],
+
+  "gravity": [0.0, -1.0, 0.0],
+
+  "observers": [
+    {
+      "name": "FluidObserver",
+      "observed_body": "WaterBody",
+      "variable": { "real_type": "Pressure" },
+      "positions": [
+        [5.366, 0.01, 0.25],
+        [5.366, 0.1, 0.25],
+        [5.366, 0.2, 0.25],
+        [5.366, 0.24, 0.25],
+        [5.366, 0.252, 0.25],
+        [5.366, 0.266, 0.25]
+      ]
+    }
+  ],
+
+  "solver_parameters": {
+    "end_time": 20.0,
+    "output_interval": 0.01,
+    "screen_interval": 100,
+    "fluid_dynamics": {
+      "acoustic_cfl": 0.6,
+      "advection_cfl": 0.25,
+      "flow_type": "free_surface",
+      "particle_sort_frequency": 100
+    }
+  }
+}

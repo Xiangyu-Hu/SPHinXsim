@@ -1,0 +1,66 @@
+#include "material_builder.h"
+
+#include "sphinxsys.h"
+
+namespace SPH
+{
+//=================================================================================================//
+void MaterialBuilder::addMaterial(EntityManager &config_manager, SPHBody &sph_body, const json &config)
+{
+    const std::string type = config.at("type").get<std::string>();
+
+    if (type == "weakly_compressible_fluid")
+    {
+        Real density = config.at("density").get<Real>();
+        Real sound_speed = config.at("sound_speed").get<Real>();
+        if (config.contains("viscosity"))
+        {
+            Real viscosity = config.at("viscosity").get<Real>();
+            auto &material = sph_body.defineClosure<WeaklyCompressibleFluid, Viscosity>(
+                ConstructArgs(density, sound_speed), viscosity);
+            config_manager.addEntity(sph_body.getName() + "WeaklyCompressibleFluid", &material);
+            config_manager.addEntity(sph_body.getName() + "Viscosity", DynamicCast<Viscosity>(this, &material));
+            return;
+        }
+        auto &material = sph_body.defineMaterial<WeaklyCompressibleFluid>(density, sound_speed);
+        config_manager.addEntity(sph_body.getName() + "WeaklyCompressibleFluid", &material);
+        return;
+    }
+
+    if (type == "rigid_body")
+    {
+        auto &material = sph_body.defineMaterial<Solid>();
+        config_manager.addEntity(sph_body.getName() + "RigidBody", &material);
+        return;
+    }
+
+    if (type == "j2_plasticity")
+    {
+        Real density = config.at("density").get<Real>();
+        Real sound_speed = config.at("sound_speed").get<Real>();
+        Real youngs_modulus = config.at("youngs_modulus").get<Real>();
+        Real poisson_ratio = config.at("poisson_ratio").get<Real>();
+        Real yield_stress = config.at("yield_stress").get<Real>();
+        Real hardening_modulus = config.at("hardening_modulus").get<Real>();
+        auto &material = sph_body.defineMaterial<J2Plasticity>(
+            density, sound_speed, youngs_modulus, poisson_ratio, yield_stress, hardening_modulus);
+        config_manager.addEntity(sph_body.getName() + "J2Plasticity", &material);
+        return;
+    }
+
+    if (type == "general_continuum")
+    {
+        Real density = config.at("density").get<Real>();
+        Real sound_speed = config.at("sound_speed").get<Real>();
+        Real youngs_modulus = config.at("youngs_modulus").get<Real>();
+        Real poisson_ratio = config.at("poisson_ratio").get<Real>();
+        auto &material = sph_body.defineMaterial<GeneralContinuum>(
+            density, sound_speed, youngs_modulus, poisson_ratio);
+        config_manager.addEntity(sph_body.getName() + "GeneralContinuum", &material);
+        return;
+    }
+
+    throw std::runtime_error("MaterialBuilder::addMaterial: unsupported material: " + type);
+}
+//=================================================================================================//
+} // namespace SPH

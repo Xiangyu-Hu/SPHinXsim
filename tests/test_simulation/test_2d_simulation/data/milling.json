@@ -1,0 +1,128 @@
+{
+  "geometries": {
+    "system_domain": {
+      "upper_bound": [0.08, 0.04],
+      "lower_bound": [-0.08, -0.08]
+    },
+    "global_resolution": { "particle_spacing": 0.0008 },
+    "shapes": [
+      {
+        "name": "ProcessingPiece",
+        "type": "box",
+        "half_size": [0.06, 0.02],
+        "transform": {
+          "translation": [0.0, -0.051],
+          "rotation_angle": 0.0
+        }
+      },
+      {
+        "name": "MillingTool",
+        "type": "multipolygon",
+        "polygons": [
+          {
+            "operation": "union",
+            "type": "data_file",
+            "file_path": "./input/milling_tool.dat"
+          }
+        ]
+      },
+      {
+        "name": "ClampingRegion",
+        "type": "bounding_box",
+        "lower_bound": [-0.08, -0.08],
+        "upper_bound": [0.08, -0.067]
+      }
+    ]
+  },
+
+  "particle_generation": {
+    "build_and_run": true,
+    "settings": {
+      "bodies": [
+        {
+          "name": "ProcessingPiece"
+        },
+        {
+          "name": "MillingTool",
+          "solid_body": {},
+          "relaxation": { "level_set": {} }
+        }
+      ],
+      "relaxation_parameters": {
+        "total_iterations": 1000
+      }
+    }
+  },
+
+  "simulation_type": "continuum_dynamics",
+
+  "continuum_bodies": [
+    {
+      "name": "ProcessingPiece",
+      "material": {
+        "type": "j2_plasticity",
+        "density": 2.7,
+        "sound_speed": 50.0,
+        "youngs_modulus": 78.2e2,
+        "poisson_ratio": 0.3,
+        "yield_stress": 2.9e1,
+        "hardening_modulus": 1.0
+      }
+    }
+  ],
+
+  "solid_bodies": [
+    {
+      "name": "MillingTool",
+      "material": {
+        "type": "rigid_body"
+      }
+    }
+  ],
+
+  "body_constraints": [
+    {
+      "body_name": "MillingTool",
+      "type": "simbody",
+      "mobilized_body": "planar",
+      "velocity": [0.0, -0.03],
+      "angular_velocity": 2.0
+    },
+    {
+      "body_name": "ProcessingPiece",
+      "type": "fixed",
+      "region": "ClampingRegion"
+    }
+  ],
+
+  "extra_state_recording": [
+    {
+      "name": "ProcessingPiece",
+      "variables": [{ "real_type": ["Pressure", "IntactFactor"] }]
+    },
+    {
+      "name": "MillingTool",
+      "variables": [{ "vector_type": ["NormalDirection", "Velocity"] }]
+    }
+  ],
+
+  "solver_parameters": {
+    "end_time": 0.1,
+    "output_interval": 0.01,
+    "screen_interval": 100,
+    "restart": {
+      "enabled": true,
+      "save_interval": 1000,
+      "restore_step": 0,
+      "summary_enabled": true
+    },
+    "continuum_dynamics": {
+      "acoustic_cfl": 0.4,
+      "advection_cfl": 0.2,
+      "linear_correction_matrix_coeff": 0.5,
+      "contact_numerical_damping": 1.0,
+      "shear_stress_damping": 1.0,
+      "hourglass_factor": 2.0
+    }
+  }
+}

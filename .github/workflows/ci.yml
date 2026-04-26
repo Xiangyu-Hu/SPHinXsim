@@ -8,7 +8,9 @@ on:
        - 'tests/**'
        - 'sphinxsim/**'
        - 'CMakeLists.txt'
+       - 'CMakePresets.json'
        - '*.cmake'
+       - 'pyproject.toml'
   pull_request:
     branches: [main, master]
     paths:
@@ -16,7 +18,9 @@ on:
        - 'tests/**'
        - 'sphinxsim/**'
        - 'CMakeLists.txt'
+       - 'CMakePresets.json'
        - '*.cmake'
+       - 'pyproject.toml'
   workflow_dispatch:
 
 env:
@@ -91,24 +95,15 @@ jobs:
 
       - name: Configure CMake (integrated build)
         run: |
-          cmake -G Ninja \
-            -D CMAKE_BUILD_TYPE=Release \
+          cmake --preset integrated-build-release \
             -D CMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
             -D CMAKE_C_COMPILER_LAUNCHER=ccache \
             -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -D Python3_EXECUTABLE=$(which python3) \
-            -D SPHINXSYS_BUILD_TESTS=OFF \
-            -D SPHINXSYS_DEVELOPER_MODE=OFF \
-            -D SPHINXSYS_USE_SYCL=OFF \
-            -D SPHINXSYS_2D=ON \
-            -D SPHINXSYS_3D=ON \
-            -S ${{ github.workspace }} \
-            -B ${{ github.workspace }}/build-integrated
+            -D Python3_EXECUTABLE=$(which python3)
 
       - name: Build
         run: |
-          cmake --build ${{ github.workspace }}/build-integrated \
-            --config Release \
+          cmake --build --preset integrated-build-release \
             --parallel $(nproc)
 
       - name: Run C++ simulation class tests (ctest)

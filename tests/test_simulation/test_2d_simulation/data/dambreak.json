@@ -1,30 +1,61 @@
 {
-  "domain": {
-    "upper_bound": [
-      5.366,
-      5.366
-    ],
-    "lower_bound": [
-      0.0,
-      0.0
+  "simulation_type": "fluid_dynamics",
+
+  "geometries": {
+    "system_domain": {
+      "upper_bound": [5.366, 5.366],
+      "lower_bound": [0.0, 0.0]
+    },
+    "global_resolution": { "particle_spacing": 0.025 },
+    "shapes": [
+      {
+        "name": "WaterBody",
+        "type": "bounding_box",
+        "lower_bound": [0.0, 0.0],
+        "upper_bound": [2.0, 1.0]
+      },
+      {
+        "name": "WallInnerBox",
+        "type": "bounding_box",
+        "lower_bound": [0.0, 0.0],
+        "upper_bound": [5.366, 5.366]
+      },
+      {
+        "name": "WallOuterBox",
+        "type": "expanded_box",
+        "original": "WallInnerBox",
+        "expansion": 0.1
+      },
+      {
+        "name": "WallBoundary",
+        "type": "complex_shape",
+        "sub_shapes": ["WallOuterBox", "WallInnerBox"],
+        "operations": ["union", "subtraction"]
+      }
     ]
   },
-  "particle_spacing": 0.025,
-  "particle_boundary_buffer": 4,
+
+  "particle_generation": {
+    "build_and_run": true,
+    "settings": {
+      "bodies": [
+        {
+          "name": "WaterBody"
+        },
+        {
+          "name": "WallBoundary",
+          "solid_body": {}
+        }
+      ],
+      "relaxation_parameters": {
+        "total_iterations": 1000
+      }
+    }
+  },
+
   "fluid_bodies": [
     {
       "name": "WaterBody",
-      "geometry": {
-        "type": "bounding_box",
-        "lower_bound": [
-          0.0,
-          0.0
-        ],
-        "upper_bound": [
-          2.0,
-          1.0
-        ]
-      },
       "material": {
         "type": "weakly_compressible_fluid",
         "density": 1.0,
@@ -32,44 +63,47 @@
       }
     }
   ],
+
   "solid_bodies": [
     {
       "name": "WallBoundary",
       "material": {
         "type": "rigid_body"
-      },
-      "geometry": {
-        "type": "container_box",
-        "inner_lower_bound": [
-          0.0,
-          0.0
-        ],
-        "inner_upper_bound": [
-          5.366,
-          5.366
-        ],
-        "thickness": 0.1
       }
     }
   ],
-  "gravity": [
-    0.0,
-    -1.0
-  ],
+
+  "gravity": [0.0, -1.0],
+
   "observers": [
     {
       "name": "FluidObserver",
-      "positions": [
-        [
-          5.366,
-          0.2
-        ]
-      ]
+      "observed_body": "WaterBody",
+      "variable": { "real_type": "Pressure" },
+      "positions": [[5.366, 0.2]]
     }
   ],
-  "solver": {
-    "dual_time_stepping": true,
-    "free_surface_correction": true
-  },
-  "end_time": 20.0
+
+  "extra_state_recording": [
+    {
+      "name": "WaterBody",
+      "variables": [{ "real_type": ["Density"] }]
+    },
+    {
+      "name": "WallBoundary",
+      "variables": [{ "vector_type": ["NormalDirection"] }]
+    }
+  ],
+
+  "solver_parameters": {
+    "end_time": 20.0,
+    "output_interval": 0.01,
+    "screen_interval": 100,
+    "fluid_dynamics": {
+      "acoustic_cfl": 0.6,
+      "advection_cfl": 0.25,
+      "flow_type": "free_surface",
+      "particle_sort_frequency": 100
+    }
+  }
 }

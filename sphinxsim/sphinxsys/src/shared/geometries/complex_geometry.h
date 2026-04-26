@@ -49,7 +49,7 @@ namespace SPH
 class ComplexShape : public BinaryShapes
 {
   public:
-    explicit ComplexShape(const std::string &shape_name)
+    explicit ComplexShape(const std::string &shape_name = "ComplexShape")
         : BinaryShapes(shape_name) {};
     virtual ~ComplexShape() {};
 
@@ -76,8 +76,8 @@ class AlignedBox : public TransformGeometry<GeometricBox>
   public:
     /** construct directly */
     template <typename... Args>
-    explicit AlignedBox(int upper_bound_axis, const Transform &transform, Args &&...args)
-        : TransformGeometry<GeometricBox>(transform, std::forward<Args>(args)...),
+    explicit AlignedBox(int upper_bound_axis, Args &&...args)
+        : TransformGeometry<GeometricBox>(std::forward<Args>(args)...),
           alignment_axis_(upper_bound_axis){};
     /** construct from a shape already has aligned boundaries */
     template <typename... Args>
@@ -88,7 +88,7 @@ class AlignedBox : public TransformGeometry<GeometricBox>
           alignment_axis_(upper_bound_axis){};
     ~AlignedBox() {};
 
-    Vecd HalfSize() { return halfsize_; }
+    Vecd HalfSize() const { return halfsize_; }
     bool checkNearSurface(const Vecd &probe_point, Real threshold);
     bool checkNotFar(const Vecd &probe_point, Real threshold);
     bool checkInBounds(const Vecd &probe_point, Real lower_bound_fringe = 0.0, Real upper_bound_fringe = 0.0)

@@ -34,6 +34,7 @@ def _find_project_root(start=None):
 PROJECT_ROOT = _find_project_root()
 sys.path.insert(0, PROJECT_ROOT)
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "build-integrated"))
+sys.path.insert(0, os.path.join(PROJECT_ROOT, "sphinxsim", "bindings", "native"))
 original_dir = os.getcwd()
 
 # NOW import everything else
@@ -46,7 +47,6 @@ from pydantic import ValidationError
 
 from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.llm import get_llm
-import _sphinxsys_core_2d as sph
 
 # Convert PROJECT_ROOT to Path after imports
 PROJECT_ROOT = Path(PROJECT_ROOT)
@@ -161,35 +161,41 @@ def cmd_validate(args: argparse.Namespace) -> int:
         return rc
     assert config is not None
     print(f"✅ Generated configuration:")
-    print(f"   Domain lower bound: {config.domain.lower_bound}")
-    print(f"   Domain upper bound: {config.domain.upper_bound}")
-    print(f"   Domain dimensions: {config.domain.dimensions}")
-    print(f"   Particle spacing: {config.particle_spacing}")
-    print(f"   Particle boundary buffer: {config.particle_boundary_buffer}")
+    print(f"   Simulation type: {config.simulation_type.value}")
+    print(f"   Shapes: {len(config.geometries.shapes)}")
+    print(f"   Aligned boxes: {len(config.geometries.aligned_boxes)}")
+    if config.geometries.system_domain is not None:
+        print(f"   Domain lower bound: {config.geometries.system_domain.lower_bound}")
+        print(f"   Domain upper bound: {config.geometries.system_domain.upper_bound}")
+    if config.geometries.global_resolution is not None:
+        print(f"   Global resolution: {config.geometries.global_resolution.model_dump(exclude_none=True)}")
+
     print(f"   Fluid bodies: {len(config.fluid_bodies)}")
     for body in config.fluid_bodies:
-        geometry = body.get("geometry", {})
-        material = body.get("material", {})
         print(
             "     - "
-            f"{body.get('name', '(unnamed)')}: "
-            f"geometry={geometry.get('type')}, "
-            f"material={material.get('type')}"
+            f"{body.name}: "
+            f"material={body.material.type.value}"
+        )
+    print(f"   Continuum bodies: {len(config.continuum_bodies)}")
+    for body in config.continuum_bodies:
+        print(
+            "     - "
+            f"{body.name}: "
+            f"material={body.material.type.value}"
         )
     print(f"   Solid bodies: {len(config.solid_bodies)}")
     for body in config.solid_bodies:
-        geometry = body.get("geometry", {})
-        material = body.get("material", {})
         print(
             "     - "
-            f"{body.get('name', '(unnamed)')}: "
-            f"geometry={geometry.get('type')}, "
-            f"material={material.get('type')}"
+            f"{body.name}: "
+            f"material={body.material.type.value}"
         )
     if config.gravity is not None:
         print(f"   Gravity: {config.gravity}")
     print(f"   Observers: {len(config.observers)}")
-    print(f"   End time: {config.end_time if config.end_time is not None else '(set at runtime)'}")
+    end_time = config.solver_parameters.end_time
+    print(f"   End time: {end_time if end_time is not None else '(set by solver defaults)'}")
     
     # Validate config can round-trip through JSON
     config_json = config.model_dump_json(indent=2, exclude_none=True)
@@ -206,12 +212,20 @@ def cmd_run(args: argparse.Namespace) -> int:
         return rc
     assert config is not None
 
+    try:
+        import _sphinxsys_core_2d as sph
+    except ImportError:
+        print("❌ C++ extension not available", file=sys.stderr)
+        print("\n🔧 Please build the C++ extension:", file=sys.stderr)
+        print("   cd sphinxsim/sphinxsys", file=sys.stderr)
+        print("   cmake --preset integrated-build", file=sys.stderr)
+        print("   ninja -C ../../build-integrated", file=sys.stderr)
+        return 1
+
     if not config_path.is_absolute():
         config_path = PROJECT_ROOT / ".build-temp" / config_path
 
-    # Write the Pydantic-validated config (new-format JSON) to a temp file so
-    # the C++ engine always receives upper_bound/lower_bound, fluid_bodies and
-    # solid_bodies regardless of what the original file contained.
+    # Write the Pydantic-validated config to a temp file before passing to C++.
     tmp_cfg = tempfile.NamedTemporaryFile(
         mode="w", suffix=".json", delete=False, prefix="sphinxsim_run_"
     )
@@ -240,17 +254,24 @@ def cmd_run(args: argparse.Namespace) -> int:
 
         # Run simulation
         print("\n🚀 Running simulation...")
-        sim.run(config.end_time if config.end_time is not None else 1.0)
+        sim.run()
         
         print("✅ Simulation completed successfully!")
         print(f"\n📊 Run summary:")
-        print(f"   End time: {config.end_time if config.end_time is not None else 1.0}s")
-        first_fluid_body_name = config.fluid_bodies[0].get("name", "fluid_body") if config.fluid_bodies else "fluid_body"
-        print(f"   Fluid body: {first_fluid_body_name}")
+        configured_end_time = config.solver_parameters.end_time
+        print(f"   End time: {configured_end_time if configured_end_time is not None else '(solver default)'}")
+        if config.fluid_bodies:
+            first_body_name = config.fluid_bodies[0].name
+            print(f"   Fluid body: {first_body_name}")
+        elif config.continuum_bodies:
+            first_body_name = config.continuum_bodies[0].name
+            print(f"   Continuum body: {first_body_name}")
+        else:
+            first_body_name = "simulation"
         print(f"   Run config: {config_path}")
         
         # Show output location
-        safe_name = first_fluid_body_name.replace(' ', '_').replace('/', '_')[:50]
+        safe_name = first_body_name.replace(' ', '_').replace('/', '_')[:50]
         output_dir = PROJECT_ROOT / ".build-temp" / "simulations" / safe_name
         print(f"\n📁 Simulation output saved to:")
         print(f"   {output_dir}")

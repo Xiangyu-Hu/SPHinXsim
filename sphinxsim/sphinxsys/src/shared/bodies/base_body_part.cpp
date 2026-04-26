@@ -5,10 +5,13 @@
 #include "base_particles.hpp"
 #include "cell_linked_list.hpp"
 #include "complex_geometry.h"
+#include "geometric_shape.h"
 #include "sphinxsys_variable.h"
 
 namespace SPH
 {
+//=================================================================================================//
+Eigen::IOFormat fmt(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", ", ", "", "", " (", ");");
 //=================================================================================================//
 BodyPart::BodyPart(SPHBody &sph_body)
     : sph_body_(sph_body), base_particles_(sph_body.getBaseParticles()),
@@ -218,11 +221,20 @@ AlignedBoxPart::AlignedBoxPart(const std::string &part_name, const AlignedBox &a
                         .createPtr<SingularVariable<AlignedBox>>(part_name, aligned_box)
                         ->Data())
 {
-    std::cout << part_name << " direction facing to fluid domain: "
-              << aligned_box_.getTransform().xformFrameVecToBase(Vecd::UnitX()) << std::endl;
+    std::cout << "\n-------------------------------------------------------------" << std::endl;
+    std::cout << "AlignedBox '" << part_name << "' direction facing to fluid domain: "
+              << aligned_box_.getTransform().xformFrameVecToBase(Vecd::UnitX()).format(fmt) << std::endl;
+    std::cout << "-------------------------------------------------------------" << std::endl;
 }
 //=================================================================================================//
 AlignedBoxPart::~AlignedBoxPart() = default;
+//=================================================================================================//
+void AlignedBoxPart::writeAlignedBoxToVtp()
+{
+    GeometricShapeBox domain_shape(
+        aligned_box_.getTransform(), aligned_box_.HalfSize(), svAlignedBox()->Name());
+    domain_shape.writeGeometricShapeBoxToVtp();
+}
 //=================================================================================================//
 AlignedBoxByParticle::AlignedBoxByParticle(RealBody &real_body, const AlignedBox &aligned_box)
     : BodyPartByParticle(real_body), AlignedBoxPart(part_name_, aligned_box)

@@ -21,31 +21,47 @@
  *                                                                           *
  * ------------------------------------------------------------------------- */
 /**
- * @file    sph_simulation_json.h
+ * @file    geometry_builder.h
  * @brief   TBD.
  * @author  Xiangyu Hu
  */
 
-#ifndef SPH_SIMULATION_JSON_H
-#define SPH_SIMULATION_JSON_H
+#ifndef GEOMETRY_BUILDER_H
+#define GEOMETRY_BUILDER_H
 
-#include "base_data_type_package.h"
-
-#include <filesystem>
-#include <nlohmann/json.hpp>
-using json = nlohmann::json;
+#include "base_simulation_builder.h"
+#include "sphinxsys.h"
 
 namespace SPH
 {
-/** Convert a JSON array [x, y] or [x, y, z] to Vecd (extra elements are
- * ignored). */
-inline Vecd jsonToVecd(const nlohmann::json &arr)
+class EntityManager;
+
+struct SystemDomainConfig
 {
-    Vecd v = Vecd::Zero();
-    const int dim = static_cast<int>(Vecd::RowsAtCompileTime);
-    for (int i = 0; i < std::min(dim, static_cast<int>(arr.size())); ++i)
-        v[i] = arr[i].get<Real>();
-    return v;
-}
+    bool prescribed_spacing_ = true;
+    BoundingBoxd system_bounds_ = BoundingBoxd(Vecd::Constant(Eps));
+    Real particle_spacing_ = Eps;
+    UnsignedInt min_dimension_particles_ = 25;
+    void updateSystemDomainConfig(const BoundingBoxd &shape_bounds);
+    void updateParticleSpacing();
+};
+
+class GeometryBuilder
+{
+  public:
+    void createGeometries(EntityManager &config_manager, const json &config);
+    static BoundingBoxd parseBoundingBox(const json &config);
+    static TransformGeometryBox parseBox(const json &config);
+    GeometricOps parseGeometricOp(const std::string &op_str);
+    SystemDomainConfig parseSystemDomainConfig(const json &config);
+    void parseGlobalResolution(SystemDomainConfig &system_domain_config, const json &config);
+#ifdef SPHINXSYS_2D
+    MultiPolygon parseMultiPolygon(const json &config);
+#endif
+
+  private:
+    Shape *addShape(EntityManager &config_manager, const json &config);
+    GeometricShapeBox addAlignedBox(EntityManager &config_manager, const json &config);
+};
 } // namespace SPH
-#endif // SPH_SIMULATION_JSON_H
+#endif // GEOMETRY_BUILDER_H

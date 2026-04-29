@@ -72,6 +72,7 @@ bool operator==(const UnitMetrics &a, const UnitMetrics &b)
 //=================================================================================================//
 ScalingConfig::ScalingConfig(const json &config)
 {
+    bool user_scaling_provided = false;
     if (config.contains("dimensional_units"))
     {
         bool has_length_unit = false;
@@ -89,7 +90,27 @@ ScalingConfig::ScalingConfig(const json &config)
         }
 
         computeScaling();
+        user_scaling_provided = true;
     }
+
+    std::out << "\n------------------------------------------------------------" << std::endl;
+    if (user_scaling_provided)
+    {
+        std::out << "Derived from user-provided scaling configuration." << std::endl;
+        std::out << "Length: " << scaling_refs_[0] << std::endl;
+        std::out << "Mass: " << scaling_refs_[1] << std::endl;
+        std::out << "Time: " << scaling_refs_[2] << std::endl;
+        std::out << "Temperature: " << scaling_refs_[3] << std::endl;
+        std::out << "ElectricCurrent: " << scaling_refs_[4] << std::endl;
+        std::out << "AmountOfSubstance: " << scaling_refs_[5] << std::endl;
+        std::out << "LuminousIntensity: " << scaling_refs_[6] << std::endl;
+    }
+    else
+    {
+        std::out << "No user-provided scaling configuration found." << std::endl;
+        std::out << "Using default scaling (no scaling)." << std::endl;
+    }
+    std::out << "------------------------------------------------------------" << std::endl;
 }
 //=================================================================================================//
 UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name) const
@@ -168,7 +189,7 @@ Real ScalingConfig::getScalingRef(const std::string &unit_name) const
 }
 //=================================================================================================//
 SimulationBuilder::SimulationBuilder()
-    : material_builder_ptr_(std::make_unique<MaterialBuilder>()){}
+    : material_builder_ptr_(std::make_unique<MaterialBuilder>()) {}
 //=================================================================================================//
 SimulationBuilder ::~SimulationBuilder() = default;
 //=================================================================================================//

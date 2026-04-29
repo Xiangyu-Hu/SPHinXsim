@@ -184,7 +184,7 @@ class AlignedBoxConstraint : public BaseLocalDynamics<AlignedBoxPartType>
     };
 
   protected:
-    SingularVariable<AlignedBox> *sv_aligned_box_;
+    SingleVariable<AlignedBox> *sv_aligned_box_;
     DiscreteVariable<DataType> *dv_variable_;
     ConstraintMethodType constraint_;
 };

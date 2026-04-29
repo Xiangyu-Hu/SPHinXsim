@@ -46,6 +46,22 @@ Rotation getRotationFromXAxis(const Vecd &direction)
 }
 #endif
 //=================================================================================================//
+UnitMetrics operator+(const UnitMetrics &a, const UnitMetrics &b)
+{
+    UnitMetrics r;
+    for (int i = 0; i < 7; ++i)
+        r[i] = a[i] + b[i];
+    return r;
+}
+//=================================================================================================//
+UnitMetrics operator-(const UnitMetrics &a, const UnitMetrics &b)
+{
+    UnitMetrics r;
+    for (int i = 0; i < 7; ++i)
+        r[i] = a[i] - b[i];
+    return r;
+}
+//=================================================================================================//
 SimulationBuilder::SimulationBuilder()
     : material_builder_ptr_(std::make_unique<MaterialBuilder>()) {}
 //=================================================================================================//

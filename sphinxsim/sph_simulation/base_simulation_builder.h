@@ -48,6 +48,16 @@ Transform jsonToTransform(const nlohmann::json &config);
 Rotation getRotationFromXAxis(const Vecd &direction);
 #endif
 
+struct UnitMetrics
+{
+    std::array<int, 7> exp{};
+
+    int &operator[](size_t i) { return exp[i]; }
+    int operator[](size_t i) const { return exp[i]; }
+};
+UnitMetrics operator+(const UnitMetrics &a, const UnitMetrics &b);
+UnitMetrics operator-(const UnitMetrics &a, const UnitMetrics &b);
+
 // Enum for hook points for fast O(1) access
 enum class SimulationHookPoint
 {

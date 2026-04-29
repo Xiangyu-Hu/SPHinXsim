@@ -62,8 +62,113 @@ UnitMetrics operator-(const UnitMetrics &a, const UnitMetrics &b)
     return r;
 }
 //=================================================================================================//
+bool operator==(const UnitMetrics &a, const UnitMetrics &b)
+{
+    for (int i = 0; i < 7; ++i)
+        if (a[i] != b[i])
+            return false;
+    return true;
+}
+//=================================================================================================//
+ScalingConfig::ScalingConfig(const json &config)
+{
+    if (config.contains("dimensional_units"))
+    {
+        bool has_length_unit = false;
+        for (const auto &du : config.at("dimensional_units"))
+        {
+            if (du.at("unit").get<std::string>() == "Length")
+                has_length_unit = true;
+            dimensional_units_.push_back(parseDimensionalUnit(du));
+        }
+
+        if (!has_length_unit)
+        {
+            throw std::runtime_error(
+                "ScalingConfig::ScalingConfig: Length dimension must be provided.");
+        }
+
+        computeScaling();
+    }
+}
+//=================================================================================================//
+UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name) const
+{
+    if (unit_name == "Length")
+        return UnitMetrics{1, 0, 0, 0, 0, 0, 0};
+    if (unit_name == "Mass")
+        return UnitMetrics{0, 1, 0, 0, 0, 0, 0};
+    if (unit_name == "Time")
+        return UnitMetrics{0, 0, 1, 0, 0, 0, 0};
+    if (unit_name == "Temperature")
+        return UnitMetrics{0, 0, 0, 1, 0, 0, 0};
+    if (unit_name == "ElectricCurrent")
+        return UnitMetrics{0, 0, 0, 0, 1, 0, 0};
+    if (unit_name == "AmountOfSubstance")
+        return UnitMetrics{0, 0, 0, 0, 0, 1, 0};
+    if (unit_name == "LuminousIntensity")
+        return UnitMetrics{0, 0, 0, 0, 0, 0, 1};
+    // for continuum dynamics
+    if (unit_name == "Velocity" || unit_name == "Speed")
+        return UnitMetrics{1, 0, -1, 0, 0, 0, 0};
+    if (unit_name == "Acceleration" || unit_name == "Gravity")
+        return UnitMetrics{1, 0, -2, 0, 0, 0, 0};
+    if (unit_name == "Density")
+        return UnitMetrics{-3, 1, 0, 0, 0, 0, 0};
+    if (unit_name == "Stress" || unit_name == "Pressure")
+        return UnitMetrics{-1, 1, -2, 0, 0, 0, 0};
+
+    throw std::runtime_error("ScalingConfig::getUnitMetrics: no supported unit name found!");
+}
+//=================================================================================================//
+DimensionalUnit ScalingConfig::parseDimensionalUnit(const json &config) const
+{
+    DimensionalUnit dimensional_unit;
+    dimensional_unit.value = config.at("value").get<Real>();
+    dimensional_unit.unit_metrics = getUnitMetrics(config.at("unit").get<std::string>());
+    return dimensional_unit;
+}
+//=================================================================================================//
+void ScalingConfig::computeScaling()
+{
+    const int N = dimensional_units_.size();
+    const int D = scaling_refs_.size(); // number of base dimensions
+
+    Eigen::Matrix<Real, Eigen::Dynamic, Eigen::Dynamic> A(N, D);
+    Eigen::Matrix<Real, Eigen::Dynamic, 1> y(N);
+
+    for (int i = 0; i < N; ++i)
+    {
+        y(i) = std::log10(ABS(dimensional_units_[i].value));
+
+        for (int j = 0; j < D; ++j)
+        {
+            A(i, j) = dimensional_units_[i].unit_metrics[j];
+        }
+    }
+
+    // Solve least squares
+    Eigen::Matrix<Real, Eigen::Dynamic, 1> scaling = A.colPivHouseholderQr().solve(y);
+
+    for (int i = 0; i < D; ++i)
+    {
+        scaling_refs_[i] = std::pow(10.0, scaling(i));
+    }
+}
+//=================================================================================================//
+Real ScalingConfig::getScalingRef(const std::string &unit_name) const
+{
+    UnitMetrics unit_metrics = getUnitMetrics(unit_name);
+    Real scaling_factor = 1.0;
+    for (int i = 0; i < scaling_refs_.size(); ++i)
+    {
+        scaling_factor *= std::pow(scaling_refs_[i], unit_metrics[i]);
+    }
+    return scaling_factor;
+}
+//=================================================================================================//
 SimulationBuilder::SimulationBuilder()
-    : material_builder_ptr_(std::make_unique<MaterialBuilder>()) {}
+    : material_builder_ptr_(std::make_unique<MaterialBuilder>()){}
 //=================================================================================================//
 SimulationBuilder ::~SimulationBuilder() = default;
 //=================================================================================================//

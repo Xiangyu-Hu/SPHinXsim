@@ -48,16 +48,6 @@ Transform jsonToTransform(const nlohmann::json &config);
 Rotation getRotationFromXAxis(const Vecd &direction);
 #endif
 
-struct UnitMetrics
-{
-    std::array<int, 7> exp{};
-
-    int &operator[](size_t i) { return exp[i]; }
-    int operator[](size_t i) const { return exp[i]; }
-};
-UnitMetrics operator+(const UnitMetrics &a, const UnitMetrics &b);
-UnitMetrics operator-(const UnitMetrics &a, const UnitMetrics &b);
-
 // Enum for hook points for fast O(1) access
 enum class SimulationHookPoint
 {
@@ -115,6 +105,41 @@ class SPHBody;
 
 template <class ReturnType>
 class BaseDynamics;
+
+struct UnitMetrics
+{
+    // SI base units: length, mass, time, temperature,
+    // amount of substance, electric current, luminous intensity
+    // learned from openFOAM's unit handling.
+    std::array<int, 7> exp = {0, 0, 0, 0, 0, 0, 0};
+
+    int &operator[](size_t i) { return exp[i]; }
+    int operator[](size_t i) const { return exp[i]; }
+};
+UnitMetrics operator+(const UnitMetrics &a, const UnitMetrics &b);
+UnitMetrics operator-(const UnitMetrics &a, const UnitMetrics &b);
+bool operator==(const UnitMetrics &a, const UnitMetrics &b);
+
+struct DimensionalUnit
+{
+    Real value;
+    UnitMetrics unit_metrics;
+};
+
+class ScalingConfig
+{
+  public:
+    ScalingConfig(const json &config);
+    Real getScalingRef(const std::string &unit_name) const;
+
+  private:
+    std::vector<DimensionalUnit> dimensional_units_;
+    Eigen::Array<Real, 7, 1> scaling_refs_ = Eigen::Array<Real, 7, 1>::Ones();
+
+    UnitMetrics getUnitMetrics(std::string unit_name) const;
+    DimensionalUnit parseDimensionalUnit(const json &config) const;
+    void computeScaling();
+};
 
 struct RestartConfig
 {

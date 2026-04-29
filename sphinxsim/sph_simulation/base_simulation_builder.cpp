@@ -93,24 +93,24 @@ ScalingConfig::ScalingConfig(const json &config)
         user_scaling_provided = true;
     }
 
-    std::out << "\n------------------------------------------------------------" << std::endl;
+    std::cout << "\n------------------------------------------------------------" << std::endl;
     if (user_scaling_provided)
     {
-        std::out << "Derived from user-provided scaling configuration." << std::endl;
-        std::out << "Length: " << scaling_refs_[0] << std::endl;
-        std::out << "Mass: " << scaling_refs_[1] << std::endl;
-        std::out << "Time: " << scaling_refs_[2] << std::endl;
-        std::out << "Temperature: " << scaling_refs_[3] << std::endl;
-        std::out << "ElectricCurrent: " << scaling_refs_[4] << std::endl;
-        std::out << "AmountOfSubstance: " << scaling_refs_[5] << std::endl;
-        std::out << "LuminousIntensity: " << scaling_refs_[6] << std::endl;
+        std::cout << "Derived from user-provided scaling configuration." << std::endl;
+        std::cout << "Length: " << scaling_refs_[0] << std::endl;
+        std::cout << "Mass: " << scaling_refs_[1] << std::endl;
+        std::cout << "Time: " << scaling_refs_[2] << std::endl;
+        std::cout << "Temperature: " << scaling_refs_[3] << std::endl;
+        std::cout << "ElectricCurrent: " << scaling_refs_[4] << std::endl;
+        std::cout << "AmountOfSubstance: " << scaling_refs_[5] << std::endl;
+        std::cout << "LuminousIntensity: " << scaling_refs_[6] << std::endl;
     }
     else
     {
-        std::out << "No user-provided scaling configuration found." << std::endl;
-        std::out << "Using default scaling (no scaling)." << std::endl;
+        std::cout << "No user-provided scaling configuration found." << std::endl;
+        std::cout << "Using default scaling (no scaling)." << std::endl;
     }
-    std::out << "------------------------------------------------------------" << std::endl;
+    std::cout << "------------------------------------------------------------" << std::endl;
 }
 //=================================================================================================//
 UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name) const

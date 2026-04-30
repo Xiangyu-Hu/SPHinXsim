@@ -229,7 +229,7 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationConstraints(
         {
             relaxation_constraints.add(
                 &main_methods.template addStateDynamics<ConstantConstraintCK, Vecd>(
-                    real_body, "KernelGradientIntegral", Vecd::Zero()));
+                    body_part, "KernelGradientIntegral", Vecd::Zero()));
         }
     }
     return relaxation_constraints;

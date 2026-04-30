@@ -20,11 +20,12 @@ void SystemDomainConfig::updateParticleSpacing()
 //=================================================================================================//
 void GeometryBuilder::createGeometries(EntityManager &config_manager, const json &config)
 {
+    ScalingConfig &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
     SystemDomainConfig *system_domain_config = config_manager.emplaceEntity<
-        SystemDomainConfig>("SystemDomainConfig", parseSystemDomainConfig(config));
+        SystemDomainConfig>("SystemDomainConfig", parseSystemDomainConfig(scaling_config, config));
     for (const auto &geo : config.at("shapes"))
     {
-        Shape *shape = addShape(config_manager, geo);
+        Shape *shape = addShape(scaling_config, config_manager, geo);
         config_manager.addEntity<Shape>(shape->getName(), shape);
         system_domain_config->updateSystemDomainConfig(shape->getBounds());
     }
@@ -33,41 +34,43 @@ void GeometryBuilder::createGeometries(EntityManager &config_manager, const json
     {
         for (const auto &ab : config.at("aligned_boxes"))
         {
-            GeometricShapeBox aligned_box_shape = addAlignedBox(config_manager, ab);
+            GeometricShapeBox aligned_box_shape = addAlignedBox(scaling_config, config_manager, ab);
             aligned_box_shape.writeGeometricShapeBoxToVtp();
         }
     }
 }
 //=================================================================================================//
-BoundingBoxd GeometryBuilder::parseBoundingBox(const json &config)
+BoundingBoxd GeometryBuilder::parseBoundingBox(const ScalingConfig &scaling_config, const json &config)
 {
-    Vecd lower_bound = scaling_config_.jsonToVecd(config.at("lower_bound"), "length");
-    Vecd upper_bound = scaling_config_.jsonToVecd(config.at("upper_bound"), "length");
+    Vecd lower_bound = scaling_config.jsonToVecd(config.at("lower_bound"), "length");
+    Vecd upper_bound = scaling_config.jsonToVecd(config.at("upper_bound"), "length");
     return BoundingBoxd(lower_bound, upper_bound);
 }
 //=================================================================================================//
-TransformGeometryBox GeometryBuilder::parseBox(const json &config)
+TransformGeometryBox GeometryBuilder::parseBox(const ScalingConfig &scaling_config, const json &config)
 {
-    Vecd half_size = scaling_config_.jsonToVecd(config.at("half_size"), "length");
-    Transform transform = jsonToTransform(config.at("transform"));
+    Vecd half_size = scaling_config.jsonToVecd(config.at("half_size"), "length");
+    Transform transform = scaling_config.jsonToTransform(config.at("transform"));
     return TransformGeometryBox(transform, half_size);
 }
 //=================================================================================================//
-SystemDomainConfig GeometryBuilder::parseSystemDomainConfig(const json &config)
+SystemDomainConfig GeometryBuilder::parseSystemDomainConfig(
+    const ScalingConfig &scaling_config, const json &config)
 {
     SystemDomainConfig system_config;
     if (config.contains("system_domain"))
     {
-        system_config.system_bounds_ = parseBoundingBox(config.at("system_domain"));
+        system_config.system_bounds_ = parseBoundingBox(scaling_config, config.at("system_domain"));
     }
     if (config.contains("global_resolution"))
     {
-        parseGlobalResolution(system_config, config.at("global_resolution"));
+        parseGlobalResolution(scaling_config, system_config, config.at("global_resolution"));
     }
     return system_config;
 }
 //=================================================================================================//
-void GeometryBuilder::parseGlobalResolution(SystemDomainConfig &system_config, const json &config)
+void GeometryBuilder::parseGlobalResolution(
+    const ScalingConfig &scaling_config, SystemDomainConfig &system_config, const json &config)
 {
     if (config.contains("min_dimension_particles"))
     {
@@ -77,7 +80,7 @@ void GeometryBuilder::parseGlobalResolution(SystemDomainConfig &system_config, c
         system_config.updateParticleSpacing();
         return;
     }
-    system_config.particle_spacing_ = config.at("particle_spacing").get<Real>();
+    system_config.particle_spacing_ = scaling_config.jsonToReal(config.at("particle_spacing"), "Length");
 }
 //=================================================================================================//
 GeometricOps GeometryBuilder::parseGeometricOp(const std::string &op_str)
@@ -93,14 +96,14 @@ GeometricOps GeometryBuilder::parseGeometricOp(const std::string &op_str)
 }
 //=================================================================================================//
 #ifdef SPHINXSYS_2D
-MultiPolygon GeometryBuilder::parseMultiPolygon(const json &config)
+MultiPolygon GeometryBuilder::parseMultiPolygon(const ScalingConfig &scaling_config, const json &config)
 {
     MultiPolygon multi_polygon;
     const std::string polygon_type = config.at("type").get<std::string>();
     if (polygon_type == "bounding_box")
     {
-        Vecd lower_bound = jsonToVecd(config.at("lower_bound"));
-        Vecd upper_bound = jsonToVecd(config.at("upper_bound"));
+        Vecd lower_bound = scaling_config.jsonToVecd(config.at("lower_bound"), "Length");
+        Vecd upper_bound = scaling_config.jsonToVecd(config.at("upper_bound"), "Length");
         multi_polygon.addBox(BoundingBoxd(lower_bound, upper_bound), GeometricOps::add);
         return multi_polygon;
     }
@@ -108,15 +111,17 @@ MultiPolygon GeometryBuilder::parseMultiPolygon(const json &config)
     if (polygon_type == "container_box")
     {
         BoundingBoxd inner_box(
-            jsonToVecd(config.at("inner_lower_bound")), jsonToVecd(config.at("inner_upper_bound")));
-        Real thickness = config.at("thickness").get<Real>();
+            scaling_config.jsonToVecd(config.at("inner_lower_bound"), "Length"),
+            scaling_config.jsonToVecd(config.at("inner_upper_bound"), "Length"));
+        Real thickness = scaling_config.jsonToReal(config.at("thickness"), "Length");
         multi_polygon.addContainerBox(inner_box, thickness, GeometricOps::add);
         return multi_polygon;
     }
 
     if (polygon_type == "data_file")
     {
-        multi_polygon.addPolygonFromFile(config.at("file_path").get<std::string>(), GeometricOps::add);
+        multi_polygon.addPolygonFromFile(config.at("file_path").get<std::string>(), GeometricOps::add,
+                                         Vecd::Zero(), 1.0 / scaling_config.getScalingRef("Length"));
         return multi_polygon;
     }
 
@@ -124,14 +129,16 @@ MultiPolygon GeometryBuilder::parseMultiPolygon(const json &config)
 }
 #endif
 //=================================================================================================//
-Shape *GeometryBuilder::addShape(EntityManager &config_manager, const json &config)
+Shape *GeometryBuilder::addShape(
+    const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config)
 {
+
     const std::string name = config.at("name").get<std::string>();
     const std::string type = config.at("type").get<std::string>();
 
     if (type == "box")
     {
-        TransformGeometryBox box = parseBox(config);
+        TransformGeometryBox box = parseBox(scaling_config, config);
         GeometricShapeBox *shape = config_manager.emplaceEntity<GeometricShapeBox>(name, box, name);
         shape->writeGeometricShapeBoxToVtp();
         return shape;
@@ -139,7 +146,7 @@ Shape *GeometryBuilder::addShape(EntityManager &config_manager, const json &conf
 
     if (type == "bounding_box")
     {
-        BoundingBoxd bounding_box = parseBoundingBox(config);
+        BoundingBoxd bounding_box = parseBoundingBox(scaling_config, config);
         config_manager.emplaceEntity<BoundingBoxd>(name, bounding_box);
         GeometricShapeBox *shape = config_manager.emplaceEntity<GeometricShapeBox>(name, bounding_box, name);
         shape->writeGeometricShapeBoxToVtp();
@@ -151,7 +158,7 @@ Shape *GeometryBuilder::addShape(EntityManager &config_manager, const json &conf
         const std::string original_name = config.at("original").get<std::string>();
         TransformGeometryBox expand_box =
             config_manager.getEntityByName<GeometricShapeBox>(original_name)
-                .getExpandedBox(config.at("expansion").get<Real>());
+                .getExpandedBox(scaling_config.jsonToReal(config.at("expansion"), "Length"));
         GeometricShapeBox *shape = config_manager.emplaceEntity<GeometricShapeBox>(name, expand_box, name);
         shape->writeGeometricShapeBoxToVtp();
         return shape;
@@ -190,7 +197,7 @@ Shape *GeometryBuilder::addShape(EntityManager &config_manager, const json &conf
         {
             const std::string operation_name = plg.at("operation").get<std::string>();
             GeometricOps op = parseGeometricOp(operation_name);
-            multi_polygon.addMultiPolygon(parseMultiPolygon(plg), op);
+            multi_polygon.addMultiPolygon(parseMultiPolygon(scaling_config, plg), op);
         }
         MultiPolygonShape *shape = config_manager.emplaceEntity<MultiPolygonShape>(name, multi_polygon, name);
         shape->writeMultiPolygonShapeToVtp();
@@ -202,15 +209,16 @@ Shape *GeometryBuilder::addShape(EntityManager &config_manager, const json &conf
         Vec3d translation = Vec3d::Zero();
         if (config.contains("translation"))
         {
-            translation = jsonToVecd(config.at("translation"));
+            translation = scaling_config.jsonToVecd(config.at("translation"), "Length");
         }
 
         Real scale = 1.0;
         if (config.contains("scale"))
         {
-            scale = config.at("scale").get<Real>();
+            scale = scaling_config.jsonToReal(config.at("scale"), "Dimensionless");
         }
 
+        scale /= scaling_config.getScalingRef("Length");
         TriangleMeshShapeSTL *shape = config_manager.emplaceEntity<TriangleMeshShapeSTL>(
             name, config.at("file_path").get<std::string>(), translation, scale, name);
         shape->writTriangleMeshShapeToVtp();
@@ -221,16 +229,17 @@ Shape *GeometryBuilder::addShape(EntityManager &config_manager, const json &conf
     throw std::runtime_error("GeometryBuilder::addShape: unsupported shape: " + type);
 }
 //=================================================================================================//
-GeometricShapeBox GeometryBuilder::addAlignedBox(EntityManager &config_manager, const json &config)
+GeometricShapeBox GeometryBuilder::addAlignedBox(
+    const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config)
 {
     const std::string name = config.at("name").get<std::string>();
     const std::string type = config.at("type").get<std::string>();
 
     if (type == "in_outlet")
     {
-        Vecd center = jsonToVecd(config.at("center"));
-        Vecd normal = jsonToVecd(config.at("normal"));
-        Real radius = config.at("radius").get<Real>();
+        Vecd center = scaling_config.jsonToVecd(config.at("center"), "Length");
+        Vecd normal = scaling_config.jsonToVecd(config.at("normal"), "Dimensionless");
+        Real radius = scaling_config.jsonToReal(config.at("radius"), "Length");
 
         SystemDomainConfig &system_domain_config =
             config_manager.getEntityByName<SystemDomainConfig>("SystemDomainConfig");
@@ -248,7 +257,7 @@ GeometricShapeBox GeometryBuilder::addAlignedBox(EntityManager &config_manager, 
     if (type == "region")
     {
         AlignedBox *aligned_box = config_manager.emplaceEntity<AlignedBox>(
-            name, xAxis, GeometryBuilder::parseBox(config));
+            name, xAxis, GeometryBuilder::parseBox(scaling_config, config));
         return GeometricShapeBox(*aligned_box, name); // for visualization only
     }
 

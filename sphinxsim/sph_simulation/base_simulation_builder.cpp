@@ -300,7 +300,7 @@ Real ScalingConfig::jsonToReal(const json &j, const std::string &unit_name) cons
 }
 //=================================================================================================//
 #ifdef SPHINXSYS_2D
-Transform ScalingConfig::jsonToTransform(const nlohmann::json &config)
+Transform ScalingConfig::jsonToTransform(const nlohmann::json &config) const
 {
     Rotation rotation(jsonToReal(config.at("rotation_angle"), "Dimensionless"));
     Vec2d translation = jsonToVecd(config.at("translation"), "Length");
@@ -314,7 +314,7 @@ Rotation getRotationFromXAxis(const Vecd &direction)
 }
 //=================================================================================================//
 #else
-Transform ScalingConfig::jsonToTransform(const nlohmann::json &config)
+Transform ScalingConfig::jsonToTransform(const nlohmann::json &config) const
 {
     Rotation rotation(jsonToReal(config.at("rotation_angle"), "Dimensionless"),
                       jsonToVecd(config.at("rotation_axis"), "Dimensionless"));

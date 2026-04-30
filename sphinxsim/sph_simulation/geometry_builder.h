@@ -49,21 +49,21 @@ struct SystemDomainConfig
 class GeometryBuilder
 {
   public:
-    GeometryBuilder(const ScalingConfig &scaling_config) : scaling_config_(scaling_config) {};
     void createGeometries(EntityManager &config_manager, const json &config);
-    static BoundingBoxd parseBoundingBox(const json &config);
-    static TransformGeometryBox parseBox(const json &config);
+    static BoundingBoxd parseBoundingBox(const ScalingConfig &scaling_config, const json &config);
+    static TransformGeometryBox parseBox(const ScalingConfig &scaling_config, const json &config);
     GeometricOps parseGeometricOp(const std::string &op_str);
-    SystemDomainConfig parseSystemDomainConfig(const json &config);
-    void parseGlobalResolution(SystemDomainConfig &system_domain_config, const json &config);
+    SystemDomainConfig parseSystemDomainConfig(const ScalingConfig &scaling_config, const json &config);
+    void parseGlobalResolution(
+        const ScalingConfig &scaling_config, SystemDomainConfig &system_domain_config, const json &config);
 #ifdef SPHINXSYS_2D
-    MultiPolygon parseMultiPolygon(const json &config);
+    MultiPolygon parseMultiPolygon(const ScalingConfig &scaling_config, const json &config);
 #endif
 
   private:
-    ScalingConfig scaling_config_;
-    Shape *addShape(EntityManager &config_manager, const json &config);
-    GeometricShapeBox addAlignedBox(EntityManager &config_manager, const json &config);
+    Shape *addShape(const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config);
+    GeometricShapeBox addAlignedBox(
+        const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config);
 };
 } // namespace SPH
 #endif // GEOMETRY_BUILDER_H

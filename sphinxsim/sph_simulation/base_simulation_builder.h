@@ -130,11 +130,9 @@ class ScalingConfig
     Real jsonToReal(const json &j, const std::string &unit_name) const;
     Real getScalingRef(const std::string &unit_name) const;
 #ifdef SPHINXSYS_2D
-    Transform jsonToTransform(const nlohmann::json &config);
-    Rotation getRotationFromXAxis(const Vecd &direction);
+    Transform jsonToTransform(const nlohmann::json &config) const;
 #else
-    Transform jsonToTransform(const nlohmann::json &config);
-    Rotation getRotationFromXAxis(const Vecd &direction);
+    Transform jsonToTransform(const nlohmann::json &config) const;
 #endif
 
   private:

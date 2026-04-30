@@ -27,6 +27,7 @@ void ConstraintBuilder::addConstraint(
     SPHSimulation &sim, MethodContainerType &method_container, RealBody &real_body, const json &config)
 {
     EntityManager &config_manager = sim.getConfigManager();
+    ScalingConfig &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
     RestartConfig &restart_config = config_manager.getEntityByName<RestartConfig>("RestartConfig");
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
@@ -83,8 +84,8 @@ void ConstraintBuilder::addConstraint(
 
             SimTK::State state = MBsystem.getDefaultState();
             // set the initial velocity of the mobilized body
-            Real omega_z = 2.0 * Pi * config.at("angular_velocity").get<Real>();
-            Vec3d velocity = upgradeToVec3d(jsonToVecd(config.at("velocity")));
+            Real omega_z = 2.0 * Pi * scaling_config.jsonToReal(config.at("angular_velocity"), "AngularVelocity");
+            Vec3d velocity = upgradeToVec3d(scaling_config.jsonToVecd(config.at("velocity"), "Velocity"));
             SimTK::Vec3 u_cmd = SimTK::Vec3(omega_z, velocity[0], velocity[1]);
             mobilized_body.setU(state, u_cmd); // set the initial velocity of the mobilized body
 

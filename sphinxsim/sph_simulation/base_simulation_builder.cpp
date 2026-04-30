@@ -6,12 +6,12 @@
 namespace SPH
 {
 //=================================================================================================//
-bool is_number(const std::string &s)
+bool ScalingConfig::is_number(const std::string &s) const
 {
     return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit);
 }
 //=================================================================================================//
-Real resolve(const json &j, const std::string &path)
+Real ScalingConfig::resolve(const json &j, const std::string &path) const
 {
     const json *current = &j;
 
@@ -84,7 +84,8 @@ Real resolve(const json &j, const std::string &path)
     return current->get<Real>();
 }
 //=================================================================================================//
-const json *find_in_array(const json &arr, const std::string &key, const std::string &value)
+const json *ScalingConfig::find_in_array(
+    const json &arr, const std::string &key, const std::string &value) const
 {
     for (auto &el : arr)
     {
@@ -194,6 +195,8 @@ UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name) const
     // for continuum dynamics
     if (unit_name == "Velocity" || unit_name == "Speed")
         return UnitMetrics{1, 0, -1, 0, 0, 0, 0};
+    if (unit_name == "AngularVelocity")
+        return UnitMetrics{0, 0, -1, 0, 0, 0, 0};
     if (unit_name == "Acceleration" || unit_name == "Gravity")
         return UnitMetrics{1, 0, -2, 0, 0, 0, 0};
     if (unit_name == "Density")
@@ -338,6 +341,7 @@ SimulationBuilder ::~SimulationBuilder() = default;
 void SimulationBuilder::buildFluidBodies(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
+    ScalingConfig &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
     for (const auto &fb : config)
     {
         const std::string name = fb.at("name").get<std::string>();
@@ -347,7 +351,7 @@ void SimulationBuilder::buildFluidBodies(
         if (fb.contains("particle_reserve_factor"))
         {
             ParticleBuffer<ReserveSizeFactor> inlet_buffer(
-                fb.at("particle_reserve_factor").get<Real>());
+                scaling_config.jsonToReal(fb.at("particle_reserve_factor"), "Dimensionless"));
             fluid_body.generateParticlesWithReserve<BaseParticles, Reload>(inlet_buffer, name);
         }
         else
@@ -386,8 +390,9 @@ void SimulationBuilder::buildSolidBodies(
 //=================================================================================================//
 void SimulationBuilder::parseSolverParameters(EntityManager &config_manager, const json &config)
 {
+    ScalingConfig &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
     config_manager.emplaceEntity<
-        SolverCommonConfig>("SolverCommonConfig", parseSolverCommonConfig(config));
+        SolverCommonConfig>("SolverCommonConfig", parseSolverCommonConfig(scaling_config, config));
 
     if (config.contains("restart"))
     {
@@ -396,13 +401,14 @@ void SimulationBuilder::parseSolverParameters(EntityManager &config_manager, con
     }
 }
 //=================================================================================================//
-SolverCommonConfig SimulationBuilder::parseSolverCommonConfig(const json &config)
+SolverCommonConfig SimulationBuilder::parseSolverCommonConfig(
+    const ScalingConfig &scaling_config, const json &config)
 {
     SolverCommonConfig solver_common_config;
     if (config.contains("end_time"))
-        solver_common_config.end_time_ = config.at("end_time").get<Real>();
+        solver_common_config.end_time_ = scaling_config.jsonToReal(config.at("end_time"), "Time");
     if (config.contains("output_interval"))
-        solver_common_config.output_interval_ = config.at("output_interval").get<Real>();
+        solver_common_config.output_interval_ = scaling_config.jsonToReal(config.at("output_interval"), "Time");
     else
         solver_common_config.output_interval_ = solver_common_config.end_time_ / 100.0; // default to 100 output frames
 

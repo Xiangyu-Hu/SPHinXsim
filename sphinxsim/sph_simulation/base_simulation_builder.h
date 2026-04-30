@@ -36,11 +36,59 @@ using json = nlohmann::json;
 
 namespace SPH
 {
-/** Convert a JSON array [x, y] or [x, y, z] to Vecd (extra elements are
- * ignored). */
-bool is_number(const std::string &s);
-const json *find_in_array(const json &arr, const std::string &key, const std::string &value);
-Real resolve(const json &j, const std::string &path);
+struct UnitMetrics
+{
+    // SI base units: length, mass, time, temperature,
+    // amount of substance, electric current, luminous intensity
+    // learned from openFOAM's unit handling.
+    std::array<int, 7> exp = {0, 0, 0, 0, 0, 0, 0};
+
+    int &operator[](size_t i) { return exp[i]; }
+    int operator[](size_t i) const { return exp[i]; }
+};
+UnitMetrics operator+(const UnitMetrics &a, const UnitMetrics &b);
+UnitMetrics operator-(const UnitMetrics &a, const UnitMetrics &b);
+bool operator==(const UnitMetrics &a, const UnitMetrics &b);
+
+struct CharacteristicDimension
+{
+    Real value_;
+    UnitMetrics unit_metrics_;
+    std::string name_;
+    std::string hint_;
+};
+
+class ScalingConfig
+{
+  public:
+    ScalingConfig(const json &config);
+    Vecd jsonToVecd(const nlohmann::json &arr, const std::string &unit_name) const;
+    Real jsonToReal(const json &j, const std::string &unit_name) const;
+    Real getScalingRef(const std::string &unit_name) const;
+#ifdef SPHINXSYS_2D
+    Transform jsonToTransform(const nlohmann::json &config) const;
+#else
+    Transform jsonToTransform(const nlohmann::json &config) const;
+#endif
+
+  private:
+    std::vector<CharacteristicDimension> character_dims_;
+    Eigen::Array<Real, 7, 1> scaling_refs_ = Eigen::Array<Real, 7, 1>::Ones();
+
+    UnitMetrics getUnitMetrics(std::string unit_name) const;
+    CharacteristicDimension parseCharacteristicDimension(const json &root_config, const json &config) const;
+    void computeScaling();
+    bool isSameOrderOfMagnitude(const Real a, const Real b) const;
+    bool is_number(const std::string &s) const;
+    const json *find_in_array(const json &arr, const std::string &key, const std::string &value) const;
+    Real resolve(const json &j, const std::string &path) const;
+};
+
+#ifdef SPHINXSYS_2D
+Rotation getRotationFromXAxis(const Vecd &direction);
+#else
+Rotation getRotationFromXAxis(const Vecd &direction);
+#endif
 
 // Enum for hook points for fast O(1) access
 enum class SimulationHookPoint
@@ -100,57 +148,6 @@ class SPHBody;
 template <class ReturnType>
 class BaseDynamics;
 
-struct UnitMetrics
-{
-    // SI base units: length, mass, time, temperature,
-    // amount of substance, electric current, luminous intensity
-    // learned from openFOAM's unit handling.
-    std::array<int, 7> exp = {0, 0, 0, 0, 0, 0, 0};
-
-    int &operator[](size_t i) { return exp[i]; }
-    int operator[](size_t i) const { return exp[i]; }
-};
-UnitMetrics operator+(const UnitMetrics &a, const UnitMetrics &b);
-UnitMetrics operator-(const UnitMetrics &a, const UnitMetrics &b);
-bool operator==(const UnitMetrics &a, const UnitMetrics &b);
-
-struct CharacteristicDimension
-{
-    Real value_;
-    UnitMetrics unit_metrics_;
-    std::string name_;
-    std::string hint_;
-};
-
-class ScalingConfig
-{
-  public:
-    ScalingConfig(const json &config);
-    Vecd jsonToVecd(const nlohmann::json &arr, const std::string &unit_name) const;
-    Real jsonToReal(const json &j, const std::string &unit_name) const;
-    Real getScalingRef(const std::string &unit_name) const;
-#ifdef SPHINXSYS_2D
-    Transform jsonToTransform(const nlohmann::json &config) const;
-#else
-    Transform jsonToTransform(const nlohmann::json &config) const;
-#endif
-
-  private:
-    std::vector<CharacteristicDimension> character_dims_;
-    Eigen::Array<Real, 7, 1> scaling_refs_ = Eigen::Array<Real, 7, 1>::Ones();
-
-    UnitMetrics getUnitMetrics(std::string unit_name) const;
-    CharacteristicDimension parseCharacteristicDimension(const json &root_config, const json &config) const;
-    void computeScaling();
-    bool isSameOrderOfMagnitude(const Real a, const Real b) const;
-};
-
-#ifdef SPHINXSYS_2D
-Rotation getRotationFromXAxis(const Vecd &direction);
-#else
-Rotation getRotationFromXAxis(const Vecd &direction);
-#endif
-
 struct RestartConfig
 {
     bool enabled_{false};
@@ -205,7 +202,7 @@ class SimulationBuilder
 
   private:
     std::unique_ptr<MaterialBuilder> material_builder_ptr_;
-    SolverCommonConfig parseSolverCommonConfig(const json &config);
+    SolverCommonConfig parseSolverCommonConfig(const ScalingConfig &scaling_config, const json &config);
     RestartConfig parseRestartConfig(const json &config);
     std::string getObserverRelationName(const ObserverConfig &observer_config);
     ObserverConfig parseObserverConfig(const json &config);

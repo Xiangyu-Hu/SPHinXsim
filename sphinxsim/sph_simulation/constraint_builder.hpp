@@ -27,9 +27,9 @@ void ConstraintBuilder::addConstraint(
     SPHSimulation &sim, MethodContainerType &method_container, RealBody &real_body, const json &config)
 {
     EntityManager &config_manager = sim.getConfigManager();
-    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
-    RestartConfig &restart_config = config_manager.getEntityByName<RestartConfig>("RestartConfig");
+    RestartConfig &restart_config = config_manager.getEntity<RestartConfig>("RestartConfig");
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
 
     const std::string type = config.at("type").get<std::string>();
@@ -39,7 +39,7 @@ void ConstraintBuilder::addConstraint(
         auto &constraint = method_container.addParticleDynamicsGroup();
         if (config.contains("region"))
         {
-            Shape &shape = config_manager.getEntityByName<Shape>(config.at("region").get<std::string>());
+            Shape &shape = config_manager.getEntity<Shape>(config.at("region").get<std::string>());
             BodyPartByParticle &body_part = real_body.addBodyPart<BodyRegionByParticle>(shape);
 
             constraint.add(&method_container.template addStateDynamics<
@@ -63,7 +63,7 @@ void ConstraintBuilder::addConstraint(
             SimTK::MultibodySystem>("SimbodyMultibodySystem");
         SimTK::SimbodyMatterSubsystem &matter = *config_manager.emplaceEntity<
             SimTK::SimbodyMatterSubsystem>("SimbodyMatterSubsystem", MBsystem);
-        Shape &shape = config_manager.getEntityByName<Shape>(real_body.getName());
+        Shape &shape = config_manager.getEntity<Shape>(real_body.getName());
         SolidBodyPartForSimbody &body_part = real_body.addBodyPart<SolidBodyPartForSimbody>(shape);
         SimTK::Body::Rigid &simbody_body = *config_manager.emplaceEntity<
             SimTK::Body::Rigid>(body_part.getName(), *body_part.body_part_mass_properties_);

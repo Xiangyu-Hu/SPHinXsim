@@ -341,11 +341,11 @@ SimulationBuilder ::~SimulationBuilder() = default;
 void SimulationBuilder::buildFluidBodies(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
-    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     for (const auto &fb : config)
     {
         const std::string name = fb.at("name").get<std::string>();
-        Shape &fluid_shape = config_manager.getEntityByName<Shape>(name);
+        Shape &fluid_shape = config_manager.getEntity<Shape>(name);
         auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
         material_builder_ptr_->addMaterial(config_manager, fluid_body, fb.at("material"));
         if (fb.contains("particle_reserve_factor"))
@@ -367,7 +367,7 @@ void SimulationBuilder::buildContinuumBodies(
     for (const auto &cb : config)
     {
         const std::string name = cb.at("name").get<std::string>();
-        Shape &shape = config_manager.getEntityByName<Shape>(name);
+        Shape &shape = config_manager.getEntity<Shape>(name);
         auto &continuum_body = sph_system.addBody<RealBody>(shape, name);
         material_builder_ptr_->addMaterial(config_manager, continuum_body, cb.at("material"));
         continuum_body.generateParticles<BaseParticles, Reload>(name);
@@ -380,7 +380,7 @@ void SimulationBuilder::buildSolidBodies(
     for (const auto &sb : config)
     {
         const std::string name = sb.at("name").get<std::string>();
-        Shape &solid_shape = config_manager.getEntityByName<Shape>(name);
+        Shape &solid_shape = config_manager.getEntity<Shape>(name);
         auto &solid_body = sph_system.addBody<SolidBody>(solid_shape, name);
         material_builder_ptr_->addMaterial(config_manager, solid_body, sb.at("material"));
         BaseParticles &reload_particles = solid_body.generateParticles<BaseParticles, Reload>(name);
@@ -390,7 +390,7 @@ void SimulationBuilder::buildSolidBodies(
 //=================================================================================================//
 void SimulationBuilder::parseSolverParameters(EntityManager &config_manager, const json &config)
 {
-    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     config_manager.emplaceEntity<
         SolverCommonConfig>("SolverCommonConfig", parseSolverCommonConfig(scaling_config, config));
 
@@ -444,7 +444,7 @@ ObserverConfig SimulationBuilder::parseObserverConfig(const json &config)
 void SimulationBuilder::addObserves(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
-    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     for (const auto &ob : config)
     {
         ObserverConfig observer_config = parseObserverConfig(ob);

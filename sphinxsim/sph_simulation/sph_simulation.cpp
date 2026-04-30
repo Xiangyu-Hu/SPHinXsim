@@ -32,7 +32,7 @@ void SPHSimulation::resetOutputRoot(const fs::path &output_root, bool keep_exist
 //=================================================================================================//
 SPHSystem &SPHSimulation::defineSPHSystem()
 {
-    SystemDomainConfig &system_config = config_manager_.getEntityByName<
+    SystemDomainConfig &system_config = config_manager_.getEntity<
         SystemDomainConfig>("SystemDomainConfig");
     sph_system_ptr_ = std::make_unique<SPHSystem>(
         system_config.system_bounds_, system_config.particle_spacing_);
@@ -134,7 +134,7 @@ void SPHSimulation::initializeSimulation()
 void SPHSimulation::run()
 {
     SolverCommonConfig &solver_common_config =
-        config_manager_.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
+        config_manager_.getEntity<SolverCommonConfig>("SolverCommonConfig");
 
     stepTo(solver_common_config.end_time_);
 }

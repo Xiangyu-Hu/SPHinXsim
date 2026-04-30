@@ -7,7 +7,7 @@ namespace SPH
 //=================================================================================================//
 void MaterialBuilder::addMaterial(EntityManager &config_manager, SPHBody &sph_body, const json &config)
 {
-    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     const std::string type = config.at("type").get<std::string>();
 
     if (type == "weakly_compressible_fluid")

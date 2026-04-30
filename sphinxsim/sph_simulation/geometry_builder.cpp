@@ -20,7 +20,7 @@ void SystemDomainConfig::updateParticleSpacing()
 //=================================================================================================//
 void GeometryBuilder::createGeometries(EntityManager &config_manager, const json &config)
 {
-    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     SystemDomainConfig *system_domain_config = config_manager.emplaceEntity<
         SystemDomainConfig>("SystemDomainConfig", parseSystemDomainConfig(scaling_config, config));
     for (const auto &geo : config.at("shapes"))
@@ -157,7 +157,7 @@ Shape *GeometryBuilder::addShape(
     {
         const std::string original_name = config.at("original").get<std::string>();
         TransformGeometryBox expand_box =
-            config_manager.getEntityByName<GeometricShapeBox>(original_name)
+            config_manager.getEntity<GeometricShapeBox>(original_name)
                 .getExpandedBox(scaling_config.jsonToReal(config.at("expansion"), "Length"));
         GeometricShapeBox *shape = config_manager.emplaceEntity<GeometricShapeBox>(name, expand_box, name);
         shape->writeGeometricShapeBoxToVtp();
@@ -171,7 +171,7 @@ Shape *GeometryBuilder::addShape(
         StdVec<Shape *> sub_shapes;
         for (const auto &sub_shape_name : config.at("sub_shapes"))
         {
-            sub_shapes.push_back(&config_manager.getEntityByName<Shape>(sub_shape_name));
+            sub_shapes.push_back(&config_manager.getEntity<Shape>(sub_shape_name));
         }
 
         for (UnsignedInt i = 0; i < sub_shapes.size(); ++i)
@@ -242,7 +242,7 @@ GeometricShapeBox GeometryBuilder::addAlignedBox(
         Real radius = scaling_config.jsonToReal(config.at("radius"), "Length");
 
         SystemDomainConfig &system_domain_config =
-            config_manager.getEntityByName<SystemDomainConfig>("SystemDomainConfig");
+            config_manager.getEntity<SystemDomainConfig>("SystemDomainConfig");
         Real expansion_length = 4.0 * system_domain_config.particle_spacing_;
 
         Vecd half_size = Vecd::Constant(radius + expansion_length);

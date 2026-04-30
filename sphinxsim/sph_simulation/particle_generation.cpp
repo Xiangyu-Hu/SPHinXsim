@@ -123,7 +123,7 @@ void ParticleGeneration::runRelaxation()
 RelaxationSystem &ParticleGeneration::defineRelaxationSystem(
     EntityManager &config_manager, const json &config)
 {
-    auto &system_config = config_manager.getEntityByName<SystemDomainConfig>("SystemDomainConfig");
+    auto &system_config = config_manager.getEntity<SystemDomainConfig>("SystemDomainConfig");
     relaxation_system_ptr_ = std::make_unique<RelaxationSystem>(
         system_config.system_bounds_, system_config.particle_spacing_);
     return *relaxation_system_ptr_.get();
@@ -153,7 +153,7 @@ void ParticleGeneration ::addAllBodies(
 
         CommonBodyConfig common_body_config;
         common_body_config.name_ = body_name;
-        Shape &shape = config_manager.getEntityByName<Shape>(body_name);
+        Shape &shape = config_manager.getEntity<Shape>(body_name);
         auto &real_body = relaxation_system.addBody<RealBody>(shape, body_name);
 
         if (bd.contains("relaxation"))

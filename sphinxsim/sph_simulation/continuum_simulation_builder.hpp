@@ -62,7 +62,7 @@ template <class MethodContainerType, class InnerRelationType>
 ParticleDynamicsGroup &ContinuumSimulationBuilder::addShearForceIntegration(
     EntityManager &config_manager, MethodContainerType &method_container, InnerRelationType &inner_relation)
 {
-    auto &continuum_solver_parameters = config_manager.getEntityByName<
+    auto &continuum_solver_parameters = config_manager.getEntity<
         ContinuumSolverParameters>("ContinuumSolverParameters");
     auto &continuum_shear_force =
         method_container.addParticleDynamicsGroup()

@@ -85,7 +85,7 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationResidue(
         if (body_config.with_level_set_)
         {
             RealBody &real_body = relaxation_system.getBodyByName<RealBody>(body_config.name_);
-            LevelSetShape &level_set_shape = config_manager.getEntityByName<LevelSetShape>(body_config.name_);
+            LevelSetShape &level_set_shape = config_manager.getEntity<LevelSetShape>(body_config.name_);
             residual_dynamics.template addPostStateDynamics<LevelsetKernelGradientIntegral>(real_body, level_set_shape);
         }
 
@@ -215,7 +215,7 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationConstraints(
     {
         const std::string body_name = rc.at("body_name").get<std::string>();
         RealBody &real_body = relaxation_system.getBodyByName<RealBody>(body_name);
-        AlignedBox &constraint_region = config_manager.getEntityByName<
+        AlignedBox &constraint_region = config_manager.getEntity<
             AlignedBox>(rc.at("aligned_box").get<std::string>());
         auto &body_part = real_body.addBodyPart<AlignedBoxByParticle>(constraint_region);
         std::string type = rc.at("type").get<std::string>();

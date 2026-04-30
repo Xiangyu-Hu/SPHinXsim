@@ -18,7 +18,7 @@ BaseDynamics<void> &FluidSimulationBuilder::addDensitySummationAndRegularization
         main_methods.template addInteractionDynamics<fluid_dynamics::DensitySummationCK>(inner_relation)
             .addPostContactInteraction(contact_relation);
 
-    auto &fluid_solver_config = config_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
+    auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
 
     if (fluid_solver_config.surface_type_ == "confined")
     {
@@ -53,7 +53,7 @@ void FluidSimulationBuilder::buildTransportVelocityFormulationIfNotFreeSurface(
 {
     EntityManager &config_manager = sim.getConfigManager();
 
-    auto &fluid_solver_config = config_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
+    auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
     if (fluid_solver_config.surface_type_ != "free_surface")
     {
         auto &transport_velocity_correction =
@@ -146,11 +146,11 @@ void FluidSimulationBuilder::addBoundaryCondition(
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
     EntityManager &config_manager = sim.getConfigManager();
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
-    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
 
     const std::string body_name = config.at("body_name").get<std::string>();
     FluidBody &fluid_body = sim.getSPHSystem().getBodyByName<FluidBody>(body_name);
-    AlignedBox &aligned_box = config_manager.getEntityByName<AlignedBox>(
+    AlignedBox &aligned_box = config_manager.getEntity<AlignedBox>(
         config.at("aligned_box").get<std::string>());
     const std::string type = config.at("type").get<std::string>();
 
@@ -202,7 +202,7 @@ void FluidSimulationBuilder::addBoundaryCondition(
             SimulationHookPoint::ParticleIndicationTagging, [&]()
             { bi_directional_bd.tagBufferParticles(); });
 
-        auto &fluid_solver_config = config_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
+        auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
         if (fluid_solver_config.particle_deletion_ == false)
         {
             auto &particle_deletion = main_methods.template addStateDynamics<
@@ -225,7 +225,7 @@ fluid_dynamics::AbstractBidirectionalBoundary &FluidSimulationBuilder::createBiD
     AlignedBoxByCell &aligned_box_by_cell, EntityManager &config_manager,
     MethodContainerType &main_methods, const json &config)
 {
-    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     if (config.contains("pressure"))
     {
         auto &bi_directional_bd = main_methods.template addGeneralDynamics<
@@ -243,7 +243,7 @@ void FluidSimulationBuilder::buildSurfaceIndicationIfOpenBoundary(
     InnerRelationType &inner_relation, ContactRelationType &contact_relation)
 {
     auto &config_manager = sim.getConfigManager();
-    auto &fluid_solver_config = config_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
+    auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
 
     if (fluid_solver_config.surface_type_ == "open_boundary")
     {
@@ -269,7 +269,7 @@ void FluidSimulationBuilder::buildParticleSortIfPresent(
     SPHSimulation &sim, MethodContainerType &main_methods, RealBody &real_body)
 {
     auto &config_manager = sim.getConfigManager();
-    auto &fluid_solver_config = config_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
+    auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
 
     if (fluid_solver_config.particle_sorting_)

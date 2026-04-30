@@ -68,7 +68,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     auto &fluid_density_regularization = addDensitySummationAndRegularization(
         config_manager, main_methods, fluid_inner, fluid_wall_contact);
 
-    auto &fluid_solver_config = config_manager.getEntityByName<FluidSolverConfig>("FluidSolverConfig");
+    auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
     Fluid &fluid_material = DynamicCast<Fluid>(this, fluid_body.getBaseMaterial());
     const Real U_ref = fluid_material.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
     auto &fluid_advection_time_step = main_methods.addReduceDynamics<fluid_dynamics::AdvectionTimeStepCK>(
@@ -82,7 +82,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     //	Define time integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------
-    auto &solver_common_config = config_manager.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
+    auto &solver_common_config = config_manager.getEntity<SolverCommonConfig>("SolverCommonConfig");
     auto &time_stepper = sph_solver.getTimeStepper();
     auto &advection_step = time_stepper.addTriggerByInterval(fluid_advection_time_step.exec());
     auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config.output_interval_);
@@ -181,7 +181,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
 void FluidSimulationBuilder::parseSolverParameters(EntityManager &config_manager, const json &config)
 {
     SimulationBuilder::parseSolverParameters(config_manager, config);
-    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     if (config.contains("fluid_dynamics"))
     {
         config_manager.emplaceEntity<FluidSolverConfig>(

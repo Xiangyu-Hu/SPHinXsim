@@ -131,7 +131,7 @@ void SimulationBuilder::buildExternalForceIfPresent(
     SPHSimulation &sim, MethodContainerType &main_methods, SPHBody &sph_body, const json &config)
 {
     auto &config_manager = sim.getConfigManager();
-    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     auto &initialization_pipeline = sim.getInitializationPipeline();
 
     if (config.contains("gravity"))

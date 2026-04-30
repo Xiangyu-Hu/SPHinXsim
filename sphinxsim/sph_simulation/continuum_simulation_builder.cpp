@@ -61,7 +61,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     auto &continuum_acoustic_step_1st_half = addAcousticStep1stHalf(config_manager, main_methods, continuum_inner);
     auto &continuum_acoustic_step_2nd_half = addAcousticStep2ndHalf(config_manager, main_methods, continuum_inner);
 
-    auto &continuum_solver_parameters = config_manager.getEntityByName<
+    auto &continuum_solver_parameters = config_manager.getEntity<
         ContinuumSolverParameters>("ContinuumSolverParameters");
     Fluid &continuum_eos = DynamicCast<Fluid>(this, continuum_body.getBaseMaterial());
     const Real U_ref = continuum_eos.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
@@ -87,7 +87,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     //	Define time-integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------
-    auto &solver_common_config = config_manager.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
+    auto &solver_common_config = config_manager.getEntity<SolverCommonConfig>("SolverCommonConfig");
     auto &time_stepper = sph_solver.getTimeStepper();
     auto &advection_step = time_stepper.addTriggerByInterval(continuum_advection_time_step.exec());
     auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config.output_interval_);
@@ -169,7 +169,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     // Initial condition from restart file if enabled.
     //----------------------------------------------------------------------
-    auto &restart_config = config_manager.getEntityByName<RestartConfig>("RestartConfig");
+    auto &restart_config = config_manager.getEntity<RestartConfig>("RestartConfig");
     if (restart_config.enabled_)
     {
         sph_system.setRestartStep(restart_config.restore_step_);
@@ -208,7 +208,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
 void ContinuumSimulationBuilder::parseSolverParameters(EntityManager &config_manager, const json &config)
 {
     SimulationBuilder::parseSolverParameters(config_manager, config);
-    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     if (config.contains("continuum_dynamics"))
     {
         config_manager.emplaceEntity<ContinuumSolverParameters>(

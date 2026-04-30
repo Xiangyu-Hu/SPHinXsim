@@ -341,7 +341,7 @@ SimulationBuilder ::~SimulationBuilder() = default;
 void SimulationBuilder::buildFluidBodies(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
-    ScalingConfig &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
     for (const auto &fb : config)
     {
         const std::string name = fb.at("name").get<std::string>();
@@ -390,7 +390,7 @@ void SimulationBuilder::buildSolidBodies(
 //=================================================================================================//
 void SimulationBuilder::parseSolverParameters(EntityManager &config_manager, const json &config)
 {
-    ScalingConfig &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
     config_manager.emplaceEntity<
         SolverCommonConfig>("SolverCommonConfig", parseSolverCommonConfig(scaling_config, config));
 
@@ -444,7 +444,7 @@ ObserverConfig SimulationBuilder::parseObserverConfig(const json &config)
 void SimulationBuilder::addObserves(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
-    ScalingConfig &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
     for (const auto &ob : config)
     {
         ObserverConfig observer_config = parseObserverConfig(ob);

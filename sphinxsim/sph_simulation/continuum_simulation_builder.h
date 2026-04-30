@@ -56,7 +56,8 @@ class ContinuumSimulationBuilder : public SimulationBuilder
     virtual void parseSolverParameters(EntityManager &config_manager, const json &config) override;
 
   private:
-    ContinuumSolverParameters parseContinuumSolverParameters(const json &config);
+    ContinuumSolverParameters parseContinuumSolverParameters(
+        const ScalingConfig &scaling_config, const json &config);
 
     template <class MethodContainerType, class InnerRelationType>
     BaseDynamics<void> &addAcousticStep1stHalf(

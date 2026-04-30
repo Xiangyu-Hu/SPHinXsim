@@ -208,28 +208,37 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
 void ContinuumSimulationBuilder::parseSolverParameters(EntityManager &config_manager, const json &config)
 {
     SimulationBuilder::parseSolverParameters(config_manager, config);
+    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
     if (config.contains("continuum_dynamics"))
     {
         config_manager.emplaceEntity<ContinuumSolverParameters>(
-            "ContinuumSolverParameters", parseContinuumSolverParameters(config.at("continuum_dynamics")));
+            "ContinuumSolverParameters",
+            parseContinuumSolverParameters(scaling_config, config.at("continuum_dynamics")));
     }
 }
 //=================================================================================================//
-ContinuumSolverParameters ContinuumSimulationBuilder::parseContinuumSolverParameters(const json &config)
+ContinuumSolverParameters ContinuumSimulationBuilder::parseContinuumSolverParameters(
+    const ScalingConfig &scaling_config, const json &config)
 {
     ContinuumSolverParameters parameters;
     if (config.contains("acoustic_cfl"))
-        parameters.acoustic_cfl_ = config.at("acoustic_cfl").get<Real>();
+        parameters.acoustic_cfl_ = scaling_config.jsonToReal(
+            config.at("acoustic_cfl"), "Dimensionless");
     if (config.contains("advection_cfl"))
-        parameters.advection_cfl_ = config.at("advection_cfl").get<Real>();
+        parameters.advection_cfl_ = scaling_config.jsonToReal(
+            config.at("advection_cfl"), "Dimensionless");
     if (config.contains("linear_correction_matrix_coeff"))
-        parameters.linear_correction_matrix_coeff_ = config.at("linear_correction_matrix_coeff").get<Real>();
+        parameters.linear_correction_matrix_coeff_ = scaling_config.jsonToReal(
+            config.at("linear_correction_matrix_coeff"), "Dimensionless");
     if (config.contains("contact_numerical_damping"))
-        parameters.contact_numerical_damping_ = config.at("contact_numerical_damping").get<Real>();
+        parameters.contact_numerical_damping_ = scaling_config.jsonToReal(
+            config.at("contact_numerical_damping"), "Dimensionless");
     if (config.contains("shear_stress_damping"))
-        parameters.shear_stress_damping_ = config.at("shear_stress_damping").get<Real>();
+        parameters.shear_stress_damping_ = scaling_config.jsonToReal(
+            config.at("shear_stress_damping"), "Dimensionless");
     if (config.contains("hourglass_factor"))
-        parameters.hourglass_factor_ = config.at("hourglass_factor").get<Real>();
+        parameters.hourglass_factor_ = scaling_config.jsonToReal(
+            config.at("hourglass_factor"), "Dimensionless");
 
     return parameters;
 }

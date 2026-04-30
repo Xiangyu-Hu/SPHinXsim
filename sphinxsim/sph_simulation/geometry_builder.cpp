@@ -20,7 +20,7 @@ void SystemDomainConfig::updateParticleSpacing()
 //=================================================================================================//
 void GeometryBuilder::createGeometries(EntityManager &config_manager, const json &config)
 {
-    ScalingConfig &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
     SystemDomainConfig *system_domain_config = config_manager.emplaceEntity<
         SystemDomainConfig>("SystemDomainConfig", parseSystemDomainConfig(scaling_config, config));
     for (const auto &geo : config.at("shapes"))

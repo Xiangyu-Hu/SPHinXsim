@@ -146,6 +146,7 @@ void FluidSimulationBuilder::addBoundaryCondition(
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
     EntityManager &config_manager = sim.getConfigManager();
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
+    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
 
     const std::string body_name = config.at("body_name").get<std::string>();
     FluidBody &fluid_body = sim.getSPHSystem().getBodyByName<FluidBody>(body_name);
@@ -158,7 +159,7 @@ void FluidSimulationBuilder::addBoundaryCondition(
         auto &emitter = fluid_body.addBodyPart<AlignedBoxByParticle>(aligned_box);
         auto &inflow_condition = main_methods.template addStateDynamics<
             fluid_dynamics::EmitterInflowConditionCK, ConstantInflowSpeed>(
-            emitter, config.at("inflow_speed").get<Real>());
+            emitter, scaling_config.jsonToReal(config.at("inflow_speed"), "Speed"));
         auto &injection = main_methods.template addStateDynamics<
             fluid_dynamics::EmitterInflowInjectionCK>(emitter);
 
@@ -224,11 +225,12 @@ fluid_dynamics::AbstractBidirectionalBoundary &FluidSimulationBuilder::createBiD
     AlignedBoxByCell &aligned_box_by_cell, EntityManager &config_manager,
     MethodContainerType &main_methods, const json &config)
 {
+    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
     if (config.contains("pressure"))
     {
         auto &bi_directional_bd = main_methods.template addGeneralDynamics<
             fluid_dynamics::BidirectionalBoundaryCK, LinearCorrectionCK, PressurePrescribed<>>(
-            aligned_box_by_cell, config.at("pressure").get<Real>());
+            aligned_box_by_cell, scaling_config.jsonToReal(config.at("pressure"), "Pressure"));
         return bi_directional_bd;
     }
     throw std::runtime_error(

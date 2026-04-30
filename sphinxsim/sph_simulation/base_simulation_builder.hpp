@@ -130,13 +130,15 @@ template <class MethodContainerType>
 void SimulationBuilder::buildExternalForceIfPresent(
     SPHSimulation &sim, MethodContainerType &main_methods, SPHBody &sph_body, const json &config)
 {
+    auto &config_manager = sim.getConfigManager();
+    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
     auto &initialization_pipeline = sim.getInitializationPipeline();
 
     if (config.contains("gravity"))
     {
         auto &constant_gravity =
             main_methods.template addStateDynamics<GravityForceCK<Gravity>>(
-                sph_body, Gravity(jsonToVecd(config.at("gravity"))));
+                sph_body, Gravity(scaling_config.jsonToVecd(config.at("gravity"), "Acceleration")));
 
         initialization_pipeline.insert_hook(
             InitializationHookPoint::InitialCondition, [&]()

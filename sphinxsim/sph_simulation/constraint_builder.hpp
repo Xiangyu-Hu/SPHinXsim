@@ -27,7 +27,7 @@ void ConstraintBuilder::addConstraint(
     SPHSimulation &sim, MethodContainerType &method_container, RealBody &real_body, const json &config)
 {
     EntityManager &config_manager = sim.getConfigManager();
-    ScalingConfig &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
+    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
     RestartConfig &restart_config = config_manager.getEntityByName<RestartConfig>("RestartConfig");
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();

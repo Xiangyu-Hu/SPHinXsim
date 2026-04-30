@@ -181,26 +181,31 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
 void FluidSimulationBuilder::parseSolverParameters(EntityManager &config_manager, const json &config)
 {
     SimulationBuilder::parseSolverParameters(config_manager, config);
+    auto &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
     if (config.contains("fluid_dynamics"))
     {
         config_manager.emplaceEntity<FluidSolverConfig>(
-            "FluidSolverConfig", parseFluidSolverConfig(config.at("fluid_dynamics")));
+            "FluidSolverConfig", parseFluidSolverConfig(scaling_config, config.at("fluid_dynamics")));
     }
 }
 //=================================================================================================//
-FluidSolverConfig FluidSimulationBuilder::parseFluidSolverConfig(const json &config)
+FluidSolverConfig FluidSimulationBuilder::parseFluidSolverConfig(
+    const ScalingConfig &scaling_config, const json &config)
 {
     FluidSolverConfig params;
     if (config.contains("acoustic_cfl"))
-        params.acoustic_cfl_ = config.at("acoustic_cfl").get<Real>();
+        params.acoustic_cfl_ = scaling_config.jsonToReal(
+            config.at("acoustic_cfl"), "Dimensionless");
     if (config.contains("advection_cfl"))
-        params.advection_cfl_ = config.at("advection_cfl").get<Real>();
+        params.advection_cfl_ = scaling_config.jsonToReal(
+            config.at("advection_cfl"), "Dimensionless");
     if (config.contains("flow_type"))
         params.surface_type_ = config.at("flow_type").get<std::string>();
     if (config.contains("particle_sort_frequency"))
     {
         params.particle_sorting_ = true;
-        params.sort_frequency_ = config.at("particle_sort_frequency").get<UnsignedInt>();
+        params.sort_frequency_ = scaling_config.jsonToReal(
+            config.at("particle_sort_frequency"), "Dimensionless");
     }
     return params;
 }

@@ -15,6 +15,100 @@ Vecd jsonToVecd(const nlohmann::json &arr)
     return v;
 }
 //=================================================================================================//
+bool is_number(const std::string &s)
+{
+    return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit);
+}
+//=================================================================================================//
+Real resolve(const json &j, const std::string &path)
+{
+    const json *current = &j;
+
+    size_t i = 0;
+    while (i < path.size())
+    {
+        // extract next token (until '.' or end)
+        size_t dot = path.find('.', i);
+        std::string token = path.substr(i, dot - i);
+
+        // CASE 1: array selector like name=value
+        auto lb = token.find('[');
+        auto rb = token.find(']');
+
+        if (lb != std::string::npos && rb != std::string::npos)
+        {
+            std::string array_name = token.substr(0, lb);
+            std::string condition = token.substr(lb + 1, rb - lb - 1);
+
+            size_t eq = condition.find('=');
+            if (eq == std::string::npos)
+                throw std::runtime_error("Invalid selector: " + token);
+
+            std::string key = condition.substr(0, eq);
+            std::string value = condition.substr(eq + 1);
+
+            // go into array
+            auto it = current->find(array_name);
+            if (it == current->end() || !it->is_array())
+                throw std::runtime_error("Not an array: " + array_name);
+
+            const json *found = find_in_array(*it, key, value);
+            if (!found)
+                throw std::runtime_error("No match in array: " + token);
+
+            current = found;
+        }
+
+        // CASE 2: numeric index
+        else if (current->is_array() && is_number(token))
+        {
+            size_t idx = std::stoul(token);
+            if (idx >= current->size())
+                throw std::runtime_error("Index out of range: " + token);
+
+            current = &((*current)[idx]);
+        }
+
+        // CASE 3: normal object field
+        else
+        {
+            if (!current->is_object())
+                throw std::runtime_error("Not an object at: " + token);
+
+            auto it = current->find(token);
+            if (it == current->end())
+                throw std::runtime_error("Missing key: " + token);
+
+            current = &(*it);
+        }
+
+        if (dot == std::string::npos)
+            break;
+        i = dot + 1;
+    }
+
+    if (!current->is_number())
+        throw std::runtime_error("Resolved value is not numeric");
+
+    return current->get<Real>();
+}
+//=================================================================================================//
+const json *find_in_array(const json &arr, const std::string &key, const std::string &value)
+{
+    for (auto &el : arr)
+    {
+        if (!el.is_object())
+            continue;
+
+        auto it = el.find(key);
+        if (it != el.end() && it->is_string() && it->get<std::string>() == value)
+        {
+            return &el;
+        }
+    }
+    return nullptr;
+}
+//=================================================================================================//
 #ifdef SPHINXSYS_2D
 Transform jsonToTransform(const nlohmann::json &config)
 {
@@ -73,14 +167,14 @@ bool operator==(const UnitMetrics &a, const UnitMetrics &b)
 ScalingConfig::ScalingConfig(const json &config)
 {
     bool user_scaling_provided = false;
-    if (config.contains("character_dims"))
+    if (config.contains("characteristic_dimensions"))
     {
         bool has_length_unit = false;
-        for (const auto &du : config.at("character_dims"))
+        for (const auto &cd : config.at("characteristic_dimensions"))
         {
-            if (du.at("unit").get<std::string>() == "Length")
+            if (cd.at("name").get<std::string>() == "Length")
                 has_length_unit = true;
-            character_dims_.push_back(parseCharacteristicDimension(du));
+            character_dims_.push_back(parseCharacteristicDimension(config, cd));
         }
 
         if (!has_length_unit)
@@ -97,20 +191,18 @@ ScalingConfig::ScalingConfig(const json &config)
     if (user_scaling_provided)
     {
         std::cout << "Derived from user-provided scaling configuration." << std::endl;
-        std::cout << "Length: " << scaling_refs_[0] << std::endl;
-        std::cout << "Mass: " << scaling_refs_[1] << std::endl;
-        std::cout << "Time: " << scaling_refs_[2] << std::endl;
-        std::cout << "Temperature: " << scaling_refs_[3] << std::endl;
-        std::cout << "ElectricCurrent: " << scaling_refs_[4] << std::endl;
-        std::cout << "AmountOfSubstance: " << scaling_refs_[5] << std::endl;
-        std::cout << "LuminousIntensity: " << scaling_refs_[6] << std::endl;
+        std::cout << "Length: " << scaling_refs_[0] << ", Mass: " << scaling_refs_[1]
+                  << ", Time: " << scaling_refs_[2] << ", Temperature: " << scaling_refs_[3]
+                  << ", ElectricCurrent: " << scaling_refs_[4]
+                  << ", AmountOfSubstance: " << scaling_refs_[5]
+                  << ", LuminousIntensity: " << scaling_refs_[6] << std::endl;
 
         for (const auto &character_dim : character_dims_)
         {
-            std::cout << "Characteristic Dimension: " << character_dim.description_ << std::endl;
-            std::cout << "  Name: " << character_dim.name_ << std::endl;
-            std::cout << "  IpputValue: " << character_dim.value_ << ", ScaledValue: "
-                      << character_dim.value_ * getScalingRef(character_dim.name_) << std::endl;
+            std::cout << "Characteristic Dimension hint: " << character_dim.hint_ << std::endl;
+            std::cout << "Name: " << character_dim.name_ << ",  InputValue: " << character_dim.value_
+                      << ", ScaledValue: " << character_dim.value_ / getScalingRef(character_dim.name_)
+                      << std::endl;
         }
     }
     else
@@ -150,21 +242,29 @@ UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name) const
     throw std::runtime_error("ScalingConfig::getUnitMetrics: no supported unit name found!");
 }
 //=================================================================================================//
-CharacteristicDimension ScalingConfig::parseCharacteristicDimension(const json &config) const
+CharacteristicDimension ScalingConfig::parseCharacteristicDimension(
+    const json &root_config, const json &config) const
 {
     CharacteristicDimension character_dim;
     character_dim.value_ = config.at("value").get<Real>();
     character_dim.name_ = config.at("name").get<std::string>();
     character_dim.unit_metrics_ = getUnitMetrics(character_dim.name_);
-    if (!config.contains("description"))
+    if (!config.contains("hint"))
     {
         throw std::runtime_error(
-            "ScalingConfig::parseCharacteristicDimension: description is required for using '" +
+            "ScalingConfig::parseCharacteristicDimension: hint is required for using '" +
             character_dim.name_ + "' for explicit intention.");
     }
     else
     {
-        character_dim.description_ = config.at("description").get<std::string>();
+        character_dim.hint_ = config.at("hint").get<std::string>();
+        Real hint_value = resolve(root_config, character_dim.hint_);
+        if (!isSameOrderOfMagnitude(character_dim.value_, hint_value))
+        {
+            throw std::runtime_error(
+                "ScalingConfig::parseCharacteristicDimension: value of '" + character_dim.name_ +
+                "' is not the same order of magnitude as its hint '" + character_dim.hint_ + "'.");
+        }
     }
     return character_dim;
 }
@@ -194,6 +294,16 @@ void ScalingConfig::computeScaling()
     {
         scaling_refs_[i] = std::pow(10.0, scaling(i));
     }
+}
+//=================================================================================================//
+bool ScalingConfig::isSameOrderOfMagnitude(const Real a, const Real b) const
+{
+    if (a == 0 || b == 0)
+        return a == b; // both must be zero to be considered the same order of magnitude
+
+    Real log_a = std::log10(ABS(a));
+    Real log_b = std::log10(ABS(b));
+    return ABS(log_a - log_b) < 1.0; // within one order of magnitude
 }
 //=================================================================================================//
 Real ScalingConfig::getScalingRef(const std::string &unit_name) const

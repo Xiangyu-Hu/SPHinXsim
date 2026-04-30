@@ -39,6 +39,9 @@ namespace SPH
 /** Convert a JSON array [x, y] or [x, y, z] to Vecd (extra elements are
  * ignored). */
 Vecd jsonToVecd(const nlohmann::json &arr);
+bool is_number(const std::string &s);
+const json *find_in_array(const json &arr, const std::string &key, const std::string &value);
+Real resolve(const json &j, const std::string &path);
 
 #ifdef SPHINXSYS_2D
 Transform jsonToTransform(const nlohmann::json &config);
@@ -125,7 +128,7 @@ struct CharacteristicDimension
     Real value_;
     UnitMetrics unit_metrics_;
     std::string name_;
-    std::string description_; // required for explicit intention
+    std::string hint_;
 };
 
 class ScalingConfig
@@ -139,8 +142,9 @@ class ScalingConfig
     Eigen::Array<Real, 7, 1> scaling_refs_ = Eigen::Array<Real, 7, 1>::Ones();
 
     UnitMetrics getUnitMetrics(std::string unit_name) const;
-    CharacteristicDimension parseCharacteristicDimension(const json &config) const;
+    CharacteristicDimension parseCharacteristicDimension(const json &root_config, const json &config) const;
     void computeScaling();
+    bool isSameOrderOfMagnitude(const Real a, const Real b) const;
 };
 
 struct RestartConfig

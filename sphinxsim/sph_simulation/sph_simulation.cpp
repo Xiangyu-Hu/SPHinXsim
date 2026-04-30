@@ -73,6 +73,7 @@ void SPHSimulation::createParticlesGeneration(const json &config)
 //=================================================================================================//
 void SPHSimulation::buildSimulationFromJson(const json &config)
 {
+    config_manager_.emplaceEntity<ScalingConfig>("ScalingConfig", config);
     geometry_builder_ptr_->createGeometries(config_manager_, config.at("geometries"));
     createParticlesGeneration(config.at("particle_generation"));
 

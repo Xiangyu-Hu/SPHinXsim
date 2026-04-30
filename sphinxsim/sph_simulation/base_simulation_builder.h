@@ -120,10 +120,12 @@ UnitMetrics operator+(const UnitMetrics &a, const UnitMetrics &b);
 UnitMetrics operator-(const UnitMetrics &a, const UnitMetrics &b);
 bool operator==(const UnitMetrics &a, const UnitMetrics &b);
 
-struct DimensionalUnit
+struct CharacteristicDimension
 {
-    Real value;
-    UnitMetrics unit_metrics;
+    Real value_;
+    UnitMetrics unit_metrics_;
+    std::string name_;
+    std::string description_; // required for explicit intention
 };
 
 class ScalingConfig
@@ -133,11 +135,11 @@ class ScalingConfig
     Real getScalingRef(const std::string &unit_name) const;
 
   private:
-    std::vector<DimensionalUnit> dimensional_units_;
+    std::vector<CharacteristicDimension> character_dims_;
     Eigen::Array<Real, 7, 1> scaling_refs_ = Eigen::Array<Real, 7, 1>::Ones();
 
     UnitMetrics getUnitMetrics(std::string unit_name) const;
-    DimensionalUnit parseDimensionalUnit(const json &config) const;
+    CharacteristicDimension parseCharacteristicDimension(const json &config) const;
     void computeScaling();
 };
 

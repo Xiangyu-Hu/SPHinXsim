@@ -73,14 +73,14 @@ bool operator==(const UnitMetrics &a, const UnitMetrics &b)
 ScalingConfig::ScalingConfig(const json &config)
 {
     bool user_scaling_provided = false;
-    if (config.contains("dimensional_units"))
+    if (config.contains("character_dims"))
     {
         bool has_length_unit = false;
-        for (const auto &du : config.at("dimensional_units"))
+        for (const auto &du : config.at("character_dims"))
         {
             if (du.at("unit").get<std::string>() == "Length")
                 has_length_unit = true;
-            dimensional_units_.push_back(parseDimensionalUnit(du));
+            character_dims_.push_back(parseCharacteristicDimension(du));
         }
 
         if (!has_length_unit)
@@ -104,6 +104,14 @@ ScalingConfig::ScalingConfig(const json &config)
         std::cout << "ElectricCurrent: " << scaling_refs_[4] << std::endl;
         std::cout << "AmountOfSubstance: " << scaling_refs_[5] << std::endl;
         std::cout << "LuminousIntensity: " << scaling_refs_[6] << std::endl;
+
+        for (const auto &character_dim : character_dims_)
+        {
+            std::cout << "Characteristic Dimension: " << character_dim.description_ << std::endl;
+            std::cout << "  Name: " << character_dim.name_ << std::endl;
+            std::cout << "  IpputValue: " << character_dim.value_ << ", ScaledValue: "
+                      << character_dim.value_ * getScalingRef(character_dim.name_) << std::endl;
+        }
     }
     else
     {
@@ -142,17 +150,28 @@ UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name) const
     throw std::runtime_error("ScalingConfig::getUnitMetrics: no supported unit name found!");
 }
 //=================================================================================================//
-DimensionalUnit ScalingConfig::parseDimensionalUnit(const json &config) const
+CharacteristicDimension ScalingConfig::parseCharacteristicDimension(const json &config) const
 {
-    DimensionalUnit dimensional_unit;
-    dimensional_unit.value = config.at("value").get<Real>();
-    dimensional_unit.unit_metrics = getUnitMetrics(config.at("unit").get<std::string>());
-    return dimensional_unit;
+    CharacteristicDimension character_dim;
+    character_dim.value_ = config.at("value").get<Real>();
+    character_dim.name_ = config.at("name").get<std::string>();
+    character_dim.unit_metrics_ = getUnitMetrics(character_dim.name_);
+    if (!config.contains("description"))
+    {
+        throw std::runtime_error(
+            "ScalingConfig::parseCharacteristicDimension: description is required for using '" +
+            character_dim.name_ + "' for explicit intention.");
+    }
+    else
+    {
+        character_dim.description_ = config.at("description").get<std::string>();
+    }
+    return character_dim;
 }
 //=================================================================================================//
 void ScalingConfig::computeScaling()
 {
-    const int N = dimensional_units_.size();
+    const int N = character_dims_.size();
     const int D = scaling_refs_.size(); // number of base dimensions
 
     Eigen::Matrix<Real, Eigen::Dynamic, Eigen::Dynamic> A(N, D);
@@ -160,11 +179,11 @@ void ScalingConfig::computeScaling()
 
     for (int i = 0; i < N; ++i)
     {
-        y(i) = std::log10(ABS(dimensional_units_[i].value));
+        y(i) = std::log10(ABS(character_dims_[i].value_));
 
         for (int j = 0; j < D; ++j)
         {
-            A(i, j) = dimensional_units_[i].unit_metrics[j];
+            A(i, j) = character_dims_[i].unit_metrics_[j];
         }
     }
 

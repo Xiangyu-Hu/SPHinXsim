@@ -238,8 +238,11 @@ UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name) const
         return UnitMetrics{-3, 1, 0, 0, 0, 0, 0};
     if (unit_name == "Stress" || unit_name == "Pressure")
         return UnitMetrics{-1, 1, -2, 0, 0, 0, 0};
+    if (unit_name == "Viscosity")
+        return UnitMetrics{-1, 1, -1, 0, 0, 0, 0};
 
-    throw std::runtime_error("ScalingConfig::getUnitMetrics: no supported unit name found!");
+    throw std::runtime_error(
+        "ScalingConfig::getUnitMetrics: not supported: '" + unit_name + "' found!");
 }
 //=================================================================================================//
 CharacteristicDimension ScalingConfig::parseCharacteristicDimension(

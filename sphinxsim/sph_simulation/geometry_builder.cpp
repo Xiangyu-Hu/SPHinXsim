@@ -41,14 +41,14 @@ void GeometryBuilder::createGeometries(EntityManager &config_manager, const json
 //=================================================================================================//
 BoundingBoxd GeometryBuilder::parseBoundingBox(const json &config)
 {
-    Vecd lower_bound = jsonToVecd(config.at("lower_bound"));
-    Vecd upper_bound = jsonToVecd(config.at("upper_bound"));
+    Vecd lower_bound = scaling_config_.jsonToVecd(config.at("lower_bound"), "length");
+    Vecd upper_bound = scaling_config_.jsonToVecd(config.at("upper_bound"), "length");
     return BoundingBoxd(lower_bound, upper_bound);
 }
 //=================================================================================================//
 TransformGeometryBox GeometryBuilder::parseBox(const json &config)
 {
-    Vecd half_size = jsonToVecd(config.at("half_size"));
+    Vecd half_size = scaling_config_.jsonToVecd(config.at("half_size"), "length");
     Transform transform = jsonToTransform(config.at("transform"));
     return TransformGeometryBox(transform, half_size);
 }

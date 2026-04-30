@@ -6,15 +6,6 @@
 namespace SPH
 {
 //=================================================================================================//
-Vecd jsonToVecd(const nlohmann::json &arr)
-{
-    Vecd v = Vecd::Zero();
-    const int dim = static_cast<int>(Vecd::RowsAtCompileTime);
-    for (int i = 0; i < std::min(dim, static_cast<int>(arr.size())); ++i)
-        v[i] = arr[i].get<Real>();
-    return v;
-}
-//=================================================================================================//
 bool is_number(const std::string &s)
 {
     return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit);
@@ -109,37 +100,6 @@ const json *find_in_array(const json &arr, const std::string &key, const std::st
     return nullptr;
 }
 //=================================================================================================//
-#ifdef SPHINXSYS_2D
-Transform jsonToTransform(const nlohmann::json &config)
-{
-    Rotation rotation(config.at("rotation_angle").get<Real>());
-    Vec2d translation = jsonToVecd(config.at("translation"));
-    return Transform(rotation, translation);
-}
-//=================================================================================================//
-Rotation getRotationFromXAxis(const Vecd &direction)
-{
-    Real angle = std::atan2(direction[yAxis], direction[xAxis]);
-    return Rotation(angle);
-}
-//=================================================================================================//
-#else
-Transform jsonToTransform(const nlohmann::json &config)
-{
-    Rotation rotation(config.at("rotation_angle").get<Real>(),
-                      jsonToVecd(config.at("rotation_axis")));
-    Vec3d translation = jsonToVecd(config.at("translation"));
-    return Transform(rotation, translation);
-}
-//=================================================================================================//
-Rotation getRotationFromXAxis(const Vecd &direction)
-{
-    Vec3d rotation_axis = Vec3d::UnitX().cross(direction);
-    Real rotation_angle = std::acos(Vec3d::UnitX().dot(direction));
-    return Rotation(rotation_angle, rotation_axis);
-}
-#endif
-//=================================================================================================//
 UnitMetrics operator+(const UnitMetrics &a, const UnitMetrics &b)
 {
     UnitMetrics r;
@@ -215,6 +175,8 @@ ScalingConfig::ScalingConfig(const json &config)
 //=================================================================================================//
 UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name) const
 {
+    if (unit_name == "Dimensionless")
+        return UnitMetrics{0, 0, 0, 0, 0, 0, 0};
     if (unit_name == "Length")
         return UnitMetrics{1, 0, 0, 0, 0, 0, 0};
     if (unit_name == "Mass")
@@ -319,6 +281,54 @@ Real ScalingConfig::getScalingRef(const std::string &unit_name) const
     }
     return scaling_factor;
 }
+//=================================================================================================//
+Vecd ScalingConfig::jsonToVecd(const nlohmann::json &arr, const std::string &unit_name) const
+{
+    Vecd v = Vecd::Zero();
+    const int dim = static_cast<int>(Vecd::RowsAtCompileTime);
+    Real scaling_ref = getScalingRef(unit_name);
+    for (int i = 0; i < std::min(dim, static_cast<int>(arr.size())); ++i)
+        v[i] = arr[i].get<Real>() / scaling_ref;
+    return v;
+}
+//=================================================================================================//
+Real ScalingConfig::jsonToReal(const json &j, const std::string &unit_name) const
+{
+    Real value = j.get<Real>();
+    Real scaling_ref = getScalingRef(unit_name);
+    return value / scaling_ref;
+}
+//=================================================================================================//
+#ifdef SPHINXSYS_2D
+Transform ScalingConfig::jsonToTransform(const nlohmann::json &config)
+{
+    Rotation rotation(jsonToReal(config.at("rotation_angle"), "Dimensionless"));
+    Vec2d translation = jsonToVecd(config.at("translation"), "Length");
+    return Transform(rotation, translation);
+}
+//=================================================================================================//
+Rotation getRotationFromXAxis(const Vecd &direction)
+{
+    Real angle = std::atan2(direction[yAxis], direction[xAxis]);
+    return Rotation(angle);
+}
+//=================================================================================================//
+#else
+Transform ScalingConfig::jsonToTransform(const nlohmann::json &config)
+{
+    Rotation rotation(jsonToReal(config.at("rotation_angle"), "Dimensionless"),
+                      jsonToVecd(config.at("rotation_axis"), "Dimensionless"));
+    Vec3d translation = jsonToVecd(config.at("translation"), "Length");
+    return Transform(rotation, translation);
+}
+//=================================================================================================//
+Rotation getRotationFromXAxis(const Vecd &direction)
+{
+    Vec3d rotation_axis = Vec3d::UnitX().cross(direction);
+    Real rotation_angle = std::acos(Vec3d::UnitX().dot(direction));
+    return Rotation(rotation_angle, rotation_axis);
+}
+#endif
 //=================================================================================================//
 SimulationBuilder::SimulationBuilder()
     : material_builder_ptr_(std::make_unique<MaterialBuilder>()) {}
@@ -428,6 +438,7 @@ ObserverConfig SimulationBuilder::parseObserverConfig(const json &config)
 void SimulationBuilder::addObserves(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
+    ScalingConfig &scaling_config = config_manager.getEntityByName<ScalingConfig>("ScalingConfig");
     for (const auto &ob : config)
     {
         ObserverConfig observer_config = parseObserverConfig(ob);
@@ -439,7 +450,7 @@ void SimulationBuilder::addObserves(
         {
             for (const auto &p : ob.at("positions"))
             {
-                positions.push_back(jsonToVecd(p));
+                positions.push_back(scaling_config.jsonToVecd(p, "Length"));
             }
         }
 

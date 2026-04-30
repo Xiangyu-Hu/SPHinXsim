@@ -38,18 +38,9 @@ namespace SPH
 {
 /** Convert a JSON array [x, y] or [x, y, z] to Vecd (extra elements are
  * ignored). */
-Vecd jsonToVecd(const nlohmann::json &arr);
 bool is_number(const std::string &s);
 const json *find_in_array(const json &arr, const std::string &key, const std::string &value);
 Real resolve(const json &j, const std::string &path);
-
-#ifdef SPHINXSYS_2D
-Transform jsonToTransform(const nlohmann::json &config);
-Rotation getRotationFromXAxis(const Vecd &direction);
-#else
-Transform jsonToTransform(const nlohmann::json &config);
-Rotation getRotationFromXAxis(const Vecd &direction);
-#endif
 
 // Enum for hook points for fast O(1) access
 enum class SimulationHookPoint
@@ -135,7 +126,16 @@ class ScalingConfig
 {
   public:
     ScalingConfig(const json &config);
+    Vecd jsonToVecd(const nlohmann::json &arr, const std::string &unit_name) const;
+    Real jsonToReal(const json &j, const std::string &unit_name) const;
     Real getScalingRef(const std::string &unit_name) const;
+#ifdef SPHINXSYS_2D
+    Transform jsonToTransform(const nlohmann::json &config);
+    Rotation getRotationFromXAxis(const Vecd &direction);
+#else
+    Transform jsonToTransform(const nlohmann::json &config);
+    Rotation getRotationFromXAxis(const Vecd &direction);
+#endif
 
   private:
     std::vector<CharacteristicDimension> character_dims_;
@@ -146,6 +146,12 @@ class ScalingConfig
     void computeScaling();
     bool isSameOrderOfMagnitude(const Real a, const Real b) const;
 };
+
+#ifdef SPHINXSYS_2D
+Rotation getRotationFromXAxis(const Vecd &direction);
+#else
+Rotation getRotationFromXAxis(const Vecd &direction);
+#endif
 
 struct RestartConfig
 {

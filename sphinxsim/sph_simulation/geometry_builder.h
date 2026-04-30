@@ -49,6 +49,7 @@ struct SystemDomainConfig
 class GeometryBuilder
 {
   public:
+    GeometryBuilder(const ScalingConfig &scaling_config) : scaling_config_(scaling_config) {};
     void createGeometries(EntityManager &config_manager, const json &config);
     static BoundingBoxd parseBoundingBox(const json &config);
     static TransformGeometryBox parseBox(const json &config);
@@ -60,6 +61,7 @@ class GeometryBuilder
 #endif
 
   private:
+    ScalingConfig scaling_config_;
     Shape *addShape(EntityManager &config_manager, const json &config);
     GeometricShapeBox addAlignedBox(EntityManager &config_manager, const json &config);
 };

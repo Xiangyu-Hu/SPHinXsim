@@ -34,6 +34,7 @@ BodyStatesRecording &SimulationBuilder::createBodyStatesRecording(
     for (auto &body : state_recorder.getBodiesForRecording())
     {
         auto &base_particles = body->getBaseParticles();
+        base_particles.dvParticlePosition()->setScalingRef(scaling_config.getScalingRef("Length"));
         auto &variables_to_write = base_particles.VariablesToWrite();
 
         constexpr int type_index_Real = DataTypeIndex<Real>::value;

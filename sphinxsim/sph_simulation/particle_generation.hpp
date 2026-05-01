@@ -189,17 +189,17 @@ class AlignedBoxConstraint : public BaseLocalDynamics<AlignedBoxPartType>
     ConstraintMethodType constraint_;
 };
 
-class ConstraintVectorAxis : public ReturnFunction<Vecd>
+class CovariantVectorAxis : public ReturnFunction<Vecd>
 {
     Vecd constraint_value_;
     int axis_;
 
   public:
-    ConstraintVectorAxis(int axis) : constraint_value_(Vecd::Zero()), axis_(axis) {};
+    CovariantVectorAxis(int axis) : constraint_value_(Vecd::Zero()), axis_(axis) {};
 
     Vecd operator()(const Transform &transform, const Vecd &variable)
     {
-        Vecd frame_variable = transform.shiftBaseStationToFrame(variable);
+        Vecd frame_variable = transform.xformBaseVecToFrame(variable);
         frame_variable[axis_] = constraint_value_[axis_];
         return transform.xformFrameVecToBase(frame_variable);
     };
@@ -222,7 +222,7 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationConstraints(
         if (type == "normal")
         {
             relaxation_constraints.add(
-                &main_methods.template addStateDynamics<AlignedBoxConstraint, ConstraintVectorAxis>(
+                &main_methods.template addStateDynamics<AlignedBoxConstraint, CovariantVectorAxis>(
                     body_part, "KernelGradientIntegral", 0));
         }
         else

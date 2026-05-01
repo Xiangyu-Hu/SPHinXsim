@@ -64,7 +64,7 @@ class ScalingConfig
     ScalingConfig(const json &config);
     Vecd jsonToVecd(const nlohmann::json &arr, const std::string &unit_name) const;
     Real jsonToReal(const json &j, const std::string &unit_name) const;
-    Real getScalingRef(const std::string &unit_name) const;
+    Real getScalingRef(const std::string &unit_name, bool is_required = true) const;
 #ifdef SPHINXSYS_2D
     Transform jsonToTransform(const nlohmann::json &config) const;
 #else
@@ -75,7 +75,7 @@ class ScalingConfig
     std::vector<CharacteristicDimension> character_dims_;
     Eigen::Array<Real, 7, 1> scaling_refs_ = Eigen::Array<Real, 7, 1>::Ones();
 
-    UnitMetrics getUnitMetrics(std::string unit_name) const;
+    UnitMetrics getUnitMetrics(std::string unit_name, bool is_required = true) const;
     CharacteristicDimension parseCharacteristicDimension(const json &root_config, const json &config) const;
     void computeScaling();
     bool isSameOrderOfMagnitude(const Real a, const Real b) const;

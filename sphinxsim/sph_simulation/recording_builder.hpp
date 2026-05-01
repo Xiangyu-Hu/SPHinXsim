@@ -35,23 +35,25 @@ BodyStatesRecording &RecordingBuilder::createBodyStatesRecording(
         auto &base_particles = body->getBaseParticles();
         base_particles.dvParticlePosition()->setScalingRef(scaling_config.getScalingRef("Length"));
         auto &variables_to_write = base_particles.VariablesToWrite();
-
+        // For now, set scaling reference for variables to write, if any, according to their unit type.
+        // Variables without registered scaling references will not be scaled,
+        // as they are considered as temporary variables for debug purposes only.
         constexpr int type_index_Real = DataTypeIndex<Real>::value;
         for (DiscreteVariable<Real> *variable : std::get<type_index_Real>(variables_to_write))
         {
-            variable->setScalingRef(scaling_config.getScalingRef(variable->Name()));
+            variable->setScalingRef(scaling_config.getScalingRef(variable->Name(), false));
         }
 
         constexpr int type_index_Vecd = DataTypeIndex<Vecd>::value;
         for (DiscreteVariable<Vecd> *variable : std::get<type_index_Vecd>(variables_to_write))
         {
-            variable->setScalingRef(scaling_config.getScalingRef(variable->Name()));
+            variable->setScalingRef(scaling_config.getScalingRef(variable->Name(), false));
         }
 
         constexpr int type_index_Matd = DataTypeIndex<Matd>::value;
         for (DiscreteVariable<Matd> *variable : std::get<type_index_Matd>(variables_to_write))
         {
-            variable->setScalingRef(scaling_config.getScalingRef(variable->Name()));
+            variable->setScalingRef(scaling_config.getScalingRef(variable->Name(), false));
         }
     }
     return state_recorder;

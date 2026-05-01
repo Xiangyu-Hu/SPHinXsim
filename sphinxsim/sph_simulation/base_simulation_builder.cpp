@@ -175,9 +175,9 @@ ScalingConfig::ScalingConfig(const json &config)
     std::cout << "------------------------------------------------------------" << std::endl;
 }
 //=================================================================================================//
-UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name) const
+UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name, bool is_required) const
 {
-    if (unit_name == "Dimensionless")
+    if (unit_name == "Dimensionless" || unit_name == "NormalDirection")
         return UnitMetrics{0, 0, 0, 0, 0, 0, 0};
     if (unit_name == "Length")
         return UnitMetrics{1, 0, 0, 0, 0, 0, 0};
@@ -207,8 +207,12 @@ UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name) const
     if (unit_name == "Viscosity")
         return UnitMetrics{-1, 1, -1, 0, 0, 0, 0};
 
-    throw std::runtime_error(
-        "ScalingConfig::getUnitMetrics: not supported: '" + unit_name + "' found!");
+    if (is_required)
+    {
+        throw std::runtime_error(
+            "ScalingConfig::getUnitMetrics: not supported: '" + unit_name + "' found!");
+    }
+    return UnitMetrics{0, 0, 0, 0, 0, 0, 0};
 }
 //=================================================================================================//
 CharacteristicDimension ScalingConfig::parseCharacteristicDimension(
@@ -275,9 +279,9 @@ bool ScalingConfig::isSameOrderOfMagnitude(const Real a, const Real b) const
     return ABS(log_a - log_b) < 1.0; // within one order of magnitude
 }
 //=================================================================================================//
-Real ScalingConfig::getScalingRef(const std::string &unit_name) const
+Real ScalingConfig::getScalingRef(const std::string &unit_name, bool is_required) const
 {
-    UnitMetrics unit_metrics = getUnitMetrics(unit_name);
+    UnitMetrics unit_metrics = getUnitMetrics(unit_name, is_required);
     Real scaling_factor = 1.0;
     for (int i = 0; i < scaling_refs_.size(); ++i)
     {

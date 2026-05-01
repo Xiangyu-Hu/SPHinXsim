@@ -21,6 +21,22 @@ class SimulationType(str, Enum):
     CONTINUUM_DYNAMICS = "continuum_dynamics"
 
 
+class CharacteristicDimensionName(str, Enum):
+    LENGTH = "Length"
+    MASS = "Mass"
+    TIME = "Time"
+    DENSITY = "Density"
+    PRESSURE = "Pressure"
+    STRESS = "Stress"
+    VISCOSITY = "Viscosity"
+    VELOCITY = "Velocity"
+    SPEED = "Speed"
+    GRAVITY = "Gravity"
+    ACCELERATION = "Acceleration"
+    DIMENSIONLESS = "Dimensionless"
+    NORMAL_DIRECTION = "NormalDirection"
+
+
 class GeometricOperationType(str, Enum):
     UNION = "union"
     INTERSECTION = "intersection"
@@ -62,6 +78,12 @@ class FluidBoundaryConditionType(str, Enum):
 class BodyConstraintType(str, Enum):
     FIXED = "fixed"
     SIMBODY = "simbody"
+
+
+class CharacteristicDimensionConfig(BaseModel):
+    value: float
+    name: CharacteristicDimensionName
+    hint: str = Field(..., min_length=1)
 
 
 class DomainConfig(BaseModel):
@@ -433,6 +455,7 @@ class BodyConstraintConfig(BaseModel):
 class SimulationConfig(BaseModel):
     """Top-level JSON payload consumed directly by SPHSimulation::loadConfig."""
 
+    characteristic_dimensions: Optional[List[CharacteristicDimensionConfig]] = None
     simulation_type: SimulationType
     geometries: GeometriesConfig
     particle_generation: ParticleGenerationConfig
@@ -453,6 +476,12 @@ class SimulationConfig(BaseModel):
     def _cross_validate(self) -> "SimulationConfig":
         shape_names = {shape.name for shape in self.geometries.shapes}
         aligned_box_names = {ab.name for ab in self.geometries.aligned_boxes}
+
+        # Scaling: if characteristic_dimensions provided, Length must be among them
+        if self.characteristic_dimensions is not None:
+            names = {cd.name for cd in self.characteristic_dimensions}
+            if CharacteristicDimensionName.LENGTH not in names:
+                raise ValueError("characteristic_dimensions must include a 'Length' entry")
 
         # Simulation type specific requirements
         if self.simulation_type == SimulationType.FLUID_DYNAMICS:

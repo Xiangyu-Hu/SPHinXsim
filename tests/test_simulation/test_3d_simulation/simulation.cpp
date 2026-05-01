@@ -11,14 +11,14 @@
 
 using namespace SPH;
 
-/*TEST(simulations, dambreak)
+TEST(simulations, dambreak)
 {
     SPHSimulation sim("input/dambreak.json");
     sim.resetOutputRoot("./dambreak");
     sim.loadConfig();
     sim.initializeSimulation();
     sim.run();
-}*/
+}
 
 TEST(simulations, t_pipe)
 {

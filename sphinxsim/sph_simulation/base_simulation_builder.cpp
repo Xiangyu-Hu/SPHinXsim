@@ -154,8 +154,8 @@ ScalingConfig::ScalingConfig(const json &config)
     {
         std::cout << "Scaling derived from user-provided scaling configuration." << std::endl;
         std::cout << "Length: " << scaling_refs_[0] << ", Mass: " << scaling_refs_[1]
-                  << ", Time: " << scaling_refs_[2] << ", Temperature: " << scaling_refs_[3]
-                  << ", ElectricCurrent: " << scaling_refs_[4]
+                  << ", Time: " << scaling_refs_[2] << ", Temperature: " << scaling_refs_[3] << std::endl;
+        std::cout << "ElectricCurrent: " << scaling_refs_[4]
                   << ", AmountOfSubstance: " << scaling_refs_[5]
                   << ", LuminousIntensity: " << scaling_refs_[6] << std::endl;
 

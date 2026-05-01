@@ -21,13 +21,13 @@
  *                                                                           *
  * ------------------------------------------------------------------------- */
 /**
- * @file    io_builder.h
+ * @file    recording_builder.h
  * @brief   TBD.
  * @author  Xiangyu Hu
  */
 
-#ifndef IO_BUILDER_H
-#define IO_BUILDER_H
+#ifndef RECORDING_BUILDER_H
+#define RECORDING_BUILDER_H
 
 #include "base_simulation_builder.h"
 
@@ -59,12 +59,12 @@ struct ObserverConfig
     VariableConfig observed_variable_;
 };
 
-class IOBuilder
+class RecordingBuilder
 {
   public:
     template <class MethodContainerType>
     void buildObservationIfPresent(SPHSimulation &sim, MethodContainerType &main_methods, const json &config);
-        RestartConfig parseRestartConfig(const json &config);
+    RestartConfig parseRestartConfig(const json &config);
 
     template <class MethodContainerType>
     BodyStatesRecording &createBodyStatesRecording(
@@ -94,4 +94,4 @@ class IOBuilder
         BodyStatesRecording &state_recording, SPHBody &sph_body, const json &config);
 };
 } // namespace SPH
-#endif // IO_BUILDER_H
+#endif // RECORDING_BUILDER_H

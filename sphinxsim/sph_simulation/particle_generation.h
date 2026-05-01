@@ -39,7 +39,7 @@ class SPHSolver;
 class ParticleDynamicsGroup;
 template <class T>
 class BaseDynamics;
-class IOBuilder;
+class RecordingBuilder;
 
 struct CommonBodyConfig
 {
@@ -86,7 +86,7 @@ class ParticleGeneration
     void runRelaxation();
 
   private:
-      std::unique_ptr<IOBuilder> io_builder_ptr_;
+      std::unique_ptr<RecordingBuilder> recording_builder_ptr_;
     AllBodiesConfig bodies_config_;
     RelaxationParameters relaxation_parameters_;
     std::unique_ptr<RelaxationSystem> relaxation_system_ptr_;

@@ -139,7 +139,7 @@ class SPHSystem;
 class EntityManager;
 class BaseParticles;
 class MaterialBuilder;
-class IOBuilder;
+class RecordingBuilder;
 class ParticleDynamicsGroup;
 class SPHBody;
 
@@ -162,7 +162,7 @@ class SimulationBuilder
     virtual void parseSolverParameters(EntityManager &config_manager, const json &config);
 
   protected:
-    std::unique_ptr<IOBuilder> io_builder_ptr_;
+    std::unique_ptr<RecordingBuilder> recording_builder_ptr_;
     void buildFluidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void buildContinuumBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void buildSolidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);

@@ -1,11 +1,11 @@
-#include "io_builder.h"
+#include "recording_builder.h"
 
 #include "sph_simulation.h"
 
 namespace SPH
 {
 //=================================================================================================//
-RestartConfig IOBuilder::parseRestartConfig(const json &config)
+RestartConfig RecordingBuilder::parseRestartConfig(const json &config)
 {
     RestartConfig restart_config;
     restart_config.enabled_ = config.at("enabled").get<bool>();
@@ -17,12 +17,12 @@ RestartConfig IOBuilder::parseRestartConfig(const json &config)
     return restart_config;
 }
 //=================================================================================================//
-std::string IOBuilder::getObserverRelationName(const ObserverConfig &observer_config)
+std::string RecordingBuilder::getObserverRelationName(const ObserverConfig &observer_config)
 {
     return observer_config.name_ + observer_config.observed_body_;
 }
 //=================================================================================================//
-ObserverConfig IOBuilder::parseObserverConfig(const json &config)
+ObserverConfig RecordingBuilder::parseObserverConfig(const json &config)
 {
     ObserverConfig observer_config;
     observer_config.name_ = config.at("name").get<std::string>();
@@ -31,7 +31,7 @@ ObserverConfig IOBuilder::parseObserverConfig(const json &config)
     return observer_config;
 }
 //=================================================================================================//
-void IOBuilder::addObserves(
+void RecordingBuilder::addObserves(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
@@ -55,7 +55,7 @@ void IOBuilder::addObserves(
     }
 }
 //=================================================================================================//
-VariableConfig IOBuilder::parseVariableConfig(const json &config)
+VariableConfig RecordingBuilder::parseVariableConfig(const json &config)
 {
     VariableConfig variable_config;
     if (config.contains("real_type"))
@@ -72,10 +72,10 @@ VariableConfig IOBuilder::parseVariableConfig(const json &config)
         return variable_config;
     }
 
-    throw std::runtime_error("IOBuilder::parseVariableConfig not supported variable type.");
+    throw std::runtime_error("RecordingBuilder::parseVariableConfig not supported variable type.");
 }
 //=================================================================================================//
-void IOBuilder::addVariableToStateRecorder(
+void RecordingBuilder::addVariableToStateRecorder(
     BodyStatesRecording &state_recording, SPHBody &sph_body, const json &config)
 {
     if (config.contains("real_type"))
@@ -98,7 +98,7 @@ void IOBuilder::addVariableToStateRecorder(
         return;
     }
 
-    throw std::runtime_error("IOBuilder::addVariableToStateRecorder not supported variable type.");
+    throw std::runtime_error("RecordingBuilder::addVariableToStateRecorder not supported variable type.");
 }
 //=================================================================================================//
 } // namespace SPH

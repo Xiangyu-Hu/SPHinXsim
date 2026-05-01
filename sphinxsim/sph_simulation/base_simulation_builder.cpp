@@ -1,6 +1,6 @@
 #include "base_simulation_builder.h"
 
-#include "io_builder.h"
+#include "recording_builder.h"
 #include "material_builder.h"
 #include "sph_simulation.h"
 
@@ -336,7 +336,7 @@ Rotation getRotationFromXAxis(const Vecd &direction)
 //=================================================================================================//
 SimulationBuilder::SimulationBuilder()
     : material_builder_ptr_(std::make_unique<MaterialBuilder>()),
-      io_builder_ptr_(std::make_unique<IOBuilder>()) {}
+      recording_builder_ptr_(std::make_unique<RecordingBuilder>()) {}
 //=================================================================================================//
 SimulationBuilder ::~SimulationBuilder() = default;
 //=================================================================================================//
@@ -399,7 +399,7 @@ void SimulationBuilder::parseSolverParameters(EntityManager &config_manager, con
     if (config.contains("restart"))
     {
         config_manager.emplaceEntity<RestartConfig>(
-            "RestartConfig", io_builder_ptr_->parseRestartConfig(config.at("restart")));
+            "RestartConfig", recording_builder_ptr_->parseRestartConfig(config.at("restart")));
     }
 }
 //=================================================================================================//

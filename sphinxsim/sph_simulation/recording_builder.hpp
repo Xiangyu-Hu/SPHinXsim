@@ -1,7 +1,7 @@
-#ifndef IO_BUILDER_HPP
-#define IO_BUILDER_HPP
+#ifndef RECORDING_BUILDER_HPP
+#define RECORDING_BUILDER_HPP
 
-#include "io_builder.h"
+#include "recording_builder.h"
 
 #include "sph_simulation.h"
 
@@ -9,7 +9,7 @@ namespace SPH
 {
 //=================================================================================================//
 template <class MethodContainerType>
-BodyStatesRecording &IOBuilder::createBodyStatesRecording(
+BodyStatesRecording &RecordingBuilder::createBodyStatesRecording(
     SPHSystem &sph_system, EntityManager &config_manager,
     MethodContainerType &main_methods, const json &config)
 {
@@ -58,7 +58,7 @@ BodyStatesRecording &IOBuilder::createBodyStatesRecording(
 }
 //=================================================================================================//
 template <class MethodContainerType>
-void IOBuilder::buildObservationIfPresent(
+void RecordingBuilder::buildObservationIfPresent(
     SPHSimulation &sim, MethodContainerType &main_methods, const json &config)
 {
     auto &sph_system = sim.getSPHSystem();
@@ -90,7 +90,7 @@ void IOBuilder::buildObservationIfPresent(
 }
 //=================================================================================================//
 template <class MethodContainerType>
-ParticleDynamicsGroup &IOBuilder::createObserverConfigurationDynamics(
+ParticleDynamicsGroup &RecordingBuilder::createObserverConfigurationDynamics(
     SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods)
 {
     auto &observer_config_dynamics = main_methods.addParticleDynamicsGroup();
@@ -110,7 +110,7 @@ ParticleDynamicsGroup &IOBuilder::createObserverConfigurationDynamics(
 }
 //=================================================================================================//
 template <class MethodContainerType>
-IODynamicsGroup &IOBuilder::addObserveRecorder(
+IODynamicsGroup &RecordingBuilder::addObserveRecorder(
     SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods)
 {
     auto &observer_io = main_methods.addIODynamicsGroup(sph_system);
@@ -133,7 +133,7 @@ IODynamicsGroup &IOBuilder::addObserveRecorder(
 }
 //=================================================================================================//
 template <class MethodContainerType, class ObserverRelationType>
-BaseIO *IOBuilder::addObserveRecorderWithVariableConfig(
+BaseIO *RecordingBuilder::addObserveRecorderWithVariableConfig(
     const ScalingConfig &scaling_config, const VariableConfig &variable_config,
     MethodContainerType &main_methods, ObserverRelationType &observer_relation)
 {
@@ -154,8 +154,8 @@ BaseIO *IOBuilder::addObserveRecorderWithVariableConfig(
     }
 
     throw std::runtime_error(
-        "IOBuilder::addObserveRecorderWithVariableConfig: no supported variable type found!");
+        "RecordingBuilder::addObserveRecorderWithVariableConfig: no supported variable type found!");
 }
 //=================================================================================================//
 } // namespace SPH
-#endif // IO_BUILDER_HPP
+#endif // RECORDING_BUILDER_HPP

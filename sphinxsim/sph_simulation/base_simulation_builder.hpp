@@ -4,7 +4,7 @@
 #include "base_simulation_builder.h"
 
 #include "material_builder.h"
-#include "io_builder.hpp"
+#include "recording_builder.hpp"
 #include "sph_simulation.h"
 
 namespace SPH

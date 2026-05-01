@@ -21,6 +21,7 @@ void SystemDomainConfig::updateParticleSpacing()
 void GeometryBuilder::createGeometries(EntityManager &config_manager, const json &config)
 {
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
+    Real scaling_factor = scaling_config.getScalingRef("Length");
     SystemDomainConfig *system_domain_config = config_manager.emplaceEntity<
         SystemDomainConfig>("SystemDomainConfig", parseSystemDomainConfig(scaling_config, config));
     for (const auto &geo : config.at("shapes"))
@@ -35,7 +36,7 @@ void GeometryBuilder::createGeometries(EntityManager &config_manager, const json
         for (const auto &ab : config.at("aligned_boxes"))
         {
             GeometricShapeBox aligned_box_shape = addAlignedBox(scaling_config, config_manager, ab);
-            aligned_box_shape.writeGeometricShapeBoxToVtp();
+            aligned_box_shape.writeGeometricShapeBoxToVtp(scaling_factor);
         }
     }
 }
@@ -133,6 +134,7 @@ Shape *GeometryBuilder::addShape(
     const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config)
 {
 
+    Real scaling_factor = scaling_config.getScalingRef("Length");
     const std::string name = config.at("name").get<std::string>();
     const std::string type = config.at("type").get<std::string>();
 
@@ -140,7 +142,7 @@ Shape *GeometryBuilder::addShape(
     {
         TransformGeometryBox box = parseBox(scaling_config, config);
         GeometricShapeBox *shape = config_manager.emplaceEntity<GeometricShapeBox>(name, box, name);
-        shape->writeGeometricShapeBoxToVtp();
+        shape->writeGeometricShapeBoxToVtp(scaling_factor);
         return shape;
     }
 
@@ -149,7 +151,7 @@ Shape *GeometryBuilder::addShape(
         BoundingBoxd bounding_box = parseBoundingBox(scaling_config, config);
         config_manager.emplaceEntity<BoundingBoxd>(name, bounding_box);
         GeometricShapeBox *shape = config_manager.emplaceEntity<GeometricShapeBox>(name, bounding_box, name);
-        shape->writeGeometricShapeBoxToVtp();
+        shape->writeGeometricShapeBoxToVtp(scaling_factor);
         return shape;
     }
 
@@ -160,7 +162,7 @@ Shape *GeometryBuilder::addShape(
             config_manager.getEntity<GeometricShapeBox>(original_name)
                 .getExpandedBox(scaling_config.jsonToReal(config.at("expansion"), "Length"));
         GeometricShapeBox *shape = config_manager.emplaceEntity<GeometricShapeBox>(name, expand_box, name);
-        shape->writeGeometricShapeBoxToVtp();
+        shape->writeGeometricShapeBoxToVtp(scaling_factor);
         return shape;
     }
 
@@ -218,10 +220,10 @@ Shape *GeometryBuilder::addShape(
             scale = scaling_config.jsonToReal(config.at("scale"), "Dimensionless");
         }
 
-        scale /= scaling_config.getScalingRef("Length");
+        scale /= scaling_factor;
         TriangleMeshShapeSTL *shape = config_manager.emplaceEntity<TriangleMeshShapeSTL>(
             name, config.at("file_path").get<std::string>(), translation, scale, name);
-        shape->writTriangleMeshShapeToVtp();
+        shape->writTriangleMeshShapeToVtp(Transform(), scaling_factor);
         return shape;
     }
 #endif

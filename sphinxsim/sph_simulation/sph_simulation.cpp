@@ -38,6 +38,7 @@ SPHSystem &SPHSimulation::defineSPHSystem()
         system_config.system_bounds_, system_config.particle_spacing_);
     auto &scaling_config = config_manager_.getEntity<ScalingConfig>("ScalingConfig");
     sph_system_ptr_->svPhysicalTime().setScalingRef(scaling_config.getScalingRef("Time"));
+    sph_system_ptr_->writeSystemDomainShapeToVtp(scaling_config.getScalingRef("Length"));
     return *sph_system_ptr_.get();
 }
 //=================================================================================================//

@@ -124,8 +124,10 @@ RelaxationSystem &ParticleGeneration::defineRelaxationSystem(
     EntityManager &config_manager, const json &config)
 {
     auto &system_config = config_manager.getEntity<SystemDomainConfig>("SystemDomainConfig");
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     relaxation_system_ptr_ = std::make_unique<RelaxationSystem>(
         system_config.system_bounds_, system_config.particle_spacing_);
+    relaxation_system_ptr_->writeSystemDomainShapeToVtp(scaling_config.getScalingRef("Length"));
     return *relaxation_system_ptr_.get();
 }
 //=================================================================================================//

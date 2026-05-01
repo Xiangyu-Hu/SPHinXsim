@@ -36,6 +36,8 @@ SPHSystem &SPHSimulation::defineSPHSystem()
         SystemDomainConfig>("SystemDomainConfig");
     sph_system_ptr_ = std::make_unique<SPHSystem>(
         system_config.system_bounds_, system_config.particle_spacing_);
+    auto &scaling_config = config_manager_.getEntity<ScalingConfig>("ScalingConfig");
+    sph_system_ptr_->svPhysicalTime().setScalingRef(scaling_config.getScalingRef("Time"));
     return *sph_system_ptr_.get();
 }
 //=================================================================================================//

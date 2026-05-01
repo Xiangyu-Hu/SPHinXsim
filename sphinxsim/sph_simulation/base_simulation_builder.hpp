@@ -14,8 +14,10 @@ BodyStatesRecording &SimulationBuilder::createBodyStatesRecording(
     SPHSystem &sph_system, EntityManager &config_manager,
     MethodContainerType &main_methods, const json &config)
 {
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     auto &state_recorder = main_methods.template addBodyStateRecorder<
         BodyStatesRecordingToVtpCK>(sph_system);
+
     if (config.contains("extra_state_recording"))
     {
         for (auto &body : config.at("extra_state_recording"))
@@ -26,6 +28,30 @@ BodyStatesRecording &SimulationBuilder::createBodyStatesRecording(
             {
                 addVariableToStateRecorder(state_recorder, real_body, var);
             }
+        }
+    }
+
+    for (auto &body : state_recorder.getBodiesForRecording())
+    {
+        auto &base_particles = body->getBaseParticles();
+        auto &variables_to_write = base_particles.VariablesToWrite();
+
+        constexpr int type_index_Real = DataTypeIndex<Real>::value;
+        for (DiscreteVariable<Real> *variable : std::get<type_index_Real>(variables_to_write))
+        {
+            variable->setScalingRef(scaling_config.getScalingRef(variable->Name()));
+        }
+
+        constexpr int type_index_Vecd = DataTypeIndex<Vecd>::value;
+        for (DiscreteVariable<Vecd> *variable : std::get<type_index_Vecd>(variables_to_write))
+        {
+            variable->setScalingRef(scaling_config.getScalingRef(variable->Name()));
+        }
+
+        constexpr int type_index_Matd = DataTypeIndex<Matd>::value;
+        for (DiscreteVariable<Matd> *variable : std::get<type_index_Matd>(variables_to_write))
+        {
+            variable->setScalingRef(scaling_config.getScalingRef(variable->Name()));
         }
     }
     return state_recorder;
@@ -90,6 +116,7 @@ IODynamicsGroup &SimulationBuilder::addObserveRecorder(
     auto &observer_io = main_methods.addIODynamicsGroup(sph_system);
 
     StdVec<ObserverConfig *> observer_configs = config_manager.entitiesWith<ObserverConfig>();
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     if (!observer_configs.empty())
     {
         for (auto &observer_config : observer_configs)
@@ -99,7 +126,7 @@ IODynamicsGroup &SimulationBuilder::addObserveRecorder(
                 Contact<Relation<ObserverBody, RealBody>>>(relation_name);
 
             observer_io.add(addObserveRecorderWithVariableConfig(
-                observer_config->observed_variable_, main_methods, observer_relation));
+                scaling_config, observer_config->observed_variable_, main_methods, observer_relation));
         }
     }
     return observer_io;
@@ -107,19 +134,23 @@ IODynamicsGroup &SimulationBuilder::addObserveRecorder(
 //=================================================================================================//
 template <class MethodContainerType, class ObserverRelationType>
 BaseIO *SimulationBuilder::addObserveRecorderWithVariableConfig(
-    const VariableConfig &variable_config, MethodContainerType &main_methods,
-    ObserverRelationType &observer_relation)
+    const ScalingConfig &scaling_config, const VariableConfig &variable_config,
+    MethodContainerType &main_methods, ObserverRelationType &observer_relation)
 {
     if (variable_config.type_ == "Real")
     {
-        return &main_methods.template addObserveRecorder<Real>(
+        auto &ob = main_methods.template addObserveRecorder<Real>(
             variable_config.name_, observer_relation);
+        ob.getObservedVariable().setScalingRef(scaling_config.getScalingRef(variable_config.name_));
+        return &ob;
     }
 
     if (variable_config.type_ == "Vecd")
     {
-        return &main_methods.template addObserveRecorder<Vecd>(
+        auto &ob = main_methods.template addObserveRecorder<Vecd>(
             variable_config.name_, observer_relation);
+        ob.getObservedVariable().setScalingRef(scaling_config.getScalingRef(variable_config.name_));
+        return &ob;
     }
 
     throw std::runtime_error(

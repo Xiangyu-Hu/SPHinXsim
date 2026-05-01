@@ -219,8 +219,8 @@ class SimulationBuilder
 
     template <class MethodContainerType, class ObserverRelationType>
     BaseIO *addObserveRecorderWithVariableConfig(
-        const VariableConfig &variable_config, MethodContainerType &main_methods,
-        ObserverRelationType &observer_relation);
+        const ScalingConfig &scaling_config, const VariableConfig &variable_config, 
+        MethodContainerType &main_methods, ObserverRelationType &observer_relation);
 
     void addVariableToStateRecorder(
         BodyStatesRecording &state_recording, SPHBody &sph_body, const json &config);

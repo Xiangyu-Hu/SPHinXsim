@@ -1,7 +1,7 @@
 {
   "characteristic_dimensions": [
     {
-      "value": 0.004,
+      "value": 0.001,
       "name": "Length",
       "hint": "geometries.aligned_boxes[name=Inlet].radius"
     },
@@ -61,7 +61,7 @@
   },
 
   "particle_generation": {
-    "build_and_run": true,
+    "build_and_run": false,
     "settings": {
       "bodies": [
         {

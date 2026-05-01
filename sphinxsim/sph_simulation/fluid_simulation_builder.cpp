@@ -79,7 +79,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     // Define basic state recording for visualization the simulation results.
     //----------------------------------------------------------------------
-    auto &body_state_recorder = createBodyStatesRecording(sph_system, config_manager, main_methods, config);
+    auto &body_state_recorder = io_builder_ptr_->createBodyStatesRecording(
+        sph_system, config_manager, main_methods, config);
     //----------------------------------------------------------------------
     //	Define time integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------
@@ -140,9 +141,9 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                     std::cout << std::fixed << std::setprecision(9)
                               << "N=" << time_stepper.getIterationStep()
                               << "  Time = " << time_stepper.getPhysicalTime() * time_scaling_ref
-                              << "  advection_dt = " << advection_step.getInterval() * time_scaling_ref 
+                              << "  advection_dt = " << advection_step.getInterval() * time_scaling_ref
                               << "(scaled: " << advection_step.getInterval() << "),"
-                              << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize() * time_scaling_ref 
+                              << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize() * time_scaling_ref
                               << "(scaled: " << time_stepper.getGlobalTimeStepSize() << ")"
                               << "\n";
                 }
@@ -173,7 +174,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     // Define optional methods using hooking point in stage pipelines.
     //----------------------------------------------------------------------
-    buildObservationIfPresent(sim, main_methods, config);
+    io_builder_ptr_->buildObservationIfPresent(sim, main_methods, config);
     buildExternalForceIfPresent(sim, main_methods, fluid_body, config);
     buildSurfaceIndicationIfOpenBoundary(sim, main_methods, fluid_inner, fluid_wall_contact);
     buildTransportVelocityFormulationIfNotFreeSurface(sim, main_methods, fluid_inner, fluid_wall_contact);

@@ -4,6 +4,7 @@
 #include "constraint_builder.h"
 
 #include "geometry_builder.h"
+#include "io_builder.h"
 #include "sph_simulation.h"
 
 namespace SPH

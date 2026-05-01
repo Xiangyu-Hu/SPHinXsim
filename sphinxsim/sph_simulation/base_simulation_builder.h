@@ -139,40 +139,18 @@ class SPHSystem;
 class EntityManager;
 class BaseParticles;
 class MaterialBuilder;
+class IOBuilder;
 class ParticleDynamicsGroup;
-class IODynamicsGroup;
-class BaseIO;
-class BodyStatesRecording;
 class SPHBody;
 
 template <class ReturnType>
 class BaseDynamics;
-
-struct RestartConfig
-{
-    bool enabled_{false};
-    int save_interval_{1000};
-    int restore_step_{0};
-    bool summary_enabled_{false};
-};
 
 struct SolverCommonConfig
 {
     Real end_time_{0.0};
     Real output_interval_{0.1};
     UnsignedInt screen_interval_{100};
-};
-
-struct VariableConfig
-{
-    std::string type_;
-    std::string name_;
-};
-struct ObserverConfig
-{
-    std::string name_;
-    std::string observed_body_;
-    VariableConfig observed_variable_;
 };
 
 class SimulationBuilder
@@ -184,17 +162,10 @@ class SimulationBuilder
     virtual void parseSolverParameters(EntityManager &config_manager, const json &config);
 
   protected:
+    std::unique_ptr<IOBuilder> io_builder_ptr_;
     void buildFluidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void buildContinuumBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void buildSolidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
-
-    template <class MethodContainerType>
-    void buildObservationIfPresent(SPHSimulation &sim, MethodContainerType &main_methods, const json &config);
-
-    template <class MethodContainerType>
-    BodyStatesRecording &createBodyStatesRecording(
-        SPHSystem &sph_system, EntityManager &config_manager,
-        MethodContainerType &main_methods, const json &config);
 
     template <class MethodContainerType>
     void buildExternalForceIfPresent(
@@ -203,27 +174,6 @@ class SimulationBuilder
   private:
     std::unique_ptr<MaterialBuilder> material_builder_ptr_;
     SolverCommonConfig parseSolverCommonConfig(const ScalingConfig &scaling_config, const json &config);
-    RestartConfig parseRestartConfig(const json &config);
-    std::string getObserverRelationName(const ObserverConfig &observer_config);
-    ObserverConfig parseObserverConfig(const json &config);
-    VariableConfig parseVariableConfig(const json &config);
-    void addObserves(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
-
-    template <class MethodContainerType>
-    ParticleDynamicsGroup &createObserverConfigurationDynamics(
-        SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
-
-    template <class MethodContainerType>
-    IODynamicsGroup &addObserveRecorder(
-        SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
-
-    template <class MethodContainerType, class ObserverRelationType>
-    BaseIO *addObserveRecorderWithVariableConfig(
-        const ScalingConfig &scaling_config, const VariableConfig &variable_config, 
-        MethodContainerType &main_methods, ObserverRelationType &observer_relation);
-
-    void addVariableToStateRecorder(
-        BodyStatesRecording &state_recording, SPHBody &sph_body, const json &config);
 };
 } // namespace SPH
 #endif // BASE_SIMULATION_BUILDER_H

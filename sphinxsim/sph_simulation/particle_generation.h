@@ -39,6 +39,7 @@ class SPHSolver;
 class ParticleDynamicsGroup;
 template <class T>
 class BaseDynamics;
+class IOBuilder;
 
 struct CommonBodyConfig
 {
@@ -79,11 +80,13 @@ enum class ReloadIOHookPoint
 class ParticleGeneration
 {
   public:
+    ParticleGeneration();
     ~ParticleGeneration();
     void buildParticleGeneration(SPHSimulation &sim, const json &config);
     void runRelaxation();
 
   private:
+      std::unique_ptr<IOBuilder> io_builder_ptr_;
     AllBodiesConfig bodies_config_;
     RelaxationParameters relaxation_parameters_;
     std::unique_ptr<RelaxationSystem> relaxation_system_ptr_;

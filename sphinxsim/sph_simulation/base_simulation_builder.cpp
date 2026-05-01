@@ -1,5 +1,6 @@
 #include "base_simulation_builder.h"
 
+#include "io_builder.h"
 #include "material_builder.h"
 #include "sph_simulation.h"
 
@@ -151,7 +152,7 @@ ScalingConfig::ScalingConfig(const json &config)
     std::cout << "\n------------------------------------------------------------" << std::endl;
     if (user_scaling_provided)
     {
-        std::cout << "Derived from user-provided scaling configuration." << std::endl;
+        std::cout << "Scaling derived from user-provided scaling configuration." << std::endl;
         std::cout << "Length: " << scaling_refs_[0] << ", Mass: " << scaling_refs_[1]
                   << ", Time: " << scaling_refs_[2] << ", Temperature: " << scaling_refs_[3]
                   << ", ElectricCurrent: " << scaling_refs_[4]
@@ -334,7 +335,8 @@ Rotation getRotationFromXAxis(const Vecd &direction)
 #endif
 //=================================================================================================//
 SimulationBuilder::SimulationBuilder()
-    : material_builder_ptr_(std::make_unique<MaterialBuilder>()) {}
+    : material_builder_ptr_(std::make_unique<MaterialBuilder>()),
+      io_builder_ptr_(std::make_unique<IOBuilder>()) {}
 //=================================================================================================//
 SimulationBuilder ::~SimulationBuilder() = default;
 //=================================================================================================//
@@ -397,7 +399,7 @@ void SimulationBuilder::parseSolverParameters(EntityManager &config_manager, con
     if (config.contains("restart"))
     {
         config_manager.emplaceEntity<RestartConfig>(
-            "RestartConfig", parseRestartConfig(config.at("restart")));
+            "RestartConfig", io_builder_ptr_->parseRestartConfig(config.at("restart")));
     }
 }
 //=================================================================================================//
@@ -413,102 +415,6 @@ SolverCommonConfig SimulationBuilder::parseSolverCommonConfig(
         solver_common_config.output_interval_ = solver_common_config.end_time_ / 100.0; // default to 100 output frames
 
     return solver_common_config;
-}
-//=================================================================================================//
-RestartConfig SimulationBuilder::parseRestartConfig(const json &config)
-{
-    RestartConfig restart_config;
-    restart_config.enabled_ = config.at("enabled").get<bool>();
-    if (config.contains("save_interval"))
-        restart_config.save_interval_ = config.at("save_interval").get<int>();
-    restart_config.restore_step_ = config.at("restore_step").get<int>();
-    if (config.contains("summary_enabled"))
-        restart_config.summary_enabled_ = config.at("summary_enabled").get<bool>();
-    return restart_config;
-}
-//=================================================================================================//
-std::string SimulationBuilder::getObserverRelationName(const ObserverConfig &observer_config)
-{
-    return observer_config.name_ + observer_config.observed_body_;
-}
-//=================================================================================================//
-ObserverConfig SimulationBuilder::parseObserverConfig(const json &config)
-{
-    ObserverConfig observer_config;
-    observer_config.name_ = config.at("name").get<std::string>();
-    observer_config.observed_body_ = config.at("observed_body").get<std::string>();
-    observer_config.observed_variable_ = parseVariableConfig(config.at("variable"));
-    return observer_config;
-}
-//=================================================================================================//
-void SimulationBuilder::addObserves(
-    SPHSystem &sph_system, EntityManager &config_manager, const json &config)
-{
-    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
-    for (const auto &ob : config)
-    {
-        ObserverConfig observer_config = parseObserverConfig(ob);
-        std::string name = observer_config.name_;
-        config_manager.emplaceEntity<ObserverConfig>(name, observer_config);
-
-        StdVec<Vecd> positions;
-        if (ob.contains("positions"))
-        {
-            for (const auto &p : ob.at("positions"))
-            {
-                positions.push_back(scaling_config.jsonToVecd(p, "Length"));
-            }
-        }
-
-        ObserverBody &observer_body = sph_system.addBody<ObserverBody>(name);
-        observer_body.generateParticles<ObserverParticles>(positions);
-    }
-}
-//=================================================================================================//
-VariableConfig SimulationBuilder::parseVariableConfig(const json &config)
-{
-    VariableConfig variable_config;
-    if (config.contains("real_type"))
-    {
-        variable_config.type_ = "Real";
-        variable_config.name_ = config.at("real_type").get<std::string>();
-        return variable_config;
-    }
-
-    if (config.contains("vector_type"))
-    {
-        variable_config.type_ = "Vecd";
-        variable_config.name_ = config.at("vector_type").get<std::string>();
-        return variable_config;
-    }
-
-    throw std::runtime_error("SimulationBuilder::parseVariableConfig not supported variable type.");
-}
-//=================================================================================================//
-void SimulationBuilder::addVariableToStateRecorder(
-    BodyStatesRecording &state_recording, SPHBody &sph_body, const json &config)
-{
-    if (config.contains("real_type"))
-    {
-        StdVec<std::string> real_variables = config.at("real_type").get<StdVec<std::string>>();
-        for (const auto &real_var : real_variables)
-        {
-            state_recording.template addToWrite<Real>(sph_body, real_var);
-        }
-        return;
-    }
-
-    if (config.contains("vector_type"))
-    {
-        StdVec<std::string> vector_variables = config.at("vector_type").get<StdVec<std::string>>();
-        for (const auto &vector_var : vector_variables)
-        {
-            state_recording.template addToWrite<Vecd>(sph_body, vector_var);
-        }
-        return;
-    }
-
-    throw std::runtime_error("SimulationBuilder::addVariableToStateRecorder not supported variable type.");
 }
 //=================================================================================================//
 } // namespace SPH

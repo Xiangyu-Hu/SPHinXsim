@@ -63,6 +63,7 @@ class SPHSimulation
     friend class FluidSimulationBuilder;
     friend class ContinuumSimulationBuilder;
     friend class ConstraintBuilder;
+    friend class IOBuilder;
 
     SPHSystem &defineSPHSystem();
     SPHSolver &defineSPHSolver(SimulationBuilder &simulation_builder, const json &config);

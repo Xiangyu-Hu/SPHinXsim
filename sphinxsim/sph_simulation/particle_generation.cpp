@@ -1,10 +1,13 @@
 #include "particle_generation.hpp"
 
 #include "geometry_builder.h"
+#include "io_builder.hpp"
 #include "sph_simulation.h"
 
 namespace SPH
 {
+//=================================================================================================//
+ParticleGeneration::ParticleGeneration() : io_builder_ptr_(std::make_unique<IOBuilder>()) {}
 //=================================================================================================//
 ParticleGeneration::~ParticleGeneration() = default;
 //=================================================================================================//
@@ -35,7 +38,8 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     //	Define simple file input and outputs functions.
     //----------------------------------------------------------------------
-    auto &body_state_recorder = main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(relaxation_system);
+    auto &body_state_recorder = io_builder_ptr_->createBodyStatesRecording(
+        relaxation_system, config_manager, main_methods, config);
     auto &write_particle_reload_files = main_methods.addIODynamics<ReloadParticleIOCK>(relaxation_system);
     //----------------------------------------------------------------------
     //	Out initial particle distribution after setting up.

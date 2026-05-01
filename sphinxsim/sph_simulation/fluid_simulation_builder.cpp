@@ -210,8 +210,7 @@ FluidSolverConfig FluidSimulationBuilder::parseFluidSolverConfig(
     if (config.contains("particle_sort_frequency"))
     {
         params.particle_sorting_ = true;
-        params.sort_frequency_ = scaling_config.jsonToReal(
-            config.at("particle_sort_frequency"), "Dimensionless");
+        params.sort_frequency_ = config.at("particle_sort_frequency").get<UnsignedInt>();
     }
     return params;
 }

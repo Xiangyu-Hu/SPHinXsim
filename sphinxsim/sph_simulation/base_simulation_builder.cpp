@@ -220,6 +220,12 @@ CharacteristicDimension ScalingConfig::parseCharacteristicDimension(
 {
     CharacteristicDimension character_dim;
     character_dim.value_ = config.at("value").get<Real>();
+    if (character_dim.value_ < Eps)
+    {
+        throw std::runtime_error(
+            "ScalingConfig::parseCharacteristicDimension: value of '" + character_dim.name_ +
+            "' must be positive and sufficient.");
+    }
     character_dim.name_ = config.at("name").get<std::string>();
     character_dim.unit_metrics_ = getUnitMetrics(character_dim.name_);
     if (!config.contains("hint"))

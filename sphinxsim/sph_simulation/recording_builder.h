@@ -38,14 +38,6 @@ class BaseIO;
 class BodyStatesRecording;
 class SPHBody;
 
-struct RestartConfig
-{
-    bool enabled_{false};
-    int save_interval_{1000};
-    int restore_step_{0};
-    bool summary_enabled_{false};
-};
-
 struct VariableConfig
 {
     std::string type_;
@@ -64,7 +56,6 @@ class RecordingBuilder
   public:
     template <class MethodContainerType>
     void buildObservationIfPresent(SPHSimulation &sim, MethodContainerType &main_methods, const json &config);
-    RestartConfig parseRestartConfig(const json &config);
 
     template <class MethodContainerType>
     BodyStatesRecording &createBodyStatesRecording(

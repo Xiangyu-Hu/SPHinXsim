@@ -86,7 +86,6 @@ class ParticleGeneration
     void runRelaxation();
 
   private:
-      std::unique_ptr<RecordingBuilder> recording_builder_ptr_;
     AllBodiesConfig bodies_config_;
     RelaxationParameters relaxation_parameters_;
     std::unique_ptr<RelaxationSystem> relaxation_system_ptr_;

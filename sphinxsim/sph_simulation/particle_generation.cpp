@@ -7,7 +7,7 @@
 namespace SPH
 {
 //=================================================================================================//
-ParticleGeneration::ParticleGeneration() : recording_builder_ptr_(std::make_unique<RecordingBuilder>()) {}
+ParticleGeneration::ParticleGeneration(){}
 //=================================================================================================//
 ParticleGeneration::~ParticleGeneration() = default;
 //=================================================================================================//
@@ -18,6 +18,7 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     EntityManager &config_manager = sim.getConfigManager();
     RelaxationSystem &relaxation_system = defineRelaxationSystem(config_manager, config);
+    RecordingBuilder &recording_builder = sim.getRecordingBuilder();
     //----------------------------------------------------------------------
     addAllBodies(relaxation_system, config_manager, config.at("bodies"));
     defineBodyRelations(relaxation_system);
@@ -38,7 +39,7 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     //	Define simple file input and outputs functions.
     //----------------------------------------------------------------------
-    auto &body_state_recorder = recording_builder_ptr_->createBodyStatesRecording(
+    auto &body_state_recorder = recording_builder.createBodyStatesRecording(
         relaxation_system, config_manager, main_methods, config);
     auto &write_particle_reload_files = main_methods.addIODynamics<ReloadParticleIOCK>(relaxation_system);
     //----------------------------------------------------------------------

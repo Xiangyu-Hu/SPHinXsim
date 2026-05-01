@@ -153,6 +153,14 @@ struct SolverCommonConfig
     UnsignedInt screen_interval_{100};
 };
 
+struct RestartConfig
+{
+    bool enabled_{false};
+    int save_interval_{1000};
+    int restore_step_{0};
+    bool summary_enabled_{false};
+};
+
 class SimulationBuilder
 {
   public:
@@ -162,10 +170,10 @@ class SimulationBuilder
     virtual void parseSolverParameters(EntityManager &config_manager, const json &config);
 
   protected:
-    std::unique_ptr<RecordingBuilder> recording_builder_ptr_;
     void buildFluidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void buildContinuumBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void buildSolidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
+    RestartConfig parseRestartConfig(const json &config);
 
     template <class MethodContainerType>
     void buildExternalForceIfPresent(

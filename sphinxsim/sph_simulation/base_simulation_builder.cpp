@@ -1,7 +1,7 @@
 #include "base_simulation_builder.h"
 
-#include "recording_builder.h"
 #include "material_builder.h"
+#include "recording_builder.h"
 #include "sph_simulation.h"
 
 namespace SPH
@@ -335,8 +335,7 @@ Rotation getRotationFromXAxis(const Vecd &direction)
 #endif
 //=================================================================================================//
 SimulationBuilder::SimulationBuilder()
-    : material_builder_ptr_(std::make_unique<MaterialBuilder>()),
-      recording_builder_ptr_(std::make_unique<RecordingBuilder>()) {}
+    : material_builder_ptr_(std::make_unique<MaterialBuilder>()) {}
 //=================================================================================================//
 SimulationBuilder ::~SimulationBuilder() = default;
 //=================================================================================================//
@@ -399,8 +398,20 @@ void SimulationBuilder::parseSolverParameters(EntityManager &config_manager, con
     if (config.contains("restart"))
     {
         config_manager.emplaceEntity<RestartConfig>(
-            "RestartConfig", recording_builder_ptr_->parseRestartConfig(config.at("restart")));
+            "RestartConfig", parseRestartConfig(config.at("restart")));
     }
+}
+//=================================================================================================//
+RestartConfig SimulationBuilder::parseRestartConfig(const json &config)
+{
+    RestartConfig restart_config;
+    restart_config.enabled_ = config.at("enabled").get<bool>();
+    if (config.contains("save_interval"))
+        restart_config.save_interval_ = config.at("save_interval").get<int>();
+    restart_config.restore_step_ = config.at("restore_step").get<int>();
+    if (config.contains("summary_enabled"))
+        restart_config.summary_enabled_ = config.at("summary_enabled").get<bool>();
+    return restart_config;
 }
 //=================================================================================================//
 SolverCommonConfig SimulationBuilder::parseSolverCommonConfig(

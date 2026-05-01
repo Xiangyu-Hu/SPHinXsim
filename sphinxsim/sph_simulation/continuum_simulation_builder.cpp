@@ -13,6 +13,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     SPHSystem &sph_system = sim.defineSPHSystem();
     EntityManager &config_manager = sim.getConfigManager();
+    RecordingBuilder &recording_builder = sim.getRecordingBuilder();
     //----------------------------------------------------------------------
     //	Creating bodies with inital shape, materials and particles.
     //----------------------------------------------------------------------
@@ -83,7 +84,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     // Define basic state recording for visualization the simulation results.
     //----------------------------------------------------------------------
-    auto &body_state_recorder = recording_builder_ptr_->createBodyStatesRecording(
+    auto &body_state_recorder = recording_builder.createBodyStatesRecording(
         sph_system, config_manager, main_methods, config);
     //----------------------------------------------------------------------
     //	Define time-integration method, screen out uput and observation sample rate.

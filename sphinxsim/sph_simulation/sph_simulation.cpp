@@ -5,13 +5,15 @@
 #include "geometry_builder.h"
 #include "material_builder.h"
 #include "particle_generation.h"
+#include "recording_builder.h"
 
 namespace SPH
 {
 //=================================================================================================//
 SPHSimulation::SPHSimulation(const fs::path &config_path)
     : config_path_(config_path),
-      geometry_builder_ptr_(std::make_unique<GeometryBuilder>())
+      geometry_builder_ptr_(std::make_unique<GeometryBuilder>()),
+      recording_builder_ptr_(std::make_unique<RecordingBuilder>())
 {
     IO::initEnvironment();
 }

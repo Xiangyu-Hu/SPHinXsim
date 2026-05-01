@@ -5,18 +5,6 @@
 namespace SPH
 {
 //=================================================================================================//
-RestartConfig RecordingBuilder::parseRestartConfig(const json &config)
-{
-    RestartConfig restart_config;
-    restart_config.enabled_ = config.at("enabled").get<bool>();
-    if (config.contains("save_interval"))
-        restart_config.save_interval_ = config.at("save_interval").get<int>();
-    restart_config.restore_step_ = config.at("restore_step").get<int>();
-    if (config.contains("summary_enabled"))
-        restart_config.summary_enabled_ = config.at("summary_enabled").get<bool>();
-    return restart_config;
-}
-//=================================================================================================//
 std::string RecordingBuilder::getObserverRelationName(const ObserverConfig &observer_config)
 {
     return observer_config.name_ + observer_config.observed_body_;

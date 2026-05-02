@@ -25,12 +25,17 @@ class CharacteristicDimensionName(str, Enum):
     LENGTH = "Length"
     MASS = "Mass"
     TIME = "Time"
+    TEMPERATURE = "Temperature"
+    ELECTRIC_CURRENT = "ElectricCurrent"
+    AMOUNT_OF_SUBSTANCE = "AmountOfSubstance"
+    LUMINOUS_INTENSITY = "LuminousIntensity"
     DENSITY = "Density"
     PRESSURE = "Pressure"
     STRESS = "Stress"
     VISCOSITY = "Viscosity"
     VELOCITY = "Velocity"
     SPEED = "Speed"
+    ANGULAR_VELOCITY = "AngularVelocity"
     GRAVITY = "Gravity"
     ACCELERATION = "Acceleration"
     DIMENSIONLESS = "Dimensionless"
@@ -314,6 +319,7 @@ class MaterialConfig(BaseModel):
 
     density: Optional[float] = Field(default=None, gt=0)
     sound_speed: Optional[float] = Field(default=None, gt=0)
+    maximum_velocity: Optional[float] = Field(default=None, gt=0)
     viscosity: Optional[float] = Field(default=None, gt=0)
 
     youngs_modulus: Optional[float] = Field(default=None, gt=0)
@@ -324,8 +330,12 @@ class MaterialConfig(BaseModel):
     @model_validator(mode="after")
     def _validate_material_by_type(self) -> "MaterialConfig":
         if self.type == MaterialType.WEAKLY_COMPRESSIBLE_FLUID:
-            if self.density is None or self.sound_speed is None:
-                raise ValueError("weakly_compressible_fluid requires density and sound_speed")
+            if self.density is None:
+                raise ValueError("weakly_compressible_fluid requires density")
+            if self.sound_speed is None and self.maximum_velocity is None:
+                raise ValueError(
+                    "weakly_compressible_fluid requires sound_speed or maximum_velocity"
+                )
         elif self.type == MaterialType.RIGID_BODY:
             pass
         elif self.type == MaterialType.J2_PLASTICITY:
@@ -547,6 +557,11 @@ class SimulationConfig(BaseModel):
                 raise ValueError("body_constraints body_name must reference an existing continuum/solid body")
             if constraint.region is not None and constraint.region not in shape_names:
                 raise ValueError("body_constraints region must reference an existing shape name")
+
+        # Simbody constraints require restart section to exist at runtime.
+        if any(constraint.type == BodyConstraintType.SIMBODY for constraint in self.body_constraints):
+            if self.solver_parameters.restart is None:
+                raise ValueError("simbody body_constraints require solver_parameters.restart")
 
         # Dimensional consistency if system_domain is present
         if self.geometries.system_domain is not None:

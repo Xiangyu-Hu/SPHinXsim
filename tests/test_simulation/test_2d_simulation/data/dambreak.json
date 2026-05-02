@@ -1,4 +1,22 @@
 {
+  "characteristic_dimensions": [
+    {
+      "value": 10.0,
+      "name": "Length",
+      "hint": "geometries.system_domain.upper_bound"
+    },
+    {
+      "value": 1.0,
+      "name": "Gravity",
+      "hint": "gravity"
+    },
+    {
+      "value": 1.0,
+      "name": "Density",
+      "hint": "fluid_bodies[name=WaterBody].material.density"
+    }
+  ],
+
   "simulation_type": "fluid_dynamics",
 
   "geometries": {

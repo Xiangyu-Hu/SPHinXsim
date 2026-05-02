@@ -90,7 +90,6 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     auto &advection_step = time_stepper.addTriggerByInterval(fluid_advection_time_step.exec());
     auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config.output_interval_);
     time_stepper.setScreeningInterval(solver_common_config.screen_interval_);
-    Real time_scaling_ref = scaling_config.getScalingRef("Time");
     //----------------------------------------------------------------------
     //	Define preparation or initialization step before the main integration.
     //----------------------------------------------------------------------
@@ -130,7 +129,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         });
 
     simulation_pipeline.main_steps.push_back( // advection or particle configuration step
-        [&, time_scaling_ref]()
+        [&]()
         {
             if (advection_step(fluid_advection_time_step))
             {
@@ -141,10 +140,10 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                 {
                     std::cout << std::fixed << std::setprecision(9)
                               << "N=" << time_stepper.getIterationStep()
-                              << "  Time = " << time_stepper.getPhysicalTime() * time_scaling_ref
-                              << "  advection_dt = " << advection_step.getInterval() * time_scaling_ref
+                              << "  Time = " << time_stepper.getPhysicalTimeWithScalingRef()
+                              << "  advection_dt = " << advection_step.getIntervalWithScalingRef()
                               << "(scaled: " << advection_step.getInterval() << "),"
-                              << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize() * time_scaling_ref
+                              << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSizeWithScalingRef()
                               << "(scaled: " << time_stepper.getGlobalTimeStepSize() << ")"
                               << "\n";
                 }

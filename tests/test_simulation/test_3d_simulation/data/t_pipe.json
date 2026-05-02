@@ -1,4 +1,22 @@
 {
+  "characteristic_dimensions": [
+    {
+      "value": 0.001,
+      "name": "Length",
+      "hint": "geometries.aligned_boxes[name=Inlet].radius"
+    },
+    {
+      "value": 133.0,
+      "name": "Pressure",
+      "hint": "fluid_boundary_conditions[aligned_box=Inlet].pressure"
+    },
+    {
+      "value": 1060.0,
+      "name": "Density",
+      "hint": "fluid_bodies[name=BloodBody].material.density"
+    }
+  ],
+
   "simulation_type": "fluid_dynamics",
 
   "geometries": {

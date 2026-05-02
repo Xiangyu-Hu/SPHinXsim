@@ -39,6 +39,7 @@ class SPHSolver;
 class ParticleDynamicsGroup;
 template <class T>
 class BaseDynamics;
+class RecordingBuilder;
 
 struct CommonBodyConfig
 {
@@ -79,6 +80,7 @@ enum class ReloadIOHookPoint
 class ParticleGeneration
 {
   public:
+    ParticleGeneration();
     ~ParticleGeneration();
     void buildParticleGeneration(SPHSimulation &sim, const json &config);
     void runRelaxation();

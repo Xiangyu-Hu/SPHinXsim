@@ -13,6 +13,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     SPHSystem &sph_system = sim.defineSPHSystem();
     EntityManager &config_manager = sim.getConfigManager();
+    RecordingBuilder &recording_builder = sim.getRecordingBuilder();
     //----------------------------------------------------------------------
     //	Creating bodies with inital shape, materials and particles.
     //----------------------------------------------------------------------
@@ -61,7 +62,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     auto &continuum_acoustic_step_1st_half = addAcousticStep1stHalf(config_manager, main_methods, continuum_inner);
     auto &continuum_acoustic_step_2nd_half = addAcousticStep2ndHalf(config_manager, main_methods, continuum_inner);
 
-    auto &continuum_solver_parameters = config_manager.getEntityByName<
+    auto &continuum_solver_parameters = config_manager.getEntity<
         ContinuumSolverParameters>("ContinuumSolverParameters");
     Fluid &continuum_eos = DynamicCast<Fluid>(this, continuum_body.getBaseMaterial());
     const Real U_ref = continuum_eos.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
@@ -83,11 +84,12 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     // Define basic state recording for visualization the simulation results.
     //----------------------------------------------------------------------
-    auto &body_state_recorder = createBodyStatesRecording(sph_system, config_manager, main_methods, config);
+    auto &body_state_recorder = recording_builder.createBodyStatesRecording(
+        sph_system, config_manager, main_methods, config);
     //----------------------------------------------------------------------
     //	Define time-integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------
-    auto &solver_common_config = config_manager.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
+    auto &solver_common_config = config_manager.getEntity<SolverCommonConfig>("SolverCommonConfig");
     auto &time_stepper = sph_solver.getTimeStepper();
     auto &advection_step = time_stepper.addTriggerByInterval(continuum_advection_time_step.exec());
     auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config.output_interval_);
@@ -169,7 +171,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     // Initial condition from restart file if enabled.
     //----------------------------------------------------------------------
-    auto &restart_config = config_manager.getEntityByName<RestartConfig>("RestartConfig");
+    auto &restart_config = config_manager.getEntity<RestartConfig>("RestartConfig");
     if (restart_config.enabled_)
     {
         sph_system.setRestartStep(restart_config.restore_step_);
@@ -208,28 +210,37 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
 void ContinuumSimulationBuilder::parseSolverParameters(EntityManager &config_manager, const json &config)
 {
     SimulationBuilder::parseSolverParameters(config_manager, config);
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     if (config.contains("continuum_dynamics"))
     {
         config_manager.emplaceEntity<ContinuumSolverParameters>(
-            "ContinuumSolverParameters", parseContinuumSolverParameters(config.at("continuum_dynamics")));
+            "ContinuumSolverParameters",
+            parseContinuumSolverParameters(scaling_config, config.at("continuum_dynamics")));
     }
 }
 //=================================================================================================//
-ContinuumSolverParameters ContinuumSimulationBuilder::parseContinuumSolverParameters(const json &config)
+ContinuumSolverParameters ContinuumSimulationBuilder::parseContinuumSolverParameters(
+    const ScalingConfig &scaling_config, const json &config)
 {
     ContinuumSolverParameters parameters;
     if (config.contains("acoustic_cfl"))
-        parameters.acoustic_cfl_ = config.at("acoustic_cfl").get<Real>();
+        parameters.acoustic_cfl_ = scaling_config.jsonToReal(
+            config.at("acoustic_cfl"), "Dimensionless");
     if (config.contains("advection_cfl"))
-        parameters.advection_cfl_ = config.at("advection_cfl").get<Real>();
+        parameters.advection_cfl_ = scaling_config.jsonToReal(
+            config.at("advection_cfl"), "Dimensionless");
     if (config.contains("linear_correction_matrix_coeff"))
-        parameters.linear_correction_matrix_coeff_ = config.at("linear_correction_matrix_coeff").get<Real>();
+        parameters.linear_correction_matrix_coeff_ = scaling_config.jsonToReal(
+            config.at("linear_correction_matrix_coeff"), "Dimensionless");
     if (config.contains("contact_numerical_damping"))
-        parameters.contact_numerical_damping_ = config.at("contact_numerical_damping").get<Real>();
+        parameters.contact_numerical_damping_ = scaling_config.jsonToReal(
+            config.at("contact_numerical_damping"), "Dimensionless");
     if (config.contains("shear_stress_damping"))
-        parameters.shear_stress_damping_ = config.at("shear_stress_damping").get<Real>();
+        parameters.shear_stress_damping_ = scaling_config.jsonToReal(
+            config.at("shear_stress_damping"), "Dimensionless");
     if (config.contains("hourglass_factor"))
-        parameters.hourglass_factor_ = config.at("hourglass_factor").get<Real>();
+        parameters.hourglass_factor_ = scaling_config.jsonToReal(
+            config.at("hourglass_factor"), "Dimensionless");
 
     return parameters;
 }

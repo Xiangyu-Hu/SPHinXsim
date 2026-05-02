@@ -41,6 +41,7 @@ namespace fs = std::filesystem;
 namespace SPH
 {
 class GeometryBuilder;
+class RecordingBuilder;
 class SimulationBuilder;
 class ParticleGeneration;
 
@@ -63,11 +64,13 @@ class SPHSimulation
     friend class FluidSimulationBuilder;
     friend class ContinuumSimulationBuilder;
     friend class ConstraintBuilder;
+    friend class RecordingBuilder;
 
     SPHSystem &defineSPHSystem();
     SPHSolver &defineSPHSolver(SimulationBuilder &simulation_builder, const json &config);
     SPHSystem &getSPHSystem() { return *sph_system_ptr_; };
     SPHSolver &getSPHSolver() { return *sph_solver_ptr_; };
+    RecordingBuilder &getRecordingBuilder() { return *recording_builder_ptr_; };
     EntityManager &getConfigManager();
     StagePipeline<InitializationHookPoint> &getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &getSimulationPipeline();
@@ -78,6 +81,7 @@ class SPHSimulation
     StagePipeline<InitializationHookPoint> initialization_pipeline_;
     StagePipeline<SimulationHookPoint> simulation_pipeline_;
     std::unique_ptr<GeometryBuilder> geometry_builder_ptr_;
+    std::unique_ptr<RecordingBuilder> recording_builder_ptr_;
     std::unique_ptr<ParticleGeneration> particle_generation_ptr_;
     std::unique_ptr<SPHSystem> sph_system_ptr_;
     std::unique_ptr<SPHSolver> sph_solver_ptr_;

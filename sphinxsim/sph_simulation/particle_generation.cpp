@@ -1,10 +1,13 @@
 #include "particle_generation.hpp"
 
 #include "geometry_builder.h"
+#include "recording_builder.hpp"
 #include "sph_simulation.h"
 
 namespace SPH
 {
+//=================================================================================================//
+ParticleGeneration::ParticleGeneration(){}
 //=================================================================================================//
 ParticleGeneration::~ParticleGeneration() = default;
 //=================================================================================================//
@@ -15,6 +18,7 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     EntityManager &config_manager = sim.getConfigManager();
     RelaxationSystem &relaxation_system = defineRelaxationSystem(config_manager, config);
+    RecordingBuilder &recording_builder = sim.getRecordingBuilder();
     //----------------------------------------------------------------------
     addAllBodies(relaxation_system, config_manager, config.at("bodies"));
     defineBodyRelations(relaxation_system);
@@ -35,7 +39,8 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     //	Define simple file input and outputs functions.
     //----------------------------------------------------------------------
-    auto &body_state_recorder = main_methods.addBodyStateRecorder<BodyStatesRecordingToVtpCK>(relaxation_system);
+    auto &body_state_recorder = recording_builder.createBodyStatesRecording(
+        relaxation_system, config_manager, main_methods, config);
     auto &write_particle_reload_files = main_methods.addIODynamics<ReloadParticleIOCK>(relaxation_system);
     //----------------------------------------------------------------------
     //	Out initial particle distribution after setting up.
@@ -123,9 +128,11 @@ void ParticleGeneration::runRelaxation()
 RelaxationSystem &ParticleGeneration::defineRelaxationSystem(
     EntityManager &config_manager, const json &config)
 {
-    auto &system_config = config_manager.getEntityByName<SystemDomainConfig>("SystemDomainConfig");
+    auto &system_config = config_manager.getEntity<SystemDomainConfig>("SystemDomainConfig");
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     relaxation_system_ptr_ = std::make_unique<RelaxationSystem>(
         system_config.system_bounds_, system_config.particle_spacing_);
+    relaxation_system_ptr_->writeSystemDomainShapeToVtp(scaling_config.getScalingRef("Length"));
     return *relaxation_system_ptr_.get();
 }
 //=================================================================================================//
@@ -153,7 +160,7 @@ void ParticleGeneration ::addAllBodies(
 
         CommonBodyConfig common_body_config;
         common_body_config.name_ = body_name;
-        Shape &shape = config_manager.getEntityByName<Shape>(body_name);
+        Shape &shape = config_manager.getEntity<Shape>(body_name);
         auto &real_body = relaxation_system.addBody<RealBody>(shape, body_name);
 
         if (bd.contains("relaxation"))

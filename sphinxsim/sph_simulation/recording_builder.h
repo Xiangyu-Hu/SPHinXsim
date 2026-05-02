@@ -21,49 +21,68 @@
  *                                                                           *
  * ------------------------------------------------------------------------- */
 /**
- * @file    geometry_builder.h
+ * @file    recording_builder.h
  * @brief   TBD.
  * @author  Xiangyu Hu
  */
 
-#ifndef GEOMETRY_BUILDER_H
-#define GEOMETRY_BUILDER_H
+#ifndef RECORDING_BUILDER_H
+#define RECORDING_BUILDER_H
 
 #include "base_simulation_builder.h"
-#include "sphinxsys.h"
 
 namespace SPH
 {
-class EntityManager;
+class IODynamicsGroup;
+class BaseIO;
+class BodyStatesRecording;
+class SPHBody;
 
-struct SystemDomainConfig
+struct VariableConfig
 {
-    bool prescribed_spacing_ = true;
-    BoundingBoxd system_bounds_ = BoundingBoxd(Vecd::Constant(Eps));
-    Real particle_spacing_ = Eps;
-    UnsignedInt min_dimension_particles_ = 25;
-    void updateSystemDomainConfig(const BoundingBoxd &shape_bounds);
-    void updateParticleSpacing();
+    std::string type_;
+    std::string name_;
 };
 
-class GeometryBuilder
+struct ObserverConfig
+{
+    std::string name_;
+    std::string observed_body_;
+    VariableConfig observed_variable_;
+};
+
+class RecordingBuilder
 {
   public:
-    void createGeometries(EntityManager &config_manager, const json &config);
-    static BoundingBoxd parseBoundingBox(const ScalingConfig &scaling_config, const json &config);
-    static TransformGeometryBox parseBox(const ScalingConfig &scaling_config, const json &config);
-    GeometricOps parseGeometricOp(const std::string &op_str);
-    SystemDomainConfig parseSystemDomainConfig(const ScalingConfig &scaling_config, const json &config);
-    void parseGlobalResolution(
-        const ScalingConfig &scaling_config, SystemDomainConfig &system_domain_config, const json &config);
-#ifdef SPHINXSYS_2D
-    MultiPolygon parseMultiPolygon(const ScalingConfig &scaling_config, const json &config);
-#endif
+    template <class MethodContainerType>
+    void buildObservationIfPresent(SPHSimulation &sim, MethodContainerType &main_methods, const json &config);
+
+    template <class MethodContainerType>
+    BodyStatesRecording &createBodyStatesRecording(
+        SPHSystem &sph_system, EntityManager &config_manager,
+        MethodContainerType &main_methods, const json &config);
 
   private:
-    Shape *addShape(const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config);
-    GeometricShapeBox addAlignedBox(
-        const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config);
+    std::string getObserverRelationName(const ObserverConfig &observer_config);
+    ObserverConfig parseObserverConfig(const json &config);
+    VariableConfig parseVariableConfig(const json &config);
+    void addObserves(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
+
+    template <class MethodContainerType>
+    ParticleDynamicsGroup &createObserverConfigurationDynamics(
+        SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
+
+    template <class MethodContainerType>
+    IODynamicsGroup &addObserveRecorder(
+        SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
+
+    template <class MethodContainerType, class ObserverRelationType>
+    BaseIO *addObserveRecorderWithVariableConfig(
+        const ScalingConfig &scaling_config, const VariableConfig &variable_config,
+        MethodContainerType &main_methods, ObserverRelationType &observer_relation);
+
+    void addVariableToStateRecorder(
+        BodyStatesRecording &state_recording, SPHBody &sph_body, const json &config);
 };
 } // namespace SPH
-#endif // GEOMETRY_BUILDER_H
+#endif // RECORDING_BUILDER_H

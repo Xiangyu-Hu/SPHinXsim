@@ -36,15 +36,57 @@ using json = nlohmann::json;
 
 namespace SPH
 {
-/** Convert a JSON array [x, y] or [x, y, z] to Vecd (extra elements are
- * ignored). */
-Vecd jsonToVecd(const nlohmann::json &arr);
+struct UnitMetrics
+{
+    // SI base units: length, mass, time, temperature,
+    // amount of substance, electric current, luminous intensity
+    // learned from openFOAM's unit handling.
+    std::array<int, 7> exp = {0, 0, 0, 0, 0, 0, 0};
+
+    int &operator[](size_t i) { return exp[i]; }
+    int operator[](size_t i) const { return exp[i]; }
+};
+UnitMetrics operator+(const UnitMetrics &a, const UnitMetrics &b);
+UnitMetrics operator-(const UnitMetrics &a, const UnitMetrics &b);
+bool operator==(const UnitMetrics &a, const UnitMetrics &b);
+
+struct CharacteristicDimension
+{
+    Real value_;
+    UnitMetrics unit_metrics_;
+    std::string name_;
+    std::string hint_;
+};
+
+class ScalingConfig
+{
+  public:
+    ScalingConfig(const json &config);
+    Vecd jsonToVecd(const nlohmann::json &arr, const std::string &unit_name) const;
+    Real jsonToReal(const json &j, const std::string &unit_name) const;
+    Real getScalingRef(const std::string &unit_name, bool is_required = true) const;
+#ifdef SPHINXSYS_2D
+    Transform jsonToTransform(const nlohmann::json &config) const;
+#else
+    Transform jsonToTransform(const nlohmann::json &config) const;
+#endif
+
+  private:
+    std::vector<CharacteristicDimension> character_dims_;
+    Eigen::Array<Real, 7, 1> scaling_refs_ = Eigen::Array<Real, 7, 1>::Ones();
+
+    UnitMetrics getUnitMetrics(std::string unit_name, bool is_required = true) const;
+    CharacteristicDimension parseCharacteristicDimension(const json &root_config, const json &config) const;
+    void computeScaling();
+    bool isSameOrderOfMagnitude(const Real a, const Real b) const;
+    bool is_number(const std::string &s) const;
+    const json *find_in_array(const json &arr, const std::string &key, const std::string &value) const;
+    Real resolve(const json &j, const std::string &path) const;
+};
 
 #ifdef SPHINXSYS_2D
-Transform jsonToTransform(const nlohmann::json &config);
 Rotation getRotationFromXAxis(const Vecd &direction);
 #else
-Transform jsonToTransform(const nlohmann::json &config);
 Rotation getRotationFromXAxis(const Vecd &direction);
 #endif
 
@@ -97,22 +139,12 @@ class SPHSystem;
 class EntityManager;
 class BaseParticles;
 class MaterialBuilder;
+class RecordingBuilder;
 class ParticleDynamicsGroup;
-class IODynamicsGroup;
-class BaseIO;
-class BodyStatesRecording;
 class SPHBody;
 
 template <class ReturnType>
 class BaseDynamics;
-
-struct RestartConfig
-{
-    bool enabled_{false};
-    int save_interval_{1000};
-    int restore_step_{0};
-    bool summary_enabled_{false};
-};
 
 struct SolverCommonConfig
 {
@@ -121,16 +153,12 @@ struct SolverCommonConfig
     UnsignedInt screen_interval_{100};
 };
 
-struct VariableConfig
+struct RestartConfig
 {
-    std::string type_;
-    std::string name_;
-};
-struct ObserverConfig
-{
-    std::string name_;
-    std::string observed_body_;
-    VariableConfig observed_variable_;
+    bool enabled_{false};
+    int save_interval_{1000};
+    int restore_step_{0};
+    bool summary_enabled_{false};
 };
 
 class SimulationBuilder
@@ -145,14 +173,7 @@ class SimulationBuilder
     void buildFluidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void buildContinuumBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void buildSolidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
-
-    template <class MethodContainerType>
-    void buildObservationIfPresent(SPHSimulation &sim, MethodContainerType &main_methods, const json &config);
-
-    template <class MethodContainerType>
-    BodyStatesRecording &createBodyStatesRecording(
-        SPHSystem &sph_system, EntityManager &config_manager,
-        MethodContainerType &main_methods, const json &config);
+    RestartConfig parseRestartConfig(const json &config);
 
     template <class MethodContainerType>
     void buildExternalForceIfPresent(
@@ -160,28 +181,7 @@ class SimulationBuilder
 
   private:
     std::unique_ptr<MaterialBuilder> material_builder_ptr_;
-    SolverCommonConfig parseSolverCommonConfig(const json &config);
-    RestartConfig parseRestartConfig(const json &config);
-    std::string getObserverRelationName(const ObserverConfig &observer_config);
-    ObserverConfig parseObserverConfig(const json &config);
-    VariableConfig parseVariableConfig(const json &config);
-    void addObserves(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
-
-    template <class MethodContainerType>
-    ParticleDynamicsGroup &createObserverConfigurationDynamics(
-        SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
-
-    template <class MethodContainerType>
-    IODynamicsGroup &addObserveRecorder(
-        SPHSystem &sph_system, EntityManager &config_manager, MethodContainerType &main_methods);
-
-    template <class MethodContainerType, class ObserverRelationType>
-    BaseIO *addObserveRecorderWithVariableConfig(
-        const VariableConfig &variable_config, MethodContainerType &main_methods,
-        ObserverRelationType &observer_relation);
-
-    void addVariableToStateRecorder(
-        BodyStatesRecording &state_recording, SPHBody &sph_body, const json &config);
+    SolverCommonConfig parseSolverCommonConfig(const ScalingConfig &scaling_config, const json &config);
 };
 } // namespace SPH
 #endif // BASE_SIMULATION_BUILDER_H

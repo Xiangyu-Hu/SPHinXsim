@@ -61,7 +61,7 @@ class FluidSimulationBuilder : public SimulationBuilder
     virtual void parseSolverParameters(EntityManager &config_manager, const json &config) override;
 
   private:
-    FluidSolverConfig parseFluidSolverConfig(const json &config);
+    FluidSolverConfig parseFluidSolverConfig(const ScalingConfig &scaling_config, const json &config);
 
     template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
     BaseDynamics<void> &addDensitySummationAndRegularization(

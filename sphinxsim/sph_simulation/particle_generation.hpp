@@ -85,7 +85,7 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationResidue(
         if (body_config.with_level_set_)
         {
             RealBody &real_body = relaxation_system.getBodyByName<RealBody>(body_config.name_);
-            LevelSetShape &level_set_shape = config_manager.getEntityByName<LevelSetShape>(body_config.name_);
+            LevelSetShape &level_set_shape = config_manager.getEntity<LevelSetShape>(body_config.name_);
             residual_dynamics.template addPostStateDynamics<LevelsetKernelGradientIntegral>(real_body, level_set_shape);
         }
 
@@ -184,22 +184,22 @@ class AlignedBoxConstraint : public BaseLocalDynamics<AlignedBoxPartType>
     };
 
   protected:
-    SingularVariable<AlignedBox> *sv_aligned_box_;
+    SingleVariable<AlignedBox> *sv_aligned_box_;
     DiscreteVariable<DataType> *dv_variable_;
     ConstraintMethodType constraint_;
 };
 
-class ConstraintVectorAxis : public ReturnFunction<Vecd>
+class CovariantVectorAxis : public ReturnFunction<Vecd>
 {
     Vecd constraint_value_;
     int axis_;
 
   public:
-    ConstraintVectorAxis(int axis) : constraint_value_(Vecd::Zero()), axis_(axis) {};
+    CovariantVectorAxis(int axis) : constraint_value_(Vecd::Zero()), axis_(axis) {};
 
     Vecd operator()(const Transform &transform, const Vecd &variable)
     {
-        Vecd frame_variable = transform.shiftBaseStationToFrame(variable);
+        Vecd frame_variable = transform.xformBaseVecToFrame(variable);
         frame_variable[axis_] = constraint_value_[axis_];
         return transform.xformFrameVecToBase(frame_variable);
     };
@@ -215,21 +215,21 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationConstraints(
     {
         const std::string body_name = rc.at("body_name").get<std::string>();
         RealBody &real_body = relaxation_system.getBodyByName<RealBody>(body_name);
-        AlignedBox &constraint_region = config_manager.getEntityByName<
+        AlignedBox &constraint_region = config_manager.getEntity<
             AlignedBox>(rc.at("aligned_box").get<std::string>());
         auto &body_part = real_body.addBodyPart<AlignedBoxByParticle>(constraint_region);
         std::string type = rc.at("type").get<std::string>();
         if (type == "normal")
         {
             relaxation_constraints.add(
-                &main_methods.template addStateDynamics<AlignedBoxConstraint, ConstraintVectorAxis>(
+                &main_methods.template addStateDynamics<AlignedBoxConstraint, CovariantVectorAxis>(
                     body_part, "KernelGradientIntegral", 0));
         }
         else
         {
             relaxation_constraints.add(
                 &main_methods.template addStateDynamics<ConstantConstraintCK, Vecd>(
-                    real_body, "KernelGradientIntegral", Vecd::Zero()));
+                    body_part, "KernelGradientIntegral", Vecd::Zero()));
         }
     }
     return relaxation_constraints;

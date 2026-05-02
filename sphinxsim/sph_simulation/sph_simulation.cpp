@@ -5,13 +5,15 @@
 #include "geometry_builder.h"
 #include "material_builder.h"
 #include "particle_generation.h"
+#include "recording_builder.h"
 
 namespace SPH
 {
 //=================================================================================================//
 SPHSimulation::SPHSimulation(const fs::path &config_path)
     : config_path_(config_path),
-      geometry_builder_ptr_(std::make_unique<GeometryBuilder>())
+      geometry_builder_ptr_(std::make_unique<GeometryBuilder>()),
+      recording_builder_ptr_(std::make_unique<RecordingBuilder>())
 {
     IO::initEnvironment();
 }
@@ -32,10 +34,13 @@ void SPHSimulation::resetOutputRoot(const fs::path &output_root, bool keep_exist
 //=================================================================================================//
 SPHSystem &SPHSimulation::defineSPHSystem()
 {
-    SystemDomainConfig &system_config = config_manager_.getEntityByName<
+    SystemDomainConfig &system_config = config_manager_.getEntity<
         SystemDomainConfig>("SystemDomainConfig");
     sph_system_ptr_ = std::make_unique<SPHSystem>(
         system_config.system_bounds_, system_config.particle_spacing_);
+    auto &scaling_config = config_manager_.getEntity<ScalingConfig>("ScalingConfig");
+    sph_system_ptr_->svPhysicalTime().setScalingRef(scaling_config.getScalingRef("Time"));
+    sph_system_ptr_->writeSystemDomainShapeToVtp(scaling_config.getScalingRef("Length"));
     return *sph_system_ptr_.get();
 }
 //=================================================================================================//
@@ -73,6 +78,7 @@ void SPHSimulation::createParticlesGeneration(const json &config)
 //=================================================================================================//
 void SPHSimulation::buildSimulationFromJson(const json &config)
 {
+    config_manager_.emplaceEntity<ScalingConfig>("ScalingConfig", config);
     geometry_builder_ptr_->createGeometries(config_manager_, config.at("geometries"));
     createParticlesGeneration(config.at("particle_generation"));
 
@@ -133,7 +139,7 @@ void SPHSimulation::initializeSimulation()
 void SPHSimulation::run()
 {
     SolverCommonConfig &solver_common_config =
-        config_manager_.getEntityByName<SolverCommonConfig>("SolverCommonConfig");
+        config_manager_.getEntity<SolverCommonConfig>("SolverCommonConfig");
 
     stepTo(solver_common_config.end_time_);
 }

@@ -71,8 +71,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         config_manager, main_methods, fluid_inner, fluid_wall_contact);
 
     auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
-    Fluid &fluid_material = DynamicCast<Fluid>(this, fluid_body.getBaseMaterial());
-    const Real U_ref = fluid_material.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
+    Real U_ref = scaling_config.getScalingRef("Velocity");
     auto &fluid_advection_time_step = main_methods.addReduceDynamics<fluid_dynamics::AdvectionTimeStepCK>(
         fluid_body, U_ref, fluid_solver_config.advection_cfl_);
     auto &fluid_acoustic_time_step = main_methods.addReduceDynamics<fluid_dynamics::AcousticTimeStepCK<>>(

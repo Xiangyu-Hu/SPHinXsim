@@ -1,7 +1,7 @@
 {
   "characteristic_dimensions": [
     {
-      "value": 10.0,
+      "value": 1.0,
       "name": "Length",
       "hint": "geometries.system_domain.upper_bound"
     },
@@ -77,7 +77,7 @@
       "material": {
         "type": "weakly_compressible_fluid",
         "density": 1.0,
-        "sound_speed": 20.0
+        "maximum_velocity": 2.0
       }
     }
   ],

@@ -71,8 +71,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         config_manager, main_methods, fluid_inner, fluid_wall_contact);
 
     auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
-    Fluid &fluid_material = DynamicCast<Fluid>(this, fluid_body.getBaseMaterial());
-    const Real U_ref = fluid_material.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
+    Real U_ref = scaling_config.getScalingRef("Velocity");
     auto &fluid_advection_time_step = main_methods.addReduceDynamics<fluid_dynamics::AdvectionTimeStepCK>(
         fluid_body, U_ref, fluid_solver_config.advection_cfl_);
     auto &fluid_acoustic_time_step = main_methods.addReduceDynamics<fluid_dynamics::AcousticTimeStepCK<>>(
@@ -90,7 +89,6 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     auto &advection_step = time_stepper.addTriggerByInterval(fluid_advection_time_step.exec());
     auto &state_recording_trigger = time_stepper.addTriggerByInterval(solver_common_config.output_interval_);
     time_stepper.setScreeningInterval(solver_common_config.screen_interval_);
-    Real time_scaling_ref = scaling_config.getScalingRef("Time");
     //----------------------------------------------------------------------
     //	Define preparation or initialization step before the main integration.
     //----------------------------------------------------------------------
@@ -130,7 +128,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         });
 
     simulation_pipeline.main_steps.push_back( // advection or particle configuration step
-        [&, time_scaling_ref]()
+        [&]()
         {
             if (advection_step(fluid_advection_time_step))
             {
@@ -141,10 +139,10 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                 {
                     std::cout << std::fixed << std::setprecision(9)
                               << "N=" << time_stepper.getIterationStep()
-                              << "  Time = " << time_stepper.getPhysicalTime() * time_scaling_ref
-                              << "  advection_dt = " << advection_step.getInterval() * time_scaling_ref
+                              << "  Time = " << time_stepper.getPhysicalTimeWithScalingRef()
+                              << "  advection_dt = " << advection_step.getIntervalWithScalingRef()
                               << "(scaled: " << advection_step.getInterval() << "),"
-                              << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize() * time_scaling_ref
+                              << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSizeWithScalingRef()
                               << "(scaled: " << time_stepper.getGlobalTimeStepSize() << ")"
                               << "\n";
                 }

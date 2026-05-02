@@ -62,6 +62,7 @@ class ScalingConfig
 {
   public:
     ScalingConfig(const json &config);
+    bool isScalingEnabled() const;
     Vecd jsonToVecd(const nlohmann::json &arr, const std::string &unit_name) const;
     Real jsonToReal(const json &j, const std::string &unit_name) const;
     Real getScalingRef(const std::string &unit_name, bool is_required = true) const;
@@ -80,6 +81,8 @@ class ScalingConfig
     void computeScaling();
     bool isSameOrderOfMagnitude(const Real a, const Real b) const;
     bool is_number(const std::string &s) const;
+    bool is_array_float(const json &arr) const;
+    const json *resolveNode(const json &j, const std::string &path) const;
     const json *find_in_array(const json &arr, const std::string &key, const std::string &value) const;
     Real resolve(const json &j, const std::string &path) const;
 };

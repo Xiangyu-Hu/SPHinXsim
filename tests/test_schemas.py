@@ -186,3 +186,75 @@ class TestSimulationConfig:
         assert cfg.solver_parameters.fluid_dynamics is not None
         assert cfg.fluid_bodies[0].particle_reserve_factor == pytest.approx(350.0)
         assert cfg.fluid_boundary_conditions[0].type.value == "emitter"
+
+    def test_fluid_material_accepts_maximum_velocity(self):
+        cfg = _make_minimal_fluid_config(
+            fluid_bodies=[
+                {
+                    "name": "WaterBody",
+                    "material": {
+                        "type": "weakly_compressible_fluid",
+                        "density": 1000.0,
+                        "maximum_velocity": 2.0,
+                    },
+                }
+            ]
+        )
+        assert cfg.fluid_bodies[0].material.maximum_velocity == pytest.approx(2.0)
+        assert cfg.fluid_bodies[0].material.sound_speed is None
+
+    def test_characteristic_dimensions_support_new_base_units(self):
+        cfg = _make_minimal_fluid_config(
+            characteristic_dimensions=[
+                {
+                    "value": 1.0,
+                    "name": "Length",
+                    "hint": "geometries.system_domain.upper_bound",
+                },
+                {
+                    "value": 1.0,
+                    "name": "Temperature",
+                    "hint": "geometries.system_domain.upper_bound",
+                },
+                {
+                    "value": 1.0,
+                    "name": "ElectricCurrent",
+                    "hint": "geometries.system_domain.upper_bound",
+                },
+                {
+                    "value": 1.0,
+                    "name": "AmountOfSubstance",
+                    "hint": "geometries.system_domain.upper_bound",
+                },
+                {
+                    "value": 1.0,
+                    "name": "LuminousIntensity",
+                    "hint": "geometries.system_domain.upper_bound",
+                },
+                {
+                    "value": 1.0,
+                    "name": "AngularVelocity",
+                    "hint": "geometries.system_domain.upper_bound",
+                },
+            ]
+        )
+        names = {d.name.value for d in cfg.characteristic_dimensions or []}
+        assert "Temperature" in names
+        assert "ElectricCurrent" in names
+        assert "AmountOfSubstance" in names
+        assert "LuminousIntensity" in names
+        assert "AngularVelocity" in names
+
+    def test_simbody_constraint_requires_restart(self):
+        with pytest.raises(ValidationError, match="simbody body_constraints require solver_parameters.restart"):
+            _make_minimal_fluid_config(
+                body_constraints=[
+                    {
+                        "body_name": "WallBoundary",
+                        "type": "simbody",
+                        "mobilized_body": "planar",
+                        "velocity": [0.0, 0.0],
+                        "angular_velocity": 0.0,
+                    }
+                ]
+            )

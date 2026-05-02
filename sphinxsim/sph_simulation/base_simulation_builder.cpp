@@ -12,7 +12,40 @@ bool ScalingConfig::is_number(const std::string &s) const
     return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit);
 }
 //=================================================================================================//
+bool ScalingConfig::is_array_float(const json &arr) const
+{
+    if (!arr.is_array())
+        return false;
+
+    const int dim = static_cast<int>(Vecd::RowsAtCompileTime);
+    if (static_cast<int>(arr.size()) != dim)
+        return false;
+
+    return std::all_of(arr.begin(), arr.end(), [](const json &value)
+                       { return value.is_number_float(); });
+}
+//=================================================================================================//
 Real ScalingConfig::resolve(const json &j, const std::string &path) const
+{
+    const json *current = resolveNode(j, path);
+
+    if (current->is_number_float())
+        return ABS(current->get<Real>());
+
+    if (is_array_float(*current))
+    {
+        Vecd v = Vecd::Zero();
+        for (int i = 0; i < Vecd::RowsAtCompileTime; ++i)
+            v[i] = (*current)[i].get<Real>();
+        return v.norm();
+    }
+
+    throw std::runtime_error(
+        "Resolved value must be either a numeric scalar or a floating array with exactly " +
+        std::to_string(Vecd::RowsAtCompileTime) + " entries");
+}
+//=================================================================================================//
+const json *ScalingConfig::resolveNode(const json &j, const std::string &path) const
 {
     const json *current = &j;
 
@@ -79,10 +112,7 @@ Real ScalingConfig::resolve(const json &j, const std::string &path) const
         i = dot + 1;
     }
 
-    if (!current->is_number())
-        throw std::runtime_error("Resolved value is not numeric");
-
-    return current->get<Real>();
+    return current;
 }
 //=================================================================================================//
 const json *ScalingConfig::find_in_array(
@@ -173,6 +203,11 @@ ScalingConfig::ScalingConfig(const json &config)
         std::cout << "Using default scaling (no scaling)." << std::endl;
     }
     std::cout << "------------------------------------------------------------" << std::endl;
+}
+//=================================================================================================//
+bool ScalingConfig::isScalingEnabled() const
+{
+    return scaling_refs_.any();
 }
 //=================================================================================================//
 UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name, bool is_required) const
@@ -298,10 +333,16 @@ Real ScalingConfig::getScalingRef(const std::string &unit_name, bool is_required
 //=================================================================================================//
 Vecd ScalingConfig::jsonToVecd(const nlohmann::json &arr, const std::string &unit_name) const
 {
+    if (!is_array_float(arr))
+    {
+        throw std::runtime_error(
+            "ScalingConfig::jsonToVecd: expected a numeric array with exactly " +
+            std::to_string(Vecd::RowsAtCompileTime) + " entries.");
+    }
+
     Vecd v = Vecd::Zero();
-    const int dim = static_cast<int>(Vecd::RowsAtCompileTime);
     Real scaling_ref = getScalingRef(unit_name);
-    for (int i = 0; i < std::min(dim, static_cast<int>(arr.size())); ++i)
+    for (int i = 0; i < Vecd::RowsAtCompileTime; ++i)
         v[i] = arr[i].get<Real>() / scaling_ref;
     return v;
 }

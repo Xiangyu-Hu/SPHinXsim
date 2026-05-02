@@ -13,7 +13,17 @@ void MaterialBuilder::addMaterial(EntityManager &config_manager, SPHBody &sph_bo
     if (type == "weakly_compressible_fluid")
     {
         Real density = scaling_config.jsonToReal(config.at("density"), "Density");
-        Real sound_speed = scaling_config.jsonToReal(config.at("sound_speed"), "Speed");
+        Real sound_speed = 0.0;
+        if (config.contains("sound_speed"))
+        {
+            sound_speed = scaling_config.jsonToReal(config.at("sound_speed"), "Speed");
+        }
+        else
+        {
+            Real u_max = scaling_config.jsonToReal(config.at("maximum_velocity"), "Velocity");
+            sound_speed = 10.0 * u_max;
+        }
+
         if (config.contains("viscosity"))
         {
             Real viscosity = scaling_config.jsonToReal(config.at("viscosity"), "Viscosity");

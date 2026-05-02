@@ -14,6 +14,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     SPHSystem &sph_system = sim.defineSPHSystem();
     EntityManager &config_manager = sim.getConfigManager();
     RecordingBuilder &recording_builder = sim.getRecordingBuilder();
+    ScalingConfig &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     //----------------------------------------------------------------------
     //	Creating bodies with inital shape, materials and particles.
     //----------------------------------------------------------------------
@@ -64,8 +65,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
 
     auto &continuum_solver_parameters = config_manager.getEntity<
         ContinuumSolverParameters>("ContinuumSolverParameters");
-    Fluid &continuum_eos = DynamicCast<Fluid>(this, continuum_body.getBaseMaterial());
-    const Real U_ref = continuum_eos.ReferenceSoundSpeed() / 10.0; // c_f = 10 * U_ref => U_ref = c_f / 10
+    Real U_ref = scaling_config.getScalingRef("Velocity");
     auto &continuum_advection_time_step = main_methods.addReduceDynamics<
         fluid_dynamics::AdvectionTimeStepCK>(continuum_body, U_ref, continuum_solver_parameters.advection_cfl_);
     auto &continuum_acoustic_time_step = main_methods.addReduceDynamics<

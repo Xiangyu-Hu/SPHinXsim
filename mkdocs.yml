@@ -8,6 +8,7 @@ nav:
       - Windows: installation-windows.md
       - macOS: installation-macos.md
   - CLI Usage: cli-usage.md
+  - JSON Config Reference: json-config-reference.md
   - LLM Testing: llm-testing.md
 
 theme:

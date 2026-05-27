@@ -29,6 +29,21 @@ if(NOT CMAKE_TOOLCHAIN_FILE)
 endif()
 
 # Find required packages
+# Prefer the active Python environment (virtualenv or PATH) for portability.
+set(Python3_FIND_VIRTUALENV FIRST)
+set(Python3_FIND_STRATEGY LOCATION)
+set(Python3_FIND_UNVERSIONED_NAMES FIRST)
+if(NOT DEFINED Python3_EXECUTABLE)
+    execute_process(
+        COMMAND python3 -c "import sys; print(sys.executable)"
+        OUTPUT_VARIABLE _SPHINXSIM_PYTHON3_FROM_PATH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(_SPHINXSIM_PYTHON3_FROM_PATH)
+        set(Python3_EXECUTABLE "${_SPHINXSIM_PYTHON3_FROM_PATH}")
+    endif()
+endif()
 find_package(Python3 COMPONENTS Interpreter Development.Module REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 find_package(VTK REQUIRED COMPONENTS CommonCore CommonDataModel IOXML)

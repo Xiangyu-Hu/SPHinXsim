@@ -29,8 +29,7 @@ if(NOT CMAKE_TOOLCHAIN_FILE)
 endif()
 
 # Find required packages
-# Use the system Python version (3.11)
-find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+find_package(Python3 COMPONENTS Interpreter Development.Module REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 find_package(VTK REQUIRED COMPONENTS CommonCore CommonDataModel IOXML)
 find_package(nlohmann_json CONFIG REQUIRED)

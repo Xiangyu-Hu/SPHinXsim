@@ -43,10 +43,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set up Python 3.11
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ">=3.10"
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -100,7 +100,8 @@ jobs:
             -D CMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
             -D CMAKE_C_COMPILER_LAUNCHER=ccache \
             -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -D Python3_EXECUTABLE=$(which python3)
+            -D Python3_ROOT_DIR="${{ env.pythonLocation }}"\
+            -D Python3_EXECUTABLE="${{ env.pythonLocation }}/bin/python3"
 
       - name: Build
         run: |
@@ -141,10 +142,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set up Python 3.11
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ">=3.10"
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -195,12 +196,14 @@ jobs:
       - name: Configure CMake (Windows)
         shell: pwsh
         run: |
-          $pythonExe = python -c 'import sys; print(sys.executable)'
-          $ccacheExe = Join-Path $env:ChocolateyInstall 'bin\ccache.exe'
+          $pythonRoot = "${{ env.pythonLocation }}"
+          $pythonExe  = Join-Path $pythonRoot 'python.exe'
+          $ccacheExe  = Join-Path $env:ChocolateyInstall 'bin\ccache.exe'
           cmake --preset integrated-build-release-windows `
             -D CMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
             -D CMAKE_C_COMPILER_LAUNCHER="$ccacheExe" `
             -D CMAKE_CXX_COMPILER_LAUNCHER="$ccacheExe" `
+            -D Python3_ROOT_DIR="$pythonRoot" `
             -D Python3_EXECUTABLE="$pythonExe"
 
       - name: Build (Windows)
@@ -245,10 +248,10 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set up Python 3.11
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ">=3.10"
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -293,7 +296,8 @@ jobs:
             -D CMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
             -D CMAKE_C_COMPILER_LAUNCHER=ccache \
             -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -D Python3_EXECUTABLE=$(which python3)
+            -D Python3_ROOT_DIR="${{ env.pythonLocation }}"\
+            -D Python3_EXECUTABLE="${{ env.pythonLocation }}/bin/python3"
 
       - name: Build (macOS)
         run: |

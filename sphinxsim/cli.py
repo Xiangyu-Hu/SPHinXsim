@@ -478,14 +478,17 @@ def cmd_preview(args: argparse.Namespace) -> int:
         return rc
     assert config is not None
 
-    resolved_config_path = _resolve_preview_config_path(args.config_file)
+    resolved_config_path = config_path
+    if not resolved_config_path.is_absolute():
+        cwd_path = Path.cwd() / resolved_config_path
+        build_temp_path = PROJECT_ROOT / ".build-temp" / resolved_config_path
+        resolved_config_path = cwd_path if cwd_path.exists() else build_temp_path
 
     from sphinxsim.visualization.preview import ConfigVisualizer
 
     use_cpp = not getattr(args, "no_cpp", False)
     off_screen = getattr(args, "off_screen", False)
     screenshot_path = getattr(args, "screenshot", None)
-    with_particles = getattr(args, "with_particles", False)
 
     # Screenshot mode implies off-screen rendering.
     if screenshot_path:
@@ -494,8 +497,6 @@ def cmd_preview(args: argparse.Namespace) -> int:
     print(f"🖼  Building configuration preview for: {resolved_config_path}")
     if use_cpp:
         print("   Attempting C++ geometry build for accurate VTP meshes...")
-        if with_particles:
-            print("   Particle generation overlay is enabled (--with-particles).")
     else:
         print("   Skipping C++ geometry build (--no-cpp).")
 
@@ -506,11 +507,7 @@ def cmd_preview(args: argparse.Namespace) -> int:
         off_screen=off_screen,
     )
     try:
-        visualizer.preview(
-            use_cpp=use_cpp,
-            screenshot_path=screenshot_path,
-            with_particles=with_particles,
-        )
+        visualizer.preview(use_cpp=use_cpp, screenshot_path=screenshot_path)
         if use_cpp:
             if visualizer.used_cpp_geometry:
                 print("✅ Preview used C++ geometry (VTP meshes).")
@@ -603,180 +600,6 @@ def _geometry_changed(before: SimulationConfig, after: SimulationConfig) -> bool
     return before_geometry != after_geometry
 
 
-def _resolve_preview_config_path(config_file: str) -> Path:
-    """Resolve preview config path using cwd-first then .build-temp fallback."""
-    config_path = Path(config_file)
-    if config_path.is_absolute():
-        return config_path
-    cwd_path = Path.cwd() / config_path
-    build_temp_path = PROJECT_ROOT / ".build-temp" / config_path
-    return cwd_path if cwd_path.exists() else build_temp_path
-
-
-class _ShellPreviewRuntime:
-    """Persistent shell preview runtime.
-
-    Keeps a non-blocking plotter window alive across `preview` commands and
-    updates its scene in place.
-    """
-
-    def __init__(self) -> None:
-        self.plotter: Any | None = None
-        self.last_signature: str | None = None
-        self._using_background_plotter = False
-
-    def close(self) -> None:
-        if self.plotter is None:
-            return
-        try:
-            self.plotter.close()
-        except Exception:
-            pass
-        self.plotter = None
-
-    def _is_unchanged(
-        self,
-        config: SimulationConfig,
-        *,
-        use_cpp: bool,
-        with_particles: bool,
-    ) -> bool:
-        if with_particles:
-            return False
-
-        payload = {
-            "config": config.model_dump(exclude_none=True),
-            "use_cpp": use_cpp,
-            "with_particles": with_particles,
-        }
-        signature = json.dumps(payload, sort_keys=True)
-        unchanged = signature == self.last_signature
-        self.last_signature = signature
-        return unchanged
-
-    def show_or_update(
-        self,
-        config: SimulationConfig,
-        *,
-        resolved_config_path: Path,
-        use_cpp: bool,
-        with_particles: bool,
-    ) -> int:
-        try:
-            import pyvista as pv  # noqa: F401
-        except ImportError:
-            print(
-                "❌ PyVista is not installed.\n"
-                "   Install it with:  pip install sphinxsim[visualization]",
-                file=sys.stderr,
-            )
-            return 1
-
-        if self._is_unchanged(config, use_cpp=use_cpp, with_particles=with_particles):
-            print("ℹ️ Preview unchanged; keeping existing window.")
-            return 0
-
-        from sphinxsim.visualization.preview import ConfigVisualizer
-
-        visualizer = ConfigVisualizer(
-            config,
-            PROJECT_ROOT,
-            config_path=resolved_config_path,
-            off_screen=False,
-        )
-
-        ndim = visualizer._spatial_dim()
-        vtp_dir: Path | None = None
-        latest_particle_vtps: dict[str, Path] = {}
-
-        if use_cpp:
-            vtp_dir = visualizer._try_build_geometries(ndim, with_particles=with_particles)
-            if with_particles:
-                latest_particle_vtps = visualizer._discover_latest_particle_vtps(vtp_dir)
-
-        try:
-            import pyvista as pv
-
-            # On some Windows setups, Qt fails to initialize OpenGL contexts
-            # unless software rendering is requested before Qt is imported.
-            if sys.platform.startswith("win"):
-                os.environ.setdefault("QT_OPENGL", "software")
-
-            pyvistaqt_error: Exception | None = None
-            try:
-                from pyvistaqt import BackgroundPlotter  # type: ignore[import]
-            except Exception as exc:
-                BackgroundPlotter = None
-                pyvistaqt_error = exc
-
-            if self.plotter is None:
-                if BackgroundPlotter is not None:
-                    try:
-                        self.plotter = BackgroundPlotter(
-                            title="SPHinXsim - Configuration Preview",
-                            show=True,
-                        )
-                        self._using_background_plotter = True
-                    except Exception as exc:
-                        pyvistaqt_error = exc
-                        self.plotter = pv.Plotter(title="SPHinXsim - Configuration Preview", off_screen=False)
-                        self._using_background_plotter = False
-                        detail = f" ({pyvistaqt_error})" if pyvistaqt_error is not None else ""
-                        print(
-                            "ℹ️ pyvistaqt background mode could not initialize"
-                            f"{detail}; falling back to standard Plotter.\n"
-                            "   If you see OpenGL init warnings, keep QT_OPENGL=software and update your GPU drivers.",
-                            file=sys.stderr,
-                        )
-                else:
-                    self.plotter = pv.Plotter(title="SPHinXsim - Configuration Preview", off_screen=False)
-                    self._using_background_plotter = False
-                    detail = f" ({pyvistaqt_error})" if pyvistaqt_error is not None else ""
-                    print(
-                        "ℹ️ pyvistaqt background mode is unavailable"
-                        f"{detail}; persistent preview may become unresponsive while shell waits for input.\n"
-                        "   Install dependencies with: pip install pyvistaqt PySide6\n"
-                        "   (or use PyQt5 instead of PySide6)",
-                        file=sys.stderr,
-                    )
-
-            self.plotter.clear()
-            visualizer._populate_plotter(self.plotter, vtp_dir, latest_particle_vtps)
-            visualizer._configure_default_view(self.plotter, ndim)
-            self.plotter.add_axes()
-            self.plotter.show_grid(font_size=10)
-
-            if vtp_dir:
-                mode_label = "VTP geometry"
-            elif visualizer._bounds_sim is not None:
-                mode_label = "C++ bounds fallback"
-            else:
-                mode_label = "No C++ geometry"
-            dim_label = "2-D" if ndim == 2 else "3-D"
-            sim_type_label = config.simulation_type.value.replace("_", " ").title()
-            config_info = f"{dim_label}  •  {sim_type_label}  •  {mode_label}"
-            visualizer._add_config_info_text(self.plotter, config_info, ndim)
-
-            if not self._using_background_plotter:
-                try:
-                    # Non-blocking window path: returns immediately to shell.
-                    self.plotter.show(auto_close=False, interactive_update=True)
-                except TypeError:
-                    # Some mocked plotters do not accept these kwargs.
-                    self.plotter.show()
-            try:
-                self.plotter.render()
-            except Exception:
-                pass
-            return 0
-        except ImportError as exc:
-            print(f"❌ {exc}", file=sys.stderr)
-            return 1
-        except Exception as exc:
-            print(f"❌ Preview failed: {exc}", file=sys.stderr)
-            return 1
-
-
 def cmd_shell(args: argparse.Namespace) -> int:
     """Interactive shell for load/generate/update/validate/run workflow."""
     provider = os.getenv("SPHINXSIM_LLM_PROVIDER", "mock")
@@ -785,14 +608,13 @@ def cmd_shell(args: argparse.Namespace) -> int:
     print(
         "Commands: load FILE, generate DESCRIPTION FILE, "
         "update [--patch-mode] [--dry-run] [--strict true|false] INSTRUCTION, "
-        "validate, run, preview [--no-cpp] [--with-particles] [--screenshot FILE], lock-geometry, unlock-geometry, lock-status, explore QUESTION, exit"
+        "validate, run, preview [--no-cpp] [--screenshot FILE], lock-geometry, unlock-geometry, lock-status, explore QUESTION, exit"
     )
     print("Note: relative paths are resolved from the current directory first, then .build-temp/.")
 
     config_path: Path | None = None
     geometry_locked = False
     shell_sim = None
-    preview_runtime = _ShellPreviewRuntime()
 
     def _current_geometry_locked() -> bool:
         if shell_sim is not None and hasattr(shell_sim, "isGeometryLocked"):
@@ -803,7 +625,6 @@ def cmd_shell(args: argparse.Namespace) -> int:
         try:
             line = input("sphinxsim> ").strip()
         except (EOFError, KeyboardInterrupt):
-            preview_runtime.close()
             print()
             return 0
 
@@ -811,7 +632,6 @@ def cmd_shell(args: argparse.Namespace) -> int:
             continue
 
         if line in {"exit", "quit"}:
-            preview_runtime.close()
             return 0
 
         if line == "help":
@@ -828,7 +648,6 @@ def cmd_shell(args: argparse.Namespace) -> int:
             print("  validate                        - Reload and validate config from disk")
             print("  preview                         - Render geometry/BC preview (requires pyvista)")
             print("  preview --no-cpp                - Preview without C++ geometry build")
-            print("  preview --with-particles        - Run particle generation and overlay particles")
             print("  preview --screenshot FILE        - Save a screenshot to FILE instead of interactive window")
             print("  run                             - Run simulation from loaded config")
             print("  lock-geometry                   - Manually lock geometry updates")
@@ -976,7 +795,6 @@ def cmd_shell(args: argparse.Namespace) -> int:
                 print("No config loaded. Run 'load FILE' or 'generate' first.", file=sys.stderr)
                 continue
             no_cpp = "--no-cpp" in parts
-            with_particles = "--with-particles" in parts
             # Extract --screenshot / -s value from shell input
             screenshot_path = None
             if "--screenshot" in parts:
@@ -987,39 +805,14 @@ def cmd_shell(args: argparse.Namespace) -> int:
                 idx = parts.index("-s")
                 if idx + 1 < len(parts):
                     screenshot_path = parts[idx + 1]
-            if screenshot_path is not None:
-                _ = cmd_preview(
-                    argparse.Namespace(
-                        config_file=str(config_path),
-                        no_cpp=no_cpp,
-                        with_particles=with_particles,
-                        off_screen=False,
-                        screenshot=screenshot_path,
-                    )
+            _ = cmd_preview(
+                argparse.Namespace(
+                    config_file=str(config_path),
+                    no_cpp=no_cpp,
+                    off_screen=False,
+                    screenshot=screenshot_path,
                 )
-                continue
-
-            cfg, rc = _load_config(config_path)
-            if rc != 0 or cfg is None:
-                continue
-
-            resolved_config_path = _resolve_preview_config_path(str(config_path))
-            print(f"🖼  Building configuration preview for: {resolved_config_path}")
-            if not no_cpp:
-                print("   Attempting C++ geometry build for accurate VTP meshes...")
-                if with_particles:
-                    print("   Particle generation overlay is enabled (--with-particles).")
-            else:
-                print("   Skipping C++ geometry build (--no-cpp).")
-
-            rc = preview_runtime.show_or_update(
-                cfg,
-                resolved_config_path=resolved_config_path,
-                use_cpp=not no_cpp,
-                with_particles=with_particles,
             )
-            if rc == 0:
-                print("ℹ️ Preview window is persistent in shell mode; run `preview` again after edits.")
             continue
 
         if cmd == "run":
@@ -1187,11 +980,6 @@ def _build_parser() -> argparse.ArgumentParser:
         "--no-cpp",
         action="store_true",
         help="Skip C++ geometry build (no shapes rendered without C++).",
-    )
-    prev.add_argument(
-        "--with-particles",
-        action="store_true",
-        help="Also run particle generation and overlay the latest generated particles per body.",
     )
     prev.add_argument(
         "--off-screen",

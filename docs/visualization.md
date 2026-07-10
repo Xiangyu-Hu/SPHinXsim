@@ -13,14 +13,6 @@ PyVista is required:
 pip install sphinxsim[visualization]
 ```
 
-For responsive persistent preview in interactive shell mode, install
-`pyvistaqt` with a Qt binding backend:
-
-```bash
-pip install pyvistaqt PySide6
-# alternatively: pip install pyvistaqt PyQt5
-```
-
 The compiled C++ extension (`_sphinxsys_core_2d` or `_sphinxsys_core_3d`) is
 required only for C++ geometry rendering (simulation shapes and oriented-box
 meshes). Without it (or when using `--no-cpp`), preview still opens and
@@ -37,7 +29,6 @@ renders only the system domain bounding box and annotations.
 | Inlet/Outlet oriented boxes | Wireframe | Red |
 | Constraint region oriented boxes | Wireframe | Yellow |
 | System domain bounding box | Wireframe | White (10 % opacity) |
-| Generated particles (`--with-particles`) | Points | White (per-body colour) |
 
 Each shape and oriented box is labelled with an annotation that includes:
 
@@ -56,27 +47,6 @@ sphinxsim preview path/to/config.json
 This opens an interactive PyVista window showing the geometry.  The original
 JSON file is passed directly to the C++ `SPHSimulation` — it is the single
 source of truth, no intermediate copy is written.
-
-### Preview with generated particles
-
-```bash
-sphinxsim preview path/to/config.json --with-particles
-```
-
-Also runs particle generation (`generateParticles()`) and overlays the latest
-generated particle cloud for each particle-generation body.  This is opt-in
-because particle generation can be expensive.
-
-When particles are shown:
-
-- Regular body shapes are hidden to keep the view clear.
-- Oriented boxes, constraints, observers, gravity, and all annotations remain visible.
-- One particle cloud is rendered per body, using the highest step VTP file
-  (`BodyName_<step>.vtp` or `BodyName_ite_<step>.vtp`).
-- A small label shows the body name and step number for each particle cloud.
-
-This is useful for verifying particle distribution and spacing before running
-the full simulation.
 
 ### Skip C++ geometry build
 
@@ -125,14 +95,6 @@ This is useful for:
 
 `preview` is available as a first-class shell command:
 
-In shell mode, `preview` keeps a persistent window and returns control to the
-shell prompt. Running `preview` again updates the existing window.
-
-Notes:
-- `preview --screenshot ...` is one-shot and does not use the persistent window.
-- Persistent interactive mode relies on `pyvistaqt` plus a Qt backend (for
-   example `PySide6` or `PyQt5`).
-
 ```
 sphinxsim> load config.json
 ✅ Loaded config from config.json
@@ -152,12 +114,6 @@ sphinxsim> preview --screenshot preview.png
    Attempting C++ geometry build for accurate VTP meshes...
 ✅ Preview used C++ geometry (VTP meshes).
 📸 Screenshot saved to: preview.png
-
-sphinxsim> preview --with-particles
-🖼  Building configuration preview for: .../config.json
-   Attempting C++ geometry build for accurate VTP meshes...
-   Particle generation overlay is enabled (--with-particles).
-✅ Preview used C++ geometry (VTP meshes).
 ```
 
 `preview` requires a config to be loaded first (via `load` or `generate`).
@@ -195,7 +151,6 @@ viz.preview(screenshot_path="preview.png")  # save screenshot, no window
 |---|---|---|---|
 | `title` | `str` | `"SPHinXsim - Configuration Preview"` | Window title |
 | `use_cpp` | `bool` | `True` | Run C++ geometry build. Raises `ImportError` if extension not installed. |
-| `with_particles` | `bool` | `False` | Run particle generation and overlay latest particles per body. In shell persistent mode, enabling this always redraws the scene. |
 | `screenshot_path` | `str \| Path \| None` | `None` | When set, saves a screenshot to this path instead of opening a window. Implies off-screen rendering. |
 
 After rendering, the CLI reports which tier was used:

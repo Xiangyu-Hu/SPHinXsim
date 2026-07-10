@@ -223,16 +223,6 @@ jobs:
           $env:CMAKE_ARGS = "-D CMAKE_TOOLCHAIN_FILE=$toolchain"
           pip install -e ".[dev]"
 
-      - name: Install Qt preview dependencies (Windows)
-        shell: pwsh
-        run: |
-          pip install pyvistaqt PySide6
-
-      - name: Smoke test pyvistaqt BackgroundPlotter import (Windows)
-        shell: pwsh
-        run: |
-          python -c "from pyvistaqt import BackgroundPlotter; print('BackgroundPlotter import OK')"
-
       - name: Run unit tests (tests/, CI mock-LLM-only)
         env:
           SPHINXSIM_LLM_PROVIDER: mock

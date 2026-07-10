@@ -328,7 +328,7 @@ class TestPreviewViewMode:
         assert "enable_parallel_projection" in calls
         assert "view_xy:False" in calls
 
-    def test_3d_config_info_is_centered_top(self, fluid_config, tmp_path):
+    def test_2d_widgets_only_offer_z_views(self, fluid_config, tmp_path):
         from sphinxsim.visualization.preview import ConfigVisualizer
 
         viz = ConfigVisualizer(fluid_config, tmp_path, off_screen=True)
@@ -337,18 +337,19 @@ class TestPreviewViewMode:
             window_size = (1200, 800)
 
             def __init__(self):
-                self.calls: list[dict[str, Any]] = []
+                self.titles: list[str] = []
 
-            def add_text(self, text, **kwargs):
-                self.calls.append({"text": text, **kwargs})
+            def add_text(self, *args, **kwargs):
+                return None
+
+            def add_radio_button_widget(self, callback, group, value, title, **kwargs):
+                self.titles.append(title)
                 return None
 
         fake_plotter = FakePlotter()
-        viz._add_config_info_text(fake_plotter, "3-D  •  Fluid Dynamics  •  VTP geometry", ndim=3)
+        viz._add_view_direction_widgets(fake_plotter, ndim=2)
 
-        assert len(fake_plotter.calls) == 1
-        position = fake_plotter.calls[0].get("position")
-        assert position == "upper_edge"
+        assert fake_plotter.titles == ["+z", "-z"]
 
 
 class TestPreviewObservers:
@@ -418,166 +419,6 @@ class TestPreviewObservers:
             if call["labels"] and "Observer: ProbeA" in call["labels"][0]
         ]
         assert len(observer_label_calls) == 1
-
-
-class TestPreviewGeneratedParticles:
-    def test_discovers_latest_particle_vtp_per_body(self, fluid_config, tmp_path):
-        from sphinxsim.visualization.preview import ConfigVisualizer
-
-        viz = ConfigVisualizer(fluid_config, tmp_path, off_screen=True)
-        vtp_dir = tmp_path / "output"
-        vtp_dir.mkdir(parents=True)
-
-        # WaterBody: keep step 10, WallBoundary: keep step 2.
-        (vtp_dir / "WaterBody_0000.vtp").write_text("a")
-        (vtp_dir / "WaterBody_0010.vtp").write_text("b")
-        (vtp_dir / "WaterBody_ite_0012.vtp").write_text("b2")
-        (vtp_dir / "WallBoundary_0002.vtp").write_text("c")
-        (vtp_dir / "WallBoundary_0001.vtp").write_text("d")
-
-        # Should be ignored (not body state particle files).
-        (vtp_dir / "ShapeWaterBody.vtp").write_text("shape")
-        (vtp_dir / "particle_generation_0004.vtp").write_text("pg")
-
-        latest = viz._discover_latest_particle_vtps(vtp_dir)
-
-        assert latest["WaterBody"].name == "WaterBody_ite_0012.vtp"
-        assert latest["WallBoundary"].name == "WallBoundary_0002.vtp"
-        assert "particle_generation" not in latest
-
-    def test_populate_plotter_overlays_latest_particles(self, fluid_config, tmp_path):
-        from sphinxsim.visualization.preview import ConfigVisualizer
-
-        viz = ConfigVisualizer(fluid_config, tmp_path, off_screen=True)
-        fake_latest = {
-            "WaterBody": tmp_path / "WaterBody_0010.vtp",
-            "WallBoundary": tmp_path / "WallBoundary_0002.vtp",
-        }
-
-        class FakeMesh:
-            def __init__(self, center):
-                self.center = center
-                self.bounds = [0.0, 1.0, 0.0, 1.0, -0.01, 0.01]
-
-        class FakePlotter:
-            def __init__(self):
-                self.mesh_calls: list[dict[str, Any]] = []
-                self.point_label_calls: list[dict[str, Any]] = []
-
-            def add_mesh(self, mesh, **kwargs):
-                self.mesh_calls.append({"mesh": mesh, **kwargs})
-
-            def add_point_labels(self, points, labels, **kwargs):
-                self.point_label_calls.append({"points": points, "labels": labels, **kwargs})
-
-            def add_text(self, *args, **kwargs):
-                return None
-
-            def add_legend(self, *args, **kwargs):
-                return None
-
-        class FakePyVista:
-            @staticmethod
-            def read(path):
-                if "WaterBody" in path:
-                    return FakeMesh([0.2, 0.2, 0.0])
-                return FakeMesh([0.8, 0.8, 0.0])
-
-            @staticmethod
-            def PolyData(points):
-                return FakeMesh([0.5, 0.5, 0.0])
-
-            @staticmethod
-            def Arrow(start, direction, scale):
-                return {
-                    "type": "arrow",
-                    "start": start,
-                    "direction": direction,
-                    "scale": scale,
-                }
-
-            @staticmethod
-            def Box(bounds):
-                return FakeMesh([0.5, 0.5, 0.0])
-
-        fake_plotter = FakePlotter()
-        with patch.dict(sys.modules, {"pyvista": FakePyVista}):
-            viz._populate_plotter(fake_plotter, vtp_dir=None, latest_particle_vtps=fake_latest)
-
-        particle_mesh_calls = [
-            call for call in fake_plotter.mesh_calls if str(call.get("label", "")).startswith("Particles: ")
-        ]
-        assert len(particle_mesh_calls) == 2
-        assert all(call.get("style") == "points" for call in particle_mesh_calls)
-        assert all(call.get("point_size") == 5 for call in particle_mesh_calls)
-
-        particle_label_calls = [
-            call
-            for call in fake_plotter.point_label_calls
-            if call["labels"] and str(call["labels"][0]).startswith("Particles: ")
-        ]
-        assert len(particle_label_calls) == 2
-
-    def test_populate_plotter_hides_shapes_when_particles_present(self, fluid_config, tmp_path):
-        from sphinxsim.visualization.preview import ConfigVisualizer
-
-        viz = ConfigVisualizer(fluid_config, tmp_path, off_screen=True)
-        fake_latest = {
-            "WaterBody": tmp_path / "WaterBody_0010.vtp",
-        }
-
-        class FakeMesh:
-            def __init__(self, center):
-                self.center = center
-                self.bounds = [0.0, 1.0, 0.0, 1.0, -0.01, 0.01]
-
-        class FakePlotter:
-            def __init__(self):
-                self.mesh_calls: list[dict[str, Any]] = []
-
-            def add_mesh(self, mesh, **kwargs):
-                self.mesh_calls.append({"mesh": mesh, **kwargs})
-
-            def add_point_labels(self, points, labels, **kwargs):
-                return None
-
-            def add_text(self, *args, **kwargs):
-                return None
-
-            def add_legend(self, *args, **kwargs):
-                return None
-
-        class FakePyVista:
-            @staticmethod
-            def read(path):
-                return FakeMesh([0.2, 0.2, 0.0])
-
-            @staticmethod
-            def PolyData(points):
-                return FakeMesh([0.5, 0.5, 0.0])
-
-            @staticmethod
-            def Arrow(start, direction, scale):
-                return {
-                    "type": "arrow",
-                    "start": start,
-                    "direction": direction,
-                    "scale": scale,
-                }
-
-            @staticmethod
-            def Box(bounds):
-                return FakeMesh([0.5, 0.5, 0.0])
-
-        fake_plotter = FakePlotter()
-        with patch.dict(sys.modules, {"pyvista": FakePyVista}):
-            with patch.object(viz, "_load_shape_mesh", side_effect=AssertionError("shape render should be skipped")):
-                viz._populate_plotter(fake_plotter, vtp_dir=None, latest_particle_vtps=fake_latest)
-
-        particle_mesh_calls = [
-            call for call in fake_plotter.mesh_calls if str(call.get("label", "")).startswith("Particles: ")
-        ]
-        assert len(particle_mesh_calls) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -830,11 +671,7 @@ class TestCLIPreviewCommand:
 
         assert rc == 0
         MockViz.assert_called_once()
-        fake_visualizer.preview.assert_called_once_with(
-            use_cpp=True,
-            screenshot_path=None,
-            with_particles=False,
-        )
+        fake_visualizer.preview.assert_called_once_with(use_cpp=True, screenshot_path=None)
 
     def test_preview_no_cpp_flag(self, build_temp_path):
         cfg = self._write_config(build_temp_path)
@@ -849,30 +686,7 @@ class TestCLIPreviewCommand:
                 rc = main(["preview", str(cfg), "--no-cpp"])
 
         assert rc == 0
-        fake_visualizer.preview.assert_called_once_with(
-            use_cpp=False,
-            screenshot_path=None,
-            with_particles=False,
-        )
-
-    def test_preview_with_particles_flag(self, build_temp_path):
-        cfg = self._write_config(build_temp_path)
-        mock_pv = MagicMock()
-        fake_visualizer = MagicMock()
-
-        with patch.dict(sys.modules, {"pyvista": mock_pv}):
-            with patch(
-                "sphinxsim.visualization.preview.ConfigVisualizer",
-                return_value=fake_visualizer,
-            ):
-                rc = main(["preview", str(cfg), "--with-particles"])
-
-        assert rc == 0
-        fake_visualizer.preview.assert_called_once_with(
-            use_cpp=True,
-            screenshot_path=None,
-            with_particles=True,
-        )
+        fake_visualizer.preview.assert_called_once_with(use_cpp=False, screenshot_path=None)
 
     def test_preview_invalid_config_returns_nonzero(self, build_temp_path, capsys):
         bad = _minimal_fluid_config()
@@ -932,57 +746,36 @@ class TestShellPreview:
 
     def test_shell_preview_calls_visualizer(self, build_temp_path, capsys):
         _, rel = self._write_config(build_temp_path)
+        fake_visualizer = MagicMock()
 
         inputs = [f"load {rel}", "preview", "exit"]
         with patch.dict(sys.modules, {"pyvista": MagicMock()}):
             with patch(
-                "sphinxsim.cli._ShellPreviewRuntime.show_or_update",
-                return_value=0,
-            ) as mock_show_or_update:
+                "sphinxsim.visualization.preview.ConfigVisualizer",
+                return_value=fake_visualizer,
+            ) as MockViz:
                 with patch("builtins.input", side_effect=inputs):
                     rc = main(["shell"])
 
         assert rc == 0
-        mock_show_or_update.assert_called_once()
-        _, kwargs = mock_show_or_update.call_args
-        assert kwargs.get("use_cpp") is True
-        assert kwargs.get("with_particles") is False
+        MockViz.assert_called_once()
+        fake_visualizer.preview.assert_called_once_with(use_cpp=True, screenshot_path=None)
 
     def test_shell_preview_no_cpp_flag(self, build_temp_path):
         _, rel = self._write_config(build_temp_path)
+        fake_visualizer = MagicMock()
 
         inputs = [f"load {rel}", "preview --no-cpp", "exit"]
         with patch.dict(sys.modules, {"pyvista": MagicMock()}):
             with patch(
-                "sphinxsim.cli._ShellPreviewRuntime.show_or_update",
-                return_value=0,
-            ) as mock_show_or_update:
+                "sphinxsim.visualization.preview.ConfigVisualizer",
+                return_value=fake_visualizer,
+            ):
                 with patch("builtins.input", side_effect=inputs):
                     rc = main(["shell"])
 
         assert rc == 0
-        mock_show_or_update.assert_called_once()
-        _, kwargs = mock_show_or_update.call_args
-        assert kwargs.get("use_cpp") is False
-        assert kwargs.get("with_particles") is False
-
-    def test_shell_preview_with_particles_flag(self, build_temp_path):
-        _, rel = self._write_config(build_temp_path)
-
-        inputs = [f"load {rel}", "preview --with-particles", "exit"]
-        with patch.dict(sys.modules, {"pyvista": MagicMock()}):
-            with patch(
-                "sphinxsim.cli._ShellPreviewRuntime.show_or_update",
-                return_value=0,
-            ) as mock_show_or_update:
-                with patch("builtins.input", side_effect=inputs):
-                    rc = main(["shell"])
-
-        assert rc == 0
-        mock_show_or_update.assert_called_once()
-        _, kwargs = mock_show_or_update.call_args
-        assert kwargs.get("use_cpp") is True
-        assert kwargs.get("with_particles") is True
+        fake_visualizer.preview.assert_called_once_with(use_cpp=False, screenshot_path=None)
 
     def test_shell_help_mentions_preview(self, build_temp_path, capsys):
         inputs = ["help", "exit"]
@@ -1170,11 +963,7 @@ class TestCLIScreenshotCommand:
                 rc = main(["preview", str(cfg), "--screenshot", "output.png"])
 
         assert rc == 0
-        fake_visualizer.preview.assert_called_once_with(
-            use_cpp=True,
-            screenshot_path="output.png",
-            with_particles=False,
-        )
+        fake_visualizer.preview.assert_called_once_with(use_cpp=True, screenshot_path="output.png")
 
     def test_screenshot_short_flag_passes_screenshot_path(self, build_temp_path):
         """-s FILE should pass screenshot_path to visualizer.preview()."""
@@ -1190,11 +979,7 @@ class TestCLIScreenshotCommand:
                 rc = main(["preview", str(cfg), "-s", "out.png"])
 
         assert rc == 0
-        fake_visualizer.preview.assert_called_once_with(
-            use_cpp=True,
-            screenshot_path="out.png",
-            with_particles=False,
-        )
+        fake_visualizer.preview.assert_called_once_with(use_cpp=True, screenshot_path="out.png")
 
     def test_screenshot_implies_off_screen(self, build_temp_path):
         """--screenshot should cause ConfigVisualizer to be constructed with off_screen=True."""
@@ -1255,11 +1040,7 @@ class TestShellScreenshot:
                     rc = main(["shell"])
 
         assert rc == 0
-        fake_visualizer.preview.assert_called_once_with(
-            use_cpp=True,
-            screenshot_path="shell_out.png",
-            with_particles=False,
-        )
+        fake_visualizer.preview.assert_called_once_with(use_cpp=True, screenshot_path="shell_out.png")
 
     def test_shell_screenshot_short_flag(self, build_temp_path):
         """Shell mode: 'preview -s FILE' should pass screenshot_path to preview()."""
@@ -1276,11 +1057,7 @@ class TestShellScreenshot:
                     rc = main(["shell"])
 
         assert rc == 0
-        fake_visualizer.preview.assert_called_once_with(
-            use_cpp=True,
-            screenshot_path="short.png",
-            with_particles=False,
-        )
+        fake_visualizer.preview.assert_called_once_with(use_cpp=True, screenshot_path="short.png")
 
 
 # ---------------------------------------------------------------------------

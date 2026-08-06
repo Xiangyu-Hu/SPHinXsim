@@ -339,7 +339,7 @@ Shape *GeometryBuilder::addShape(
     if (type == "extrude_shape")
     {
         const std::string original_name = config.at("original").get<std::string>();
-        Shape *base_shape = &config_manager.getEntity<Shape>(original_name);
+        Shape &base_shape = config_manager.getEntity<Shape>(original_name);
 
         Real thickness = 0.0;
         if (config.at("thickness").is_number_float())

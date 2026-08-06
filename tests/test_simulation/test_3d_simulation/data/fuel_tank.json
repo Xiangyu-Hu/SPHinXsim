@@ -2,7 +2,7 @@
   "simulation_type": "fluid_dynamics",
   "geometries": {
     "global_resolution": {
-      "particle_spacing": 0.05
+      "characteristic_length_particles": 20
     },
     "shapes": [
       {
@@ -13,8 +13,8 @@
       {
         "name": "OuterWallSurface",
         "type": "extrude_shape",
-        "original": "WaterrBody",
-        "thickness": "boudary"
+        "original": "WaterBody",
+        "thickness": "boundary"
       },
       {
         "name": "WallBoundary",
@@ -62,18 +62,6 @@
       "name": "WallBoundary",
       "material": {
         "type": "rigid_body"
-      }
-    }
-  ],
-  "fluid_boundary_conditions": [
-    {
-      "body_name": "WaterBody",
-      "oriented_box": "Emitter",
-      "type": "emitter",
-      "inflow_speed": 2.0,
-      "on_schedule": {
-        "switch_on_time": 1.0,
-        "duration": 5.0
       }
     }
   ],

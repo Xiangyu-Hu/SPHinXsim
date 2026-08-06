@@ -361,7 +361,7 @@ Shape *GeometryBuilder::addShape(
                     "GeometryBuilder::addShape: unsupported thickness type for extrude_shape: " + thickness_name);
             }
         }
-        return config_manager.emplaceEntity<ExtrudeShape>(name, base_shape, thickness);
+        return config_manager.emplaceEntity<ExtrudeShape>(name, base_shape, thickness, name);
     }
 
     if (type == "complex_shape")

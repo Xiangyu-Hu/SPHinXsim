@@ -50,6 +50,7 @@ class BodyShapeType(str, Enum):
     BOX = "box"
     BOUNDING_BOX = "bounding_box"
     EXPANDED_BOX = "expanded_box"
+    EXTRUDE_SHAPE = "extrude_shape"    
     COMPLEX_SHAPE = "complex_shape"
     MULTIPOLYGON = "multipolygon"
     CYLINDER = "cylinder"
@@ -209,6 +210,8 @@ class ShapeConfig(BaseModel):
 
     original: Optional[str] = None
     expansion: Optional[float] = Field(default=None, gt=0)
+    thickness: Optional[float] = Field(default=None)
+    thickness: Optional[str] = Field(default=None, min_length=1)
 
     sub_shapes: Optional[List[str]] = None
     operations: Optional[List[GeometricOperationType]] = None
@@ -239,6 +242,11 @@ class ShapeConfig(BaseModel):
         if self.type == BodyShapeType.EXPANDED_BOX:
             if not self.original or self.expansion is None:
                 raise ValueError("expanded_box shape requires original and expansion")
+            return self
+        
+        if self.type == BodyShapeType.EXTRUDE_SHAPE:
+            if not self.original or self.thickness is None:
+                raise ValueError("extrude_shape requires original and thickness")
             return self
 
         if self.type == BodyShapeType.COMPLEX_SHAPE:
@@ -327,6 +335,12 @@ class GeometriesConfig(BaseModel):
                     raise ValueError(
                         f"expanded_box shape '{shape.name}' must reference a previously defined shape in original"
                     )
+
+            if shape.type == BodyShapeType.EXTRUDE_SHAPE:
+                if shape.original not in defined_shape_names:
+                        raise ValueError(
+                            f"extrude_shape '{shape.name}' must reference a previously defined shape in original"
+                        )
 
             if shape.type == BodyShapeType.COMPLEX_SHAPE:
                 for sub_shape in shape.sub_shapes or []:

@@ -336,6 +336,34 @@ Shape *GeometryBuilder::addShape(
         return shape;
     }
 
+    if (type == "extrude_shape")
+    {
+        const std::string original_name = config.at("original").get<std::string>();
+        Shape *base_shape = &config_manager.getEntity<Shape>(original_name);
+
+        Real thickness = 0.0;
+        if (config.at("thickness").is_number_float())
+        {
+            thickness = scaling_config.jsonToReal(config.at("thickness"), "Length");
+        }
+        else if (config.at("thickness").is_string())
+        {
+            std::string thickness_name = config.at("thickness").get<std::string>();
+            if (thickness_name == "boundary")
+            {
+                SystemDomainConfig &system_domain_config =
+                    config_manager.getEntity<SystemDomainConfig>("SystemDomainConfig");
+                thickness = 4.0 * system_domain_config.particle_spacing_;
+            }
+            else
+            {
+                throw std::runtime_error(
+                    "GeometryBuilder::addShape: unsupported thickness type for extrude_shape: " + thickness_name);
+            }
+        }
+        return config_manager.emplaceEntity<ExtrudeShape>(name, base_shape, thickness);
+    }
+
     if (type == "complex_shape")
     {
         ComplexShape *complex_shape = config_manager.emplaceEntity<ComplexShape>(name, name);

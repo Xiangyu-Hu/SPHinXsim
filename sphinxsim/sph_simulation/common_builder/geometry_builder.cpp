@@ -219,7 +219,7 @@ Real GeometryBuilder::parseGlobalResolution(
 
     if (config.contains("first_shape_size_particles"))
     {
-        UnsignedInt num_particles = config.at("characteristic_length_particles").get<UnsignedInt>();
+        UnsignedInt num_particles = config.at("first_shape_size_particles").get<UnsignedInt>();
         return first_shape_bound.MinimumDimension() / Real(num_particles);
     }
 

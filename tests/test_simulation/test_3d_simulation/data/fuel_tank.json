@@ -2,7 +2,7 @@
   "simulation_type": "fluid_dynamics",
   "geometries": {
     "global_resolution": {
-      "characteristic_length_particles": 20
+      "first_shape_size_particles": 20
     },
     "shapes": [
       {

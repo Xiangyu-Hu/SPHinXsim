@@ -88,8 +88,8 @@ void GeometryBuilder::createGeometries(EntityManager &config_manager, const json
 {
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     Real scaling_factor = scaling_config.getScalingRef("Length");
-    SystemDomainConfig *system_domain_config = config_manager.emplaceEntity<
-        SystemDomainConfig>("SystemDomainConfig", parseSystemDomainConfig(scaling_config, config));
+    SystemDomainConfig &system_domain_config =
+        *config_manager.emplaceEntity<SystemDomainConfig>("SystemDomainConfig");
 
     if (config.contains("primitives"))
     {
@@ -99,11 +99,21 @@ void GeometryBuilder::createGeometries(EntityManager &config_manager, const json
         }
     }
 
+    UnsignedInt shape_count = 0;
     for (const auto &geo : config.at("shapes"))
     {
         Shape *shape = addShape(scaling_config, config_manager, geo);
         config_manager.addEntity<Shape>(shape->Name(), shape);
-        system_domain_config->updateSystemDomain(shape->getBounds());
+        BoundingBoxd shape_bounds = shape->getBounds();
+        if (shape_count == 0)
+        {
+            system_domain_config = parseSystemDomainConfig(shape_bounds, scaling_config, config);
+        }
+        else
+        {
+            system_domain_config.updateSystemDomain(shape_bounds);
+        }
+        shape_count++;
     }
 
     if (config.contains("oriented_boxes"))
@@ -181,30 +191,36 @@ TransformGeometryCylinder GeometryBuilder::fetch_or_parseCylinder(
 #endif
 //=================================================================================================//
 SystemDomainConfig GeometryBuilder::parseSystemDomainConfig(
-    const ScalingConfig &scaling_config, const json &config)
+    const BoundingBoxd &first_shape_bound, const ScalingConfig &scaling_config, const json &config)
 {
     SystemDomainConfig system_config;
     if (config.contains("system_domain"))
     {
         system_config.system_bounds_ = parseBoundingBox(scaling_config, config.at("system_domain"));
     }
-    system_config.particle_spacing_ = parseGlobalResolution(scaling_config, config.at("global_resolution"));
+    system_config.particle_spacing_ = parseGlobalResolution(
+        first_shape_bound, scaling_config, config.at("global_resolution"));
     return system_config;
 }
 //=================================================================================================//
-Real GeometryBuilder::parseGlobalResolution(const ScalingConfig &scaling_config, const json &config)
+Real GeometryBuilder::parseGlobalResolution(
+    const BoundingBoxd &first_shape_bound, const ScalingConfig &scaling_config, const json &config)
 {
     if (config.contains("particle_spacing"))
     {
         return scaling_config.jsonToReal(config.at("particle_spacing"), "Length");
     }
-    else
+
+    if (config.contains("characteristic_length_particles"))
     {
-        if (config.contains("characteristic_length_particles"))
-        {
-            UnsignedInt num_particles = config.at("characteristic_length_particles").get<UnsignedInt>();
-            return 1.0 / Real(num_particles);
-        }
+        UnsignedInt num_particles = config.at("characteristic_length_particles").get<UnsignedInt>();
+        return 1.0 / Real(num_particles);
+    }
+
+    if (config.contains("first_shape_size_particles"))
+    {
+        UnsignedInt num_particles = config.at("characteristic_length_particles").get<UnsignedInt>();
+        return first_shape_bound.MinimumDimension() / Real(num_particles);
     }
 
     throw std::runtime_error(

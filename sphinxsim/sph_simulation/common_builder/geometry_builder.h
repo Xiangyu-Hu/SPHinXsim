@@ -70,8 +70,10 @@ class GeometryBuilder
     static BoundingBoxd parseBoundingBox(const ScalingConfig &scaling_config, const json &config);
     static TransformGeometryBox parseBox(const ScalingConfig &scaling_config, const json &config);
     static GeometricOps parseGeometricOp(const std::string &op_str);
-    static SystemDomainConfig parseSystemDomainConfig(const ScalingConfig &scaling_config, const json &config);
-    static Real parseGlobalResolution(const ScalingConfig &scaling_config, const json &config);
+    static SystemDomainConfig parseSystemDomainConfig(
+        const BoundingBoxd &first_shape_bound, const ScalingConfig &scaling_config, const json &config);
+    static Real parseGlobalResolution(
+        const BoundingBoxd &first_shape_bound, const ScalingConfig &scaling_config, const json &config);
 #ifdef SPHINXSYS_2D
     static MultiPolygon parseMultiPolygon(
         const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config);

@@ -1,4 +1,21 @@
 {
+  "characteristic_dimensions": [
+    {
+      "value": 2.3,
+      "name": "Length",
+      "hint": "geometries.oriented_boxes[name=FillLevel].center"
+    },
+    {
+      "value": 1.0,
+      "name": "Gravity",
+      "hint": "gravity"
+    },
+    {
+      "value": 1.0,
+      "name": "Density",
+      "hint": "fluid_bodies[name=WaterBody].material.density"
+    }
+  ],
   "simulation_type": "fluid_dynamics",
   "geometries": {
     "global_resolution": {

@@ -463,13 +463,23 @@ GeometricShapeBox GeometryBuilder::addOrientedBox(
     {
         Vecd center = scaling_config.jsonToVecd(config.at("center"), "Length");
         Vecd normal = scaling_config.jsonToVecd(config.at("normal"), "Dimensionless");
-        Real radius = scaling_config.jsonToReal(config.at("radius"), "Length");
 
         SystemDomainConfig &system_domain_config =
             config_manager.getEntity<SystemDomainConfig>("SystemDomainConfig");
         Real expansion_length = 4.0 * system_domain_config.particle_spacing_;
-
-        Vecd half_size = Vecd::Constant(radius + expansion_length);
+        Vecd half_size = Vecd::Constant(expansion_length);
+        if (config.contains("radius"))
+        {
+            Real radius = scaling_config.jsonToReal(config.at("radius"), "Length");
+            half_size += Vecd::Constant(radius);
+        }
+#ifdef SPHINXSYS_3D
+        else if (config.contains("surface_half_size"))
+        {
+            Vec2d hf = scaling_config.jsonToVec2d(config.at("surface_half_size"), "Length");
+            half_size += Vec3d(Real(0), hf[0], hf[1]);
+        }
+#endif
         half_size[xAxis] = expansion_length * 0.5;
         Vecd translation = center + normal * half_size[xAxis];
         Rotation rotation = getRotationFromXAxis(normal);

@@ -20,23 +20,17 @@
       {
         "name": "WallBoundary",
         "type": "complex_shape",
-        "sub_shapes": [
-          "OuterWallSurface",
-          "WaterBody"
-        ],
-        "operations": [
-          "union",
-          "subtraction"
-        ]
+        "sub_shapes": ["OuterWallSurface", "WaterBody"],
+        "operations": ["union", "subtraction"]
       }
     ],
     "oriented_boxes": [
       {
         "name": "FillLevel",
         "type": "boundary",
-        "center": [0.0, 2.0, 0.0],
+        "center": [0.0, 2.3, 0.0],
         "normal": [0.0, -1.0, 0.0],
-        "radius": 8.0
+        "surface_half_size": [3.0, 8.0]
       }
     ]
   },
@@ -76,11 +70,7 @@
       }
     }
   ],
-  "gravity": [
-    0.0,
-    -1.0,
-    0.0
-  ],
+  "gravity": [0.0, -1.0, 0.0],
   "solver_parameters": {
     "end_time": 20.0,
     "output_interval": 0.1,

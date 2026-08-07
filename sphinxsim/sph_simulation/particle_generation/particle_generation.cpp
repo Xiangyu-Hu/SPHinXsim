@@ -400,6 +400,9 @@ void ParticleGeneration::addRelaxationConstraintsIfPresent(
 
     for (const auto &body_config : bodies_config_.all_bodies_)
     {
+        if (!body_config.is_relaxation_body_)
+            continue;
+
         const std::string body_name = body_config.name_;
         RealBody &real_body = relaxation_system.getBodyByName<RealBody>(body_name);
 

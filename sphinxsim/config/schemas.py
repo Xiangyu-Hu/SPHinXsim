@@ -285,6 +285,7 @@ class OrientedBoxConfig(BaseModel):
     center: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     normal: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     radius: Optional[float] = Field(default=None, gt=0)
+    surface_half_size: Optional[List[float]] = Field(default=None, length=2)
 
     half_size: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     transform: Optional[TransformConfig] = None
@@ -292,8 +293,8 @@ class OrientedBoxConfig(BaseModel):
     @model_validator(mode="after")
     def _validate_oriented_box(self) -> "OrientedBoxConfig":
         if self.type == OrientedBoxType.BOUNDARY:
-            if self.center is None or self.normal is None or self.radius is None:
-                raise ValueError("boundary oriented_box requires center, normal and radius")
+            if self.center is None or self.normal is None or (self.radius is None and self.surface_half_size is None):
+                raise ValueError("boundary oriented_box requires center, normal and (radius or surface_half_size(3D))")
         elif self.type == OrientedBoxType.REGION:
             if not self.primitive and (self.half_size is None or self.transform is None):
                 raise ValueError("region oriented_box requires primitive or half_size and transform")

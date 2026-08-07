@@ -351,6 +351,23 @@ Vecd ScalingConfig::jsonToVecd(const nlohmann::json &arr, const std::string &uni
     return v;
 }
 //=================================================================================================//
+Vec2d ScalingConfig::jsonToVec2d(const nlohmann::json &arr, const std::string &unit_name) const
+{
+    if (static_cast<int>(arr.size()) != 2)
+    {
+        std::cout << "\n------------------------------------------------------------" << std::endl;
+        std::cout << static_cast<int>(arr.size()) << std::endl;
+        throw std::runtime_error(
+            "ScalingConfig::jsonToVec2d: expected a numeric array with exactly 2 entries.");
+    }
+
+    Vec2d v = Vec2d::Zero();
+    Real scaling_ref = getScalingRef(unit_name);
+    for (int i = 0; i < 2; ++i)
+        v[i] = arr[i].get<Real>() / scaling_ref;
+    return v;
+}
+//=================================================================================================//
 Real ScalingConfig::jsonToReal(const json &j, const std::string &unit_name) const
 {
     Real value = j.get<Real>();

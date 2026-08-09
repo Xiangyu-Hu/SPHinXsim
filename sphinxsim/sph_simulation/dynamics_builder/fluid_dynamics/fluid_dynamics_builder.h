@@ -61,7 +61,7 @@ class FluidDynamicsBuilder
   public:
     template <class FluidType, class InnerRelationType, class ContactRelationType>
     static BaseDynamics<void> &buildDensityRegularization(
-        SPHSimulation &sim, MainMethods &method_container, InnerRelationType &inner_relation,
+        SPHSimulation &sim, MainMethods &main_methods, InnerRelationType &inner_relation,
         ContactRelationType &contact_relation, const std::string &surface_type);
 
     static void buildBoundaryConditionsIfPresent(

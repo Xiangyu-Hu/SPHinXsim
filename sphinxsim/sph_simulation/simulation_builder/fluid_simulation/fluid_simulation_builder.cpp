@@ -307,6 +307,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialParticleIndicationTagging);
 
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialCondition);
+            initialization_pipeline.run_hooks(InitializationHookPoint::AfterInitialCondition);
+
             fluid_density_regularization.exec();
             fluid_advection_step_setup.exec();
             fluid_linear_correction_matrix.exec();

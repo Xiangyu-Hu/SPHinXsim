@@ -162,7 +162,7 @@ void SimulationBuilder::buildExternalForceIfPresent(
                 real_body, Gravity(scaling_config.jsonToVecd(config.at("gravity"), "Acceleration")));
 
         initialization_pipeline.insert_hook(
-            InitializationHookPoint::InitialCondition, [&]()
+            InitializationHookPoint::AfterInitialCondition, [&]()
             { constant_gravity.exec(); });
     }
 }
@@ -201,6 +201,47 @@ void SimulationBuilder::buildInitialConditionIfPresent(
         initialization_pipeline.insert_hook(
             InitializationHookPoint::InitialCondition, [&]()
             { dynamics.exec(); });
+    }
+}
+//=================================================================================================//
+void SimulationBuilder::buildRestartFromFileIfPresent(
+    SPHSimulation &sim, MainMethods &main_methods, const json &config)
+{
+    EntityManager &config_manager = sim.getConfigManager();
+    SPHSystem &sph_system = sim.getSPHSystem();
+    TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
+
+    if (config_manager.hasEntity<RestartConfig>("RestartConfig"))
+    {
+        auto &restart_config = config_manager.getEntity<RestartConfig>("RestartConfig");
+        sph_system.setRestartStep(restart_config.restore_step_);
+        auto &restart_io = main_methods.template addIODynamics<RestartIOCK>(
+            sph_system, restart_config.summary_enabled_);
+
+        auto &simulation_pipeline = sim.getSimulationPipeline();
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::ExtraOutput, [&]()
+            { 
+                if (time_stepper.getIterationStep() % restart_config.save_interval_ == 0)
+                {
+                    restart_io.writeToFile(time_stepper.getIterationStep());
+                } });
+
+        auto &initialization_pipeline = sim.getInitializationPipeline();
+        if (restart_config.restore_step_ != 0)
+        {
+            initialization_pipeline.insert_hook(
+                InitializationHookPoint::RestartFromFile, [&]()
+                { 
+                    time_stepper.setRestartStep(restart_config.restore_step_);
+                    restart_io.readRestartFiles(restart_config.restore_step_); });
+
+            BaseDynamics<void> &update_configuration =
+                config_manager.getEntity<BaseDynamics<void>>("UpdateConfiguration");
+            initialization_pipeline.insert_hook(
+                InitializationHookPoint::UpdateConfigurationAfterRestart, [&]()
+                { update_configuration.exec(); });
+        }
     }
 }
 //=================================================================================================//

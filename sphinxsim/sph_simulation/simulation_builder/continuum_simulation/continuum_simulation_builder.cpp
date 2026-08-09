@@ -38,11 +38,13 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     // update body relations, are defined first.
     //----------------------------------------------------------------------
     auto &main_methods = sph_solver.getMainMethodContainer();
-    auto &solid_cell_linked_list = main_methods.addCellLinkedListDynamics(solid_bodies);
-    auto &continuum_update_configuration =
+
+    auto &update_configuration =
         main_methods.addParticleDynamicsGroup()
+            .add(&main_methods.addCellLinkedListDynamics(solid_bodies))
             .add(&main_methods.addCellLinkedListDynamics(continuum_body))
             .add(&main_methods.addRelationDynamics(continuum_inner, continuum_solid_contact));
+    config_manager.addEntity<BaseDynamics<void>>("UpdateConfiguration", &update_configuration);
 
     auto &continuum_advection_step_setup = main_methods.addStateDynamics<
         fluid_dynamics::AdvectionStepSetup>(continuum_body);
@@ -63,15 +65,11 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     // Initial condition if present.
     //----------------------------------------------------------------------
     buildInitialConditionIfPresent(sim, main_methods, config);
+    buildRestartFromFileIfPresent(sim, main_methods, config);
     //----------------------------------------------------------------------
     // Constraints carried at last due to possible third-party dependencies.
     //----------------------------------------------------------------------
-    if (config.contains("body_constraints"))
-    {
-        ConstraintBuilder &constraint_builder =
-            *config_manager.emplaceEntity<ConstraintBuilder>("ConstraintBuilder");
-        constraint_builder.addConstraints(sim, main_methods, config);
-    }
+    ConstraintBuilder::buildConstraintsIfPresent(sim, main_methods, config);
     buildExternalForceIfPresent(sim, main_methods, continuum_body, config);
     recording_builder.buildObservationIfPresent(sim, main_methods, config);
     //----------------------------------------------------------------------
@@ -103,15 +101,18 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     initialization_pipeline.main_steps.push_back(
         [&]()
         {
-            solid_cell_linked_list.exec();
-            continuum_update_configuration.exec();
+            update_configuration.exec();
+
+            initialization_pipeline.run_hooks(InitializationHookPoint::InitialParticleIndicationTagging);
 
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialCondition);
-            initialization_pipeline.run_hooks(InitializationHookPoint::InitialParticleIndicationTagging);
+            initialization_pipeline.run_hooks(InitializationHookPoint::AfterInitialCondition);
+
+            initialization_pipeline.run_hooks(InitializationHookPoint::RestartFromFile);
+            initialization_pipeline.run_hooks(InitializationHookPoint::UpdateConfigurationAfterRestart);
 
             continuum_advection_step_setup.exec();
             continuum_linear_correction_matrix.exec();
-
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialAfterLinearCorrectionMatrix);
 
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialObservation);
@@ -162,8 +163,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
 
                 simulation_pipeline.run_hooks(SimulationHookPoint::ExtraOutput);
 
-                solid_cell_linked_list.exec();
-                continuum_update_configuration.exec();
+                update_configuration.exec();
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleIndicationTagging);
                 continuum_advection_step_setup.exec();
                 continuum_linear_correction_matrix.exec();
@@ -214,41 +214,5 @@ ContinuumSolverParameters ContinuumSimulationBuilder::parseContinuumSolverParame
 
     return parameters;
 }
-//=================================================================================================//
-void ContinuumSimulationBuilder::buildInitialConditionsIfPresent(
-    SPHSimulation &sim, MainMethods &main_methods, const json &config)
-{
-    EntityManager &config_manager = sim.getConfigManager();
-    SPHSystem &sph_system = sim.getSPHSystem();
-    TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
-
-    if (config_manager.hasEntity<RestartConfig>("RestartConfig"))
-    {
-        auto &restart_config = config_manager.getEntity<RestartConfig>("RestartConfig");
-        sph_system.setRestartStep(restart_config.restore_step_);
-        auto &restart_io = main_methods.template addIODynamics<RestartIOCK>(
-            sph_system, restart_config.summary_enabled_);
-
-        auto &simulation_pipeline = sim.getSimulationPipeline();
-        simulation_pipeline.insert_hook(
-            SimulationHookPoint::ExtraOutput, [&]()
-            { 
-                if (time_stepper.getIterationStep() % restart_config.save_interval_ == 0)
-                {
-                    restart_io.writeToFile(time_stepper.getIterationStep());
-                } });
-
-        auto &initialization_pipeline = sim.getInitializationPipeline();
-        if (restart_config.restore_step_ != 0)
-        {
-            initialization_pipeline.insert_hook(
-                InitializationHookPoint::InitialCondition, [&]()
-                { 
-                    time_stepper.setRestartStep(restart_config.restore_step_);
-                    restart_io.readRestartFiles(restart_config.restore_step_); });
-        }
-    }
-}
-
 //=================================================================================================//
 } // namespace SPH

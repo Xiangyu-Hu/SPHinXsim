@@ -116,7 +116,7 @@
     "output_interval": 0.01,
     "screen_interval": 100,
     "restart": {
-      "save_interval": 1000,
+      "save_interval": 400,
       "restore_step": 0,
       "summary_enabled": true
     },

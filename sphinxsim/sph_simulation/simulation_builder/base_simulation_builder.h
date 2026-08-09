@@ -56,6 +56,9 @@ enum class SimulationHookPoint
 enum class InitializationHookPoint
 {
     InitialCondition,
+    AfterInitialCondition,
+    RestartFromFile,
+    UpdateConfigurationAfterRestart,
     InitialObservation,
     InitialParticleIndicationTagging,
     InitialAfterLinearCorrectionMatrix,
@@ -135,6 +138,8 @@ class SimulationBuilder
         SPHSimulation &sim, MainMethods &main_methods, SPHBody &sph_body, const json &config);
 
     void buildInitialConditionIfPresent(
+        SPHSimulation &sim, MainMethods &main_methods, const json &config);
+    void buildRestartFromFileIfPresent(
         SPHSimulation &sim, MainMethods &main_methods, const json &config);
 
   private:

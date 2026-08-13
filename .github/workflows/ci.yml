@@ -329,10 +329,9 @@ jobs:
         run: |
           pytest examples/ -v
 
-  build-linux-sycl:
-    name: build (linux, sycl)
+  build-and-test-linux-sycl:
+    name: build-and-test (linux, sycl)
     runs-on: ubuntu-22.04
-    timeout-minutes: 150
     permissions:
       contents: read
     env:
@@ -412,12 +411,19 @@ jobs:
             -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -D Python3_EXECUTABLE="$PYTHON_EXE"
 
-      - name: Build (compile only, tests are not executed)
+      - name: Build (SYCL CPU)
         run: |
           source /opt/intel/oneapi/setvars.sh --include-intel-llvm
           cmake --build --preset sycl-cpu-binding \
             --parallel $(nproc) \
             --verbose
+
+      - name: Run C++ simulation class tests (SYCL CPU)
+        run: |
+          source /opt/intel/oneapi/setvars.sh --include-intel-llvm
+          ctest --test-dir ${{ github.workspace }}/build-integrated \
+            --output-on-failure \
+            -L "simulation_class"
 
   wheel-smoke:
     name: wheel-smoke (${{ matrix.os }})

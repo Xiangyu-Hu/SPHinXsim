@@ -159,6 +159,11 @@
       "surface_type": "free_stream",
       "kernel_correction": "none",
       "particle_sort_frequency": 100
+    },
+    "restart": {
+      "save_interval": 500,
+      "restore_step": 0,
+      "summary_enabled": true
     }
   }
 }

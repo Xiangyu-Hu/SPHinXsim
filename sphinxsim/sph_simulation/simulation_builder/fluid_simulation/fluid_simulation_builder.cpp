@@ -23,6 +23,14 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     EntityManager &config_manager = sim.getConfigManager();
     RecordingBuilder &recording_builder = sim.getRecordingBuilder();
     SPHSolver &sph_solver = sim.defineSPHSolver(*this, config);
+    // On restart the checkpointed Compression/Rho are already consistent with
+    // the restored positions, so density regularisation must not recompute them.
+    bool is_restoring = false;
+    if (config_manager.hasEntity<RestartConfig>("RestartConfig"))
+    {
+        auto &restart_config = config_manager.getEntity<RestartConfig>("RestartConfig");
+        is_restoring = restart_config.restore_step_ > 0;
+    }
     //----------------------------------------------------------------------
     // Creating bodies with inital geometry, materials and particles.
     //----------------------------------------------------------------------
@@ -59,7 +67,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     // Define dependent optional methods using hooking point in stage pipelines.
     //----------------------------------------------------------------------
-    buildSurfaceIndicationIfOpenBoundary(sim, main_methods, fluid_inner, fluid_wall_contact);
+    BaseDynamics<void> *fluid_surface_indication =
+        buildSurfaceIndicationIfOpenBoundary(sim, main_methods, fluid_inner, fluid_wall_contact);
     //----------------------------------------------------------------------
     // The essential main methods used for the simulation.
     // Generally, the configuration dynamics, such as update cell linked list,
@@ -116,6 +125,9 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     // StdVec here would be a stack-use-after-return once buildSimulation()
     // returns and the pipeline starts invoking that lambda from stepTo().
     StdVec<ParticleDynamicsGroup *> &structure_configurations = *(new StdVec<ParticleDynamicsGroup *>());
+    // Per-structure handles kept alongside structure_configurations, for the
+    // same reason, so the restart resync step can reach them.
+    StdVec<BaseDynamics<void> *> &structure_correction_matrices = *(new StdVec<BaseDynamics<void> *>());
     // Elastic solid bodies get their own configuration and stress relaxation.
     // Bodies declared rigid are skipped, so purely rigid cases are unaffected.
     size_t structure_index = 0;
@@ -175,9 +187,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                 elastic_body, wave_center, wave_span, wave_core,
                 amplitude, frequency, wavelength_factor, start_time);
 
-            // SYCL reference imposes the active strain once per solid sub-step
-            // (2d_flow_stream_around_fish_sycl.cpp:309), not once per coupling
-            // interval, so the traveling wave phase stays current across
+            // The active strain is applied once per solid sub-step (not once per
+            // coupling interval), so the traveling wave phase stays current across
             // sub-steps. Passed to buildSolidDynamics below.
             active_strain_pre_substep_hook = [&active_strain]()
             { active_strain.exec(); };
@@ -186,6 +197,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         auto &elastic_correction_matrix =
             SolidDynamicsBuilder::buildSolidDynamics<CompositeSolidMaterial>(
                 sim, main_methods, elastic_inner, active_strain_pre_substep_hook);
+        structure_correction_matrices.push_back(&elastic_correction_matrix);
 
         // Recover the averaged surface motion the fluid sees over the interval,
         // after the structure sub loop has advanced.
@@ -196,10 +208,9 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         auto &elastic_normal_direction =
             main_methods.addStateDynamics<solid_dynamics::UpdateElasticNormalDirectionCK>(elastic_body);
 
-        // SYCL reference refreshes the elastic normal every advection step
-        // (2d_flow_stream_around_fish_sycl.cpp:332); without this the normal
-        // stays frozen at its t=0 value while the surface deforms, which
-        // distorts the pressure force most where the motion is largest (tail).
+        // The elastic normal is refreshed every advection step (not left frozen
+        // at its t=0 value while the surface deforms); otherwise the pressure
+        // force is distorted most where the surface deformation is largest.
         sim.getSimulationPipeline().insert_hook(
             SimulationHookPoint::AfterLinearCorrectionMatrix, [&]()
             { elastic_normal_direction.exec(); });
@@ -218,10 +229,14 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                 elastic_correction_matrix.exec();
                 elastic_normal_direction.exec(); });
     }
+    // Kept as separate handles so restart resync can re-run the cell-linked
+    // list alone (e.g. again after a particle sort) without the relation.
+    auto &fluid_cell_linked_list = main_methods.addCellLinkedListDynamics(fluid_body);
+    auto &fluid_relation = main_methods.addRelationDynamics(fluid_inner, fluid_wall_contact);
     auto &fluid_configuration =
         main_methods.addParticleDynamicsGroup()
-            .add(&main_methods.addCellLinkedListDynamics(fluid_body))
-            .add(&main_methods.addRelationDynamics(fluid_inner, fluid_wall_contact));
+            .add(&fluid_cell_linked_list)
+            .add(&fluid_relation);
 
     auto &fluid_advection_step_setup = main_methods.addStateDynamics<fluid_dynamics::AdvectionStepSetup>(fluid_body);
     auto &fluid_particle_position = main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(fluid_body);
@@ -281,7 +296,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     buildInitialConditionIfPresent(sim, main_methods, config);
     FluidDynamicsBuilder::buildBoundaryConditionsIfPresent(sim, main_methods, config);
     buildParticleDeletionIfPresent(sim, main_methods, fluid_body);
-    buildParticleSortIfPresent(sim, main_methods, fluid_body);
+    BaseDynamics<void> *fluid_particle_sort = buildParticleSortIfPresent(sim, main_methods, fluid_body);
     //----------------------------------------------------------------------
     // Define state recording for visualization the simulation results.
     //----------------------------------------------------------------------
@@ -290,11 +305,42 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     recording_builder.buildObservationIfPresent(sim, main_methods, config);
     recording_builder.buildEnergyRecordingIfPresent(sim, main_methods, config);
     //----------------------------------------------------------------------
+    // Post-restore resync, consolidated into a single UpdateConfiguration
+    // entity, matching the resync pattern in continuum_simulation_builder.cpp
+    // extended for FSI: fluid+solid cell-linked lists, particle sort, a second
+    // cell-linked list rebuild (sort invalidates it), all contact relations
+    // (fluid inner + fluid-wall + fluid-structure), free-stream surface indication,
+    // and the elastic solid's corrected configuration (B-matrix).
+    //----------------------------------------------------------------------
+    auto &update_configuration = main_methods.addParticleDynamicsGroup();
+    update_configuration.add(&solid_cell_linked_list).add(&fluid_cell_linked_list);
+    if (fluid_particle_sort != nullptr)
+    {
+        update_configuration.add(fluid_particle_sort).add(&fluid_cell_linked_list);
+    }
+    update_configuration.add(&fluid_relation);
+    for (ParticleDynamicsGroup *structure_configuration : structure_configurations)
+    {
+        update_configuration.add(structure_configuration);
+    }
+    if (fluid_surface_indication != nullptr)
+    {
+        update_configuration.add(fluid_surface_indication);
+    }
+    for (BaseDynamics<void> *structure_correction_matrix : structure_correction_matrices)
+    {
+        update_configuration.add(structure_correction_matrix);
+    }
+    config_manager.addEntity<BaseDynamics<void>>("UpdateConfiguration", &update_configuration);
+
+    buildRestartFromFileIfPresent(sim, main_methods, config);
+    //----------------------------------------------------------------------
     //	Define preparation or initialization step before the main integration.
     //----------------------------------------------------------------------
     auto &initialization_pipeline = sim.getInitializationPipeline();
     initialization_pipeline.main_steps.push_back(
-        [&]()
+        // is_restoring captured by value: the lambda runs after this function returns
+        [&, is_restoring]()
         {
             solid_cell_linked_list.exec();
             fluid_configuration.exec();
@@ -302,7 +348,14 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialCondition);
             initialization_pipeline.run_hooks(InitializationHookPoint::AfterInitialCondition);
 
-            fluid_density_regularization.exec();
+            initialization_pipeline.run_hooks(InitializationHookPoint::RestartFromFile);
+            initialization_pipeline.run_hooks(InitializationHookPoint::UpdateConfigurationAfterRestart);
+
+            // fresh start must derive Compression/Rho; on restore they're already correct
+            if (!is_restoring)
+            {
+                fluid_density_regularization.exec();
+            }
             fluid_advection_step_setup.exec();
             fluid_linear_correction_matrix.exec();
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialAfterLinearCorrectionMatrix);
@@ -363,6 +416,10 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleDeletionTagging);
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleDeletion);
                 simulation_pipeline.run_hooks(SimulationHookPoint::ParticleSort);
+
+                // Restart checkpoint fires after the sort so it captures the
+                // reordered, consistent particle state.
+                simulation_pipeline.run_hooks(SimulationHookPoint::ExtraOutput);
 
                 // Rigid solid bodies never move, so their cell-linked list stays
                 // valid from initialization; only rebuild per step when moving
@@ -438,7 +495,7 @@ void FluidSimulationBuilder::buildParticleDeletionIfPresent(
     }
 }
 //=================================================================================================//
-void FluidSimulationBuilder::buildParticleSortIfPresent(
+BaseDynamics<void> *FluidSimulationBuilder::buildParticleSortIfPresent(
     SPHSimulation &sim, MainMethods &main_methods, RealBody &real_body)
 {
     auto &config_manager = sim.getConfigManager();
@@ -457,7 +514,9 @@ void FluidSimulationBuilder::buildParticleSortIfPresent(
                 {
                     particle_sort.exec();
                 } });
+        return &particle_sort;
     }
+    return nullptr;
 }
 //=================================================================================================//
 } // namespace SPH

@@ -74,12 +74,26 @@ void SPHSimulation::generateParticles()
         exit(1);
     }
 
-    json config = loadConfig().at("particle_generation");
+    json full_config = loadConfig();
+    json config = full_config.at("particle_generation");
     if (config.at("build_and_run").get<bool>())
     {
+        // On restart-resume, relaxation must be skipped: it's non-deterministic,
+        // so re-relaxing would produce a layout mismatched with the saved restart XML.
+        bool skip_relaxation = false;
+        if (full_config.contains("solver_parameters") &&
+            full_config.at("solver_parameters").contains("restart"))
+        {
+            const json &restart_config = full_config.at("solver_parameters").at("restart");
+            if (restart_config.contains("restore_step"))
+            {
+                skip_relaxation = restart_config.at("restore_step").get<int>() > 0;
+            }
+        }
+
         ParticleGeneration particle_generation;
         particle_generation.buildParticleGeneration(*this, config.at("settings"));
-        particle_generation.runRelaxation();
+        particle_generation.runRelaxation(skip_relaxation);
     }
     particles_generated_ = true;
 }

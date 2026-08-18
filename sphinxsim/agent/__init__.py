@@ -10,6 +10,8 @@ from .models import (
     TaskStatus,
     create_task,
 )
+from .intent import PlanningIntent, RuleBasedIntentResolver, TaskIntentType
+from .planner import PlannedTask, TaskPlanner
 from .store import (
     AgentTaskStore,
     StoreError,
@@ -24,10 +26,15 @@ __all__ = [
     "PlanAction",
     "PlanStatus",
     "PlanStep",
+    "PlannedTask",
+    "PlanningIntent",
+    "RuleBasedIntentResolver",
     "StepStatus",
     "StoreError",
     "TaskAlreadyExistsError",
     "TaskNotFoundError",
+    "TaskIntentType",
+    "TaskPlanner",
     "TaskStatus",
     "create_task",
 ]

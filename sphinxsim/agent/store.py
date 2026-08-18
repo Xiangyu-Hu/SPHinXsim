@@ -23,7 +23,7 @@ class TaskAlreadyExistsError(StoreError):
 
 
 class AgentTaskStore:
-    """Persist task metadata and immutable plan-version files as JSON."""
+    """Persist task metadata and versioned plan-state files as JSON."""
 
     def __init__(self, root: str | Path) -> None:
         self.root = Path(root).resolve()
@@ -97,6 +97,20 @@ class AgentTaskStore:
         if task.active_plan_version is None:
             raise TaskNotFoundError(f"Agent task has no active plan: {task_id}")
         return self.load_plan(task_id, task.active_plan_version)
+
+    def save_plan(self, task_id: str, plan: AgentPlan) -> None:
+        """Persist execution state for an existing plan version."""
+        task = self.load_task(task_id)
+        if plan.version not in task.plan_versions:
+            raise TaskNotFoundError(
+                f"Agent plan not found: task={task_id}, version={plan.version}"
+            )
+        plan_path = self._plan_path(task_id, plan.version)
+        if not plan_path.exists():
+            raise TaskNotFoundError(
+                f"Agent plan not found: task={task_id}, version={plan.version}"
+            )
+        self._atomic_write(plan_path, plan.model_dump_json(indent=2))
 
     def add_plan(self, task_id: str, plan: AgentPlan) -> AgentTask:
         """Add the next plan revision and make it active.

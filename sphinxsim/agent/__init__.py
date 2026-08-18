@@ -18,12 +18,20 @@ from .store import (
     TaskAlreadyExistsError,
     TaskNotFoundError,
 )
+from .executor import PlanExecutionError, PlanExecutionResult, StaticPlanExecutor
+from .presets import (
+    DEFAULT_COLUMN_COLLAPSE_CONFIG,
+    create_column_collapse_task,
+)
 
 __all__ = [
     "AgentPlan",
     "AgentTask",
     "AgentTaskStore",
+    "DEFAULT_COLUMN_COLLAPSE_CONFIG",
     "PlanAction",
+    "PlanExecutionError",
+    "PlanExecutionResult",
     "PlanStatus",
     "PlanStep",
     "PlannedTask",
@@ -31,10 +39,12 @@ __all__ = [
     "RuleBasedIntentResolver",
     "StepStatus",
     "StoreError",
+    "StaticPlanExecutor",
     "TaskAlreadyExistsError",
     "TaskNotFoundError",
     "TaskIntentType",
     "TaskPlanner",
     "TaskStatus",
     "create_task",
+    "create_column_collapse_task",
 ]

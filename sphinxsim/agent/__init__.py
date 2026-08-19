@@ -68,6 +68,20 @@ from .knowledge import (
     RetrievedKnowledge,
     build_default_knowledge_base,
 )
+from .calibration_workflow import (
+    CalibrationIteration,
+    CalibrationPlanner,
+    CalibrationWorkflowResult,
+    CalibrationWorkflowStatus,
+    CalibrationWorkflowDefinition,
+    DeterministicCalibrationWorkflow,
+    MockColumnCollapseCalibrationPlanner,
+)
+from .langgraph_workflow import (
+    CalibrationGraph,
+    CalibrationGraphState,
+    build_calibration_graph,
+)
 
 __all__ = [
     "AgentAnalysis",
@@ -87,8 +101,16 @@ __all__ = [
     "CalibrationError",
     "CalibrationObservation",
     "CalibrationSpec",
+    "CalibrationPlanner",
+    "CalibrationIteration",
+    "CalibrationGraph",
+    "CalibrationGraphState",
+    "CalibrationWorkflowDefinition",
+    "CalibrationWorkflowResult",
+    "CalibrationWorkflowStatus",
     "CapabilityRegistry",
     "DEFAULT_COLUMN_COLLAPSE_CONFIG",
+    "DeterministicCalibrationWorkflow",
     "FrictionAngleSweepAnalyzer",
     "FrictionAngleSweepResult",
     "FrictionSweepSample",
@@ -123,12 +145,14 @@ __all__ = [
     "TimeSelection",
     "VTPPositionReader",
     "Monotonicity",
+    "MockColumnCollapseCalibrationPlanner",
     "ObjectiveSpec",
     "ParameterSpec",
     "ToolRegistry",
     "build_builtin_tool_registry",
     "build_capability_registry",
     "build_default_knowledge_base",
+    "build_calibration_graph",
     "create_task",
     "create_column_collapse_task",
     "create_friction_angle_column_collapse_task",

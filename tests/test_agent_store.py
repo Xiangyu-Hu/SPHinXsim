@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
+import sphinxsim.agent.store as store_module
 
 from sphinxsim.agent import (
     AgentAnalysis,
@@ -51,6 +52,29 @@ def store(build_temp_path: Path) -> AgentTaskStore:
 def test_create_and_load_task(store: AgentTaskStore) -> None:
     task = create_task("simulate a landslide", task_id="task_store")
     store.create_task(task)
+    assert store.load_task(task.task_id) == task
+
+
+def test_atomic_write_retries_transient_windows_permission_error(
+    store: AgentTaskStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_replace = store_module.os.replace
+    attempts = 0
+
+    def transient_replace(source: Path, destination: Path) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise PermissionError("transient file lock")
+        real_replace(source, destination)
+
+    monkeypatch.setattr(store_module.os, "replace", transient_replace)
+    task = create_task("simulate a landslide", task_id="task_retry_write")
+
+    store.create_task(task)
+
+    assert attempts == 2
     assert store.load_task(task.task_id) == task
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import time
 
 from pydantic import ValidationError
 
@@ -89,7 +90,14 @@ class AgentTaskStore:
         temporary = path.with_suffix(path.suffix + ".tmp")
         try:
             temporary.write_text(content, encoding="utf-8")
-            os.replace(temporary, path)
+            for attempt in range(5):
+                try:
+                    os.replace(temporary, path)
+                    break
+                except PermissionError:
+                    if attempt == 4:
+                        raise
+                    time.sleep(0.01 * (2**attempt))
         except OSError as exc:
             try:
                 temporary.unlink(missing_ok=True)

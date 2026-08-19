@@ -9,9 +9,11 @@ from sphinxsim.agent import (
     PlanAction,
     PlanStep,
     StaticPlanExecutor,
+    create_friction_angle_column_collapse_task,
     create_task,
 )
 from sphinxsim.services import SPHinXsimCLIAdapter
+from sphinxsim.services import CLICommandResult
 
 
 def test_real_column_collapse_validation_without_simulation(build_temp_path: Path) -> None:
@@ -43,3 +45,44 @@ def test_real_column_collapse_validation_without_simulation(build_temp_path: Pat
 
     assert result.succeeded is True
     assert result.completed_step_ids == ("validate_case",)
+
+
+class _RealValidateFakeRunAdapter:
+    def __init__(self, project_root: Path) -> None:
+        self.real_adapter = SPHinXsimCLIAdapter(cwd=project_root, default_timeout=30)
+        self.validated_path: str | None = None
+        self.run_path: str | None = None
+
+    def validate(self, config_path: str, *, timeout=None) -> CLICommandResult:
+        self.validated_path = config_path
+        return self.real_adapter.validate(config_path, timeout=timeout)
+
+    def run(self, config_path: str, *, timeout=None) -> CLICommandResult:
+        self.run_path = config_path
+        return CLICommandResult(
+            command=("fake-run", config_path),
+            returncode=0,
+            stdout="simulation intentionally skipped by integration test",
+            stderr="",
+            duration_seconds=0.0,
+        )
+
+
+def test_modified_column_collapse_passes_real_validation(
+    build_temp_path: Path,
+) -> None:
+    project_root = Path(__file__).resolve().parents[1]
+    store = AgentTaskStore(build_temp_path / f"modified_validate_{uuid4().hex}")
+    task, plan = create_friction_angle_column_collapse_task(
+        store,
+        friction_angle_degrees=30.0,
+        task_id=f"task_modified_{uuid4().hex[:8]}",
+    )
+    adapter = _RealValidateFakeRunAdapter(project_root)
+
+    result = StaticPlanExecutor(store, adapter).execute(task.task_id)
+
+    expected_path = plan.steps[1].parameters["config_path"]
+    assert result.succeeded is True
+    assert adapter.validated_path == expected_path
+    assert adapter.run_path == expected_path

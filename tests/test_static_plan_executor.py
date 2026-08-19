@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import math
 from pathlib import Path
 from uuid import uuid4
 
@@ -17,6 +19,7 @@ from sphinxsim.agent import (
     StepStatus,
     TaskStatus,
     create_column_collapse_task,
+    create_friction_angle_column_collapse_task,
     create_task,
 )
 from sphinxsim.services import CLICommandResult
@@ -148,3 +151,65 @@ def test_executor_does_not_print_internal_plan(store: AgentTaskStore, capsys) ->
     assert result.succeeded is True
     assert captured.out == ""
     assert captured.err == ""
+
+
+def test_parameterized_preset_copies_updates_validates_and_runs(
+    store: AgentTaskStore,
+) -> None:
+    source = Path(
+        "tests/test_simulation/test_2d_simulation/data/column_collapse.json"
+    )
+    original_text = source.read_text(encoding="utf-8")
+    task, plan = create_friction_angle_column_collapse_task(
+        store,
+        friction_angle_degrees=30.0,
+        task_id="task_parameterized_column",
+    )
+    adapter = FakeCommandAdapter()
+
+    result = StaticPlanExecutor(store, adapter).execute(task.task_id)
+
+    assert result.succeeded is True
+    assert result.completed_step_ids == (
+        "prepare_case",
+        "update_friction_angle",
+        "validate_case",
+        "run_case",
+    )
+    working_path = Path(plan.steps[1].parameters["config_path"])
+    assert adapter.calls == [
+        ("validate", str(working_path), None),
+        ("run", str(working_path), None),
+    ]
+    assert source.read_text(encoding="utf-8") == original_text
+    assert working_path.is_file()
+
+    payload = json.loads(working_path.read_text(encoding="utf-8"))
+    angle = payload["continuum_bodies"][0]["material"]["friction_angle"]
+    assert angle == pytest.approx(math.pi / 6)
+    saved_task = store.load_task(task.task_id)
+    assert saved_task.case_versions == [str(working_path.resolve())]
+    saved_plan = store.load_active_plan(task.task_id)
+    assert all(step.status == StepStatus.COMPLETED for step in saved_plan.steps)
+    assert saved_plan.steps[0].artifacts == [str(working_path.resolve())]
+    assert saved_plan.steps[1].artifacts == [str(working_path.resolve())]
+
+
+def test_parameter_update_failure_prevents_cli_commands(store: AgentTaskStore) -> None:
+    task, _ = create_friction_angle_column_collapse_task(
+        store,
+        friction_angle_degrees=90.0,
+        task_id="task_invalid_friction",
+    )
+    adapter = FakeCommandAdapter()
+
+    result = StaticPlanExecutor(store, adapter).execute(task.task_id)
+
+    assert result.succeeded is False
+    assert result.failed_step_id == "update_friction_angle"
+    assert adapter.calls == []
+    saved_plan = store.load_active_plan(task.task_id)
+    assert saved_plan.steps[0].status == StepStatus.COMPLETED
+    assert saved_plan.steps[1].status == StepStatus.FAILED
+    assert saved_plan.steps[2].status == StepStatus.PENDING
+    assert saved_plan.steps[3].status == StepStatus.PENDING

@@ -19,15 +19,19 @@ from .store import (
     TaskNotFoundError,
 )
 from .executor import PlanExecutionError, PlanExecutionResult, StaticPlanExecutor
+from .case_tools import CaseToolError, CaseWorkspace
 from .presets import (
     DEFAULT_COLUMN_COLLAPSE_CONFIG,
     create_column_collapse_task,
+    create_friction_angle_column_collapse_task,
 )
 
 __all__ = [
     "AgentPlan",
     "AgentTask",
     "AgentTaskStore",
+    "CaseToolError",
+    "CaseWorkspace",
     "DEFAULT_COLUMN_COLLAPSE_CONFIG",
     "PlanAction",
     "PlanExecutionError",
@@ -47,4 +51,5 @@ __all__ = [
     "TaskStatus",
     "create_task",
     "create_column_collapse_task",
+    "create_friction_angle_column_collapse_task",
 ]

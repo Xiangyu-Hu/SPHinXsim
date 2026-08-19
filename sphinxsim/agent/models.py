@@ -48,6 +48,7 @@ class PlanAction(str, Enum):
 
     CLARIFY_REQUIREMENTS = "clarify_requirements"
     GENERATE_CASE = "generate_case"
+    PREPARE_CASE = "prepare_case"
     UPDATE_CASE = "update_case"
     VALIDATE_CASE = "validate_case"
     PREVIEW_CASE = "preview_case"

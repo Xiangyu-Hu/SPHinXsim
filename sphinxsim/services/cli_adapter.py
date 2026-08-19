@@ -228,10 +228,14 @@ class SPHinXsimCLIAdapter:
         self,
         config_path: str | Path,
         *,
+        output_dir: str | Path | None = None,
         timeout: float | None = None,
     ) -> CLICommandResult:
         """Run the complete existing SPHinXsim simulation command."""
-        return self._invoke(("run", self._absolute_path(config_path)), timeout=timeout)
+        arguments = ["run", self._absolute_path(config_path)]
+        if output_dir is not None:
+            arguments.extend(("--output-dir", self._absolute_path(output_dir)))
+        return self._invoke(arguments, timeout=timeout)
 
     def explore(
         self,

@@ -8,8 +8,11 @@ from uuid import uuid4
 import pytest
 
 from sphinxsim.agent import (
+    AgentAnalysis,
     AgentPlan,
+    AgentRun,
     AgentTaskStore,
+    AnalysisStatus,
     PlanAction,
     PlanStatus,
     PlanStep,
@@ -17,6 +20,7 @@ from sphinxsim.agent import (
     TaskAlreadyExistsError,
     TaskNotFoundError,
     TaskStatus,
+    RunStatus,
     create_task,
 )
 
@@ -111,3 +115,86 @@ def test_corrupt_task_json_is_reported(store: AgentTaskStore) -> None:
     task_file.write_text("not valid json", encoding="utf-8")
     with pytest.raises(StoreError, match="unable to read valid Agent state"):
         store.load_task(task.task_id)
+
+
+def test_create_finish_and_load_run_record(store: AgentTaskStore) -> None:
+    task = create_task("run a case", task_id="task_run_record")
+    store.create_task(task)
+    output_dir = store.run_directory(task.task_id, "run_001")
+    run = AgentRun(
+        run_id="run_001",
+        task_id=task.task_id,
+        case_path="case.json",
+        output_dir=str(output_dir),
+    )
+
+    store.create_run(run)
+    stdout_path, stderr_path = store.save_run_logs(
+        task.task_id,
+        run.run_id,
+        stdout="completed",
+        stderr="",
+    )
+    run.stdout_log = str(stdout_path)
+    run.stderr_log = str(stderr_path)
+    run.finish(RunStatus.COMPLETED, returncode=0)
+    store.save_run(run)
+
+    persisted = store.load_run(task.task_id, run.run_id)
+    assert persisted.status == RunStatus.COMPLETED
+    assert persisted.output_dir == str(output_dir)
+    assert Path(persisted.stdout_log).read_text(encoding="utf-8") == "completed"
+
+
+def test_run_record_does_not_overwrite_existing_run(store: AgentTaskStore) -> None:
+    task = create_task("run a case", task_id="task_duplicate_run")
+    store.create_task(task)
+    run = AgentRun(
+        run_id="run_001",
+        task_id=task.task_id,
+        case_path="case.json",
+        output_dir=str(store.run_directory(task.task_id, "run_001")),
+    )
+    store.create_run(run)
+
+    with pytest.raises(TaskAlreadyExistsError, match="run already exists"):
+        store.create_run(run)
+
+
+def test_create_finish_and_load_analysis_record(store: AgentTaskStore) -> None:
+    task = create_task("analyze a run", task_id="task_analysis_record")
+    store.create_task(task)
+    run = AgentRun(
+        run_id="run_001",
+        task_id=task.task_id,
+        case_path="case.json",
+        output_dir=str(store.run_directory(task.task_id, "run_001")),
+    )
+    store.create_run(run)
+    analysis = AgentAnalysis(
+        analysis_id="analysis_001",
+        task_id=task.task_id,
+        run_id=run.run_id,
+        config_path="case.json",
+        spec={
+            "metric": "runout",
+            "body_name": "GranularBody",
+            "direction_vector": [1.0, 0.0],
+        },
+    )
+
+    store.create_analysis(analysis)
+    analysis.finish(
+        AnalysisStatus.COMPLETED,
+        metrics={"final_front": 0.4, "unit": "m"},
+    )
+    store.save_analysis(analysis)
+
+    persisted = store.load_analysis(task.task_id, run.run_id, analysis.analysis_id)
+    assert persisted.status == AnalysisStatus.COMPLETED
+    assert persisted.metrics["final_front"] == pytest.approx(0.4)
+    assert store.analysis_path(
+        task.task_id,
+        run.run_id,
+        analysis.analysis_id,
+    ).is_file()

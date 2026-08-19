@@ -2,20 +2,30 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 import threading
 from typing import Protocol
 
 from sphinxsim.services import CLICommandResult, CLIInvocationError
 
+from .analysis import (
+    AnalysisError,
+    AnalysisSpec,
+    FrictionAngleSweepAnalyzer,
+    RunoutAnalyzer,
+)
 from .case_tools import CaseWorkspace
 from .models import (
+    AgentAnalysis,
     AgentPlan,
+    AgentRun,
     AgentTask,
+    AnalysisStatus,
     PlanAction,
     PlanStatus,
     PlanStep,
+    RunStatus,
     StepStatus,
     TaskStatus,
 )
@@ -28,7 +38,13 @@ class CommandAdapter(Protocol):
     def validate(self, config_path: str, *, timeout: float | None = None) -> CLICommandResult:
         ...
 
-    def run(self, config_path: str, *, timeout: float | None = None) -> CLICommandResult:
+    def run(
+        self,
+        config_path: str,
+        *,
+        output_dir: str | None = None,
+        timeout: float | None = None,
+    ) -> CLICommandResult:
         ...
 
 
@@ -56,15 +72,15 @@ class _StepExecutionResult:
     returncode: int | None = 0
     stderr: str = ""
     timed_out: bool = False
+    run_id: str | None = None
 
 
 class StaticPlanExecutor:
     """Execute validate/run steps sequentially through the existing CLI adapter.
 
-    This executor intentionally supports only the first fixed vertical slice.
     A process-local lock prevents multiple executor instances from invoking
-    ``run_case`` concurrently.  Cross-process queueing and isolated output
-    directories remain the responsibility of the later RunManager stage.
+    ``run_case`` concurrently. Parameterized Agent runs use isolated output
+    directories; cross-process queueing remains a later RunManager concern.
     """
 
     _simulation_lock = threading.Lock()
@@ -74,6 +90,8 @@ class StaticPlanExecutor:
             PlanAction.UPDATE_CASE,
             PlanAction.VALIDATE_CASE,
             PlanAction.RUN_CASE,
+            PlanAction.ANALYZE_RESULT,
+            PlanAction.COMPARE_RESULTS,
         }
     )
 
@@ -84,6 +102,8 @@ class StaticPlanExecutor:
         *,
         command_timeout: float | None = None,
         case_workspace: CaseWorkspace | None = None,
+        runout_analyzer: RunoutAnalyzer | None = None,
+        sweep_analyzer: FrictionAngleSweepAnalyzer | None = None,
     ) -> None:
         self.store = store
         self.command_adapter = command_adapter
@@ -93,6 +113,8 @@ class StaticPlanExecutor:
             store.root,
             source_root=source_root,
         )
+        self.runout_analyzer = runout_analyzer or RunoutAnalyzer()
+        self.sweep_analyzer = sweep_analyzer or FrictionAngleSweepAnalyzer()
 
     def execute(self, task_id: str) -> PlanExecutionResult:
         """Execute every pending supported step in the active Plan."""
@@ -144,7 +166,7 @@ class StaticPlanExecutor:
             self.store.save_plan(task_id, plan)
 
             try:
-                step_result = self._execute_step(step)
+                step_result = self._execute_step(task, step)
             except (CLIInvocationError, KeyError, TypeError, ValueError) as exc:
                 return self._fail_step(task, plan, step, str(exc))
 
@@ -162,6 +184,8 @@ class StaticPlanExecutor:
                     step.artifacts.append(artifact)
                 if step.action == PlanAction.UPDATE_CASE and artifact not in task.case_versions:
                     task.case_versions.append(artifact)
+            if step_result.run_id and step_result.run_id not in task.run_ids:
+                task.run_ids.append(step_result.run_id)
             step.transition_to(
                 StepStatus.COMPLETED,
                 summary=step_result.message,
@@ -176,7 +200,7 @@ class StaticPlanExecutor:
         self.store.save_task(task)
         return self._result(task, plan, True, "Static Plan completed successfully.")
 
-    def _execute_step(self, step: PlanStep) -> _StepExecutionResult:
+    def _execute_step(self, task: AgentTask, step: PlanStep) -> _StepExecutionResult:
         if step.action == PlanAction.PREPARE_CASE:
             prepared_path = self.case_workspace.prepare_case(
                 step.parameters["source_config_path"],
@@ -198,6 +222,8 @@ class StaticPlanExecutor:
                 message=f"Friction angle updated to {angle_radians:.12g} radians.",
                 artifacts=(str(updated_path),),
             )
+        if step.action == PlanAction.COMPARE_RESULTS:
+            return self._execute_comparison(task, step)
 
         config_path = step.parameters["config_path"]
         if not isinstance(config_path, str) or not config_path.strip():
@@ -211,15 +237,213 @@ class StaticPlanExecutor:
                 success_message="Configuration validation completed successfully.",
             )
         if step.action == PlanAction.RUN_CASE:
-            with self._simulation_lock:
-                return self._from_cli_result(
-                    self.command_adapter.run(
-                        config_path,
-                        timeout=self.command_timeout,
-                    ),
-                    success_message="SPHinXsim simulation completed successfully.",
-                )
+            return self._execute_run(task, step, config_path)
+        if step.action == PlanAction.ANALYZE_RESULT:
+            return self._execute_analysis(task, step, config_path)
         raise PlanExecutionError(f"Unsupported action: {step.action.value}")
+
+    def _execute_run(
+        self,
+        task: AgentTask,
+        step: PlanStep,
+        config_path: str,
+    ) -> _StepExecutionResult:
+        run_id = step.parameters.get("run_id")
+        output_dir = step.parameters.get("output_dir")
+        if run_id is None and output_dir is None:
+            with self._simulation_lock:
+                result = self.command_adapter.run(
+                    config_path,
+                    timeout=self.command_timeout,
+                )
+            return self._from_cli_result(
+                result,
+                success_message="SPHinXsim simulation completed successfully.",
+            )
+        if not isinstance(run_id, str) or not run_id.strip():
+            raise ValueError("run_case requires a non-empty run_id with output_dir")
+        if not isinstance(output_dir, str) or not output_dir.strip():
+            raise ValueError("run_case requires a non-empty output_dir with run_id")
+
+        expected_output_dir = self.store.run_directory(task.task_id, run_id)
+        if Path(output_dir).resolve() != expected_output_dir:
+            raise ValueError(
+                "run_case output_dir must match the task's isolated run directory"
+            )
+        run = AgentRun(
+            run_id=run_id,
+            task_id=task.task_id,
+            case_path=str(Path(config_path).resolve()),
+            output_dir=str(expected_output_dir),
+        )
+        self.store.create_run(run)
+        if run_id not in task.run_ids:
+            task.run_ids.append(run_id)
+            self.store.save_task(task)
+
+        try:
+            with self._simulation_lock:
+                result = self.command_adapter.run(
+                    config_path,
+                    output_dir=str(expected_output_dir),
+                    timeout=self.command_timeout,
+                )
+        except CLIInvocationError as exc:
+            run.finish(
+                RunStatus.FAILED,
+                returncode=None,
+                error_message=str(exc),
+            )
+            self.store.save_run(run)
+            raise
+
+        stdout_path, stderr_path = self.store.save_run_logs(
+            task.task_id,
+            run_id,
+            stdout=result.stdout,
+            stderr=result.stderr,
+        )
+        run.stdout_log = str(stdout_path)
+        run.stderr_log = str(stderr_path)
+        if result.succeeded:
+            status = RunStatus.COMPLETED
+            error_message = None
+        elif result.timed_out:
+            status = RunStatus.TIMED_OUT
+            error_message = "SPHinXsim command timed out."
+        else:
+            status = RunStatus.FAILED
+            error_message = result.stderr.strip() or (
+                f"SPHinXsim command failed with exit code {result.returncode}."
+            )
+        run.finish(
+            status,
+            returncode=result.returncode,
+            timed_out=result.timed_out,
+            error_message=error_message,
+        )
+        self.store.save_run(run)
+        converted = self._from_cli_result(
+            result,
+            success_message="SPHinXsim simulation completed successfully.",
+        )
+        return replace(
+            converted,
+            artifacts=(str(expected_output_dir),),
+            run_id=run_id,
+        )
+
+    def _execute_analysis(
+        self,
+        task: AgentTask,
+        step: PlanStep,
+        config_path: str,
+    ) -> _StepExecutionResult:
+        analysis_id = step.parameters.get("analysis_id")
+        run_id = step.parameters.get("run_id")
+        raw_spec = step.parameters.get("analysis_spec")
+        if not isinstance(analysis_id, str) or not analysis_id.strip():
+            raise ValueError("analyze_result requires a non-empty analysis_id")
+        if not isinstance(run_id, str) or not run_id.strip():
+            raise ValueError("analyze_result requires a non-empty run_id")
+        if not isinstance(raw_spec, dict):
+            raise ValueError("analyze_result requires an analysis_spec object")
+
+        run = self.store.load_run(task.task_id, run_id)
+        if run.status != RunStatus.COMPLETED:
+            raise ValueError("analyze_result requires a completed run")
+        analysis = AgentAnalysis(
+            analysis_id=analysis_id,
+            task_id=task.task_id,
+            run_id=run_id,
+            config_path=str(Path(config_path).resolve()),
+            spec=raw_spec,
+        )
+        self.store.create_analysis(analysis)
+        if analysis_id not in run.analysis_ids:
+            run.analysis_ids.append(analysis_id)
+            self.store.save_run(run)
+
+        try:
+            spec = AnalysisSpec.model_validate(raw_spec)
+            result = self.runout_analyzer.analyze(
+                config_path,
+                run.output_dir,
+                spec,
+            )
+        except (AnalysisError, ValueError) as exc:
+            analysis.finish(
+                AnalysisStatus.FAILED,
+                error_message=str(exc),
+            )
+            self.store.save_analysis(analysis)
+            raise AnalysisError(str(exc)) from exc
+
+        metrics = result.model_dump(mode="json")
+        analysis.finish(AnalysisStatus.COMPLETED, metrics=metrics)
+        self.store.save_analysis(analysis)
+        artifact = self.store.analysis_path(task.task_id, run_id, analysis_id)
+        return _StepExecutionResult(
+            succeeded=True,
+            message=(
+                "Runout analysis completed: "
+                f"final_front={result.final_front:.12g} {result.unit}, "
+                f"runout_extension={result.runout_extension:.12g} {result.unit}."
+            ),
+            artifacts=(str(artifact),),
+        )
+
+    def _execute_comparison(
+        self,
+        task: AgentTask,
+        step: PlanStep,
+    ) -> _StepExecutionResult:
+        sweep_id = step.parameters.get("sweep_id")
+        target_value = step.parameters.get("target_value")
+        sample_specs = step.parameters.get("samples")
+        if not isinstance(sweep_id, str) or not sweep_id.strip():
+            raise ValueError("compare_results requires a non-empty sweep_id")
+        if isinstance(target_value, bool) or not isinstance(target_value, (int, float)):
+            raise ValueError("compare_results requires a numeric target_value")
+        if not isinstance(sample_specs, list) or not sample_specs:
+            raise ValueError("compare_results requires a non-empty samples list")
+
+        samples: list[tuple[float, str, str, dict]] = []
+        for sample in sample_specs:
+            if not isinstance(sample, dict):
+                raise ValueError("compare_results sample entries must be objects")
+            angle = sample.get("friction_angle_degrees")
+            run_id = sample.get("run_id")
+            analysis_id = sample.get("analysis_id")
+            if isinstance(angle, bool) or not isinstance(angle, (int, float)):
+                raise ValueError("compare_results sample angle must be numeric")
+            if not isinstance(run_id, str) or not isinstance(analysis_id, str):
+                raise ValueError("compare_results sample IDs must be strings")
+            analysis = self.store.load_analysis(task.task_id, run_id, analysis_id)
+            if analysis.status != AnalysisStatus.COMPLETED:
+                raise ValueError("compare_results requires completed analyses")
+            samples.append((float(angle), run_id, analysis_id, analysis.metrics))
+
+        result = self.sweep_analyzer.summarize(
+            sweep_id=sweep_id,
+            target_value=float(target_value),
+            samples=samples,
+        )
+        self.store.create_sweep_result(task.task_id, result)
+        if sweep_id not in task.sweep_ids:
+            task.sweep_ids.append(sweep_id)
+            self.store.save_task(task)
+        artifact = self.store.sweep_path(task.task_id, sweep_id)
+        return _StepExecutionResult(
+            succeeded=True,
+            message=(
+                "Friction-angle sweep comparison completed: "
+                f"best_angle={result.best_friction_angle_degrees:.12g} degrees, "
+                f"best_final_front={result.best_final_front:.12g} {result.unit}, "
+                f"absolute_error={result.best_absolute_error:.12g} {result.unit}."
+            ),
+            artifacts=(str(artifact),),
+        )
 
     @staticmethod
     def _from_cli_result(

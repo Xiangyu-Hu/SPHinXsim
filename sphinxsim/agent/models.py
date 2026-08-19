@@ -43,6 +43,19 @@ class StepStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class RunStatus(str, Enum):
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    TIMED_OUT = "timed_out"
+
+
+class AnalysisStatus(str, Enum):
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class PlanAction(str, Enum):
     """Allow-listed actions that a future executor may dispatch."""
 
@@ -179,6 +192,7 @@ class AgentTask(BaseModel):
     plan_versions: list[int] = Field(default_factory=list)
     case_versions: list[str] = Field(default_factory=list)
     run_ids: list[str] = Field(default_factory=list)
+    sweep_ids: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 
@@ -188,6 +202,10 @@ class AgentTask(BaseModel):
             raise ValueError("task plan_versions values must be unique")
         if self.plan_versions != sorted(self.plan_versions):
             raise ValueError("task plan_versions values must be sorted")
+        for field_name in ("case_versions", "run_ids", "sweep_ids"):
+            values = getattr(self, field_name)
+            if len(values) != len(set(values)):
+                raise ValueError(f"task {field_name} values must be unique")
         if (
             self.active_plan_version is not None
             and self.active_plan_version not in self.plan_versions
@@ -229,6 +247,119 @@ class AgentTask(BaseModel):
                 f"illegal agent task transition: {self.status.value} -> {new_status.value}"
             )
         updated = self.model_copy(update={"status": new_status, "updated_at": utc_now()})
+        self.__dict__.update(updated.__dict__)
+
+
+class AgentRun(BaseModel):
+    """One attributable SPHinXsim execution and its isolated output root."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    run_id: str = Field(..., min_length=1, pattern=r"^[A-Za-z0-9_-]+$")
+    task_id: str = Field(..., min_length=1, pattern=r"^[A-Za-z0-9_-]+$")
+    case_path: str = Field(..., min_length=1)
+    output_dir: str = Field(..., min_length=1)
+    status: RunStatus = RunStatus.RUNNING
+    returncode: int | None = None
+    timed_out: bool = False
+    error_message: str | None = None
+    stdout_log: str | None = None
+    stderr_log: str | None = None
+    analysis_ids: list[str] = Field(default_factory=list)
+    started_at: datetime = Field(default_factory=utc_now)
+    finished_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def _validate_run_state(self) -> "AgentRun":
+        terminal = {
+            RunStatus.COMPLETED,
+            RunStatus.FAILED,
+            RunStatus.TIMED_OUT,
+        }
+        if self.status in terminal and self.finished_at is None:
+            raise ValueError(f"{self.status.value} run requires finished_at")
+        if self.status == RunStatus.COMPLETED and self.returncode != 0:
+            raise ValueError("completed run requires returncode 0")
+        if self.status == RunStatus.TIMED_OUT and not self.timed_out:
+            raise ValueError("timed_out run requires timed_out=true")
+        return self
+
+    def finish(
+        self,
+        status: RunStatus,
+        *,
+        returncode: int | None,
+        timed_out: bool = False,
+        error_message: str | None = None,
+    ) -> None:
+        """Finish a running record with command outcome metadata."""
+        if self.status != RunStatus.RUNNING:
+            raise ValueError(f"run cannot finish from status: {self.status.value}")
+        if status == RunStatus.RUNNING:
+            raise ValueError("finish requires a terminal run status")
+        updated = self.model_copy(
+            update={
+                "status": status,
+                "returncode": returncode,
+                "timed_out": timed_out,
+                "error_message": error_message,
+                "finished_at": utc_now(),
+            }
+        )
+        AgentRun.model_validate(updated.model_dump())
+        self.__dict__.update(updated.__dict__)
+
+
+class AgentAnalysis(BaseModel):
+    """One persisted deterministic analysis of an Agent run."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    analysis_id: str = Field(..., min_length=1, pattern=r"^[A-Za-z0-9_-]+$")
+    task_id: str = Field(..., min_length=1, pattern=r"^[A-Za-z0-9_-]+$")
+    run_id: str = Field(..., min_length=1, pattern=r"^[A-Za-z0-9_-]+$")
+    config_path: str = Field(..., min_length=1)
+    spec: dict[str, Any]
+    status: AnalysisStatus = AnalysisStatus.RUNNING
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    error_message: str | None = None
+    started_at: datetime = Field(default_factory=utc_now)
+    finished_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def _validate_analysis_state(self) -> "AgentAnalysis":
+        if self.status in {AnalysisStatus.COMPLETED, AnalysisStatus.FAILED}:
+            if self.finished_at is None:
+                raise ValueError(f"{self.status.value} analysis requires finished_at")
+        if self.status == AnalysisStatus.COMPLETED and not self.metrics:
+            raise ValueError("completed analysis requires metrics")
+        if self.status == AnalysisStatus.FAILED and not self.error_message:
+            raise ValueError("failed analysis requires error_message")
+        return self
+
+    def finish(
+        self,
+        status: AnalysisStatus,
+        *,
+        metrics: dict[str, Any] | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        """Finish a running analysis with metrics or an error."""
+        if self.status != AnalysisStatus.RUNNING:
+            raise ValueError(
+                f"analysis cannot finish from status: {self.status.value}"
+            )
+        if status == AnalysisStatus.RUNNING:
+            raise ValueError("finish requires a terminal analysis status")
+        updated = self.model_copy(
+            update={
+                "status": status,
+                "metrics": metrics or {},
+                "error_message": error_message,
+                "finished_at": utc_now(),
+            }
+        )
+        AgentAnalysis.model_validate(updated.model_dump())
         self.__dict__.update(updated.__dict__)
 
 

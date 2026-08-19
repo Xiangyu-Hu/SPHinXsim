@@ -57,7 +57,13 @@ class _RealValidateFakeRunAdapter:
         self.validated_path = config_path
         return self.real_adapter.validate(config_path, timeout=timeout)
 
-    def run(self, config_path: str, *, timeout=None) -> CLICommandResult:
+    def run(
+        self,
+        config_path: str,
+        *,
+        output_dir=None,
+        timeout=None,
+    ) -> CLICommandResult:
         self.run_path = config_path
         return CLICommandResult(
             command=("fake-run", config_path),

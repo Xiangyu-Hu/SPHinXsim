@@ -140,11 +140,14 @@ def _valid_3d_data() -> dict:
 
 
 class _FakeSimulation:
+    last_output_dir = None
+
     def __init__(self, config_path):
         self.config_path = config_path
 
     def resetOutputRoot(self, output_dir):
         self.output_dir = output_dir
+        type(self).last_output_dir = output_dir
 
     def buildGeometries(self):
         pass
@@ -356,6 +359,17 @@ class TestCLIRun:
 
         assert rc == 0
         load_native.assert_called_once_with(3)
+
+    def test_run_accepts_isolated_output_directory(self, build_temp_path, capsys):
+        p = self._write_valid_3d(build_temp_path)
+        output_dir = build_temp_path / "isolated_run"
+        with patch("sphinxsim.cli.load_sphinxsys_core_nd", return_value=_FakeNativeModule):
+            rc = main(["run", str(p), "--output-dir", str(output_dir)])
+
+        assert rc == 0
+        assert Path(_FakeSimulation.last_output_dir) == output_dir.resolve()
+        assert output_dir.exists()
+        assert str(output_dir.resolve()) in capsys.readouterr().out
 
 
 class TestCLIUpdate:

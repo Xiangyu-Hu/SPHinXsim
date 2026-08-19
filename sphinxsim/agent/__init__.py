@@ -1,11 +1,15 @@
 """Task and plan primitives for the SPHinXsim AgentCAE layer."""
 
 from .models import (
+    AgentAnalysis,
     AgentPlan,
+    AgentRun,
     AgentTask,
+    AnalysisStatus,
     PlanAction,
     PlanStatus,
     PlanStep,
+    RunStatus,
     StepStatus,
     TaskStatus,
     create_task,
@@ -20,19 +24,47 @@ from .store import (
 )
 from .executor import PlanExecutionError, PlanExecutionResult, StaticPlanExecutor
 from .case_tools import CaseToolError, CaseWorkspace
+from .analysis import (
+    AnalysisError,
+    AnalysisMetric,
+    AnalysisSpec,
+    FrictionAngleSweepAnalyzer,
+    FrictionAngleSweepResult,
+    FrictionSweepSample,
+    FrontMethod,
+    InitialFrontSource,
+    PositionSummary,
+    RunoutAnalyzer,
+    RunoutResult,
+    TimeSelection,
+    VTPPositionReader,
+)
 from .presets import (
     DEFAULT_COLUMN_COLLAPSE_CONFIG,
     create_column_collapse_task,
     create_friction_angle_column_collapse_task,
+    create_friction_angle_sweep_task,
+    create_runout_analysis_column_collapse_task,
 )
 
 __all__ = [
+    "AgentAnalysis",
     "AgentPlan",
+    "AgentRun",
     "AgentTask",
     "AgentTaskStore",
+    "AnalysisError",
+    "AnalysisMetric",
+    "AnalysisSpec",
+    "AnalysisStatus",
     "CaseToolError",
     "CaseWorkspace",
     "DEFAULT_COLUMN_COLLAPSE_CONFIG",
+    "FrictionAngleSweepAnalyzer",
+    "FrictionAngleSweepResult",
+    "FrictionSweepSample",
+    "FrontMethod",
+    "InitialFrontSource",
     "PlanAction",
     "PlanExecutionError",
     "PlanExecutionResult",
@@ -40,7 +72,11 @@ __all__ = [
     "PlanStep",
     "PlannedTask",
     "PlanningIntent",
+    "PositionSummary",
     "RuleBasedIntentResolver",
+    "RunStatus",
+    "RunoutAnalyzer",
+    "RunoutResult",
     "StepStatus",
     "StoreError",
     "StaticPlanExecutor",
@@ -49,7 +85,11 @@ __all__ = [
     "TaskIntentType",
     "TaskPlanner",
     "TaskStatus",
+    "TimeSelection",
+    "VTPPositionReader",
     "create_task",
     "create_column_collapse_task",
     "create_friction_angle_column_collapse_task",
+    "create_friction_angle_sweep_task",
+    "create_runout_analysis_column_collapse_task",
 ]

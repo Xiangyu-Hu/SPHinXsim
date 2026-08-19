@@ -17,6 +17,7 @@ from sphinxsim.agent import (
     PlanStep,
     StaticPlanExecutor,
     StepStatus,
+    RunStatus,
     TaskStatus,
     create_column_collapse_task,
     create_friction_angle_column_collapse_task,
@@ -41,13 +42,15 @@ class FakeCommandAdapter:
         self.validate_result = validate_result or _command_result()
         self.run_result = run_result or _command_result()
         self.calls: list[tuple[str, str, float | None]] = []
+        self.run_output_dirs: list[str | None] = []
 
     def validate(self, config_path: str, *, timeout=None):
         self.calls.append(("validate", config_path, timeout))
         return self.validate_result
 
-    def run(self, config_path: str, *, timeout=None):
+    def run(self, config_path: str, *, output_dir=None, timeout=None):
         self.calls.append(("run", config_path, timeout))
+        self.run_output_dirs.append(output_dir)
         return self.run_result
 
 
@@ -189,6 +192,14 @@ def test_parameterized_preset_copies_updates_validates_and_runs(
     assert angle == pytest.approx(math.pi / 6)
     saved_task = store.load_task(task.task_id)
     assert saved_task.case_versions == [str(working_path.resolve())]
+    assert saved_task.run_ids == ["run_001"]
+    saved_run = store.load_run(task.task_id, "run_001")
+    assert saved_run.status == RunStatus.COMPLETED
+    assert saved_run.returncode == 0
+    assert Path(saved_run.output_dir) == store.run_directory(task.task_id, "run_001")
+    assert Path(saved_run.stdout_log).read_text(encoding="utf-8") == "ok"
+    assert Path(saved_run.stderr_log).read_text(encoding="utf-8") == ""
+    assert adapter.run_output_dirs == [saved_run.output_dir]
     saved_plan = store.load_active_plan(task.task_id)
     assert all(step.status == StepStatus.COMPLETED for step in saved_plan.steps)
     assert saved_plan.steps[0].artifacts == [str(working_path.resolve())]
@@ -213,3 +224,22 @@ def test_parameter_update_failure_prevents_cli_commands(store: AgentTaskStore) -
     assert saved_plan.steps[1].status == StepStatus.FAILED
     assert saved_plan.steps[2].status == StepStatus.PENDING
     assert saved_plan.steps[3].status == StepStatus.PENDING
+
+
+def test_isolated_run_timeout_is_persisted(store: AgentTaskStore) -> None:
+    task, _ = create_friction_angle_column_collapse_task(
+        store,
+        task_id="task_isolated_timeout",
+    )
+    adapter = FakeCommandAdapter(run_result=_command_result(timed_out=True))
+
+    result = StaticPlanExecutor(store, adapter).execute(task.task_id)
+
+    assert result.succeeded is False
+    assert result.failed_step_id == "run_case"
+    saved_task = store.load_task(task.task_id)
+    assert saved_task.run_ids == ["run_001"]
+    saved_run = store.load_run(task.task_id, "run_001")
+    assert saved_run.status == RunStatus.TIMED_OUT
+    assert saved_run.timed_out is True
+    assert saved_run.returncode is None

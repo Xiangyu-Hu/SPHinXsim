@@ -89,6 +89,24 @@ def test_run_is_synchronous_and_uses_existing_command(tmp_path: Path) -> None:
     assert run_process.call_args.kwargs["env"]["PYTHONIOENCODING"] == "utf-8"
 
 
+def test_run_passes_isolated_output_directory(tmp_path: Path) -> None:
+    adapter = SPHinXsimCLIAdapter(cwd=tmp_path, command_prefix=("sphinxsim",))
+    config_path = tmp_path / "case.json"
+    output_dir = tmp_path / "agent runs" / "run_001"
+
+    with patch("sphinxsim.services.cli_adapter.subprocess.run") as run_process:
+        run_process.return_value = _completed(())
+        adapter.run(config_path, output_dir=output_dir)
+
+    assert run_process.call_args.args[0] == (
+        "sphinxsim",
+        "run",
+        str(config_path.resolve()),
+        "--output-dir",
+        str(output_dir.resolve()),
+    )
+
+
 def test_run_resolves_build_temp_relative_path_only_once(tmp_path: Path) -> None:
     adapter = SPHinXsimCLIAdapter(cwd=tmp_path, command_prefix=("sphinxsim",))
 

@@ -83,7 +83,9 @@ def build_builtin_tool_registry() -> ToolRegistry:
         ),
         ToolDefinition(
             name="compare_sweep_results",
-            description="Compare completed runout analyses against a final-front target.",
+            description=(
+                "Compare completed runout analyses against a runout-extension target."
+            ),
             action=PlanAction.COMPARE_RESULTS,
             input_model=CompareSweepResultsInput,
             output_model=CompareSweepResultsOutput,

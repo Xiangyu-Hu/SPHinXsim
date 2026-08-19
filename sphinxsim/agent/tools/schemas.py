@@ -88,4 +88,5 @@ class CompareSweepResultsOutput(ToolOutput):
     sweep_id: str
     best_friction_angle_degrees: float
     best_final_front: float
+    best_runout_extension: float
     best_absolute_error: float = Field(..., ge=0.0)

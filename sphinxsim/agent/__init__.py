@@ -83,6 +83,15 @@ from .langgraph_workflow import (
     build_calibration_graph,
     open_sqlite_calibration_graph,
 )
+from .planner_context import PlannerContext, PlannerContextBuilder, PlannerEvidence
+from .structured_planner import (
+    MockStructuredPlannerClient,
+    NvidiaStructuredPlannerClient,
+    StructuredCalibrationPlanner,
+    StructuredPlannerClient,
+    StructuredPlannerRequest,
+    StructuredPlanningError,
+)
 
 __all__ = [
     "AgentAnalysis",
@@ -128,6 +137,9 @@ __all__ = [
     "PlanStep",
     "PlannedTask",
     "PlanningIntent",
+    "PlannerContext",
+    "PlannerContextBuilder",
+    "PlannerEvidence",
     "PositionSummary",
     "RuleBasedIntentResolver",
     "RetrievedKnowledge",
@@ -138,6 +150,10 @@ __all__ = [
     "StepStatus",
     "StoreError",
     "StaticPlanExecutor",
+    "StructuredCalibrationPlanner",
+    "StructuredPlannerClient",
+    "StructuredPlannerRequest",
+    "StructuredPlanningError",
     "TaskAlreadyExistsError",
     "TaskNotFoundError",
     "TaskIntentType",
@@ -147,6 +163,8 @@ __all__ = [
     "VTPPositionReader",
     "Monotonicity",
     "MockColumnCollapseCalibrationPlanner",
+    "MockStructuredPlannerClient",
+    "NvidiaStructuredPlannerClient",
     "ObjectiveSpec",
     "ParameterSpec",
     "ToolRegistry",

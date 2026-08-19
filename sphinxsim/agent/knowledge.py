@@ -259,7 +259,7 @@ def build_default_knowledge_base(
     cli_path = Path(project_root) / "docs" / "cli-usage.md"
     if cli_path.is_file():
         documents.extend(_markdown_sections(cli_path, maximum_sections=20))
-    return LocalKnowledgeBase(documents, version="1.0")
+    return LocalKnowledgeBase(documents, version="1.1")
 
 
 def _markdown_sections(path: Path, maximum_sections: int) -> list[KnowledgeDocument]:

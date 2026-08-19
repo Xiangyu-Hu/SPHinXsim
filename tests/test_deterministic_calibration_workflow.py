@@ -16,6 +16,8 @@ from sphinxsim.agent import (
     CalibrationWorkflowStatus,
     DeterministicCalibrationWorkflow,
     MockColumnCollapseCalibrationPlanner,
+    MockReplanningClient,
+    StructuredReplanner,
     build_calibration_graph,
     open_sqlite_calibration_graph,
 )
@@ -103,6 +105,46 @@ class DeterministicArtifactAdapter:
         0.10 0.00 0.00  {final_front} 0.02 0.00  0.20 0.05 0.00
       </DataArray></Points>
     </Piece>
+  </PolyData>
+</VTKFile>
+''',
+            encoding="utf-8",
+        )
+        return success("run")
+
+
+class AlwaysFailingArtifactAdapter(DeterministicArtifactAdapter):
+    def run(self, config_path, *, output_dir=None, timeout=None) -> CLICommandResult:
+        self.run_calls += 1
+        return CLICommandResult(
+            command=("run",),
+            returncode=1,
+            stdout="",
+            stderr="persistent solver failure",
+            duration_seconds=0.01,
+        )
+
+
+class FormulaArtifactAdapter(DeterministicArtifactAdapter):
+    def run(self, config_path, *, output_dir=None, timeout=None) -> CLICommandResult:
+        self.run_calls += 1
+        payload = json.loads(Path(config_path).read_text(encoding="utf-8"))
+        angle = math.degrees(
+            payload["continuum_bodies"][0]["material"]["friction_angle"]
+        )
+        extension = 0.30 - 0.005 * angle
+        final_front = 0.20 + extension
+        output_path = Path(output_dir) / "output"
+        output_path.mkdir(parents=True, exist_ok=True)
+        (output_path / "GranularBody_0000001000.vtp").write_text(
+            f'''<?xml version="1.0"?>
+<VTKFile type="PolyData" version="1.0" byte_order="LittleEndian">
+  <PolyData><FieldData><DataArray Name="TimeValue" format="ascii">0.8</DataArray></FieldData>
+    <Piece Name="GranularBody" NumberOfPoints="3"><Points>
+      <DataArray Name="Position" NumberOfComponents="3" format="ascii">
+        0.10 0.00 0.00 {final_front} 0.02 0.00 0.20 0.05 0.00
+      </DataArray>
+    </Points></Piece>
   </PolyData>
 </VTKFile>
 ''',
@@ -413,3 +455,156 @@ def test_sqlite_graph_reopens_and_resumes_same_thread(build_temp_path: Path) -> 
     assert database.is_file()
     assert adapter.run_calls == 2
     assert len(workflow.load("sqlite_resume_workflow").iterations) == 2
+
+
+def test_langgraph_replanner_retries_transient_solver_failure(
+    build_temp_path: Path,
+) -> None:
+    store = make_store(build_temp_path, "replan_retry")
+    adapter = DeterministicArtifactAdapter(fail_run_number=1)
+    workflow = DeterministicCalibrationWorkflow(
+        store,
+        MockColumnCollapseCalibrationPlanner(),
+        adapter,
+    )
+    client = MockReplanningClient(
+        [{"action": "retry_candidate", "reason": "Retry one transient failure."}]
+    )
+    graph = build_calibration_graph(
+        workflow,
+        checkpointer=InMemorySaver(),
+        replanner=StructuredReplanner(client),
+    )
+
+    state = graph.invoke(
+        {
+            "user_prompt": "Reach a runout extension of 0.2 m.",
+            "workflow_id": "replan_retry_workflow",
+        },
+        {"configurable": {"thread_id": "replan_retry_thread"}},
+    )
+    result = workflow.load("replan_retry_workflow")
+    first_run = store.load_run("replan_retry_workflow_iteration_001", "run_001")
+
+    assert state["workflow_result"]["status"] == "converged"
+    assert result.status == CalibrationWorkflowStatus.CONVERGED
+    assert len(client.requests) == 1
+    assert first_run.attempt_count == 2
+    assert first_run.attempt_history[0]["status"] == "failed"
+
+
+def test_langgraph_replanner_stops_after_retry_limit(build_temp_path: Path) -> None:
+    store = make_store(build_temp_path, "replan_limit")
+    adapter = AlwaysFailingArtifactAdapter()
+    workflow = DeterministicCalibrationWorkflow(
+        store,
+        MockColumnCollapseCalibrationPlanner(),
+        adapter,
+    )
+    client = MockReplanningClient(
+        [{"action": "retry_candidate", "reason": "Retry the solver."}]
+    )
+    graph = build_calibration_graph(
+        workflow,
+        checkpointer=InMemorySaver(),
+        replanner=StructuredReplanner(client),
+    )
+
+    graph.invoke(
+        {
+            "user_prompt": "Reach a runout extension of 0.2 m.",
+            "workflow_id": "replan_limit_workflow",
+        },
+        {"configurable": {"thread_id": "replan_limit_thread"}},
+    )
+    result = workflow.load("replan_limit_workflow")
+
+    assert result.status == CalibrationWorkflowStatus.FAILED
+    assert adapter.run_calls == 3
+    assert len(client.requests) == 2
+    assert len(result.replan_history) == 3
+    assert result.replan_history[-1]["decision"]["action"] == "stop"
+
+
+def test_langgraph_replanner_can_extend_bounds_without_changing_objective(
+    build_temp_path: Path,
+) -> None:
+    store = make_store(build_temp_path, "replan_bounds")
+    adapter = FormulaArtifactAdapter()
+    planner = MockColumnCollapseCalibrationPlanner(target_runout_extension=0.05)
+    workflow = DeterministicCalibrationWorkflow(store, planner, adapter)
+    client = MockReplanningClient(
+        [
+            {
+                "action": "revise_parameter_bounds",
+                "reason": "Extend the upper friction-angle bracket.",
+                "lower_bound": 0.0,
+                "upper_bound": 60.0,
+            }
+        ]
+    )
+    graph = build_calibration_graph(
+        workflow,
+        checkpointer=InMemorySaver(),
+        replanner=StructuredReplanner(client),
+    )
+
+    graph.invoke(
+        {
+            "user_prompt": "Reach a runout extension of 0.05 m.",
+            "workflow_id": "replan_bounds_workflow",
+        },
+        {"configurable": {"thread_id": "replan_bounds_thread"}},
+    )
+    result = workflow.load("replan_bounds_workflow")
+
+    assert result.status == CalibrationWorkflowStatus.CONVERGED
+    assert [item.parameter_value for item in result.iterations] == [
+        0.0,
+        40.0,
+        60.0,
+        50.0,
+    ]
+    assert result.definition.calibration.parameter.upper_bound == pytest.approx(60.0)
+    assert result.definition.calibration.objective.target_value == pytest.approx(0.05)
+    assert result.definition.calibration.objective.metric_name == "runout_extension"
+    assert result.replan_history[0]["decision"]["action"] == (
+        "revise_parameter_bounds"
+    )
+
+
+def test_replanned_solver_retry_requires_fresh_approval(build_temp_path: Path) -> None:
+    store = make_store(build_temp_path, "replan_approval")
+    adapter = DeterministicArtifactAdapter(fail_run_number=1)
+    workflow = DeterministicCalibrationWorkflow(
+        store,
+        MockColumnCollapseCalibrationPlanner(),
+        adapter,
+    )
+    client = MockReplanningClient(
+        [{"action": "retry_candidate", "reason": "Retry one timeout."}]
+    )
+    graph = build_calibration_graph(
+        workflow,
+        checkpointer=InMemorySaver(),
+        require_approval=True,
+        replanner=StructuredReplanner(client),
+    )
+    config = {"configurable": {"thread_id": "replan_approval_thread"}}
+
+    first_approval = graph.invoke(
+        {
+            "user_prompt": "Reach a runout extension of 0.2 m.",
+            "workflow_id": "replan_approval_workflow",
+        },
+        config,
+    )
+    retry_approval = graph.invoke(Command(resume={"action": "approve"}), config)
+
+    assert first_approval["__interrupt__"]
+    assert retry_approval["__interrupt__"]
+    assert adapter.run_calls == 1
+    assert len(client.requests) == 1
+
+    graph.invoke(Command(resume={"action": "approve"}), config)
+    assert adapter.run_calls == 2

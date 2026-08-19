@@ -18,6 +18,14 @@ from .calibration_workflow import (
     CalibrationWorkflowStatus,
     DeterministicCalibrationWorkflow,
 )
+from .replanning import (
+    BoundedReplanningPolicy,
+    ReplanAction,
+    ReplanningContext,
+    ReplanningDecision,
+    ReplanningError,
+    StructuredReplanner,
+)
 
 
 class CalibrationGraphState(TypedDict, total=False):
@@ -28,6 +36,11 @@ class CalibrationGraphState(TypedDict, total=False):
     workflow_result: dict[str, Any]
     decision: dict[str, Any]
     approval: dict[str, Any]
+    failed_node: str
+    failed_candidate: float
+    replan_count: int
+    replan_decision: dict[str, Any]
+    replan_route: str
 
 
 class CalibrationGraph:
@@ -38,9 +51,13 @@ class CalibrationGraph:
         workflow: DeterministicCalibrationWorkflow,
         *,
         require_approval: bool = False,
+        replanner: StructuredReplanner | None = None,
+        replanning_policy: BoundedReplanningPolicy | None = None,
     ) -> None:
         self.workflow = workflow
         self.require_approval = require_approval
+        self.replanner = replanner
+        self.replanning_policy = replanning_policy or BoundedReplanningPolicy()
 
     def initialize(self, state: CalibrationGraphState) -> CalibrationGraphState:
         if "workflow_result" in state:
@@ -60,7 +77,10 @@ class CalibrationGraph:
             self.workflow.apply_decision(result, decision)
         except (OSError, ValueError) as exc:
             result = self.workflow.fail(result, str(exc))
-            return {"workflow_result": result.model_dump(mode="json")}
+            return {
+                "workflow_result": result.model_dump(mode="json"),
+                "failed_node": "decide",
+            }
         return {
             "workflow_result": result.model_dump(mode="json"),
             "decision": decision.model_dump(mode="json"),
@@ -80,7 +100,85 @@ class CalibrationGraph:
             self.workflow.execute_candidate(result, float(candidate))
         except (OSError, ValueError) as exc:
             result = self.workflow.fail(result, str(exc))
+            return {
+                "workflow_result": result.model_dump(mode="json"),
+                "failed_node": "execute_candidate",
+                "failed_candidate": float(candidate),
+            }
         return {"workflow_result": result.model_dump(mode="json")}
+
+    def replan(self, state: CalibrationGraphState) -> CalibrationGraphState:
+        """Request and apply one bounded structured recovery decision."""
+        result = self._result(state)
+        if self.replanner is None or result.status != CalibrationWorkflowStatus.FAILED:
+            return {"replan_route": ReplanAction.STOP.value}
+        count = int(state.get("replan_count", 0))
+        context = self._replanning_context(state, result, count + 1)
+        if count >= self.replanning_policy.maximum_replans:
+            decision = ReplanningDecision(
+                action=ReplanAction.STOP,
+                reason="The maximum number of replanning attempts was reached.",
+            )
+        else:
+            try:
+                decision = self.replanner.replan(context)
+                decision = self.replanning_policy.validate(context, decision)
+            except (ReplanningError, ValueError) as exc:
+                decision = ReplanningDecision(
+                    action=ReplanAction.STOP,
+                    reason=f"Replanning was rejected: {exc}",
+                )
+
+        record = {
+            "attempt": context.replan_attempt,
+            "failed_node": context.failed_node,
+            "error_message": context.error_message,
+            "failed_candidate": context.failed_candidate,
+            "decision": decision.model_dump(mode="json"),
+        }
+        self.workflow.record_replan(result, record)
+        applied_count = count
+        if decision.action != ReplanAction.STOP:
+            applied_count += 1
+        if decision.action == ReplanAction.RETRY_CANDIDATE:
+            self.workflow.resume_after_failure(result)
+        elif decision.action == ReplanAction.REVISE_PARAMETER_BOUNDS:
+            assert decision.lower_bound is not None
+            assert decision.upper_bound is not None
+            self.workflow.revise_parameter_bounds(
+                result,
+                lower_bound=decision.lower_bound,
+                upper_bound=decision.upper_bound,
+            )
+        return {
+            "workflow_result": result.model_dump(mode="json"),
+            "replan_count": applied_count,
+            "replan_decision": decision.model_dump(mode="json"),
+            "replan_route": decision.action.value,
+        }
+
+    def _replanning_context(
+        self,
+        state: CalibrationGraphState,
+        result: CalibrationWorkflowResult,
+        attempt: int,
+    ) -> ReplanningContext:
+        return ReplanningContext(
+            workflow_id=result.workflow_id,
+            failed_node=state.get("failed_node", "unknown"),
+            error_message=result.error_message or "Unknown workflow failure.",
+            failed_candidate=state.get("failed_candidate"),
+            replan_attempt=attempt,
+            maximum_replans=self.replanning_policy.maximum_replans,
+            definition=result.definition,
+            observations=[
+                {
+                    "parameter_value": item.parameter_value,
+                    "metric_value": item.metric_value,
+                }
+                for item in result.iterations
+            ],
+        )
 
     def request_approval(self, state: CalibrationGraphState) -> CalibrationGraphState:
         """Pause before an expensive simulation and apply the user's decision."""
@@ -121,11 +219,27 @@ class CalibrationGraph:
 
     def route_after_decision(self, state: CalibrationGraphState) -> str:
         result = self._result(state)
+        if result.status == CalibrationWorkflowStatus.FAILED and self.replanner:
+            return "replan"
         if result.status != CalibrationWorkflowStatus.RUNNING:
             return END
         decision = state.get("decision")
         if decision and decision.get("status") == CalibrationDecisionStatus.NEXT.value:
             return "request_approval" if self.require_approval else "execute_candidate"
+        return END
+
+    def route_after_candidate(self, state: CalibrationGraphState) -> str:
+        result = self._result(state)
+        if result.status == CalibrationWorkflowStatus.FAILED and self.replanner:
+            return "replan"
+        return "decide"
+
+    def route_after_replan(self, state: CalibrationGraphState) -> str:
+        route = state.get("replan_route")
+        if route == ReplanAction.RETRY_CANDIDATE.value:
+            return "request_approval" if self.require_approval else "execute_candidate"
+        if route == ReplanAction.REVISE_PARAMETER_BOUNDS.value:
+            return "decide"
         return END
 
     def route_after_approval(self, state: CalibrationGraphState) -> str:
@@ -152,11 +266,13 @@ class CalibrationGraph:
         builder.add_node("decide", self.decide)
         builder.add_node("request_approval", self.request_approval)
         builder.add_node("execute_candidate", self.execute_candidate)
+        builder.add_node("replan", self.replan)
         builder.add_edge(START, "initialize")
         builder.add_edge("initialize", "decide")
         builder.add_conditional_edges("decide", self.route_after_decision)
         builder.add_conditional_edges("request_approval", self.route_after_approval)
-        builder.add_edge("execute_candidate", "decide")
+        builder.add_conditional_edges("execute_candidate", self.route_after_candidate)
+        builder.add_conditional_edges("replan", self.route_after_replan)
         return builder.compile(
             checkpointer=checkpointer,
             interrupt_after=interrupt_after,
@@ -169,8 +285,15 @@ def build_calibration_graph(
     checkpointer: Any = None,
     interrupt_after: list[str] | None = None,
     require_approval: bool = False,
+    replanner: StructuredReplanner | None = None,
+    replanning_policy: BoundedReplanningPolicy | None = None,
 ) -> Any:
-    return CalibrationGraph(workflow, require_approval=require_approval).build(
+    return CalibrationGraph(
+        workflow,
+        require_approval=require_approval,
+        replanner=replanner,
+        replanning_policy=replanning_policy,
+    ).build(
         checkpointer=checkpointer,
         interrupt_after=interrupt_after,
     )
@@ -183,6 +306,8 @@ def open_sqlite_calibration_graph(
     *,
     interrupt_after: list[str] | None = None,
     require_approval: bool = False,
+    replanner: StructuredReplanner | None = None,
+    replanning_policy: BoundedReplanningPolicy | None = None,
 ):
     """Open a process-restart-safe local graph backed by SQLite checkpoints."""
     path = Path(database_path).resolve()
@@ -196,6 +321,8 @@ def open_sqlite_calibration_graph(
             checkpointer=checkpointer,
             interrupt_after=interrupt_after,
             require_approval=require_approval,
+            replanner=replanner,
+            replanning_policy=replanning_policy,
         )
     finally:
         connection.close()

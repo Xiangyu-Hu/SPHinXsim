@@ -8,7 +8,7 @@ import json
 import math
 import os
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -179,6 +179,7 @@ class CalibrationWorkflowResult(BaseModel):
     iterations: list[CalibrationIteration] = Field(default_factory=list)
     final_decision: CalibrationDecision | None = None
     error_message: str | None = None
+    replan_history: list[dict[str, Any]] = Field(default_factory=list)
     started_at: datetime
     finished_at: datetime | None = None
 
@@ -427,6 +428,47 @@ class DeterministicCalibrationWorkflow:
         result.status = CalibrationWorkflowStatus.CANCELLED
         result.error_message = message
         result.finished_at = utc_now()
+        self._save(result)
+        return result
+
+    def resume_after_failure(
+        self,
+        result: CalibrationWorkflowResult,
+    ) -> CalibrationWorkflowResult:
+        """Return a failed workflow to running after a validated replan."""
+        if result.status != CalibrationWorkflowStatus.FAILED:
+            raise ValueError("only a failed workflow can be resumed")
+        result.status = CalibrationWorkflowStatus.RUNNING
+        result.error_message = None
+        result.finished_at = None
+        self._save(result)
+        return result
+
+    def revise_parameter_bounds(
+        self,
+        result: CalibrationWorkflowResult,
+        *,
+        lower_bound: float,
+        upper_bound: float,
+    ) -> CalibrationWorkflowResult:
+        """Apply the only scientific-contract change allowed during replanning."""
+        parameter = result.definition.calibration.parameter.model_copy(
+            update={"lower_bound": lower_bound, "upper_bound": upper_bound}
+        )
+        calibration = result.definition.calibration.model_copy(
+            update={"parameter": parameter}
+        )
+        result.definition = result.definition.model_copy(
+            update={"calibration": calibration}
+        )
+        return self.resume_after_failure(result)
+
+    def record_replan(
+        self,
+        result: CalibrationWorkflowResult,
+        record: dict[str, Any],
+    ) -> CalibrationWorkflowResult:
+        result.replan_history.append(record)
         self._save(result)
         return result
 

@@ -136,3 +136,26 @@ def test_missing_vtp_persists_failed_analysis_and_fails_plan(
     analysis = store.load_analysis(task.task_id, "run_001", "analysis_001")
     assert analysis.status == AnalysisStatus.FAILED
     assert "no state VTP" in analysis.error_message
+
+
+def test_missing_vtp_analysis_can_be_retried_without_rerunning_solver(
+    store: AgentTaskStore,
+) -> None:
+    task, _ = create_runout_analysis_column_collapse_task(
+        store,
+        task_id="task_retry_missing_vtp",
+    )
+    adapter = ArtifactWritingAdapter(write_vtp=False)
+    executor = StaticPlanExecutor(store, adapter)
+    first = executor.execute(task.task_id)
+    run = store.load_run(task.task_id, "run_001")
+    _write_final_vtp(Path(run.output_dir))
+    second = executor.execute(task.task_id)
+
+    assert first.succeeded is False
+    assert second.succeeded is True
+    assert adapter.calls == ["validate", "run"]
+    analysis = store.load_analysis(task.task_id, "run_001", "analysis_001")
+    assert analysis.status == AnalysisStatus.COMPLETED
+    assert analysis.attempt_count == 2
+    assert analysis.attempt_history[0]["status"] == "failed"

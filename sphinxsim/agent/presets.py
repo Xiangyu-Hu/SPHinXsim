@@ -197,7 +197,7 @@ def create_friction_angle_sweep_task(
     store: AgentTaskStore,
     *,
     friction_angles_degrees: Sequence[float] = (20.0, 25.0, 30.0, 35.0, 40.0),
-    target_final_front: float = 0.4,
+    target_runout_extension: float = 0.2,
     config_path: str | Path = DEFAULT_COLUMN_COLLAPSE_CONFIG,
     task_id: str | None = None,
 ) -> tuple[AgentTask, AgentPlan]:
@@ -214,25 +214,25 @@ def create_friction_angle_sweep_task(
         raise ValueError("friction_angles_degrees must not be empty")
     if len(angles) != len(set(angles)):
         raise ValueError("friction_angles_degrees must not contain duplicates")
-    if isinstance(target_final_front, bool) or not isinstance(
-        target_final_front,
+    if isinstance(target_runout_extension, bool) or not isinstance(
+        target_runout_extension,
         (int, float),
     ):
-        raise ValueError("target_final_front must be numeric")
-    target = float(target_final_front)
+        raise ValueError("target_runout_extension must be numeric")
+    target = float(target_runout_extension)
     if not math.isfinite(target):
-        raise ValueError("target_final_front must be finite")
+        raise ValueError("target_runout_extension must be finite")
 
     angle_text = ", ".join(f"{angle:g}" for angle in angles)
     task = create_task(
         (
             "Run a two-dimensional column-collapse friction-angle sweep at "
-            f"{angle_text} degrees and compare final fronts against "
+            f"{angle_text} degrees and compare runout extensions against "
             f"{target:g} m."
         ),
         objective=(
             "Compare a fixed friction-angle sweep and identify the sample "
-            f"closest to a final front of {target:g} m."
+            f"closest to a runout extension of {target:g} m."
         ),
         task_id=task_id,
     )
@@ -333,7 +333,7 @@ def create_friction_angle_sweep_task(
         PlanStep(
             step_id="compare_results",
             action=PlanAction.COMPARE_RESULTS,
-            description="Compare all final fronts with the target value.",
+            description="Compare all runout extensions with the target value.",
             parameters={
                 "sweep_id": "sweep_001",
                 "target_value": target,
@@ -348,12 +348,12 @@ def create_friction_angle_sweep_task(
         objective=task.objective,
         assumptions=[
             "Each friction-angle sample uses an isolated case and run directory.",
-            "Final front is the maximum particle projection along positive x.",
+            "Runout extension is final front minus the initial geometry front.",
         ],
         acceptance_criteria=[
             "Every requested friction-angle sample is validated, run, and analyzed.",
-            "The sweep summary reports each final front and absolute target error.",
-            "The sample closest to the target final front is identified.",
+            "The sweep summary reports each runout extension and target error.",
+            "The sample closest to the target runout extension is identified.",
         ],
         steps=steps,
     )

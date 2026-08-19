@@ -17,6 +17,7 @@ from sphinxsim.agent import (
     DeterministicCalibrationWorkflow,
     MockColumnCollapseCalibrationPlanner,
     build_calibration_graph,
+    open_sqlite_calibration_graph,
 )
 from sphinxsim.services import CLICommandResult
 
@@ -88,7 +89,7 @@ class DeterministicArtifactAdapter:
         payload = json.loads(Path(config_path).read_text(encoding="utf-8"))
         angle_radians = payload["continuum_bodies"][0]["material"]["friction_angle"]
         angle_degrees = math.degrees(angle_radians)
-        fronts = {20.0: 0.35, 30.0: 0.30, 40.0: 0.28}
+        fronts = {0.0: 0.45, 10.0: 0.40, 20.0: 0.35, 40.0: 0.28}
         final_front = fronts[round(angle_degrees, 6)]
         output_path = Path(output_dir) / "output"
         output_path.mkdir(parents=True, exist_ok=True)
@@ -129,14 +130,14 @@ def test_complete_workflow_generates_runs_analyzes_and_converges(
     assert result.status == CalibrationWorkflowStatus.CONVERGED
     assert result.succeeded is True
     assert adapter.generate_calls == 1
-    assert adapter.validate_calls == 4
-    assert adapter.run_calls == 3
-    assert [item.parameter_value for item in result.iterations] == [20.0, 40.0, 30.0]
+    assert adapter.validate_calls == 5
+    assert adapter.run_calls == 4
+    assert [item.parameter_value for item in result.iterations] == [0.0, 40.0, 20.0, 10.0]
     assert [item.metric_value for item in result.iterations] == pytest.approx(
-        [0.35, 0.28, 0.30]
+        [0.25, 0.08, 0.15, 0.20]
     )
     assert result.final_decision is not None
-    assert result.final_decision.best_parameter_value == pytest.approx(30.0)
+    assert result.final_decision.best_parameter_value == pytest.approx(10.0)
     assert workflow.load(result.workflow_id) == result
     assert all(Path(item.case_path).is_file() for item in result.iterations)
 
@@ -178,7 +179,7 @@ def test_workflow_fails_when_target_is_not_bracketed(build_temp_path: Path) -> N
 
     result = DeterministicCalibrationWorkflow(
         store,
-        MockColumnCollapseCalibrationPlanner(target_final_front=0.40),
+        MockColumnCollapseCalibrationPlanner(target_runout_extension=0.40),
         DeterministicArtifactAdapter(),
     ).execute("Calibrate a column collapse.", workflow_id="workflow_unbracketed")
 
@@ -246,8 +247,8 @@ def test_incremental_operations_advance_one_candidate_at_a_time(
     second_decision = workflow.propose_next(result)
 
     assert result.status == CalibrationWorkflowStatus.RUNNING
-    assert first_iteration.parameter_value == pytest.approx(20.0)
-    assert first_iteration.metric_value == pytest.approx(0.35)
+    assert first_iteration.parameter_value == pytest.approx(0.0)
+    assert first_iteration.metric_value == pytest.approx(0.25)
     assert second_decision.candidate_value == pytest.approx(40.0)
     assert adapter.generate_calls == 1
     assert adapter.run_calls == 1
@@ -269,10 +270,10 @@ def test_candidate_execution_recovers_completed_child_task_without_rerun(
     )
     stale_checkpoint = result.model_copy(deep=True)
 
-    workflow.execute_candidate(result, 20.0)
-    recovered = workflow.execute_candidate(stale_checkpoint, 20.0)
+    workflow.execute_candidate(result, 0.0)
+    recovered = workflow.execute_candidate(stale_checkpoint, 0.0)
 
-    assert recovered.metric_value == pytest.approx(0.35)
+    assert recovered.metric_value == pytest.approx(0.25)
     assert len(stale_checkpoint.iterations) == 1
     assert adapter.run_calls == 1
 
@@ -298,8 +299,8 @@ def test_langgraph_runs_complete_deterministic_loop(build_temp_path: Path) -> No
     result = workflow.load("langgraph_complete_workflow")
 
     assert result.status == CalibrationWorkflowStatus.CONVERGED
-    assert len(result.iterations) == 3
-    assert adapter.run_calls == 3
+    assert len(result.iterations) == 4
+    assert adapter.run_calls == 4
     assert state["workflow_result"]["status"] == "converged"
     assert len(list(graph.get_state_history(config))) >= 8
 
@@ -364,7 +365,7 @@ def test_langgraph_requires_approval_before_solver_and_can_cancel(
     )
 
     assert adapter.run_calls == 0
-    assert paused["__interrupt__"][0].value["candidate_value"] == pytest.approx(20.0)
+    assert paused["__interrupt__"][0].value["candidate_value"] == pytest.approx(0.0)
 
     graph.invoke(Command(resume={"action": "approve"}), config)
     assert adapter.run_calls == 1
@@ -374,3 +375,41 @@ def test_langgraph_requires_approval_before_solver_and_can_cancel(
     assert adapter.run_calls == 1
     assert result.status == CalibrationWorkflowStatus.CANCELLED
     assert final["workflow_result"]["status"] == "cancelled"
+
+
+def test_sqlite_graph_reopens_and_resumes_same_thread(build_temp_path: Path) -> None:
+    store = make_store(build_temp_path, "sqlite_resume")
+    database = store.root / "checkpoints.sqlite"
+    adapter = DeterministicArtifactAdapter()
+    workflow = DeterministicCalibrationWorkflow(
+        store,
+        MockColumnCollapseCalibrationPlanner(),
+        adapter,
+    )
+    config = {"configurable": {"thread_id": "sqlite_resume_thread"}}
+
+    with open_sqlite_calibration_graph(
+        workflow,
+        database,
+        interrupt_after=["execute_candidate"],
+    ) as first_graph:
+        first_graph.invoke(
+            {
+                "user_prompt": "Reach a runout extension of 0.2 m.",
+                "workflow_id": "sqlite_resume_workflow",
+            },
+            config,
+        )
+        assert adapter.run_calls == 1
+
+    with open_sqlite_calibration_graph(
+        workflow,
+        database,
+        interrupt_after=["execute_candidate"],
+    ) as reopened_graph:
+        reopened_graph.invoke(None, config)
+        assert reopened_graph.get_state(config).next == ("decide",)
+
+    assert database.is_file()
+    assert adapter.run_calls == 2
+    assert len(workflow.load("sqlite_resume_workflow").iterations) == 2

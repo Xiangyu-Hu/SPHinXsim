@@ -11,6 +11,7 @@ license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = [
     "langgraph>=1.2,<2.0",
+    "langgraph-checkpoint-sqlite>=3.1,<4.0",
     "pydantic>=2.0",
     "numpy>=1.21",
 ]

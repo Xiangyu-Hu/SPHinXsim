@@ -108,12 +108,16 @@ class FrictionAngleSweepResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     sweep_id: str = Field(..., min_length=1, pattern=r"^[A-Za-z0-9_-]+$")
-    target_metric: str = Field(default="final_front", pattern=r"^final_front$")
+    target_metric: str = Field(
+        default="runout_extension",
+        pattern=r"^runout_extension$",
+    )
     target_value: float
     unit: str = Field(default="m", pattern=r"^m$")
     samples: list[FrictionSweepSample] = Field(..., min_length=1)
     best_friction_angle_degrees: float
     best_final_front: float
+    best_runout_extension: float
     best_absolute_error: float = Field(..., ge=0.0)
 
 
@@ -430,7 +434,7 @@ class RunoutAnalyzer:
 
 
 class FrictionAngleSweepAnalyzer:
-    """Compare completed runout analyses against one final-front target."""
+    """Compare completed runout analyses against one runout-extension target."""
 
     def summarize(
         self,
@@ -471,7 +475,7 @@ class FrictionAngleSweepAnalyzer:
                     analysis_id=analysis_id,
                     final_front=final_front,
                     runout_extension=extension,
-                    absolute_error=abs(final_front - target),
+                    absolute_error=abs(extension - target),
                 )
             )
         if not summarized:
@@ -489,5 +493,6 @@ class FrictionAngleSweepAnalyzer:
             samples=summarized,
             best_friction_angle_degrees=best.friction_angle_degrees,
             best_final_front=best.final_front,
+            best_runout_extension=best.runout_extension,
             best_absolute_error=best.absolute_error,
         )

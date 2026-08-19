@@ -11,6 +11,7 @@ import pytest
 
 from sphinxsim.agent import (
     AgentPlan,
+    AgentRun,
     AgentTaskStore,
     PlanAction,
     PlanStatus,
@@ -243,3 +244,64 @@ def test_isolated_run_timeout_is_persisted(store: AgentTaskStore) -> None:
     assert saved_run.status == RunStatus.TIMED_OUT
     assert saved_run.timed_out is True
     assert saved_run.returncode is None
+
+
+def test_isolated_run_timeout_can_be_retried_with_attempt_history(
+    store: AgentTaskStore,
+) -> None:
+    task, _ = create_friction_angle_column_collapse_task(
+        store,
+        task_id="task_retry_timeout",
+    )
+    first = StaticPlanExecutor(
+        store,
+        FakeCommandAdapter(run_result=_command_result(timed_out=True)),
+    ).execute(task.task_id)
+    second_adapter = FakeCommandAdapter()
+    second = StaticPlanExecutor(store, second_adapter).execute(task.task_id)
+
+    assert first.succeeded is False
+    assert second.succeeded is True
+    saved_run = store.load_run(task.task_id, "run_001")
+    assert saved_run.status == RunStatus.COMPLETED
+    assert saved_run.attempt_count == 2
+    assert saved_run.attempt_history[0]["status"] == "timed_out"
+    assert len([call for call in second_adapter.calls if call[0] == "run"]) == 1
+
+
+def test_orphaned_running_step_requires_explicit_recovery(
+    store: AgentTaskStore,
+) -> None:
+    task, _ = create_friction_angle_column_collapse_task(
+        store,
+        task_id="task_interrupted_run",
+    )
+    executor = StaticPlanExecutor(store, FakeCommandAdapter())
+
+    persisted_task = store.load_task(task.task_id)
+    persisted_plan = store.load_active_plan(task.task_id)
+    StaticPlanExecutor._start_task(persisted_task)
+    persisted_plan.status = PlanStatus.ACTIVE
+    run_step = persisted_plan.steps[3]
+    for step in persisted_plan.steps[:3]:
+        step.transition_to(StepStatus.IN_PROGRESS)
+        step.transition_to(StepStatus.COMPLETED)
+    run_step.transition_to(StepStatus.IN_PROGRESS)
+    store.save_task(persisted_task)
+    store.save_plan(task.task_id, persisted_plan)
+    run = AgentRun(
+        run_id="run_001",
+        task_id=task.task_id,
+        case_path=run_step.parameters["config_path"],
+        output_dir=run_step.parameters["output_dir"],
+    )
+    store.create_run(run)
+
+    recovered = executor.recover_interrupted(task.task_id)
+    retried = executor.execute(task.task_id)
+
+    assert recovered.succeeded is False
+    assert retried.succeeded is True
+    saved_run = store.load_run(task.task_id, "run_001")
+    assert saved_run.attempt_count == 2
+    assert saved_run.attempt_history[0]["status"] == "failed"

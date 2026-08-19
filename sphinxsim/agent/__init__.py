@@ -81,6 +81,7 @@ from .langgraph_workflow import (
     CalibrationGraph,
     CalibrationGraphState,
     build_calibration_graph,
+    open_sqlite_calibration_graph,
 )
 
 __all__ = [
@@ -153,6 +154,7 @@ __all__ = [
     "build_capability_registry",
     "build_default_knowledge_base",
     "build_calibration_graph",
+    "open_sqlite_calibration_graph",
     "create_task",
     "create_column_collapse_task",
     "create_friction_angle_column_collapse_task",

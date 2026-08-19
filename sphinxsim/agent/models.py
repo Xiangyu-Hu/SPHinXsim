@@ -266,6 +266,8 @@ class AgentRun(BaseModel):
     stdout_log: str | None = None
     stderr_log: str | None = None
     analysis_ids: list[str] = Field(default_factory=list)
+    attempt_count: int = Field(default=1, ge=1)
+    attempt_history: list[dict[str, Any]] = Field(default_factory=list)
     started_at: datetime = Field(default_factory=utc_now)
     finished_at: datetime | None = None
 
@@ -309,6 +311,43 @@ class AgentRun(BaseModel):
         AgentRun.model_validate(updated.model_dump())
         self.__dict__.update(updated.__dict__)
 
+    def restart(self) -> None:
+        """Preserve a terminal attempt and reset this record for a retry."""
+        if self.status == RunStatus.RUNNING:
+            raise ValueError("a running attempt cannot be restarted")
+        history = [
+            *self.attempt_history,
+            {
+                "attempt": self.attempt_count,
+                "status": self.status.value,
+                "returncode": self.returncode,
+                "timed_out": self.timed_out,
+                "error_message": self.error_message,
+                "stdout_log": self.stdout_log,
+                "stderr_log": self.stderr_log,
+                "started_at": self.started_at.isoformat(),
+                "finished_at": (
+                    self.finished_at.isoformat() if self.finished_at else None
+                ),
+            },
+        ]
+        updated = self.model_copy(
+            update={
+                "status": RunStatus.RUNNING,
+                "returncode": None,
+                "timed_out": False,
+                "error_message": None,
+                "stdout_log": None,
+                "stderr_log": None,
+                "attempt_count": self.attempt_count + 1,
+                "attempt_history": history,
+                "started_at": utc_now(),
+                "finished_at": None,
+            }
+        )
+        AgentRun.model_validate(updated.model_dump())
+        self.__dict__.update(updated.__dict__)
+
 
 class AgentAnalysis(BaseModel):
     """One persisted deterministic analysis of an Agent run."""
@@ -323,6 +362,8 @@ class AgentAnalysis(BaseModel):
     status: AnalysisStatus = AnalysisStatus.RUNNING
     metrics: dict[str, Any] = Field(default_factory=dict)
     error_message: str | None = None
+    attempt_count: int = Field(default=1, ge=1)
+    attempt_history: list[dict[str, Any]] = Field(default_factory=list)
     started_at: datetime = Field(default_factory=utc_now)
     finished_at: datetime | None = None
 
@@ -357,6 +398,36 @@ class AgentAnalysis(BaseModel):
                 "metrics": metrics or {},
                 "error_message": error_message,
                 "finished_at": utc_now(),
+            }
+        )
+        AgentAnalysis.model_validate(updated.model_dump())
+        self.__dict__.update(updated.__dict__)
+
+    def restart(self) -> None:
+        """Preserve a failed attempt and reset this record for a retry."""
+        if self.status != AnalysisStatus.FAILED:
+            raise ValueError("only a failed analysis can be restarted")
+        history = [
+            *self.attempt_history,
+            {
+                "attempt": self.attempt_count,
+                "status": self.status.value,
+                "error_message": self.error_message,
+                "started_at": self.started_at.isoformat(),
+                "finished_at": (
+                    self.finished_at.isoformat() if self.finished_at else None
+                ),
+            },
+        ]
+        updated = self.model_copy(
+            update={
+                "status": AnalysisStatus.RUNNING,
+                "metrics": {},
+                "error_message": None,
+                "attempt_count": self.attempt_count + 1,
+                "attempt_history": history,
+                "started_at": utc_now(),
+                "finished_at": None,
             }
         )
         AgentAnalysis.model_validate(updated.model_dump())

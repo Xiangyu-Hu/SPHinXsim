@@ -29,7 +29,7 @@ from .models import (
     StepStatus,
     TaskStatus,
 )
-from .store import AgentTaskStore
+from .store import AgentTaskStore, TaskNotFoundError
 
 
 class CommandAdapter(Protocol):
@@ -200,6 +200,57 @@ class StaticPlanExecutor:
         self.store.save_task(task)
         return self._result(task, plan, True, "Static Plan completed successfully.")
 
+    def recover_interrupted(self, task_id: str) -> PlanExecutionResult:
+        """Mark one orphaned in-progress step failed so it can be retried.
+
+        The caller must first ensure that the earlier worker and solver process
+        are no longer running. This method deliberately does not guess whether
+        a live external process is safe to replace.
+        """
+        task = self.store.load_task(task_id)
+        plan = self.store.load_active_plan(task_id)
+        running_steps = [
+            step for step in plan.steps if step.status == StepStatus.IN_PROGRESS
+        ]
+        if task.status != TaskStatus.RUNNING or len(running_steps) != 1:
+            raise PlanExecutionError(
+                "interrupted recovery requires one in-progress step on a running task"
+            )
+        step = running_steps[0]
+        message = "Interrupted worker state was recovered for an explicit retry."
+
+        if step.action == PlanAction.RUN_CASE:
+            run_id = step.parameters.get("run_id")
+            if isinstance(run_id, str):
+                try:
+                    run = self.store.load_run(task_id, run_id)
+                except TaskNotFoundError:
+                    run = None
+                if run is not None and run.status == RunStatus.RUNNING:
+                    run.finish(
+                        RunStatus.FAILED,
+                        returncode=None,
+                        error_message=message,
+                    )
+                    self.store.save_run(run)
+        elif step.action == PlanAction.ANALYZE_RESULT:
+            run_id = step.parameters.get("run_id")
+            analysis_id = step.parameters.get("analysis_id")
+            if isinstance(run_id, str) and isinstance(analysis_id, str):
+                try:
+                    analysis = self.store.load_analysis(
+                        task_id,
+                        run_id,
+                        analysis_id,
+                    )
+                except TaskNotFoundError:
+                    analysis = None
+                if analysis is not None and analysis.status == AnalysisStatus.RUNNING:
+                    analysis.finish(AnalysisStatus.FAILED, error_message=message)
+                    self.store.save_analysis(analysis)
+
+        return self._fail_step(task, plan, step, message)
+
     def _execute_step(self, task: AgentTask, step: PlanStep) -> _StepExecutionResult:
         if step.action == PlanAction.PREPARE_CASE:
             prepared_path = self.case_workspace.prepare_case(
@@ -270,13 +321,35 @@ class StaticPlanExecutor:
             raise ValueError(
                 "run_case output_dir must match the task's isolated run directory"
             )
-        run = AgentRun(
-            run_id=run_id,
-            task_id=task.task_id,
-            case_path=str(Path(config_path).resolve()),
-            output_dir=str(expected_output_dir),
-        )
-        self.store.create_run(run)
+        try:
+            run = self.store.load_run(task.task_id, run_id)
+        except TaskNotFoundError:
+            run = AgentRun(
+                run_id=run_id,
+                task_id=task.task_id,
+                case_path=str(Path(config_path).resolve()),
+                output_dir=str(expected_output_dir),
+            )
+            self.store.create_run(run)
+        else:
+            if Path(run.case_path).resolve() != Path(config_path).resolve():
+                raise ValueError("existing run uses a different case_path")
+            if Path(run.output_dir).resolve() != expected_output_dir:
+                raise ValueError("existing run uses a different output_dir")
+            if run.status == RunStatus.COMPLETED:
+                return _StepExecutionResult(
+                    succeeded=True,
+                    message="Recovered an already completed SPHinXsim run.",
+                    artifacts=(str(expected_output_dir),),
+                    run_id=run_id,
+                )
+            if run.status == RunStatus.RUNNING:
+                raise ValueError(
+                    "run is still marked running; call recover_interrupted only "
+                    "after confirming the previous solver process has stopped"
+                )
+            run.restart()
+            self.store.save_run(run)
         if run_id not in task.run_ids:
             task.run_ids.append(run_id)
             self.store.save_task(task)
@@ -352,14 +425,32 @@ class StaticPlanExecutor:
         run = self.store.load_run(task.task_id, run_id)
         if run.status != RunStatus.COMPLETED:
             raise ValueError("analyze_result requires a completed run")
-        analysis = AgentAnalysis(
-            analysis_id=analysis_id,
-            task_id=task.task_id,
-            run_id=run_id,
-            config_path=str(Path(config_path).resolve()),
-            spec=raw_spec,
-        )
-        self.store.create_analysis(analysis)
+        try:
+            analysis = self.store.load_analysis(task.task_id, run_id, analysis_id)
+        except TaskNotFoundError:
+            analysis = AgentAnalysis(
+                analysis_id=analysis_id,
+                task_id=task.task_id,
+                run_id=run_id,
+                config_path=str(Path(config_path).resolve()),
+                spec=raw_spec,
+            )
+            self.store.create_analysis(analysis)
+        else:
+            if analysis.status == AnalysisStatus.COMPLETED:
+                artifact = self.store.analysis_path(task.task_id, run_id, analysis_id)
+                return _StepExecutionResult(
+                    succeeded=True,
+                    message="Recovered an already completed runout analysis.",
+                    artifacts=(str(artifact),),
+                )
+            if analysis.status == AnalysisStatus.RUNNING:
+                raise ValueError(
+                    "analysis is still marked running; call recover_interrupted "
+                    "before retrying"
+                )
+            analysis.restart()
+            self.store.save_analysis(analysis)
         if analysis_id not in run.analysis_ids:
             run.analysis_ids.append(analysis_id)
             self.store.save_run(run)
@@ -439,7 +530,8 @@ class StaticPlanExecutor:
             message=(
                 "Friction-angle sweep comparison completed: "
                 f"best_angle={result.best_friction_angle_degrees:.12g} degrees, "
-                f"best_final_front={result.best_final_front:.12g} {result.unit}, "
+                "best_runout_extension="
+                f"{result.best_runout_extension:.12g} {result.unit}, "
                 f"absolute_error={result.best_absolute_error:.12g} {result.unit}."
             ),
             artifacts=(str(artifact),),

@@ -93,11 +93,11 @@ class MockColumnCollapseCalibrationPlanner:
     def __init__(
         self,
         *,
-        target_final_front: float = 0.30,
-        tolerance: float = 0.003,
-        lower_friction_angle: float = 20.0,
+        target_runout_extension: float = 0.20,
+        tolerance: float = 0.005,
+        lower_friction_angle: float = 0.0,
         upper_friction_angle: float = 40.0,
-        maximum_iterations: int = 6,
+        maximum_iterations: int = 8,
     ) -> None:
         self._definition = CalibrationWorkflowDefinition(
             generation_description=(
@@ -107,7 +107,7 @@ class MockColumnCollapseCalibrationPlanner:
             case_name="column_collapse",
             body_name="GranularBody",
             calibration=CalibrationSpec(
-                calibration_id="column_collapse_final_front",
+                calibration_id="column_collapse_runout_extension",
                 parameter=ParameterSpec(
                     tool_name="set_friction_angle",
                     input_field="friction_angle_degrees",
@@ -117,8 +117,8 @@ class MockColumnCollapseCalibrationPlanner:
                 ),
                 objective=ObjectiveSpec(
                     tool_name="analyze_runout",
-                    metric_name="final_front",
-                    target_value=target_final_front,
+                    metric_name="runout_extension",
+                    target_value=target_runout_extension,
                     tolerance=tolerance,
                     unit="m",
                 ),

@@ -49,26 +49,27 @@ def test_mock_llm_real_cpp_calibration_converges(build_temp_path: Path) -> None:
     result = DeterministicCalibrationWorkflow(
         store,
         MockColumnCollapseCalibrationPlanner(
-            target_final_front=0.30,
+            target_runout_extension=0.20,
             tolerance=0.005,
-            lower_friction_angle=20.0,
+            lower_friction_angle=0.0,
             upper_friction_angle=40.0,
-            maximum_iterations=6,
+            maximum_iterations=8,
         ),
         adapter,
         command_timeout=300,
     ).execute(
-        "Calibrate a 2D column collapse final front by adjusting friction angle.",
+        "Calibrate a 2D column-collapse runout extension to 0.2 m by adjusting "
+        "the friction angle.",
         workflow_id="real_cpp_acceptance",
     )
 
     assert result.status == CalibrationWorkflowStatus.CONVERGED
     assert result.succeeded is True
     parameter_values = [item.parameter_value for item in result.iterations]
-    assert parameter_values[:2] == [20.0, 40.0]
-    assert len(parameter_values) <= 6
+    assert parameter_values[:2] == [0.0, 40.0]
+    assert len(parameter_values) <= 8
     assert len(parameter_values) == len(set(parameter_values))
-    assert all(20.0 <= value <= 40.0 for value in parameter_values)
+    assert all(0.0 <= value <= 40.0 for value in parameter_values)
     assert result.final_decision is not None
     assert result.final_decision.best_parameter_value in parameter_values
     assert result.final_decision.best_absolute_error <= 0.005
@@ -93,7 +94,9 @@ def test_mock_llm_real_cpp_calibration_converges(build_temp_path: Path) -> None:
         assert Path(run.output_dir, "output").is_dir()
         assert analysis.metrics["particle_count"] == 5000
         assert Path(analysis.metrics["state_file"]).is_file()
-        assert iteration.metric_value == pytest.approx(analysis.metrics["final_front"])
+        assert iteration.metric_value == pytest.approx(
+            analysis.metrics["runout_extension"]
+        )
 
 
 @pytest.mark.skipif(
@@ -125,7 +128,10 @@ def test_approved_langgraph_real_cpp_calibration_converges(
 
     state = graph.invoke(
         {
-            "user_prompt": "Calibrate a real column collapse with approval.",
+            "user_prompt": (
+                "Calibrate a real column-collapse runout extension to 0.2 m "
+                "with approval."
+            ),
             "workflow_id": "real_approved_graph",
         },
         config,

@@ -33,7 +33,7 @@ def _metrics(final_front: float) -> dict:
 def test_sweep_summary_selects_sample_closest_to_target() -> None:
     result = FrictionAngleSweepAnalyzer().summarize(
         sweep_id="sweep_001",
-        target_value=0.4,
+        target_value=0.2,
         samples=[
             (20.0, "run_001", "analysis_001", _metrics(0.45)),
             (25.0, "run_002", "analysis_002", _metrics(0.425)),
@@ -46,6 +46,7 @@ def test_sweep_summary_selects_sample_closest_to_target() -> None:
     assert len(result.samples) == 5
     assert result.best_friction_angle_degrees == pytest.approx(30.0)
     assert result.best_final_front == pytest.approx(0.4)
+    assert result.best_runout_extension == pytest.approx(0.2)
     assert result.best_absolute_error == pytest.approx(0.0)
     assert result.samples[0].absolute_error == pytest.approx(0.05)
 
@@ -54,7 +55,7 @@ def test_sweep_summary_rejects_missing_metrics() -> None:
     with pytest.raises(AnalysisError, match="requires numeric"):
         FrictionAngleSweepAnalyzer().summarize(
             sweep_id="sweep_001",
-            target_value=0.4,
+            target_value=0.2,
             samples=[(30.0, "run_001", "analysis_001", {"unit": "m"})],
         )
 
@@ -66,7 +67,7 @@ def test_sweep_summary_rejects_inconsistent_units() -> None:
     with pytest.raises(AnalysisError, match="metres"):
         FrictionAngleSweepAnalyzer().summarize(
             sweep_id="sweep_001",
-            target_value=0.4,
+            target_value=0.2,
             samples=[(30.0, "run_001", "analysis_001", metrics)],
         )
 
@@ -129,7 +130,7 @@ def test_fixed_sweep_plan_runs_analyzes_and_compares_all_samples(
     task, plan = create_friction_angle_sweep_task(
         store,
         friction_angles_degrees=(20.0, 25.0, 30.0, 35.0, 40.0),
-        target_final_front=0.4,
+        target_runout_extension=0.2,
         task_id="task_fixed_sweep",
     )
     adapter = SweepArtifactAdapter()
@@ -159,6 +160,7 @@ def test_fixed_sweep_plan_runs_analyzes_and_compares_all_samples(
     assert len(sweep.samples) == 5
     assert sweep.best_friction_angle_degrees == pytest.approx(30.0)
     assert sweep.best_final_front == pytest.approx(0.4)
+    assert sweep.best_runout_extension == pytest.approx(0.2)
     assert sweep.best_absolute_error == pytest.approx(0.0)
     saved_plan = store.load_active_plan(task.task_id)
     assert saved_plan.steps[-1].artifacts == [

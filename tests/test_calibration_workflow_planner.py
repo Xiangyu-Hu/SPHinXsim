@@ -19,9 +19,9 @@ def test_mock_planner_returns_validated_structured_definition() -> None:
     definition.validate_tools(build_builtin_tool_registry())
 
     assert definition.body_name == "GranularBody"
-    assert definition.calibration.objective.metric_name == "final_front"
-    assert definition.calibration.objective.target_value == pytest.approx(0.30)
-    assert definition.calibration.parameter.lower_bound == pytest.approx(20.0)
+    assert definition.calibration.objective.metric_name == "runout_extension"
+    assert definition.calibration.objective.target_value == pytest.approx(0.20)
+    assert definition.calibration.parameter.lower_bound == pytest.approx(0.0)
     assert definition.calibration.parameter.upper_bound == pytest.approx(40.0)
     assert definition.analysis.direction_vector == pytest.approx((1.0, 0.0))
 

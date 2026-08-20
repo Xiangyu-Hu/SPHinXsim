@@ -8,6 +8,7 @@ from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
+from sphinxsim.llm import normalize_llm_provider
 
 from .calibration_workflow import (
     CalibrationWorkflowResult,
@@ -137,18 +138,19 @@ class AgentCAE:
         prompt: str,
         *,
         workflow_id: str | None = None,
-        planner_provider: str = "mock",
-        replanner_provider: str = "mock",
-        generation_provider: str = "mock",
+        planner_provider: str | None = None,
+        replanner_provider: str | None = None,
+        generation_provider: str | None = None,
         require_approval: bool = True,
         command_timeout: float = 300.0,
     ) -> AgentServiceStatus:
         identifier = workflow_id or f"agent_{uuid4().hex[:12]}"
+        configured_provider = normalize_llm_provider()
         settings = AgentRuntimeSettings(
             workflow_id=identifier,
-            planner_provider=planner_provider,
-            replanner_provider=replanner_provider,
-            generation_provider=generation_provider,
+            planner_provider=planner_provider or configured_provider,
+            replanner_provider=replanner_provider or configured_provider,
+            generation_provider=generation_provider or configured_provider,
             require_approval=require_approval,
             command_timeout=command_timeout,
         )

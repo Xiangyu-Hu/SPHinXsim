@@ -33,14 +33,24 @@ commands, and arbitrary file paths are forbidden by schema.
 
 ## Durable calibration lifecycle
 
-Start a workflow. The default providers are deterministic mocks, so this command
-tests the production control path without sending data to an external LLM:
+Select the LLM exactly as for the existing `generate` command. AgentCAE uses the
+same setting for planning, configuration generation, failure replanning, and
+extractor planning:
+
+```powershell
+$env:SPHINXSIM_LLM_PROVIDER = "mock"       # deterministic local evaluation
+# $env:SPHINXSIM_LLM_PROVIDER = "ollama"   # local Ollama
+# $env:SPHINXSIM_LLM_PROVIDER = "openai"   # OpenAI API
+# $env:SPHINXSIM_LLM_PROVIDER = "nvidia_nim" # NVIDIA NIM API
+```
+
+Start a workflow. With `mock`, this tests the production control path without
+sending data to an external LLM:
 
 ```powershell
 python -m sphinxsim agent --workspace .build-temp/agent start `
   "Calibrate a 2D column-collapse runout extension to 0.2 m." `
-  --workflow-id column_020 --planner mock --replanner mock `
-  --generation-provider mock --json
+  --workflow-id column_020 --json
 ```
 
 Inspect, approve, resume, cancel, or report from a later process:
@@ -66,7 +76,7 @@ For deterministic evaluation, prepare a JSON response that matches the
 ```powershell
 python -m sphinxsim agent --workspace .build-temp/agent extractor plan `
   "Measure the final deposit height." `
-  --config case.json --provider mock `
+  --config case.json `
   --response-file extractor-response.json --json
 
 python -m sphinxsim agent --workspace .build-temp/agent extractor list --json
@@ -82,9 +92,10 @@ recompiled in another process and applied to a different artifact set with the
 same body and dimensional contract. The VTP reader streams numeric content and
 stores bounds and counts; it does not build a full in-memory particle array.
 
-Using `--provider nvidia` sends the extractor request, the listed body names,
-spatial dimension, allowed operations, and output schema to the configured NVIDIA
-endpoint. Only use it when that bounded data export is authorized.
+When `SPHINXSIM_LLM_PROVIDER` selects a cloud provider, extractor planning sends
+the extractor request, listed body names, spatial dimension, allowed operations,
+and output schema to that configured endpoint. Only use a cloud provider when
+that bounded data export is authorized.
 
 ## Persisted data
 

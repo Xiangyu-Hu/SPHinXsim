@@ -35,7 +35,9 @@ def run_cli(*arguments: str) -> subprocess.CompletedProcess[str]:
 
 def test_agent_cli_start_status_cancel_across_processes(
     build_temp_path: Path,
+    monkeypatch,
 ) -> None:
+    monkeypatch.setenv("SPHINXSIM_LLM_PROVIDER", "mock")
     workspace = build_temp_path / f"agent_cli_processes_{uuid4().hex}"
     common = ("agent", "--workspace", str(workspace))
 
@@ -45,12 +47,6 @@ def test_agent_cli_start_status_cancel_across_processes(
         "Calibrate a 2D column-collapse runout extension to 0.2 m.",
         "--workflow-id",
         "cli_process_workflow",
-        "--planner",
-        "mock",
-        "--replanner",
-        "mock",
-        "--generation-provider",
-        "mock",
         "--json",
     )
     inspected = run_cli(*common, "status", "cli_process_workflow", "--json")
@@ -68,7 +64,12 @@ def test_agent_cli_start_status_cancel_across_processes(
     assert cancel_status["status"] == "cancelled"
     assert cancel_status["awaiting_approval"] is False
     assert (workspace / "checkpoints.sqlite").is_file()
-    assert (workspace / "runtime" / "cli_process_workflow.json").is_file()
+    manifest = workspace / "runtime" / "cli_process_workflow.json"
+    assert manifest.is_file()
+    settings = json.loads(manifest.read_text(encoding="utf-8"))
+    assert settings["planner_provider"] == "mock"
+    assert settings["replanner_provider"] == "mock"
+    assert settings["generation_provider"] == "mock"
 
 
 def test_agent_cli_reports_unknown_workflow_without_traceback(
@@ -123,7 +124,9 @@ def test_agent_cli_builds_json_report_from_persisted_result(
 
 def test_agent_cli_plans_lists_and_runs_declarative_extractor(
     build_temp_path: Path,
+    monkeypatch,
 ) -> None:
+    monkeypatch.setenv("SPHINXSIM_LLM_PROVIDER", "mock")
     workspace = build_temp_path / f"agent_extractor_{uuid4().hex}"
     response_path = build_temp_path / f"extractor_response_{uuid4().hex}.json"
     response_path.write_text(
@@ -169,8 +172,6 @@ def test_agent_cli_plans_lists_and_runs_declarative_extractor(
             / "data"
             / "column_collapse.json"
         ),
-        "--provider",
-        "mock",
         "--response-file",
         str(response_path),
         "--json",
@@ -191,3 +192,15 @@ def test_agent_cli_plans_lists_and_runs_declarative_extractor(
     assert json.loads(planned.stdout)["extractor_id"] == "final_height"
     assert json.loads(listed.stdout)["extractors"][0]["extractor_id"] == "final_height"
     assert json.loads(analyzed.stdout)["values"] == {"height_y": 0.6}
+
+
+def test_agent_cli_hides_legacy_provider_overrides_from_user_help() -> None:
+    start_help = run_cli("agent", "start", "--help")
+    extractor_help = run_cli("agent", "extractor", "plan", "--help")
+
+    assert start_help.returncode == 0
+    assert extractor_help.returncode == 0
+    assert "--planner" not in start_help.stdout
+    assert "--replanner" not in start_help.stdout
+    assert "--generation-provider" not in start_help.stdout
+    assert "--provider" not in extractor_help.stdout

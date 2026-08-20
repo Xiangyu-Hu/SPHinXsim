@@ -87,6 +87,7 @@ from .planner_context import PlannerContext, PlannerContextBuilder, PlannerEvide
 from .structured_planner import (
     MockStructuredPlannerClient,
     NvidiaStructuredPlannerClient,
+    ProviderStructuredPlannerClient,
     StructuredCalibrationPlanner,
     StructuredPlannerClient,
     StructuredPlannerRequest,
@@ -96,6 +97,7 @@ from .replanning import (
     BoundedReplanningPolicy,
     MockReplanningClient,
     NvidiaReplanningClient,
+    ProviderReplanningClient,
     ReplanAction,
     ReplanningClient,
     ReplanningContext,
@@ -131,6 +133,7 @@ from .extractor_planner import (
     ExtractorPlanningError,
     MockExtractorPlannerClient,
     NvidiaExtractorPlannerClient,
+    ProviderExtractorPlannerClient,
     StructuredExtractorPlanner,
 )
 from .facade import (
@@ -238,7 +241,9 @@ __all__ = [
     "MockStructuredPlannerClient",
     "MockReplanningClient",
     "NvidiaReplanningClient",
+    "ProviderReplanningClient",
     "NvidiaStructuredPlannerClient",
+    "ProviderStructuredPlannerClient",
     "ObjectiveSpec",
     "ParameterSpec",
     "ToolRegistry",
@@ -260,6 +265,7 @@ __all__ = [
     "ExtractorPlanningError",
     "MockExtractorPlannerClient",
     "NvidiaExtractorPlannerClient",
+    "ProviderExtractorPlannerClient",
     "StructuredExtractorPlanner",
     "AgentCAE",
     "AgentCAEBestResult",

@@ -5,15 +5,18 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
-import json
 import os
 from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .calibration_workflow import CalibrationWorkflowDefinition
-from sphinxsim.llm.common import strip_code_fences
 from sphinxsim.llm.nvidia_nim_llm import NvidiaNIMLLM
+from sphinxsim.llm.structured_provider import (
+    ExistingLLMStructuredBackend,
+    StructuredJSONBackend,
+    StructuredProviderError,
+)
 
 
 REPLANNING_SYSTEM_PROMPT = (
@@ -103,6 +106,26 @@ class MockReplanningClient:
         return deepcopy(self.responses[index])
 
 
+class ProviderReplanningClient:
+    """Use any configured structured backend through one replanning contract."""
+
+    def __init__(self, backend: StructuredJSONBackend) -> None:
+        self.backend = backend
+
+    def complete_json(self, request: ReplanningRequest) -> dict[str, Any]:
+        payload = {
+            "failure_context": request.context.model_dump(mode="json"),
+            "output_schema": request.output_schema,
+        }
+        try:
+            return self.backend.complete_json(
+                system_prompt=request.system_prompt,
+                payload=payload,
+            )
+        except StructuredProviderError as exc:
+            raise ReplanningError(str(exc)) from exc
+
+
 @dataclass
 class NvidiaReplanningClient:
     """NVIDIA NIM client for bounded structured replanning decisions."""
@@ -113,6 +136,7 @@ class NvidiaReplanningClient:
     fallback_models: tuple[str, ...] = ()
     timeout: float = 120.0
     _llm: NvidiaNIMLLM = field(init=False, repr=False)
+    _client: ProviderReplanningClient = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._llm = NvidiaNIMLLM(
@@ -121,6 +145,9 @@ class NvidiaReplanningClient:
             model=self.model,
             fallback_models=self.fallback_models,
             timeout=self.timeout,
+        )
+        self._client = ProviderReplanningClient(
+            ExistingLLMStructuredBackend("nvidia_nim", llm=self._llm)
         )
 
     @classmethod
@@ -142,31 +169,7 @@ class NvidiaReplanningClient:
         )
 
     def complete_json(self, request: ReplanningRequest) -> dict[str, Any]:
-        content = self._llm._post_chat(
-            messages=[
-                {"role": "system", "content": request.system_prompt},
-                {
-                    "role": "user",
-                    "content": json.dumps(
-                        {
-                            "failure_context": request.context.model_dump(mode="json"),
-                            "output_schema": request.output_schema,
-                        },
-                        ensure_ascii=False,
-                    ),
-                },
-            ],
-            temperature=0.0,
-        )
-        try:
-            value = json.loads(strip_code_fences(content).strip())
-        except json.JSONDecodeError as exc:
-            raise ReplanningError("NVIDIA replanner returned invalid JSON") from exc
-        if not isinstance(value, dict):
-            raise ReplanningError(
-                "NVIDIA replanner must return exactly one JSON object"
-            )
-        return value
+        return self._client.complete_json(request)
 
 
 class StructuredReplanner:

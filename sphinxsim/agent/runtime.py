@@ -6,9 +6,11 @@ import os
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from sphinxsim.services import SPHinXsimCLIAdapter
+from sphinxsim.llm import LLMProviderName, normalize_llm_provider
+from sphinxsim.llm.structured_provider import create_structured_backend
 
 from .capabilities import build_capability_registry
 from .calibration_workflow import MockColumnCollapseCalibrationPlanner
@@ -16,13 +18,14 @@ from .knowledge import build_default_knowledge_base
 from .planner_context import PlannerContextBuilder
 from .replanning import (
     MockReplanningClient,
-    NvidiaReplanningClient,
+    ProviderReplanningClient,
     StructuredReplanner,
 )
 from .service import AgentCAEAgentService, AgentServiceError
 from .store import AgentTaskStore
 from .structured_planner import (
-    NvidiaStructuredPlannerClient,
+    MockStructuredPlannerClient,
+    ProviderStructuredPlannerClient,
     StructuredCalibrationPlanner,
 )
 from .tools import build_builtin_tool_registry
@@ -34,11 +37,23 @@ class AgentRuntimeSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     workflow_id: str = Field(..., pattern=r"^[A-Za-z0-9_-]+$")
-    planner_provider: Literal["mock", "nvidia"] = "mock"
-    replanner_provider: Literal["none", "mock", "nvidia"] = "mock"
-    generation_provider: Literal["mock", "nvidia"] = "mock"
+    planner_provider: LLMProviderName = "mock"
+    replanner_provider: Literal[
+        "none", "mock", "ollama", "openai", "nvidia_nim"
+    ] = "mock"
+    generation_provider: LLMProviderName = "mock"
     require_approval: bool = True
     command_timeout: float = Field(default=300.0, gt=0.0)
+
+    @field_validator("planner_provider", "generation_provider", mode="before")
+    @classmethod
+    def normalize_provider(cls, value):
+        return normalize_llm_provider(value)
+
+    @field_validator("replanner_provider", mode="before")
+    @classmethod
+    def normalize_replanner_provider(cls, value):
+        return "none" if value == "none" else normalize_llm_provider(value)
 
 
 class AgentRuntime:
@@ -78,7 +93,7 @@ class AgentRuntime:
         execution_enabled: bool = True,
     ) -> AgentCAEAgentService:
         tools = build_builtin_tool_registry()
-        if starting and settings.planner_provider == "nvidia":
+        if starting:
             capabilities = build_capability_registry(tools)
             context = PlannerContextBuilder(
                 tools,
@@ -89,9 +104,20 @@ class AgentRuntime:
                     capabilities,
                 ),
             )
+            if settings.planner_provider == "mock":
+                response = MockColumnCollapseCalibrationPlanner().plan(
+                    "Build the deterministic mock calibration plan."
+                )
+                planner_client = MockStructuredPlannerClient(
+                    response.model_dump(mode="json")
+                )
+            else:
+                planner_client = ProviderStructuredPlannerClient(
+                    create_structured_backend(settings.planner_provider)
+                )
             planner = StructuredCalibrationPlanner(
                 context,
-                NvidiaStructuredPlannerClient.from_environment(),
+                planner_client,
                 tools,
             )
         else:
@@ -109,15 +135,17 @@ class AgentRuntime:
                     ]
                 )
             )
-        elif execution_enabled and settings.replanner_provider == "nvidia":
+        elif execution_enabled and settings.replanner_provider != "none":
             replanner = StructuredReplanner(
-                NvidiaReplanningClient.from_environment()
+                ProviderReplanningClient(
+                    create_structured_backend(settings.replanner_provider)
+                )
             )
 
         environment = {
             "SPHINXSIM_LLM_PROVIDER": settings.generation_provider,
         }
-        if settings.generation_provider == "nvidia":
+        if settings.generation_provider == "nvidia_nim":
             key = os.getenv("NVIDIA_NIM_API_KEY", os.getenv("NVIDIA_API_KEY"))
             if not key:
                 raise AgentServiceError(

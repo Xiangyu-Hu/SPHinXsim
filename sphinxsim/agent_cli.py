@@ -15,8 +15,10 @@ from .agent import (
     AgentServiceError,
     ExtractorPlanningContext,
     MockExtractorPlannerClient,
-    NvidiaExtractorPlannerClient,
+    ProviderExtractorPlannerClient,
 )
+from .llm import normalize_llm_provider
+from .llm.structured_provider import create_structured_backend
 
 
 def configure_agent_parser(subparsers, project_root: Path) -> None:
@@ -35,16 +37,16 @@ def configure_agent_parser(subparsers, project_root: Path) -> None:
     start = commands.add_parser("start", help="Plan and start a new Agent workflow.")
     start.add_argument("prompt", help="English simulation objective.")
     start.add_argument("--workflow-id", default=None)
-    start.add_argument("--planner", choices=("mock", "nvidia"), default="mock")
+    start.add_argument("--planner", default=None, help=argparse.SUPPRESS)
     start.add_argument(
         "--replanner",
-        choices=("none", "mock", "nvidia"),
-        default="mock",
+        default=None,
+        help=argparse.SUPPRESS,
     )
     start.add_argument(
         "--generation-provider",
-        choices=("mock", "nvidia"),
-        default="mock",
+        default=None,
+        help=argparse.SUPPRESS,
     )
     start.add_argument("--timeout", type=float, default=300.0)
     start.add_argument("--no-approval", action="store_true")
@@ -85,7 +87,7 @@ def configure_agent_parser(subparsers, project_root: Path) -> None:
         required=True,
         help="Validated case JSON used to derive body and dimension allow-lists.",
     )
-    plan_extractor.add_argument("--provider", choices=("mock", "nvidia"), default="nvidia")
+    plan_extractor.add_argument("--provider", default=None, help=argparse.SUPPRESS)
     plan_extractor.add_argument(
         "--response-file",
         help="Mock provider JSON response used for deterministic evaluation.",
@@ -114,15 +116,16 @@ def configure_agent_parser(subparsers, project_root: Path) -> None:
 def cmd_agent_start(args: argparse.Namespace) -> int:
     runtime = AgentRuntime(args.agent_project_root, args.workspace)
     workflow_id = args.workflow_id or f"agent_{uuid4().hex[:12]}"
-    settings = AgentRuntimeSettings(
-        workflow_id=workflow_id,
-        planner_provider=args.planner,
-        replanner_provider=args.replanner,
-        generation_provider=args.generation_provider,
-        require_approval=not args.no_approval,
-        command_timeout=args.timeout,
-    )
     try:
+        configured_provider = normalize_llm_provider()
+        settings = AgentRuntimeSettings(
+            workflow_id=workflow_id,
+            planner_provider=args.planner or configured_provider,
+            replanner_provider=args.replanner or configured_provider,
+            generation_provider=args.generation_provider or configured_provider,
+            require_approval=not args.no_approval,
+            command_timeout=args.timeout,
+        )
         runtime.save_settings(settings)
         status = runtime.create_service(settings, starting=True).start(
             args.prompt,
@@ -130,7 +133,7 @@ def cmd_agent_start(args: argparse.Namespace) -> int:
         )
         _print_status(status, as_json=args.json)
         return _status_code(status.status.value)
-    except (AgentServiceError, OSError, ValueError) as exc:
+    except (AgentServiceError, OSError, ValueError, RuntimeError) as exc:
         print(f"Agent start failed: {exc}", file=sys.stderr)
         return 1
 
@@ -175,7 +178,8 @@ def cmd_agent_report(args: argparse.Namespace) -> int:
 def cmd_agent_extractor_plan(args: argparse.Namespace) -> int:
     facade = AgentCAE(args.agent_project_root, args.workspace)
     try:
-        if args.provider == "mock":
+        provider = normalize_llm_provider(args.provider)
+        if provider == "mock":
             if not args.response_file:
                 raise AgentServiceError(
                     "mock extractor planning requires --response-file"
@@ -185,7 +189,9 @@ def cmd_agent_extractor_plan(args: argparse.Namespace) -> int:
                 raise AgentServiceError("mock extractor response must be a JSON object")
             client = MockExtractorPlannerClient(raw)
         else:
-            client = NvidiaExtractorPlannerClient.from_environment()
+            client = ProviderExtractorPlannerClient(
+                create_structured_backend(provider)
+            )
         context = ExtractorPlanningContext.from_case(args.config)
         spec = facade.plan_extractor(args.request, context, client)
         if args.json:
@@ -196,7 +202,13 @@ def cmd_agent_extractor_plan(args: argparse.Namespace) -> int:
             print(f"Outputs: {len(spec.outputs)}")
             print(f"Fingerprint: {spec.fingerprint}")
         return 0
-    except (AgentServiceError, OSError, ValueError, json.JSONDecodeError) as exc:
+    except (
+        AgentServiceError,
+        OSError,
+        ValueError,
+        RuntimeError,
+        json.JSONDecodeError,
+    ) as exc:
         print(f"Agent extractor plan failed: {exc}", file=sys.stderr)
         return 1
 
@@ -257,7 +269,7 @@ def _run_existing(
         status = getattr(service, operation)(args.workflow_id)
         _print_status(status, as_json=args.json)
         return _status_code(status.status.value)
-    except (AgentServiceError, OSError, ValueError) as exc:
+    except (AgentServiceError, OSError, ValueError, RuntimeError) as exc:
         print(f"Agent {operation} failed: {exc}", file=sys.stderr)
         return 1
 

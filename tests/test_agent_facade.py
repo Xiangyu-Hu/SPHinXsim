@@ -55,6 +55,9 @@ def test_report_is_built_from_persisted_workflow_and_saved(
     report = facade.report("facade_report")
 
     assert report.succeeded is True
+    assert report.plan_summary.case_name == "column_collapse"
+    assert report.plan_summary.target_value == pytest.approx(0.2)
+    assert report.plan_approved is False
     assert report.target_metric == "runout_extension"
     assert report.target_value == pytest.approx(0.2)
     assert report.best_result is not None

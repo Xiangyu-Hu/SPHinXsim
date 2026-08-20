@@ -106,7 +106,12 @@ from .replanning import (
     ReplanningRequest,
     StructuredReplanner,
 )
-from .service import AgentCAEAgentService, AgentServiceError, AgentServiceStatus
+from .service import (
+    AgentCAEAgentService,
+    AgentServiceError,
+    AgentServiceStatus,
+    CalibrationPlanSummary,
+)
 from .runtime import AgentRuntime, AgentRuntimeSettings
 from .extractors import (
     AnalysisExtractor,
@@ -146,6 +151,7 @@ from .facade import (
 __all__ = [
     "AgentAnalysis",
     "AgentCAEAgentService",
+    "CalibrationPlanSummary",
     "AgentPlan",
     "AgentRun",
     "AgentTask",

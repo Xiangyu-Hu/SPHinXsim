@@ -26,7 +26,7 @@ from .extractor_planner import (
 )
 from .models import utc_now
 from .runtime import AgentRuntime, AgentRuntimeSettings
-from .service import AgentServiceError, AgentServiceStatus
+from .service import CalibrationPlanSummary, AgentServiceError, AgentServiceStatus
 from .store import AgentTaskStore
 
 
@@ -60,6 +60,9 @@ class AgentCAEReport(BaseModel):
     user_prompt: str
     status: CalibrationWorkflowStatus
     succeeded: bool
+    plan_summary: CalibrationPlanSummary
+    plan_approved: bool
+    approved_at: datetime | None = None
     target_metric: str
     target_value: float
     target_tolerance: float = Field(..., ge=0.0)
@@ -92,6 +95,9 @@ class AgentCAEReport(BaseModel):
             user_prompt=result.user_prompt,
             status=result.status,
             succeeded=result.succeeded,
+            plan_summary=CalibrationPlanSummary.from_result(result),
+            plan_approved=result.plan_approved,
+            approved_at=result.approved_at,
             target_metric=objective.metric_name,
             target_value=objective.target_value,
             target_tolerance=objective.tolerance,

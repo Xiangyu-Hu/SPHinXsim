@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -24,6 +25,47 @@ class AgentServiceError(RuntimeError):
     """Raised when a lifecycle command is invalid for persisted Agent state."""
 
 
+class CalibrationPlanSummary(BaseModel):
+    """Stable user-facing summary of the approved scientific contract."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    case_name: str
+    generation_description: str
+    body_name: str
+    parameter_name: str
+    parameter_bounds: tuple[float, float]
+    parameter_unit: str
+    target_metric: str
+    target_value: float
+    target_tolerance: float = Field(..., ge=0.0)
+    target_unit: str
+    maximum_simulations: int = Field(..., ge=1)
+
+    @classmethod
+    def from_result(
+        cls,
+        result: CalibrationWorkflowResult,
+    ) -> "CalibrationPlanSummary":
+        definition = result.definition
+        calibration = definition.calibration
+        parameter = calibration.parameter
+        objective = calibration.objective
+        return cls(
+            case_name=definition.case_name,
+            generation_description=definition.generation_description,
+            body_name=definition.body_name,
+            parameter_name=parameter.input_field,
+            parameter_bounds=(parameter.lower_bound, parameter.upper_bound),
+            parameter_unit=parameter.unit,
+            target_metric=objective.metric_name,
+            target_value=objective.target_value,
+            target_tolerance=objective.tolerance,
+            target_unit=objective.unit,
+            maximum_simulations=calibration.maximum_iterations,
+        )
+
+
 class AgentServiceStatus(BaseModel):
     """Stable JSON-friendly status returned by the service and CLI."""
 
@@ -31,6 +73,11 @@ class AgentServiceStatus(BaseModel):
 
     workflow_id: str
     status: CalibrationWorkflowStatus
+    phase: str
+    plan_summary: CalibrationPlanSummary
+    plan_approved: bool
+    approved_at: datetime | None = None
+    case_prepared: bool
     awaiting_approval: bool
     approval_request: dict[str, Any] | None = None
     next_nodes: list[str] = Field(default_factory=list)
@@ -160,9 +207,22 @@ class AgentCAEAgentService:
             if isinstance(value, dict):
                 approval_request = value
         final = result.final_decision
+        if approval_request is not None:
+            phase = "awaiting_plan_approval"
+        elif result.status != CalibrationWorkflowStatus.RUNNING:
+            phase = result.status.value
+        elif not result.case_prepared:
+            phase = "plan_drafted"
+        else:
+            phase = "calibrating"
         return AgentServiceStatus(
             workflow_id=result.workflow_id,
             status=result.status,
+            phase=phase,
+            plan_summary=CalibrationPlanSummary.from_result(result),
+            plan_approved=result.plan_approved,
+            approved_at=result.approved_at,
+            case_prepared=result.case_prepared,
             awaiting_approval=approval_request is not None,
             approval_request=approval_request,
             next_nodes=list(snapshot.next),

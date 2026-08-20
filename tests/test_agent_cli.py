@@ -59,7 +59,14 @@ def test_agent_cli_start_status_cancel_across_processes(
     inspect_status = json.loads(inspected.stdout)
     cancel_status = json.loads(cancelled.stdout)
     assert start_status["awaiting_approval"] is True
-    assert start_status["approval_request"]["candidate_value"] == 0.0
+    assert start_status["phase"] == "awaiting_plan_approval"
+    assert start_status["plan_approved"] is False
+    assert start_status["case_prepared"] is False
+    assert start_status["approval_request"]["action"] == (
+        "approve_calibration_plan"
+    )
+    assert start_status["plan_summary"]["target_value"] == 0.2
+    assert start_status["plan_summary"]["parameter_bounds"] == [0.0, 40.0]
     assert inspect_status == start_status
     assert cancel_status["status"] == "cancelled"
     assert cancel_status["awaiting_approval"] is False
@@ -70,6 +77,34 @@ def test_agent_cli_start_status_cancel_across_processes(
     assert settings["planner_provider"] == "mock"
     assert settings["replanner_provider"] == "mock"
     assert settings["generation_provider"] == "mock"
+
+
+def test_agent_cli_prints_readable_plan_before_approval(
+    build_temp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SPHINXSIM_LLM_PROVIDER", "mock")
+    workspace = build_temp_path / f"agent_cli_plan_{uuid4().hex}"
+
+    completed = run_cli(
+        "agent",
+        "--workspace",
+        str(workspace),
+        "start",
+        "Calibrate a 2D column-collapse runout extension to 0.2 m.",
+        "--workflow-id",
+        "cli_readable_plan",
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "Phase: awaiting_plan_approval" in completed.stdout
+    assert "Plan:" in completed.stdout
+    assert "Simulation: column_collapse" in completed.stdout
+    assert "Parameter: friction_angle_degrees [0, 40] degree" in completed.stdout
+    assert "Target: runout_extension = 0.2 m" in completed.stdout
+    assert "Maximum simulations: 8" in completed.stdout
+    assert "Plan approved: no" in completed.stdout
+    assert "Case prepared: no" in completed.stdout
 
 
 def test_agent_cli_reports_unknown_workflow_without_traceback(

@@ -42,6 +42,11 @@ def test_service_runs_approval_lifecycle_to_convergence(build_temp_path: Path) -
         workflow_id="service_complete",
     )
     assert status.awaiting_approval is True
+    assert status.phase == "awaiting_plan_approval"
+    assert status.plan_approved is False
+    assert status.case_prepared is False
+    assert status.plan_summary.target_value == pytest.approx(0.2)
+    assert status.plan_summary.parameter_bounds == (0.0, 40.0)
     assert adapter.generate_calls == 0
     assert adapter.run_calls == 0
 
@@ -53,6 +58,10 @@ def test_service_runs_approval_lifecycle_to_convergence(build_temp_path: Path) -
     assert status.target_value == pytest.approx(0.2)
     assert status.best_absolute_error == pytest.approx(0.0)
     assert status.awaiting_approval is False
+    assert status.phase == "converged"
+    assert status.plan_approved is True
+    assert status.approved_at is not None
+    assert status.case_prepared is True
     assert adapter.run_calls == 4
 
 

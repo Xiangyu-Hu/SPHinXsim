@@ -55,7 +55,11 @@ def configure_agent_parser(subparsers, project_root: Path) -> None:
 
     for name, help_text, handler in (
         ("status", "Show persisted workflow status.", cmd_agent_status),
-        ("approve", "Approve the pending solver execution.", cmd_agent_approve),
+        (
+            "approve",
+            "Approve the complete Plan and run it to a terminal state.",
+            cmd_agent_approve,
+        ),
         ("resume", "Resume a non-approval checkpoint.", cmd_agent_resume),
         ("cancel", "Cancel the workflow.", cmd_agent_cancel),
     ):
@@ -280,14 +284,32 @@ def _print_status(status, *, as_json: bool) -> None:
         return
     print(f"Workflow ID: {status.workflow_id}")
     print(f"Status: {status.status.value}")
-    print(f"Target: {status.target_metric} = {status.target_value:g}")
+    print(f"Phase: {status.phase}")
+    print("Plan:")
+    print(f"  Simulation: {status.plan_summary.case_name}")
+    print(f"  Body: {status.plan_summary.body_name}")
+    bounds = status.plan_summary.parameter_bounds
+    print(
+        f"  Parameter: {status.plan_summary.parameter_name} "
+        f"[{bounds[0]:g}, {bounds[1]:g}] "
+        f"{status.plan_summary.parameter_unit}"
+    )
+    print(
+        f"  Target: {status.plan_summary.target_metric} = "
+        f"{status.plan_summary.target_value:g} "
+        f"{status.plan_summary.target_unit}"
+    )
+    print(f"  Tolerance: {status.plan_summary.target_tolerance:g}")
+    print(f"  Maximum simulations: {status.plan_summary.maximum_simulations}")
+    print(f"Plan approved: {'yes' if status.plan_approved else 'no'}")
+    print(f"Case prepared: {'yes' if status.case_prepared else 'no'}")
     print(f"Iterations: {status.iteration_count}")
     print(f"Replans: {status.replan_count}")
     if status.awaiting_approval and status.approval_request:
-        print("Awaiting approval: yes")
-        print(f"Candidate: {status.approval_request.get('candidate_value')}")
+        print("Awaiting Plan approval: yes")
+        print("Run the approve command to execute the complete Plan.")
     else:
-        print("Awaiting approval: no")
+        print("Awaiting Plan approval: no")
     if status.best_parameter_value is not None:
         print(f"Best parameter: {status.best_parameter_value:g}")
         print(f"Best metric: {status.best_metric_value:g}")

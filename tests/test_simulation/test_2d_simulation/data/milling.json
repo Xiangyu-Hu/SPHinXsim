@@ -1,10 +1,5 @@
 {
   "geometries": {
-    "system_domain": {
-      "upper_bound": [0.16, 0.08],
-      "lower_bound": [-0.16, -0.16]
-    },
-
     "global_resolution": {
       "particle_spacing": 0.0008
     },
@@ -39,10 +34,10 @@
           {
             "operation": "union",
             "type": "container_box",
-            "inner_lower_bound": [-0.10, -0.10],
-            "inner_upper_bound": [0.10, 0.05],
+            "inner_lower_bound": [-0.07, -0.08],
+            "inner_upper_bound": [0.13, 0.07],
             "thickness": 0.0032
-           }
+          }
         ]
       }
     ],
@@ -105,7 +100,7 @@
         "ductile_damage": {
           "enabled": true,
           "threshold_equivalent_plastic_strain": 0.15,
-          "critical_equivalent_plastic_strain": 0.50,
+          "critical_equivalent_plastic_strain": 0.5,
           "critical_damage": 1.0
         }
       }
@@ -126,17 +121,17 @@
       "material": {
         "type": "rigid_body"
       }
-    }    
+    }
   ],
 
-  "gravity": [0.0, -9.8],
+  "gravity": [0.0, -9.8e-3],
 
   "body_constraints": [
     {
       "body_name": "MillingTool",
       "type": "simbody",
       "mobilized_body": "planar",
-      "velocity": [0.0, -0.005],
+      "velocity": [0.0, -0.03],
       "angular_velocity": 2.0
     },
 
@@ -152,17 +147,9 @@
       "name": "ProcessingPiece",
       "variables": [
         {
-          "real_type": [
-            "Pressure",
-            "IntactFactor",
-            "HardeningFactor",
-            "Damage",
-            "Compression"
-          ],
+          "real_type": ["Pressure", "IntactFactor", "HardeningFactor", "Damage", "Compression"],
 
-          "vector_type": [
-            "HourglassStressDivergence"
-          ]
+          "vector_type": ["HourglassStressDivergence"]
         }
       ]
     },
@@ -171,19 +158,15 @@
       "name": "MillingTool",
       "variables": [
         {
-          "vector_type": [
-            "NormalDirection",
-            "Velocity"
-          ]
+          "vector_type": ["NormalDirection", "Velocity"]
         }
       ]
     }
-
   ],
 
   "solver_parameters": {
-    "end_time": 0.1,
-    "output_interval": 0.03,
+    "end_time": 1.0,
+    "output_interval": 0.01,
     "screen_interval": 100,
 
     "continuum_dynamics": {

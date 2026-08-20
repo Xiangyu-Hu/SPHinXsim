@@ -184,6 +184,57 @@ def test_complete_workflow_generates_runs_analyzes_and_converges(
     assert all(Path(item.case_path).is_file() for item in result.iterations)
 
 
+def test_plan_drafting_has_no_case_side_effects_and_preparation_is_explicit(
+    build_temp_path: Path,
+) -> None:
+    store = make_store(build_temp_path, "draft_then_prepare")
+    adapter = DeterministicArtifactAdapter()
+    workflow = DeterministicCalibrationWorkflow(
+        store,
+        MockColumnCollapseCalibrationPlanner(),
+        adapter,
+    )
+
+    result = workflow.draft_plan(
+        "Calibrate a 2D column-collapse runout extension to 0.2 m.",
+        workflow_id="draft_then_prepare_workflow",
+    )
+
+    assert result.case_prepared is False
+    assert result.definition.calibration.objective.target_value == pytest.approx(0.2)
+    assert adapter.generate_calls == 0
+    assert adapter.validate_calls == 0
+    assert not Path(result.baseline_case_path).exists()
+
+    prepared = workflow.prepare_case(result)
+
+    assert prepared.case_prepared is True
+    assert adapter.generate_calls == 1
+    assert adapter.validate_calls == 1
+    assert Path(prepared.baseline_case_path).is_file()
+    assert workflow.load(prepared.workflow_id).case_prepared is True
+
+
+def test_case_preparation_is_idempotent(build_temp_path: Path) -> None:
+    store = make_store(build_temp_path, "idempotent_prepare")
+    adapter = DeterministicArtifactAdapter()
+    workflow = DeterministicCalibrationWorkflow(
+        store,
+        MockColumnCollapseCalibrationPlanner(),
+        adapter,
+    )
+    result = workflow.draft_plan(
+        "Reach a runout extension of 0.2 m.",
+        workflow_id="idempotent_prepare_workflow",
+    )
+
+    workflow.prepare_case(result)
+    workflow.prepare_case(result)
+
+    assert adapter.generate_calls == 1
+    assert adapter.validate_calls == 1
+
+
 def test_workflow_persists_real_step_failure_context(build_temp_path: Path) -> None:
     store = make_store(build_temp_path, "failed_calibration")
     adapter = DeterministicArtifactAdapter(fail_run_number=2)

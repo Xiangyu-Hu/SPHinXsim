@@ -175,6 +175,7 @@ class CalibrationWorkflowResult(BaseModel):
     definition: CalibrationWorkflowDefinition
     status: CalibrationWorkflowStatus
     baseline_case_path: str
+    case_prepared: bool = False
     iterations: list[CalibrationIteration] = Field(default_factory=list)
     final_decision: CalibrationDecision | None = None
     error_message: str | None = None
@@ -236,6 +237,16 @@ class DeterministicCalibrationWorkflow:
         workflow_id: str | None = None,
     ) -> CalibrationWorkflowResult:
         """Create, generate, and validate one workflow before any simulation."""
+        result = self.draft_plan(user_prompt, workflow_id=workflow_id)
+        return self.prepare_case(result)
+
+    def draft_plan(
+        self,
+        user_prompt: str,
+        *,
+        workflow_id: str | None = None,
+    ) -> CalibrationWorkflowResult:
+        """Create and persist a validated Plan without producing case artifacts."""
         definition = self.planner.plan(user_prompt)
         definition.validate_tools(self.tool_registry)
         identifier = workflow_id or f"calibration_{uuid4().hex[:12]}"
@@ -263,35 +274,52 @@ class DeterministicCalibrationWorkflow:
             started_at=utc_now(),
         )
         self._save(result)
+        return result
+
+    def prepare_case(
+        self,
+        result: CalibrationWorkflowResult,
+    ) -> CalibrationWorkflowResult:
+        """Generate and validate the baseline case for an approved Plan."""
+        if result.status != CalibrationWorkflowStatus.RUNNING:
+            raise ValueError("case preparation requires a running workflow")
+        if result.case_prepared:
+            return result
 
         try:
             generated = self.command_adapter.generate(
-                definition.generation_description,
-                baseline,
+                result.definition.generation_description,
+                result.baseline_case_path,
                 timeout=self.command_timeout,
             )
-            self._save_command_logs(identifier, "generate", generated)
+            self._save_command_logs(result.workflow_id, "generate", generated)
             if not generated.succeeded:
                 return self.fail(
                     result,
                     generated.stderr.strip() or "SPHinXsim generate command failed.",
                 )
-            if not baseline.is_file():
+            if not Path(result.baseline_case_path).is_file():
                 return self.fail(
                     result,
                     "SPHinXsim generate command did not create the baseline JSON.",
                 )
 
             validated = self.command_adapter.validate(
-                baseline,
+                result.baseline_case_path,
                 timeout=self.command_timeout,
             )
-            self._save_command_logs(identifier, "validate_generated", validated)
+            self._save_command_logs(
+                result.workflow_id,
+                "validate_generated",
+                validated,
+            )
             if not validated.succeeded:
                 return self.fail(
                     result,
                     validated.stderr.strip() or "Generated configuration validation failed.",
                 )
+            result.case_prepared = True
+            self._save(result)
             return result
         except (CalibrationError, CLIInvocationError, OSError, ValueError) as exc:
             return self.fail(result, str(exc))

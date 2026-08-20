@@ -103,7 +103,7 @@ def test_mock_llm_real_cpp_calibration_converges(build_temp_path: Path) -> None:
     not real_langgraph_enabled(),
     reason="set SPHINXSIM_RUN_REAL_LANGGRAPH=1 to run the real C++ graph",
 )
-def test_approved_langgraph_real_cpp_calibration_converges(
+def test_single_approved_langgraph_real_cpp_calibration_converges(
     build_temp_path: Path,
 ) -> None:
     project_root = Path(__file__).resolve().parents[1]
@@ -136,14 +136,20 @@ def test_approved_langgraph_real_cpp_calibration_converges(
         },
         config,
     )
-    approvals = 0
-    while state.get("__interrupt__"):
-        approvals += 1
-        state = graph.invoke(Command(resume={"action": "approve"}), config)
+    assert state.get("__interrupt__")
+    assert state["__interrupt__"][0].value["action"] == (
+        "approve_calibration_plan"
+    )
+    assert not Path(workflow.load("real_approved_graph").baseline_case_path).exists()
+
+    state = graph.invoke(Command(resume={"action": "approve"}), config)
 
     result = workflow.load("real_approved_graph")
     assert result.status == CalibrationWorkflowStatus.CONVERGED
-    assert approvals == len(result.iterations)
+    assert not state.get("__interrupt__")
+    assert result.plan_approved is True
+    assert result.approved_at is not None
+    assert result.case_prepared is True
     assert result.final_decision is not None
     assert result.final_decision.best_absolute_error <= 0.005
     assert len(list(graph.get_state_history(config))) >= 10

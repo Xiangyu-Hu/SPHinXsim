@@ -123,6 +123,22 @@ from .declarative_extractors import (
     PositionOutputSpec,
     PositionReduction,
 )
+from .extractor_planner import (
+    EXTRACTOR_PLANNER_SYSTEM_PROMPT,
+    ExtractorPlannerClient,
+    ExtractorPlannerRequest,
+    ExtractorPlanningContext,
+    ExtractorPlanningError,
+    MockExtractorPlannerClient,
+    NvidiaExtractorPlannerClient,
+    StructuredExtractorPlanner,
+)
+from .facade import (
+    AgentCAE,
+    AgentCAEBestResult,
+    AgentCAEIterationReport,
+    AgentCAEReport,
+)
 
 __all__ = [
     "AgentAnalysis",
@@ -237,4 +253,16 @@ __all__ = [
     "create_friction_angle_column_collapse_task",
     "create_friction_angle_sweep_task",
     "create_runout_analysis_column_collapse_task",
+    "EXTRACTOR_PLANNER_SYSTEM_PROMPT",
+    "ExtractorPlannerClient",
+    "ExtractorPlannerRequest",
+    "ExtractorPlanningContext",
+    "ExtractorPlanningError",
+    "MockExtractorPlannerClient",
+    "NvidiaExtractorPlannerClient",
+    "StructuredExtractorPlanner",
+    "AgentCAE",
+    "AgentCAEBestResult",
+    "AgentCAEIterationReport",
+    "AgentCAEReport",
 ]

@@ -8,7 +8,15 @@ import sys
 from pathlib import Path
 from uuid import uuid4
 
-from .agent import AgentRuntime, AgentRuntimeSettings, AgentServiceError
+from .agent import (
+    AgentCAE,
+    AgentRuntime,
+    AgentRuntimeSettings,
+    AgentServiceError,
+    ExtractorPlanningContext,
+    MockExtractorPlannerClient,
+    NvidiaExtractorPlannerClient,
+)
 
 
 def configure_agent_parser(subparsers, project_root: Path) -> None:
@@ -54,6 +62,54 @@ def configure_agent_parser(subparsers, project_root: Path) -> None:
         command.add_argument("--json", action="store_true")
         command.set_defaults(func=handler)
 
+    report = commands.add_parser("report", help="Build an auditable workflow report.")
+    report.add_argument("workflow_id")
+    report.add_argument("--json", action="store_true")
+    report.set_defaults(func=cmd_agent_report)
+
+    extractor = commands.add_parser(
+        "extractor",
+        help="Plan and run safe declarative VTP extractors.",
+    )
+    extractor_commands = extractor.add_subparsers(
+        dest="extractor_command",
+        required=True,
+    )
+    plan_extractor = extractor_commands.add_parser(
+        "plan",
+        help="Ask a structured planner for one data-only extractor definition.",
+    )
+    plan_extractor.add_argument("request")
+    plan_extractor.add_argument(
+        "--config",
+        required=True,
+        help="Validated case JSON used to derive body and dimension allow-lists.",
+    )
+    plan_extractor.add_argument("--provider", choices=("mock", "nvidia"), default="nvidia")
+    plan_extractor.add_argument(
+        "--response-file",
+        help="Mock provider JSON response used for deterministic evaluation.",
+    )
+    plan_extractor.add_argument("--json", action="store_true")
+    plan_extractor.set_defaults(func=cmd_agent_extractor_plan)
+
+    list_extractors = extractor_commands.add_parser(
+        "list",
+        help="List persisted safe extractor definitions.",
+    )
+    list_extractors.add_argument("--json", action="store_true")
+    list_extractors.set_defaults(func=cmd_agent_extractor_list)
+
+    analyze = extractor_commands.add_parser(
+        "analyze",
+        help="Apply a persisted extractor to existing SPHinXsim artifacts.",
+    )
+    analyze.add_argument("extractor_id")
+    analyze.add_argument("config_path")
+    analyze.add_argument("output_dir")
+    analyze.add_argument("--json", action="store_true")
+    analyze.set_defaults(func=cmd_agent_extractor_analyze)
+
 
 def cmd_agent_start(args: argparse.Namespace) -> int:
     runtime = AgentRuntime(args.agent_project_root, args.workspace)
@@ -93,6 +149,95 @@ def cmd_agent_resume(args: argparse.Namespace) -> int:
 
 def cmd_agent_cancel(args: argparse.Namespace) -> int:
     return _run_existing(args, "cancel", execution_enabled=False)
+
+
+def cmd_agent_report(args: argparse.Namespace) -> int:
+    facade = AgentCAE(args.agent_project_root, args.workspace)
+    try:
+        report = facade.report(args.workflow_id)
+        if args.json:
+            print(report.model_dump_json(indent=2))
+        else:
+            print(f"Workflow ID: {report.workflow_id}")
+            print(f"Status: {report.status.value}")
+            print(f"Target: {report.target_metric} = {report.target_value:g}")
+            print(f"Iterations: {len(report.iterations)}")
+            if report.best_result is not None:
+                print(f"Best parameter: {report.best_result.parameter_value:g}")
+                print(f"Best metric: {report.best_result.metric_value:g}")
+                print(f"Best absolute error: {report.best_result.absolute_error:g}")
+        return _status_code(report.status.value)
+    except (AgentServiceError, OSError, ValueError) as exc:
+        print(f"Agent report failed: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_agent_extractor_plan(args: argparse.Namespace) -> int:
+    facade = AgentCAE(args.agent_project_root, args.workspace)
+    try:
+        if args.provider == "mock":
+            if not args.response_file:
+                raise AgentServiceError(
+                    "mock extractor planning requires --response-file"
+                )
+            raw = json.loads(Path(args.response_file).read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                raise AgentServiceError("mock extractor response must be a JSON object")
+            client = MockExtractorPlannerClient(raw)
+        else:
+            client = NvidiaExtractorPlannerClient.from_environment()
+        context = ExtractorPlanningContext.from_case(args.config)
+        spec = facade.plan_extractor(args.request, context, client)
+        if args.json:
+            print(spec.model_dump_json(indent=2))
+        else:
+            print(f"Extractor ID: {spec.extractor_id}")
+            print(f"Body: {spec.body_name}")
+            print(f"Outputs: {len(spec.outputs)}")
+            print(f"Fingerprint: {spec.fingerprint}")
+        return 0
+    except (AgentServiceError, OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"Agent extractor plan failed: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_agent_extractor_list(args: argparse.Namespace) -> int:
+    facade = AgentCAE(args.agent_project_root, args.workspace)
+    try:
+        catalog = facade.load_extractors()
+        if args.json:
+            print(catalog.model_dump_json(indent=2))
+        elif not catalog.extractors:
+            print("No extractors are registered.")
+        else:
+            for spec in catalog.extractors:
+                print(f"{spec.extractor_id}: {spec.description}")
+        return 0
+    except (OSError, ValueError) as exc:
+        print(f"Agent extractor list failed: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_agent_extractor_analyze(args: argparse.Namespace) -> int:
+    facade = AgentCAE(args.agent_project_root, args.workspace)
+    try:
+        result = facade.analyze(
+            args.extractor_id,
+            args.config_path,
+            args.output_dir,
+        )
+        if args.json:
+            print(result.model_dump_json(indent=2))
+        else:
+            print(f"Extractor ID: {result.metric}")
+            print(f"State file: {result.state_file}")
+            print(f"Particles: {result.particle_count}")
+            for name, value in sorted(result.values.items()):
+                print(f"{name}: {value:g} {result.unit}")
+        return 0
+    except (OSError, ValueError) as exc:
+        print(f"Agent extractor analyze failed: {exc}", file=sys.stderr)
+        return 1
 
 
 def _run_existing(

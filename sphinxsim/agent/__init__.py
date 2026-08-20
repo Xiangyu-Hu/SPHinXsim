@@ -104,13 +104,20 @@ from .replanning import (
     ReplanningRequest,
     StructuredReplanner,
 )
+from .service import AgentCAEAgentService, AgentServiceError, AgentServiceStatus
+from .runtime import AgentRuntime, AgentRuntimeSettings
 
 __all__ = [
     "AgentAnalysis",
+    "AgentCAEAgentService",
     "AgentPlan",
     "AgentRun",
     "AgentTask",
     "AgentTaskStore",
+    "AgentServiceError",
+    "AgentServiceStatus",
+    "AgentRuntime",
+    "AgentRuntimeSettings",
     "AnalysisError",
     "AnalysisMetric",
     "AnalysisSpec",

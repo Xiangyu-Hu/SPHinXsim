@@ -6,7 +6,6 @@ from datetime import datetime
 from enum import Enum
 import json
 import math
-import os
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import uuid4
@@ -474,14 +473,7 @@ class DeterministicCalibrationWorkflow:
 
     def _save(self, result: CalibrationWorkflowResult) -> Path:
         path = self._result_path(result.workflow_id)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(".json.tmp")
-        try:
-            temporary.write_text(result.model_dump_json(indent=2), encoding="utf-8")
-            os.replace(temporary, path)
-        except OSError:
-            temporary.unlink(missing_ok=True)
-            raise
+        self.store._atomic_write(path, result.model_dump_json(indent=2))
         return path
 
     def _save_command_logs(

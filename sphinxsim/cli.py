@@ -2070,7 +2070,7 @@ COMPLETION_SCRIPTS = {
     local cur opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="generate validate update run preview explore shell --help --version --generate-completion"
+    opts="generate validate update run preview explore shell agent --help --version --generate-completion"
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
     return 0
 }
@@ -2087,6 +2087,7 @@ _sphinxsim() {
         'preview:Render an interactive geometry/BC preview of a JSON config file'
         'explore:Ask schema/functionality questions using LLM'
         'shell:Interactive shell for config workflow'
+        'agent:Manage durable AgentCAE workflows'
     )
     _describe 'sphinxsim commands' subcmds
 }
@@ -2098,7 +2099,8 @@ complete -c sphinxsim -f -a "update" -d "Update existing simulation config"
 complete -c sphinxsim -f -a "run" -d "Run simulation from JSON config"
 complete -c sphinxsim -f -a "preview" -d "Render interactive geometry/BC preview"
 complete -c sphinxsim -f -a "explore" -d "Ask schema/functionality questions"
-complete -c sphinxsim -f -a "shell" -d "Interactive shell workflow" """
+complete -c sphinxsim -f -a "shell" -d "Interactive shell workflow"
+complete -c sphinxsim -f -a "agent" -d "Manage durable AgentCAE workflows" """
 }
 
 
@@ -2230,6 +2232,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Interactive shell for config load/modify/validate workflow.",
     )
     shell.set_defaults(func=cmd_shell)
+
+    # agent
+    from sphinxsim.agent_cli import configure_agent_parser
+
+    configure_agent_parser(subparsers, PROJECT_ROOT)
 
     return parser
 

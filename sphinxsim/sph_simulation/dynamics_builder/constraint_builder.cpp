@@ -34,7 +34,7 @@ void ConstraintBuilder::addConstraint(
     if (sph_body_config.is_moving_ == false)
     {
         throw std::runtime_error(
-            "ConstraintBuilder::ConstraintBuilder: constrained body must be moving: ");
+            "ConstraintBuilder::ConstraintBuilder: constrained body must be moving: "+ real_body.Name());
     };
 
     const std::string type = config.at("type").get<std::string>();

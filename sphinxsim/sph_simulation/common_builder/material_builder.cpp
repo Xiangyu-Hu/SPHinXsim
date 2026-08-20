@@ -118,9 +118,12 @@ void MaterialBuilder::addMatterMaterial(
     if (type == "plastic_continuum")
     {
         Real density = scaling_config.jsonToReal(config.at("density"), "Density");
-        Real sound_speed = scaling_config.jsonToReal(config.at("sound_speed"), "Speed");
         Real youngs_modulus = scaling_config.jsonToReal(config.at("youngs_modulus"), "Stress");
         Real poisson_ratio = scaling_config.jsonToReal(config.at("poisson_ratio"), "Dimensionless");
+        Real sound_speed = config.contains("sound_speed")
+                               ? scaling_config.jsonToReal(config.at("sound_speed"), "Speed")
+                               : sqrt(youngs_modulus /
+                                      (density * Real(3) * (Real(1) - Real(2) * poisson_ratio)));
         Real friction_angle = scaling_config.jsonToReal(config.at("friction_angle"), "Dimensionless");
         Real cohesion = config.contains("cohesion")
                             ? scaling_config.jsonToReal(config.at("cohesion"), "Stress")

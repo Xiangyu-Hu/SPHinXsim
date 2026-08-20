@@ -53,12 +53,11 @@
       "name": "GranularBody",
       "material": {
         "type": "plastic_continuum",
-        "density": 1600.0,
-        "sound_speed": 80.0,
+        "density": 2040.0,
         "youngs_modulus": 5840000.0,
         "poisson_ratio": 0.3,
-        "friction_angle": 0.3,
-        "cohesion": 50.0,
+        "friction_angle": 0.382227106186758,
+        "cohesion": 0.0,
         "dilatancy_angle": 0.0
       }
     }

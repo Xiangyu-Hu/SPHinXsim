@@ -227,7 +227,6 @@ class TestPreviewMaterialInformation:
         plastic = MaterialConfig(
             type=MaterialType.PLASTIC_CONTINUUM,
             density=2040.0,
-            sound_speed=48.0,
             youngs_modulus=5.8e6,
             poisson_ratio=0.3,
             friction_angle=math.radians(30.0),
@@ -247,10 +246,28 @@ class TestPreviewMaterialInformation:
         j2_rows = dict(collect_preview_body_information(self._config(j2))[0]["rows"])
 
         assert plastic_rows["Dilatancy angle"] == "8.0°"
+        expected_sound_speed = math.sqrt(5.8e6 / (2040.0 * 3.0 * (1.0 - 2.0 * 0.3)))
+        assert plastic_rows["Sound speed"] == f"{expected_sound_speed:g} m/s"
         assert "Yield stress" not in plastic_rows
         assert "Dilatancy angle" not in j2_rows
         assert "Friction angle" not in j2_rows
         assert j2_rows["Yield stress"] == "1 kPa" or j2_rows["Yield stress"] == "1000 Pa"
+
+    def test_plastic_continuum_displays_explicit_sound_speed_override(self):
+        from sphinxsim.config.schemas import MaterialConfig, MaterialType
+        from sphinxsim.visualization.annotations import collect_preview_body_information
+
+        material = MaterialConfig(
+            type=MaterialType.PLASTIC_CONTINUUM,
+            density=2040.0,
+            sound_speed=42.0,
+            youngs_modulus=5.8e6,
+            poisson_ratio=0.3,
+            friction_angle=math.radians(30.0),
+        )
+
+        rows = dict(collect_preview_body_information(self._config(material))[0]["rows"])
+        assert rows["Sound speed"] == "42 m/s"
 
     def test_particle_spacing_is_displayed_from_global_resolution(self):
         from sphinxsim.visualization.annotations import particle_resolution_label

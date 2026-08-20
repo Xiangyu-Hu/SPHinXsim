@@ -15,7 +15,6 @@ from sphinxsim.config.update_patch import UpdatePatch
 from sphinxsim.llm.common import (
     BODY_TYPE_RULES,
     apply_explicit_instruction_overrides,
-    apply_plastic_sound_speed_formula,
     apply_stl_geometry_overrides,
     apply_shape_rename,
     coerce_simulation_type,
@@ -308,7 +307,6 @@ class NvidiaNIMLLM:
         merged = apply_explicit_instruction_overrides(merged, description)
         merged = self._sanitize_config_dict(merged)
         merged = suppress_implicit_plastic_observers(merged, description)
-        merged = apply_plastic_sound_speed_formula(merged)
         try:
             return SimulationConfig(**merged)
         except ValidationError as exc:
@@ -330,7 +328,6 @@ class NvidiaNIMLLM:
                 retried = apply_explicit_instruction_overrides(retried, description)
                 retried = self._sanitize_config_dict(retried)
                 retried = suppress_implicit_plastic_observers(retried, description)
-                retried = apply_plastic_sound_speed_formula(retried)
                 try:
                     validated = SimulationConfig(**retried)
                     report_llm_repair(merged, retried)
@@ -349,7 +346,6 @@ class NvidiaNIMLLM:
             repaired = apply_explicit_instruction_overrides(repaired, description)
             repaired = self._sanitize_config_dict(repaired)
             repaired = suppress_implicit_plastic_observers(repaired, description)
-            repaired = apply_plastic_sound_speed_formula(repaired)
             return SimulationConfig(**repaired)
 
     def update(self, existing: SimulationConfig, description: str) -> SimulationConfig:

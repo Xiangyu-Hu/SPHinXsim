@@ -640,15 +640,14 @@ class MaterialConfig(BaseModel):
         elif self.type == MaterialType.PLASTIC_CONTINUUM:
             required = (
                 self.density,
-                self.sound_speed,
                 self.youngs_modulus,
                 self.poisson_ratio,
                 self.friction_angle,
             )
             if any(v is None for v in required):
                 raise ValueError(
-                    "plastic_continuum requires density, sound_speed, youngs_modulus, "
-                    "poisson_ratio and friction_angle"
+                    "plastic_continuum requires density, youngs_modulus, poisson_ratio "
+                    "and friction_angle"
                 )
             assert self.poisson_ratio is not None
             assert self.friction_angle is not None

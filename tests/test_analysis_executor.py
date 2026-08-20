@@ -16,6 +16,9 @@ from sphinxsim.agent import (
     StepStatus,
     TaskStatus,
     create_runout_analysis_column_collapse_task,
+    build_builtin_extractor_registry,
+    DeclarativeExtractorCatalog,
+    DeclarativeExtractorSpec,
 )
 from sphinxsim.services import CLICommandResult
 
@@ -159,3 +162,43 @@ def test_missing_vtp_analysis_can_be_retried_without_rerunning_solver(
     assert analysis.status == AnalysisStatus.COMPLETED
     assert analysis.attempt_count == 2
     assert analysis.attempt_history[0]["status"] == "failed"
+
+
+def test_executor_dispatches_compiled_declarative_extractor(
+    store: AgentTaskStore,
+) -> None:
+    task, plan = create_runout_analysis_column_collapse_task(
+        store,
+        task_id="task_declarative_extractor",
+    )
+    plan.steps[-1].parameters["analysis_spec"] = {"metric": "granular_extent"}
+    store.save_plan(task.task_id, plan)
+    spec = DeclarativeExtractorSpec(
+        extractor_id="granular_extent",
+        description="Extract final granular coordinate bounds.",
+        body_name="GranularBody",
+        outputs=[
+            {"output_name": "minimum_x", "component_index": 0, "reduction": "minimum"},
+            {"output_name": "maximum_x", "component_index": 0, "reduction": "maximum"},
+            {"output_name": "maximum_y", "component_index": 1, "reduction": "maximum"},
+        ],
+    )
+    registry = DeclarativeExtractorCatalog(extractors=[spec]).build_registry(
+        build_builtin_extractor_registry()
+    )
+
+    result = StaticPlanExecutor(
+        store,
+        ArtifactWritingAdapter(),
+        extractor_registry=registry,
+    ).execute(task.task_id)
+
+    assert result.succeeded is True
+    analysis = store.load_analysis(task.task_id, "run_001", "analysis_001")
+    assert analysis.metrics["metric"] == "granular_extent"
+    assert analysis.metrics["values"] == {
+        "minimum_x": pytest.approx(0.1),
+        "maximum_x": pytest.approx(0.4),
+        "maximum_y": pytest.approx(0.05),
+    }
+    assert analysis.metrics["extractor_fingerprint"] == spec.fingerprint

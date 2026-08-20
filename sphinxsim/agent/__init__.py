@@ -106,6 +106,23 @@ from .replanning import (
 )
 from .service import AgentCAEAgentService, AgentServiceError, AgentServiceStatus
 from .runtime import AgentRuntime, AgentRuntimeSettings
+from .extractors import (
+    AnalysisExtractor,
+    ExtractorDefinition,
+    ExtractorRegistry,
+    ExtractorRegistryError,
+    build_builtin_extractor_registry,
+)
+from .declarative_extractors import (
+    CompiledPositionExtractor,
+    DeclarativeExtractorCatalog,
+    DeclarativeExtractorCompiler,
+    DeclarativeExtractorInvocation,
+    DeclarativeExtractorResult,
+    DeclarativeExtractorSpec,
+    PositionOutputSpec,
+    PositionReduction,
+)
 
 __all__ = [
     "AgentAnalysis",
@@ -119,6 +136,7 @@ __all__ = [
     "AgentRuntime",
     "AgentRuntimeSettings",
     "AnalysisError",
+    "AnalysisExtractor",
     "AnalysisMetric",
     "AnalysisSpec",
     "AnalysisStatus",
@@ -138,12 +156,21 @@ __all__ = [
     "CalibrationWorkflowDefinition",
     "CalibrationWorkflowResult",
     "CalibrationWorkflowStatus",
+    "CompiledPositionExtractor",
     "CapabilityRegistry",
     "DEFAULT_COLUMN_COLLAPSE_CONFIG",
     "DeterministicCalibrationWorkflow",
+    "DeclarativeExtractorCatalog",
+    "DeclarativeExtractorCompiler",
+    "DeclarativeExtractorInvocation",
+    "DeclarativeExtractorResult",
+    "DeclarativeExtractorSpec",
     "FrictionAngleSweepAnalyzer",
     "FrictionAngleSweepResult",
     "FrictionSweepSample",
+    "ExtractorDefinition",
+    "ExtractorRegistry",
+    "ExtractorRegistryError",
     "FrontMethod",
     "InitialFrontSource",
     "KnowledgeDocument",
@@ -161,6 +188,8 @@ __all__ = [
     "PlannerContextBuilder",
     "PlannerEvidence",
     "PositionSummary",
+    "PositionOutputSpec",
+    "PositionReduction",
     "RuleBasedIntentResolver",
     "RetrievedKnowledge",
     "ReplanAction",
@@ -198,6 +227,7 @@ __all__ = [
     "ParameterSpec",
     "ToolRegistry",
     "build_builtin_tool_registry",
+    "build_builtin_extractor_registry",
     "build_capability_registry",
     "build_default_knowledge_base",
     "build_calibration_graph",

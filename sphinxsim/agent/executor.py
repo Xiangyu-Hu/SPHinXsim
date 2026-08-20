@@ -14,8 +14,14 @@ from .analysis import (
     AnalysisSpec,
     FrictionAngleSweepAnalyzer,
     RunoutAnalyzer,
+    RunoutResult,
 )
 from .case_tools import CaseWorkspace
+from .extractors import (
+    ExtractorRegistry,
+    ExtractorRegistryError,
+    build_builtin_extractor_registry,
+)
 from .models import (
     AgentAnalysis,
     AgentPlan,
@@ -103,6 +109,7 @@ class StaticPlanExecutor:
         command_timeout: float | None = None,
         case_workspace: CaseWorkspace | None = None,
         runout_analyzer: RunoutAnalyzer | None = None,
+        extractor_registry: ExtractorRegistry | None = None,
         sweep_analyzer: FrictionAngleSweepAnalyzer | None = None,
     ) -> None:
         self.store = store
@@ -113,7 +120,13 @@ class StaticPlanExecutor:
             store.root,
             source_root=source_root,
         )
-        self.runout_analyzer = runout_analyzer or RunoutAnalyzer()
+        if extractor_registry is not None and runout_analyzer is not None:
+            raise ValueError(
+                "provide extractor_registry or runout_analyzer, not both"
+            )
+        self.extractor_registry = extractor_registry or build_builtin_extractor_registry(
+            runout_analyzer=runout_analyzer
+        )
         self.sweep_analyzer = sweep_analyzer or FrictionAngleSweepAnalyzer()
 
     def execute(self, task_id: str) -> PlanExecutionResult:
@@ -456,13 +469,12 @@ class StaticPlanExecutor:
             self.store.save_run(run)
 
         try:
-            spec = AnalysisSpec.model_validate(raw_spec)
-            result = self.runout_analyzer.analyze(
+            result = self.extractor_registry.analyze(
                 config_path,
                 run.output_dir,
-                spec,
+                raw_spec,
             )
-        except (AnalysisError, ValueError) as exc:
+        except (AnalysisError, ExtractorRegistryError, ValueError) as exc:
             analysis.finish(
                 AnalysisStatus.FAILED,
                 error_message=str(exc),
@@ -474,13 +486,17 @@ class StaticPlanExecutor:
         analysis.finish(AnalysisStatus.COMPLETED, metrics=metrics)
         self.store.save_analysis(analysis)
         artifact = self.store.analysis_path(task.task_id, run_id, analysis_id)
-        return _StepExecutionResult(
-            succeeded=True,
-            message=(
+        if isinstance(result, RunoutResult):
+            summary = (
                 "Runout analysis completed: "
                 f"final_front={result.final_front:.12g} {result.unit}, "
                 f"runout_extension={result.runout_extension:.12g} {result.unit}."
-            ),
+            )
+        else:
+            summary = f"Analysis extractor {raw_spec['metric']} completed successfully."
+        return _StepExecutionResult(
+            succeeded=True,
+            message=summary,
             artifacts=(str(artifact),),
         )
 

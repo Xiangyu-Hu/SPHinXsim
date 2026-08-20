@@ -183,7 +183,7 @@
 
   "solver_parameters": {
     "end_time": 0.1,
-    "output_interval": 0.01,
+    "output_interval": 0.03,
     "screen_interval": 100,
 
     "continuum_dynamics": {

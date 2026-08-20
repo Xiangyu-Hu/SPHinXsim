@@ -46,7 +46,8 @@ def test_real_shell_start_report_status_and_cancel_without_cpp_solver(
     cancelled = reopened.cancel("product_lifecycle")
 
     assert started.awaiting_approval is True
-    assert started.approval_request["candidate_value"] == 0.0
+    assert started.approval_request["action"] == "approve_calibration_plan"
+    assert started.approval_request["target_value"] == 0.2
     assert report.status.value == "running"
     assert report.best_result is None
     assert persisted == started

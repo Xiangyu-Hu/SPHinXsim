@@ -59,14 +59,27 @@ class CalibrationGraph:
         self.replanner = replanner
         self.replanning_policy = replanning_policy or BoundedReplanningPolicy()
 
-    def initialize(self, state: CalibrationGraphState) -> CalibrationGraphState:
+    def draft_plan(self, state: CalibrationGraphState) -> CalibrationGraphState:
         if "workflow_result" in state:
             return {}
-        result = self.workflow.initialize(
+        result = self.workflow.draft_plan(
             state["user_prompt"],
             workflow_id=state["workflow_id"],
         )
         return {"workflow_result": result.model_dump(mode="json")}
+
+    def prepare_case(self, state: CalibrationGraphState) -> CalibrationGraphState:
+        result = self._result(state)
+        try:
+            result = self.workflow.prepare_case(result)
+        except (OSError, ValueError) as exc:
+            result = self.workflow.fail(result, str(exc))
+        update: CalibrationGraphState = {
+            "workflow_result": result.model_dump(mode="json")
+        }
+        if result.status == CalibrationWorkflowStatus.FAILED:
+            update["failed_node"] = "prepare_case"
+        return update
 
     def decide(self, state: CalibrationGraphState) -> CalibrationGraphState:
         result = self._result(state)
@@ -180,20 +193,28 @@ class CalibrationGraph:
             ],
         )
 
-    def request_approval(self, state: CalibrationGraphState) -> CalibrationGraphState:
-        """Pause before an expensive simulation and apply the user's decision."""
+    def request_plan_approval(
+        self,
+        state: CalibrationGraphState,
+    ) -> CalibrationGraphState:
+        """Pause once before any case generation or simulation side effects."""
         result = self._result(state)
-        decision = state.get("decision") or {}
+        calibration = result.definition.calibration
+        parameter = calibration.parameter
+        objective = calibration.objective
         response = interrupt(
             {
-                "action": "run_calibration_candidate",
+                "action": "approve_calibration_plan",
                 "workflow_id": result.workflow_id,
-                "iteration": len(result.iterations) + 1,
-                "candidate_value": decision.get("candidate_value"),
-                "parameter_unit": result.definition.calibration.parameter.unit,
-                "target_metric": result.definition.calibration.objective.metric_name,
-                "target_value": result.definition.calibration.objective.target_value,
-                "message": "Approve the next real SPHinXsim simulation.",
+                "case_name": result.definition.case_name,
+                "parameter_name": parameter.input_field,
+                "parameter_bounds": [parameter.lower_bound, parameter.upper_bound],
+                "parameter_unit": parameter.unit,
+                "target_metric": objective.metric_name,
+                "target_value": objective.target_value,
+                "target_tolerance": objective.tolerance,
+                "maximum_simulations": calibration.maximum_iterations,
+                "message": "Approve the complete calibration Plan.",
             }
         )
         approved = response is True or (
@@ -207,15 +228,31 @@ class CalibrationGraph:
             "approved": approved,
             "response": response if isinstance(response, dict) else {"value": response},
         }
-        if not approved:
+        if approved:
+            result = self.workflow.approve_plan(result)
+        else:
             result = self.workflow.cancel(
                 result,
-                "The user rejected the next SPHinXsim simulation.",
+                "The user rejected the calibration Plan.",
             )
         return {
             "workflow_result": result.model_dump(mode="json"),
             "approval": approval,
         }
+
+    def route_after_draft(self, state: CalibrationGraphState) -> str:
+        result = self._result(state)
+        if result.status != CalibrationWorkflowStatus.RUNNING:
+            return END
+        return "request_plan_approval" if self.require_approval else "prepare_case"
+
+    def route_after_preparation(self, state: CalibrationGraphState) -> str:
+        result = self._result(state)
+        if result.status == CalibrationWorkflowStatus.FAILED and self.replanner:
+            return "replan"
+        if result.status != CalibrationWorkflowStatus.RUNNING:
+            return END
+        return "decide"
 
     def route_after_decision(self, state: CalibrationGraphState) -> str:
         result = self._result(state)
@@ -225,7 +262,7 @@ class CalibrationGraph:
             return END
         decision = state.get("decision")
         if decision and decision.get("status") == CalibrationDecisionStatus.NEXT.value:
-            return "request_approval" if self.require_approval else "execute_candidate"
+            return "execute_candidate"
         return END
 
     def route_after_candidate(self, state: CalibrationGraphState) -> str:
@@ -237,15 +274,15 @@ class CalibrationGraph:
     def route_after_replan(self, state: CalibrationGraphState) -> str:
         route = state.get("replan_route")
         if route == ReplanAction.RETRY_CANDIDATE.value:
-            return "request_approval" if self.require_approval else "execute_candidate"
+            return "execute_candidate"
         if route == ReplanAction.REVISE_PARAMETER_BOUNDS.value:
             return "decide"
         return END
 
-    def route_after_approval(self, state: CalibrationGraphState) -> str:
+    def route_after_plan_approval(self, state: CalibrationGraphState) -> str:
         result = self._result(state)
         if result.status == CalibrationWorkflowStatus.RUNNING:
-            return "execute_candidate"
+            return "prepare_case"
         return END
 
     @staticmethod
@@ -262,15 +299,20 @@ class CalibrationGraph:
         interrupt_after: list[str] | None = None,
     ) -> Any:
         builder = StateGraph(CalibrationGraphState)
-        builder.add_node("initialize", self.initialize)
+        builder.add_node("draft_plan", self.draft_plan)
+        builder.add_node("request_plan_approval", self.request_plan_approval)
+        builder.add_node("prepare_case", self.prepare_case)
         builder.add_node("decide", self.decide)
-        builder.add_node("request_approval", self.request_approval)
         builder.add_node("execute_candidate", self.execute_candidate)
         builder.add_node("replan", self.replan)
-        builder.add_edge(START, "initialize")
-        builder.add_edge("initialize", "decide")
+        builder.add_edge(START, "draft_plan")
+        builder.add_conditional_edges("draft_plan", self.route_after_draft)
+        builder.add_conditional_edges(
+            "request_plan_approval",
+            self.route_after_plan_approval,
+        )
+        builder.add_conditional_edges("prepare_case", self.route_after_preparation)
         builder.add_conditional_edges("decide", self.route_after_decision)
-        builder.add_conditional_edges("request_approval", self.route_after_approval)
         builder.add_conditional_edges("execute_candidate", self.route_after_candidate)
         builder.add_conditional_edges("replan", self.route_after_replan)
         return builder.compile(

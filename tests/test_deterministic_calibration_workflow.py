@@ -432,7 +432,7 @@ def test_langgraph_resumes_after_candidate_checkpoint_without_rerun(
     assert len(workflow.load("langgraph_resume_workflow").iterations) == 2
 
 
-def test_langgraph_requires_approval_before_solver_and_can_cancel(
+def test_langgraph_approves_plan_once_before_any_side_effects(
     build_temp_path: Path,
 ) -> None:
     store = make_store(build_temp_path, "langgraph_approval")
@@ -457,16 +457,58 @@ def test_langgraph_requires_approval_before_solver_and_can_cancel(
         config,
     )
 
+    assert adapter.generate_calls == 0
+    assert adapter.validate_calls == 0
     assert adapter.run_calls == 0
-    assert paused["__interrupt__"][0].value["candidate_value"] == pytest.approx(0.0)
+    request = paused["__interrupt__"][0].value
+    assert request["action"] == "approve_calibration_plan"
+    assert request["target_value"] == pytest.approx(0.2)
+    assert request["parameter_bounds"] == [0.0, 40.0]
 
-    graph.invoke(Command(resume={"action": "approve"}), config)
-    assert adapter.run_calls == 1
+    final = graph.invoke(Command(resume={"action": "approve"}), config)
+    result = workflow.load("langgraph_approval_workflow")
+    assert adapter.generate_calls == 1
+    assert adapter.run_calls == 4
+    assert result.plan_approved is True
+    assert result.approved_at is not None
+    assert result.status == CalibrationWorkflowStatus.CONVERGED
+    assert not final.get("__interrupt__")
+    assert final["workflow_result"]["status"] == "converged"
+
+
+def test_langgraph_can_reject_plan_without_case_side_effects(
+    build_temp_path: Path,
+) -> None:
+    store = make_store(build_temp_path, "langgraph_plan_rejection")
+    adapter = DeterministicArtifactAdapter()
+    workflow = DeterministicCalibrationWorkflow(
+        store,
+        MockColumnCollapseCalibrationPlanner(),
+        adapter,
+    )
+    graph = build_calibration_graph(
+        workflow,
+        checkpointer=InMemorySaver(),
+        require_approval=True,
+    )
+    config = {"configurable": {"thread_id": "thread_plan_rejection"}}
+    graph.invoke(
+        {
+            "user_prompt": "Calibrate a column collapse.",
+            "workflow_id": "langgraph_plan_rejection_workflow",
+        },
+        config,
+    )
 
     final = graph.invoke(Command(resume={"action": "reject"}), config)
-    result = workflow.load("langgraph_approval_workflow")
-    assert adapter.run_calls == 1
+    result = workflow.load("langgraph_plan_rejection_workflow")
+
     assert result.status == CalibrationWorkflowStatus.CANCELLED
+    assert result.plan_approved is False
+    assert result.case_prepared is False
+    assert adapter.generate_calls == 0
+    assert adapter.validate_calls == 0
+    assert adapter.run_calls == 0
     assert final["workflow_result"]["status"] == "cancelled"
 
 
@@ -624,7 +666,7 @@ def test_langgraph_replanner_can_extend_bounds_without_changing_objective(
     )
 
 
-def test_replanned_solver_retry_requires_fresh_approval(build_temp_path: Path) -> None:
+def test_replanned_solver_retry_reuses_plan_approval(build_temp_path: Path) -> None:
     store = make_store(build_temp_path, "replan_approval")
     adapter = DeterministicArtifactAdapter(fail_run_number=1)
     workflow = DeterministicCalibrationWorkflow(
@@ -650,12 +692,12 @@ def test_replanned_solver_retry_requires_fresh_approval(build_temp_path: Path) -
         },
         config,
     )
-    retry_approval = graph.invoke(Command(resume={"action": "approve"}), config)
+    final = graph.invoke(Command(resume={"action": "approve"}), config)
 
     assert first_approval["__interrupt__"]
-    assert retry_approval["__interrupt__"]
-    assert adapter.run_calls == 1
+    assert not final.get("__interrupt__")
+    assert adapter.run_calls == 5
     assert len(client.requests) == 1
-
-    graph.invoke(Command(resume={"action": "approve"}), config)
-    assert adapter.run_calls == 2
+    assert workflow.load("replan_approval_workflow").status == (
+        CalibrationWorkflowStatus.CONVERGED
+    )

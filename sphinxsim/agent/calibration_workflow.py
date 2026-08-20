@@ -176,6 +176,8 @@ class CalibrationWorkflowResult(BaseModel):
     status: CalibrationWorkflowStatus
     baseline_case_path: str
     case_prepared: bool = False
+    plan_approved: bool = False
+    approved_at: datetime | None = None
     iterations: list[CalibrationIteration] = Field(default_factory=list)
     final_decision: CalibrationDecision | None = None
     error_message: str | None = None
@@ -323,6 +325,20 @@ class DeterministicCalibrationWorkflow:
             return result
         except (CalibrationError, CLIInvocationError, OSError, ValueError) as exc:
             return self.fail(result, str(exc))
+
+    def approve_plan(
+        self,
+        result: CalibrationWorkflowResult,
+    ) -> CalibrationWorkflowResult:
+        """Persist one user approval for the complete execution Plan."""
+        if result.status != CalibrationWorkflowStatus.RUNNING:
+            raise ValueError("Plan approval requires a running workflow")
+        if result.case_prepared:
+            raise ValueError("Plan approval must happen before case preparation")
+        result.plan_approved = True
+        result.approved_at = utc_now()
+        self._save(result)
+        return result
 
     def propose_next(self, result: CalibrationWorkflowResult) -> CalibrationDecision:
         """Derive the next deterministic decision from persisted observations."""

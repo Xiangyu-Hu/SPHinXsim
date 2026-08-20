@@ -41,17 +41,18 @@ def test_service_runs_approval_lifecycle_to_convergence(build_temp_path: Path) -
         "Calibrate a 2D column-collapse runout extension to 0.2 m.",
         workflow_id="service_complete",
     )
-    approvals = 0
-    while status.awaiting_approval:
-        approvals += 1
-        status = service.approve(status.workflow_id)
+    assert status.awaiting_approval is True
+    assert adapter.generate_calls == 0
+    assert adapter.run_calls == 0
+
+    status = service.approve(status.workflow_id)
 
     assert status.status == CalibrationWorkflowStatus.CONVERGED
     assert status.iteration_count == 4
     assert status.target_metric == "runout_extension"
     assert status.target_value == pytest.approx(0.2)
     assert status.best_absolute_error == pytest.approx(0.0)
-    assert approvals == 4
+    assert status.awaiting_approval is False
     assert adapter.run_calls == 4
 
 
@@ -75,10 +76,12 @@ def test_new_service_instance_reads_same_sqlite_approval_state(
     advanced = reopened.approve(status.workflow_id)
 
     assert persisted.awaiting_approval is True
-    assert persisted.approval_request["candidate_value"] == pytest.approx(0.0)
-    assert advanced.iteration_count == 1
-    assert advanced.awaiting_approval is True
-    assert adapter.run_calls == 1
+    assert persisted.approval_request["action"] == "approve_calibration_plan"
+    assert persisted.approval_request["target_value"] == pytest.approx(0.2)
+    assert advanced.iteration_count == 4
+    assert advanced.awaiting_approval is False
+    assert advanced.status == CalibrationWorkflowStatus.CONVERGED
+    assert adapter.run_calls == 4
 
 
 def test_service_cancel_rejects_pending_solver(build_temp_path: Path) -> None:

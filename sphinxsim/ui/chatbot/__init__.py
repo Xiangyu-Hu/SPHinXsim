@@ -1,4 +1,4 @@
-"""Standalone SPHinXsim chatbot window."""
+"""Standalone Chainlit chatbot for SPHinXsim."""
 
 from .application import launch_chatbot
 

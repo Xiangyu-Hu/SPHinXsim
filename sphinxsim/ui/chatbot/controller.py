@@ -2,32 +2,44 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from sphinxsim.llm import get_llm, normalize_llm_provider
+from sphinxsim.llm.chat_attachments import ChatAttachment
 
 
 class ChatController:
     """Keep chat history and delegate responses to the existing LLM provider."""
 
     SYSTEM_PROMPT = (
-        "You are a helpful conversational assistant in the SPHinXsim desktop app. "
-        "Have a natural general conversation. Do not execute tools or simulations."
+        "You are a helpful general-purpose conversational assistant in the "
+        "SPHinXsim chatbot. Have a natural conversation. You are not connected "
+        "to the local SPHinXsim repository, project knowledge, tools, or simulation "
+        "runtime. Do not claim that you have read them, and do not execute tools "
+        "or simulations."
     )
 
     def __init__(self, provider: str | None = None) -> None:
         self.provider = normalize_llm_provider(provider)
         self.llm = get_llm(self.provider)
-        self.messages: list[dict[str, str]] = [
+        self.messages: list[dict[str, Any]] = [
             {"role": "system", "content": self.SYSTEM_PROMPT}
         ]
 
-    def respond(self, text: str) -> str:
+    def respond(
+        self,
+        text: str,
+        attachments: Sequence[ChatAttachment] = (),
+    ) -> str:
         """Append one user message, call the configured provider, and save the reply."""
         cleaned = text.strip()
-        if not cleaned:
-            raise ValueError("message must not be empty")
-        self.messages.append({"role": "user", "content": cleaned})
+        if not cleaned and not attachments:
+            raise ValueError("message must contain text or an attachment")
+        user_message: dict[str, Any] = {"role": "user", "content": cleaned}
+        if attachments:
+            user_message["attachments"] = list(attachments)
+        self.messages.append(user_message)
         try:
             response = self.llm.chat(self.messages)
         except Exception:

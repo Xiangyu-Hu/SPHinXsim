@@ -75,7 +75,7 @@ def test_runtime_uses_one_canonical_provider_for_all_llm_roles(
         return backend
 
     monkeypatch.setattr(runtime_module, "create_structured_backend", fake_backend)
-    monkeypatch.setenv("NVIDIA_NIM_API_KEY", "test-key")
+    monkeypatch.setenv("SPHINXSIM_LLM_API_KEY", "test-key")
     settings = AgentRuntimeSettings(
         workflow_id=f"runtime_{canonical}",
         planner_provider=configured,

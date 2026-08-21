@@ -20,6 +20,14 @@ from sphinxsim.llm.common import (
     strip_code_fences,
     suppress_implicit_plastic_observers,
 )
+from sphinxsim.llm.chat_attachments import (
+    SUPPORTED_IMAGE_TYPES,
+    UnsupportedAttachmentError,
+    all_attachments,
+    message_attachments,
+    text_only_messages,
+    unsupported_provider_message,
+)
 
 # OpenAI SDK is optional until this provider is selected.
 try:
@@ -32,19 +40,70 @@ except ImportError:  # pragma: no cover - exercised through provider constructio
 class OpenAILLM:
     model: str = "gpt-4.1-mini"  # pick what you want
     api_key: Optional[str] = None
+    base_url: Optional[str] = None
 
     def __post_init__(self) -> None:
         if OpenAI is None:
             raise RuntimeError(
                 "The OpenAI provider requires the optional 'openai' package."
             )
-        self.client = OpenAI(api_key=self.api_key)
+        kwargs: dict[str, Any] = {"api_key": self.api_key}
+        if self.base_url:
+            kwargs["base_url"] = self.base_url
+        self.client = OpenAI(**kwargs)
 
-    def chat(self, messages: list[dict[str, str]]) -> str:
+    def chat(self, messages: list[dict[str, Any]]) -> str:
         """Return a general conversation response using the configured model."""
+        if all_attachments(messages):
+            response_input: list[dict[str, Any]] = []
+            for message in messages:
+                attachments = message_attachments(message)
+                if not attachments:
+                    response_input.append(
+                        {
+                            "role": message["role"],
+                            "content": message.get("content", ""),
+                        }
+                    )
+                    continue
+                content: list[dict[str, Any]] = []
+                text = str(message.get("content", "")).strip()
+                if text:
+                    content.append({"type": "input_text", "text": text})
+                for attachment in attachments:
+                    if attachment.media_type in SUPPORTED_IMAGE_TYPES:
+                        content.append(
+                            {
+                                "type": "input_image",
+                                "image_url": attachment.data_url(),
+                            }
+                        )
+                    elif attachment.media_type == "application/pdf":
+                        content.append(
+                            {
+                                "type": "input_file",
+                                "filename": attachment.name,
+                                "file_data": attachment.data_url(),
+                            }
+                        )
+                response_input.append({"role": message["role"], "content": content})
+            try:
+                response = self.client.responses.create(
+                    model=self.model,
+                    input=response_input,
+                )
+            except Exception as exc:
+                raise UnsupportedAttachmentError(
+                    unsupported_provider_message("OpenAI", self.model, str(exc))
+                ) from exc
+            content = getattr(response, "output_text", "") or ""
+            if not content.strip():
+                raise ValueError("OpenAI returned an empty multimodal chat response")
+            return content.strip()
+
         response = self.client.chat.completions.create(
             model=self.model,
-            messages=messages,
+            messages=text_only_messages(messages),
             temperature=0.7,
         )
         content = response.choices[0].message.content or ""

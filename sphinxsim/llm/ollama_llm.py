@@ -31,6 +31,14 @@ from sphinxsim.llm.common import (
     strip_code_fences,
     suppress_implicit_plastic_observers,
 )
+from sphinxsim.llm.chat_attachments import (
+    SUPPORTED_IMAGE_TYPES,
+    UnsupportedAttachmentError,
+    all_attachments,
+    message_attachments,
+    text_only_messages,
+    unsupported_provider_message,
+)
 
 
 @dataclass
@@ -44,9 +52,32 @@ class OllamaLLM:
     def _endpoint(self) -> str:
         return f"{self.base_url.rstrip('/')}/api/chat"
 
-    def chat(self, messages: list[dict[str, str]]) -> str:
+    def chat(self, messages: list[dict[str, Any]]) -> str:
         """Return a general conversation response from the configured Ollama model."""
-        response = self._post_chat(messages=messages, format_json=False)
+        attachments = all_attachments(messages)
+        if any(item.media_type not in SUPPORTED_IMAGE_TYPES for item in attachments):
+            raise UnsupportedAttachmentError(
+                unsupported_provider_message(
+                    "Ollama",
+                    self.model,
+                    "Ollama vision messages accept images, not PDF files.",
+                )
+            )
+        converted: list[dict[str, Any]] = []
+        for message in messages:
+            converted_message: dict[str, Any] = text_only_messages([message])[0]
+            items = message_attachments(message)
+            if items:
+                converted_message["images"] = [item.base64_data() for item in items]
+            converted.append(converted_message)
+        try:
+            response = self._post_chat(messages=converted, format_json=False)
+        except Exception as exc:
+            if attachments:
+                raise UnsupportedAttachmentError(
+                    unsupported_provider_message("Ollama", self.model, str(exc))
+                ) from exc
+            raise
         if not isinstance(response, str) or not response.strip():
             raise ValueError("Ollama returned an empty chat response")
         return response.strip()

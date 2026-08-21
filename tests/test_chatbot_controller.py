@@ -31,6 +31,9 @@ def test_mock_controller_uses_shared_provider_setting(monkeypatch) -> None:
         {"role": "user", "content": "Hello"},
         {"role": "assistant", "content": "Mock response: Hello"},
     ]
+    assert "not connected to the local SPHinXsim repository" in (
+        controller.context()[0]["content"]
+    )
 
 
 def test_provider_aliases_match_existing_shell_configuration() -> None:
@@ -78,5 +81,5 @@ def test_controller_rejects_empty_messages(monkeypatch) -> None:
     monkeypatch.setenv("SPHINXSIM_LLM_PROVIDER", "mock")
     controller = ChatController()
 
-    with pytest.raises(ValueError, match="message must not be empty"):
+    with pytest.raises(ValueError, match="message must contain text or an attachment"):
         controller.respond("   ")

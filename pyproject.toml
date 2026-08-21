@@ -26,8 +26,7 @@ visualization = [
     "PySide6>=6.5",
 ]
 chatbot = [
-    "PySide6>=6.5",
-    "PySide6-WebEngine>=6.5",
+    "chainlit>=2.11,<3.0",
 ]
 
 [project.scripts]

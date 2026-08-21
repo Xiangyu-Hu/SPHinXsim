@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from sphinxsim.services import SPHinXsimCLIAdapter
-from sphinxsim.llm import LLMProviderName, normalize_llm_provider
+from sphinxsim.llm import (
+    LLMProviderName,
+    get_llm_settings,
+    normalize_llm_provider,
+)
 from sphinxsim.llm.structured_provider import create_structured_backend
 
 from .capabilities import build_capability_registry
@@ -146,10 +149,10 @@ class AgentRuntime:
             "SPHINXSIM_LLM_PROVIDER": settings.generation_provider,
         }
         if settings.generation_provider == "nvidia_nim":
-            key = os.getenv("NVIDIA_NIM_API_KEY", os.getenv("NVIDIA_API_KEY"))
+            key = get_llm_settings("nvidia_nim")["api_key"]
             if not key:
                 raise AgentServiceError(
-                    "NVIDIA generation requires NVIDIA_NIM_API_KEY or NVIDIA_API_KEY"
+                    "NVIDIA-compatible generation requires SPHINXSIM_LLM_API_KEY"
                 )
         adapter = SPHinXsimCLIAdapter(
             cwd=self.project_root,

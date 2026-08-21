@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
-import os
 from pathlib import Path
 from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from sphinxsim.llm import get_llm_settings
 from sphinxsim.llm.nvidia_nim_llm import NvidiaNIMLLM
 from sphinxsim.llm.structured_provider import (
     ExistingLLMStructuredBackend,
@@ -171,20 +171,13 @@ class NvidiaExtractorPlannerClient:
 
     @classmethod
     def from_environment(cls) -> "NvidiaExtractorPlannerClient":
-        fallback = tuple(
-            item.strip()
-            for item in os.getenv("NVIDIA_NIM_FALLBACK_MODELS", "").split(",")
-            if item.strip()
-        )
+        settings = get_llm_settings("nvidia_nim")
         return cls(
-            api_key=os.getenv("NVIDIA_NIM_API_KEY", os.getenv("NVIDIA_API_KEY")),
-            base_url=os.getenv(
-                "NVIDIA_NIM_BASE_URL",
-                "https://integrate.api.nvidia.com/v1",
-            ),
-            model=os.getenv("NVIDIA_NIM_MODEL", os.getenv("NVIDIA_NIM", "z-ai/glm-5.2")),
-            fallback_models=fallback,
-            timeout=float(os.getenv("NVIDIA_NIM_TIMEOUT", "120")),
+            api_key=settings["api_key"],
+            base_url=settings["base_url"],
+            model=settings["model"],
+            fallback_models=settings["fallback_models"],
+            timeout=settings["timeout"],
         )
 
     def complete_json(self, request: ExtractorPlannerRequest) -> dict[str, Any]:

@@ -15,6 +15,11 @@ from typing import Any, Dict, List
 
 from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.config.update_patch import UpdatePatch
+from sphinxsim.llm.chat_attachments import (
+    UnsupportedAttachmentError,
+    all_attachments,
+    unsupported_provider_message,
+)
 
 
 class PhysicsType(str, Enum):
@@ -567,12 +572,16 @@ class MockLLM:
 
         return SimulationConfig(**template)
 
-    def chat(self, messages: list[dict[str, str]]) -> str:
+    def chat(self, messages: list[dict[str, Any]]) -> str:
         """Return a deterministic general-chat response for UI testing."""
+        if all_attachments(messages):
+            raise UnsupportedAttachmentError(
+                unsupported_provider_message("mock", "deterministic-text-only")
+            )
         user_messages = [
-            item.get("content", "").strip()
+            str(item.get("content", "")).strip()
             for item in messages
-            if item.get("role") == "user" and item.get("content", "").strip()
+            if item.get("role") == "user" and str(item.get("content", "")).strip()
         ]
         if not user_messages:
             raise ValueError("chat messages must contain a user message")

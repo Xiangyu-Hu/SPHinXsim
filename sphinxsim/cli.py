@@ -2067,19 +2067,26 @@ def cmd_shell(args: argparse.Namespace) -> int:
 
 
 def cmd_chatbot(args: argparse.Namespace) -> int:
-    """Launch the independent standalone chatbot window."""
+    """Launch the independent standalone Chainlit chatbot."""
     try:
-        from sphinxsim.ui.chatbot.application import launch_chatbot
-    except ImportError as exc:
+        from sphinxsim.ui.chatbot.application import (
+            ChatbotDependencyError,
+            launch_chatbot,
+        )
+        return launch_chatbot(
+            host=args.host,
+            port=args.port,
+            headless=args.headless,
+            watch=args.watch,
+        )
+    except (ImportError, ChatbotDependencyError) as exc:
         print(
-            "The chatbot requires the PySide6 and Qt WebEngine dependencies. "
-            "Install the chatbot extra and try again: "
-            "pip install sphinxsim[chatbot]",
+            "The chatbot requires Chainlit. Install the chatbot extra and try "
+            "again: pip install -e .[chatbot]",
             file=sys.stderr,
         )
         print(f"Import detail: {exc}", file=sys.stderr)
         return 1
-    return launch_chatbot()
 
 
 # ---------------------------------------------------------------------------
@@ -2259,7 +2266,28 @@ def _build_parser() -> argparse.ArgumentParser:
     # chatbot
     chatbot = subparsers.add_parser(
         "chatbot",
-        help="Launch the standalone SPHinXsim chatbot window.",
+        help="Launch the standalone SPHinXsim Chainlit chatbot.",
+    )
+    chatbot.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host interface for the local chatbot server (default: 127.0.0.1).",
+    )
+    chatbot.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port for the local chatbot server (default: 8000).",
+    )
+    chatbot.add_argument(
+        "--headless",
+        action="store_true",
+        help="Start the server without opening a browser.",
+    )
+    chatbot.add_argument(
+        "--watch",
+        action="store_true",
+        help="Reload the Chainlit app when its Python files change.",
     )
     chatbot.set_defaults(func=cmd_chatbot)
 

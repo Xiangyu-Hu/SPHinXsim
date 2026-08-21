@@ -1,1 +1,1 @@
-"""Desktop user interfaces for SPHinXsim."""
+"""User interfaces for SPHinXsim."""

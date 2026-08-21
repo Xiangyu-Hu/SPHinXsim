@@ -32,6 +32,14 @@ from sphinxsim.llm.common import (
     strip_code_fences,
     suppress_implicit_plastic_observers,
 )
+from sphinxsim.llm.chat_attachments import (
+    SUPPORTED_IMAGE_TYPES,
+    UnsupportedAttachmentError,
+    all_attachments,
+    message_attachments,
+    text_only_messages,
+    unsupported_provider_message,
+)
 
 
 GENERATION_SYSTEM_PROMPT = (
@@ -104,7 +112,7 @@ class NvidiaNIMLLM:
     def __post_init__(self) -> None:
         if not self.api_key:
             raise ValueError(
-                "NVIDIA NIM API key is required. Set NVIDIA_NIM_API_KEY or NVIDIA_API_KEY."
+                "NVIDIA-compatible generation requires SPHINXSIM_LLM_API_KEY."
             )
         self.model = self.model.strip()
         self.fallback_models = tuple(
@@ -114,9 +122,43 @@ class NvidiaNIMLLM:
     def _endpoint(self) -> str:
         return f"{self.base_url.rstrip('/')}/chat/completions"
 
-    def chat(self, messages: list[dict[str, str]]) -> str:
+    def chat(self, messages: list[dict[str, Any]]) -> str:
         """Return a general conversation response from NVIDIA NIM."""
-        response = self._post_chat(messages=messages, temperature=0.7)
+        attachments = all_attachments(messages)
+        if any(item.media_type not in SUPPORTED_IMAGE_TYPES for item in attachments):
+            raise UnsupportedAttachmentError(
+                unsupported_provider_message(
+                    "NVIDIA NIM",
+                    self.model,
+                    "The OpenAI-compatible NIM chat endpoint accepts image attachments, not PDF files.",
+                )
+            )
+        converted: list[dict[str, Any]] = []
+        for message in messages:
+            items = message_attachments(message)
+            if not items:
+                converted.append(text_only_messages([message])[0])
+                continue
+            content: list[dict[str, Any]] = []
+            text = str(message.get("content", "")).strip()
+            if text:
+                content.append({"type": "text", "text": text})
+            content.extend(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": item.data_url()},
+                }
+                for item in items
+            )
+            converted.append({"role": message["role"], "content": content})
+        try:
+            response = self._post_chat(messages=converted, temperature=0.7)
+        except Exception as exc:
+            if attachments:
+                raise UnsupportedAttachmentError(
+                    unsupported_provider_message("NVIDIA NIM", self.model, str(exc))
+                ) from exc
+            raise
         if not isinstance(response, str) or not response.strip():
             raise ValueError("NVIDIA NIM returned an empty chat response")
         return response.strip()
@@ -179,18 +221,20 @@ class NvidiaNIMLLM:
                 if self._is_degraded_model_error(exc.code, detail):
                     raise RuntimeError(
                         "NVIDIA NIM model is currently unavailable (degraded). "
-                        "Set NVIDIA_NIM_MODEL to an available model and optionally set "
-                        "NVIDIA_NIM_FALLBACK_MODELS with comma-separated alternatives. "
+                        "Set SPHINXSIM_LLM_MODEL to an available model and optionally set "
+                        "SPHINXSIM_LLM_FALLBACK_MODELS with comma-separated alternatives. "
                         f"Detail: {detail}"
                     ) from exc
                 raise RuntimeError(f"NVIDIA NIM request failed with HTTP {exc.code}: {detail}") from exc
             except error.URLError as exc:
                 raise RuntimeError(
-                    "Failed to contact NVIDIA NIM. Ensure NVIDIA_NIM_BASE_URL is correct and network is available."
+                    "Failed to contact the NVIDIA-compatible endpoint. Ensure "
+                    "SPHINXSIM_LLM_BASE_URL is correct and network is available."
                 ) from exc
             except TimeoutError as exc:
                 raise RuntimeError(
-                    "NVIDIA NIM request timed out. Increase NVIDIA_NIM_TIMEOUT or use a smaller prompt/model."
+                    "NVIDIA-compatible request timed out. Increase SPHINXSIM_LLM_TIMEOUT "
+                    "or use a smaller prompt/model."
                 ) from exc
             except OSError as exc:
                 raise RuntimeError("Failed during NVIDIA NIM request.") from exc

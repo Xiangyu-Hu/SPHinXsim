@@ -59,6 +59,8 @@ struct FluidSolverConfig
 class FluidDynamicsBuilder
 {
   public:
+    static BaseDynamics<void> &addAdvectionStepSetup(SPHSimulation &sim, MainMethods &main_methods);
+    static BaseDynamics<void> &addUpdateParticlePosition(SPHSimulation &sim, MainMethods &main_methods);
     template <class FluidType, class InnerRelationType, class ContactRelationType>
     static BaseDynamics<void> &buildDensityRegularization(
         SPHSimulation &sim, MainMethods &main_methods, InnerRelationType &inner_relation,
@@ -66,6 +68,8 @@ class FluidDynamicsBuilder
 
     static void buildBoundaryConditionsIfPresent(
         SPHSimulation &sim, MainMethods &main_methods, const json &config);
+    static BaseDynamics<Real> &addAdvectionTimeStep(SPHSimulation &sim, MainMethods &main_methods);
+    static BaseDynamics<Real> &addAcousticTimeStep(SPHSimulation &sim, MainMethods &main_methods);
 
   private:
     static void addBoundaryCondition(

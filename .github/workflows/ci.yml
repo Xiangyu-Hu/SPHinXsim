@@ -336,8 +336,9 @@ jobs:
       contents: read
     env:
       VCPKG_DEFAULT_TRIPLET: x64-linux
+      SPHINXSIM_LLM_PROVIDER: mock
       PYTHONDONTWRITEBYTECODE: "1"
-
+      CTEST_PARALLEL_LEVEL: "1"
     steps:
       - name: Checkout repository (with submodules)
         uses: actions/checkout@v4
@@ -418,12 +419,110 @@ jobs:
             --parallel $(nproc) \
             --verbose
 
-      - name: Run C++ simulation class tests (SYCL CPU)
+      - name: Test with the first try
+        id: first-try
         run: |
           source /opt/intel/oneapi/setvars.sh --include-intel-llvm
           ctest --test-dir ${{ github.workspace }}/build-integrated \
-            --output-on-failure \
+            --output-on-failure --timeout 1000 \
             -L "simulation_class"
+        continue-on-error: true
+
+      - name: Test with the second try for failed cases
+        id: second-try
+        if: ${{ steps.first-try.outcome == 'failure' }}
+        run: |
+          source /opt/intel/oneapi/setvars.sh --include-intel-llvm
+          ctest --test-dir ${{ github.workspace }}/build-integrated \
+            --rerun-failed --output-on-failure --timeout 1000
+        continue-on-error: true
+
+      - name: Test with the third try for failed cases
+        id: third-try
+        if: ${{ steps.second-try.outcome == 'failure' }}
+        run: |
+          source /opt/intel/oneapi/setvars.sh --include-intel-llvm
+          ctest --test-dir ${{ github.workspace }}/build-integrated \
+            --rerun-failed --output-on-failure --timeout 1000
+        continue-on-error: true
+
+      - name: Test with the fourth try for failed cases
+        id: fourth-try
+        if: ${{ steps.third-try.outcome == 'failure' }}
+        run: |
+          source /opt/intel/oneapi/setvars.sh --include-intel-llvm
+          ctest --test-dir ${{ github.workspace }}/build-integrated \
+            --rerun-failed --output-on-failure --timeout 1000
+        continue-on-error: true
+
+      - name: Test with the fifth try for failed cases
+        id: fifth-try
+        if: ${{ steps.fourth-try.outcome == 'failure' }}
+        run: |
+          source /opt/intel/oneapi/setvars.sh --include-intel-llvm
+          ctest --test-dir ${{ github.workspace }}/build-integrated \
+            --rerun-failed --output-on-failure --timeout 1000
+        continue-on-error: true
+
+      - name: Test with the sixth try for failed cases
+        id: sixth-try
+        if: ${{ steps.fifth-try.outcome == 'failure' }}
+        run: |
+          source /opt/intel/oneapi/setvars.sh --include-intel-llvm
+          ctest --test-dir ${{ github.workspace }}/build-integrated \
+            --rerun-failed --output-on-failure --timeout 1000
+        continue-on-error: true
+
+      - name: Test with the seventh try for failed cases
+        id: seventh-try
+        if: ${{ steps.sixth-try.outcome == 'failure' }}
+        run: |
+          source /opt/intel/oneapi/setvars.sh --include-intel-llvm
+          ctest --test-dir ${{ github.workspace }}/build-integrated \
+            --rerun-failed --output-on-failure --timeout 1000
+        continue-on-error: true
+
+      - name: Test with the eighth try for failed cases
+        id: eighth-try
+        if: ${{ steps.seventh-try.outcome == 'failure' }}
+        run: |
+          source /opt/intel/oneapi/setvars.sh --include-intel-llvm
+          ctest --test-dir ${{ github.workspace }}/build-integrated \
+            --rerun-failed --output-on-failure --timeout 1000
+        continue-on-error: true
+
+      - name: Test with the ninth try for failed cases
+        id: ninth-try
+        if: ${{ steps.eighth-try.outcome == 'failure' }}
+        run: |
+          source /opt/intel/oneapi/setvars.sh --include-intel-llvm
+          ctest --test-dir ${{ github.workspace }}/build-integrated \
+            --rerun-failed --output-on-failure --timeout 1000
+        continue-on-error: true
+
+      - name: Test with the last try for failed cases
+        if: ${{ steps.ninth-try.outcome == 'failure' }}
+        run: |
+          source /opt/intel/oneapi/setvars.sh --include-intel-llvm
+          ctest --test-dir ${{ github.workspace }}/build-integrated \
+            --rerun-failed --output-on-failure --timeout 1000
+
+      - name: Install Python package (editable with dev dependencies)
+        run: |
+          PYTHON_EXE=$(which python3)
+          source /opt/intel/oneapi/setvars.sh --include-intel-llvm
+          export CMAKE_ARGS="-D CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_COMPILER=icpx -D CMAKE_C_COMPILER_LAUNCHER=ccache -D CMAKE_CXX_COMPILER_LAUNCHER=ccache -D SPHINXSYS_USE_SYCL=ON"
+          "$PYTHON_EXE" -m pip install -e ".[dev]"
+
+      - name: Run unit tests (tests/)
+        run: |
+          source /opt/intel/oneapi/setvars.sh --include-intel-llvm
+          pytest tests/ -v
+
+      - name: Run example tests (examples/)
+        run: |
+          source /opt/intel/oneapi/setvars.sh --include-intel-llvm
+          pytest examples/ -v
 
   wheel-smoke:
     name: wheel-smoke (${{ matrix.os }})

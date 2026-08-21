@@ -5,7 +5,6 @@
 
 #include <cmath>
 
-#include "fluid_dynamics_builder.hpp"
 #include "geometry_builder.h"
 #include "sph_simulation.h"
 #include "thermal_dynamics_builder.hpp"

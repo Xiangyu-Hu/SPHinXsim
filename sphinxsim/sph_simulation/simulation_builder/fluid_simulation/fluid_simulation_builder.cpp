@@ -1,6 +1,7 @@
 #include "fluid_simulation_builder.hpp"
 
 #include "base_simulation_builder.hpp"
+#include "fluid_dynamics_builder.hpp"
 #include "solid_dynamics_builder.hpp"
 
 #include "composite_solid.h"
@@ -229,7 +230,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     auto &fluid_linear_correction_matrix = addLinearCorrectionMatrixWithScope(
         config_manager, main_methods, fluid_inner, fluid_wall_contact);
 
-    addMainPhysicalTimeStep(sim, main_methods, fluid_inner, fluid_wall_contact);
+    auto &fluid_acoustic_step_1st_half = FluidDynamicsBuilder::addAcousticStep1stHalf(sim, main_methods);
+    auto &fluid_acoustic_step_2nd_half = FluidDynamicsBuilder::addAcousticStep2ndHalf(sim, main_methods);
 
     // Coupling forces the fluid exerts on each structure.
     for (Contact<> *structure_contact : structure_fluid_contacts)
@@ -256,6 +258,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         sim, main_methods, fluid_inner, fluid_wall_contact);
 
     auto &fluid_advection_time_step = FluidDynamicsBuilder::addAdvectionTimeStep(sim, main_methods);
+    auto &fluid_acoustic_time_step = FluidDynamicsBuilder::addAcousticTimeStep(sim, main_methods);
     //----------------------------------------------------------------------
     //	Define time integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------
@@ -322,7 +325,10 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     simulation_pipeline.main_steps.push_back(
         [&]()
         {
-            simulation_pipeline.run_hooks(SimulationHookPoint::MainPhysicalTimeStep);
+            Real dt = time_stepper.incrementPhysicalTime(fluid_acoustic_time_step);
+            fluid_acoustic_step_1st_half.exec(dt);
+            simulation_pipeline.run_hooks(SimulationHookPoint::BoundaryCondition);
+            fluid_acoustic_step_2nd_half.exec(dt);
             simulation_pipeline.run_hooks(SimulationHookPoint::CouplingSynchronization);
         });
 

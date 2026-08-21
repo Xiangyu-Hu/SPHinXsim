@@ -114,6 +114,13 @@ class NvidiaNIMLLM:
     def _endpoint(self) -> str:
         return f"{self.base_url.rstrip('/')}/chat/completions"
 
+    def chat(self, messages: list[dict[str, str]]) -> str:
+        """Return a general conversation response from NVIDIA NIM."""
+        response = self._post_chat(messages=messages, temperature=0.7)
+        if not isinstance(response, str) or not response.strip():
+            raise ValueError("NVIDIA NIM returned an empty chat response")
+        return response.strip()
+
     @staticmethod
     def _extract_error_detail(raw_detail: str) -> str:
         text = (raw_detail or "").strip()

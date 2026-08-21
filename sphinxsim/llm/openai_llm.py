@@ -40,6 +40,18 @@ class OpenAILLM:
             )
         self.client = OpenAI(api_key=self.api_key)
 
+    def chat(self, messages: list[dict[str, str]]) -> str:
+        """Return a general conversation response using the configured model."""
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=0.7,
+        )
+        content = response.choices[0].message.content or ""
+        if not content.strip():
+            raise ValueError("OpenAI returned an empty chat response")
+        return content.strip()
+
     def generate(self, description: str) -> SimulationConfig:
         if not description or not description.strip():
             raise ValueError("description must not be empty")

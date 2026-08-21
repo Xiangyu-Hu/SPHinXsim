@@ -567,6 +567,17 @@ class MockLLM:
 
         return SimulationConfig(**template)
 
+    def chat(self, messages: list[dict[str, str]]) -> str:
+        """Return a deterministic general-chat response for UI testing."""
+        user_messages = [
+            item.get("content", "").strip()
+            for item in messages
+            if item.get("role") == "user" and item.get("content", "").strip()
+        ]
+        if not user_messages:
+            raise ValueError("chat messages must contain a user message")
+        return f"Mock response: {user_messages[-1]}"
+
     def update(self, existing: SimulationConfig, description: str) -> SimulationConfig:
         """Apply a natural-language update to an existing config."""
         if not description or not description.strip():

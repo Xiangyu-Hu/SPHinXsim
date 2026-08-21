@@ -2062,6 +2062,27 @@ def cmd_shell(args: argparse.Namespace) -> int:
         print(f"Unknown command: {cmd}. Type 'help' for commands.", file=sys.stderr)
 
 # ---------------------------------------------------------------------------
+# Standalone chatbot launcher
+# ---------------------------------------------------------------------------
+
+
+def cmd_chatbot(args: argparse.Namespace) -> int:
+    """Launch the independent standalone chatbot window."""
+    try:
+        from sphinxsim.ui.chatbot.application import launch_chatbot
+    except ImportError as exc:
+        print(
+            "The chatbot requires the PySide6 and Qt WebEngine dependencies. "
+            "Install the chatbot extra and try again: "
+            "pip install sphinxsim[chatbot]",
+            file=sys.stderr,
+        )
+        print(f"Import detail: {exc}", file=sys.stderr)
+        return 1
+    return launch_chatbot()
+
+
+# ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
 
@@ -2070,7 +2091,7 @@ COMPLETION_SCRIPTS = {
     local cur opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="generate validate update run preview explore shell agent --help --version --generate-completion"
+    opts="generate validate update run preview explore shell chatbot agent --help --version --generate-completion"
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
     return 0
 }
@@ -2087,6 +2108,7 @@ _sphinxsim() {
         'preview:Render an interactive geometry/BC preview of a JSON config file'
         'explore:Ask schema/functionality questions using LLM'
         'shell:Interactive shell for config workflow'
+        'chatbot:Launch the standalone SPHinXsim chatbot'
         'agent:Manage durable AgentCAE workflows'
     )
     _describe 'sphinxsim commands' subcmds
@@ -2100,6 +2122,7 @@ complete -c sphinxsim -f -a "run" -d "Run simulation from JSON config"
 complete -c sphinxsim -f -a "preview" -d "Render interactive geometry/BC preview"
 complete -c sphinxsim -f -a "explore" -d "Ask schema/functionality questions"
 complete -c sphinxsim -f -a "shell" -d "Interactive shell workflow"
+complete -c sphinxsim -f -a "chatbot" -d "Launch the standalone SPHinXsim chatbot"
 complete -c sphinxsim -f -a "agent" -d "Manage durable AgentCAE workflows" """
 }
 
@@ -2232,6 +2255,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Interactive shell for config load/modify/validate workflow.",
     )
     shell.set_defaults(func=cmd_shell)
+
+    # chatbot
+    chatbot = subparsers.add_parser(
+        "chatbot",
+        help="Launch the standalone SPHinXsim chatbot window.",
+    )
+    chatbot.set_defaults(func=cmd_chatbot)
 
     # agent
     from sphinxsim.agent_cli import configure_agent_parser

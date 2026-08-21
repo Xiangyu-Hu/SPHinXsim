@@ -44,6 +44,13 @@ class OllamaLLM:
     def _endpoint(self) -> str:
         return f"{self.base_url.rstrip('/')}/api/chat"
 
+    def chat(self, messages: list[dict[str, str]]) -> str:
+        """Return a general conversation response from the configured Ollama model."""
+        response = self._post_chat(messages=messages, format_json=False)
+        if not isinstance(response, str) or not response.strip():
+            raise ValueError("Ollama returned an empty chat response")
+        return response.strip()
+
     @staticmethod
     def _repair_json_text(text: str) -> str:
         repaired = text.strip()

@@ -47,14 +47,43 @@ BaseDynamics<Real> &FluidDynamicsBuilder::addAdvectionTimeStep(
     auto &config_manager = sim.getConfigManager();
     auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
     auto &advection_time_step = main_methods.addReduceDynamicsGroup<ReduceMin<Real>>();
+    auto &viscosity_time_step = main_methods.addReduceDynamicsGroup<ReduceMin<Real>>();
     auto &fluid_solver_parameters = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
 
     for (const auto &fb : fluid_bodies_config)
     {
-        auto &fluid_body = sph_system.getBodyByName<FluidBody>(fb->name_);
+        std::string body_name = fb->name_;
+        auto &fluid_body = sph_system.getBodyByName<FluidBody>(body_name);
         advection_time_step.add(&main_methods.addReduceDynamics<AdvectionTimeStepCK>(
             fluid_body, Real(1), fluid_solver_parameters.advection_cfl_));
+
+        if (config_manager.hasEntity<Viscosity>(body_name + "Viscosity"))
+        {
+            viscosity_time_step.add(&main_methods.addReduceDynamics<AdvectionViscousTimeStepCK>(
+                fluid_body, Real(1), fluid_solver_parameters.advection_cfl_));
+        }
     }
+
+    if (viscosity_time_step.hasDynamics())
+    {
+        auto &initialization_pipeline = sim.getInitializationPipeline();
+        initialization_pipeline.insert_hook(
+            InitializationHookPoint::PreSimulationSanityCheck, [&]()
+            { 
+            auto advection_time_step_size = advection_time_step.exec();
+            auto viscosity_time_step_size = viscosity_time_step.exec();
+            if ( advection_time_step_size  - viscosity_time_step_size > Eps )
+            {
+                std::cout << "\n------------------------------------------------------------" << std::endl;
+                std::cout << "Error: Advection time step is too large for viscous flow!" << std::endl;
+                std::cout << "Advection time step: " << advection_time_step_size << std::endl;
+                std::cout << "Viscous time step: " << viscosity_time_step_size << std::endl;
+                std::cout << "The particle spacing is unnecessarily small for viscous flow." << std::endl;
+                std::cout << "------------------------------------------------------------" << std::endl;
+                exit(1);
+            } });
+    }
+
     return advection_time_step;
 }
 //=================================================================================================//

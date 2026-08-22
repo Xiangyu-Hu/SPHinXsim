@@ -1,10 +1,14 @@
 {
   "geometries": {
     "system_domain": {
-      "upper_bound": [0.08, 0.04],
-      "lower_bound": [-0.08, -0.08]
+      "upper_bound": [0.16, 0.08],
+      "lower_bound": [-0.16, -0.16]
     },
-    "global_resolution": { "particle_spacing": 0.0008 },
+
+    "global_resolution": {
+      "particle_spacing": 0.0008
+    },
+
     "shapes": [
       {
         "name": "ProcessingPiece",
@@ -15,6 +19,7 @@
           "rotation_angle": 0.0
         }
       },
+
       {
         "name": "MillingTool",
         "type": "multipolygon",
@@ -25,8 +30,23 @@
             "file_name": "milling_tool.dat"
           }
         ]
+      },
+
+      {
+        "name": "WallBoundary",
+        "type": "multipolygon",
+        "polygons": [
+          {
+            "operation": "union",
+            "type": "container_box",
+            "inner_lower_bound": [-0.07, -0.08],
+            "inner_upper_bound": [0.13, 0.07],
+            "thickness": 0.0032
+          }
+        ]
       }
     ],
+
     "oriented_boxes": [
       {
         "name": "ClampingRegion",
@@ -47,12 +67,21 @@
         {
           "name": "ProcessingPiece"
         },
+
         {
           "name": "MillingTool",
           "solid_body": {},
-          "relaxation": { "level_set": {} }
+          "relaxation": {
+            "level_set": {}
+          }
+        },
+
+        {
+          "name": "WallBoundary",
+          "solid_body": {}
         }
       ],
+
       "relaxation_parameters": {
         "total_iterations": 1000
       }
@@ -71,12 +100,26 @@
         "youngs_modulus": 78.2e2,
         "poisson_ratio": 0.3,
         "yield_stress": 2.9e1,
-        "hardening_modulus": 1.0
+        "hardening_modulus": 1.0,
+
+        "ductile_damage": {
+          "enabled": true,
+          "threshold_equivalent_plastic_strain": 0.15,
+          "critical_equivalent_plastic_strain": 0.5,
+          "critical_damage": 1.0
+        }
       }
     }
   ],
 
   "solid_bodies": [
+    {
+      "name": "WallBoundary",
+      "material": {
+        "type": "rigid_body"
+      }
+    },
+
     {
       "name": "MillingTool",
       "is_moving": true,
@@ -86,6 +129,8 @@
     }
   ],
 
+  "gravity": [0.0, -9.8e-4],
+
   "body_constraints": [
     {
       "body_name": "MillingTool",
@@ -94,6 +139,7 @@
       "velocity": [0.0, -0.03],
       "angular_velocity": 2.0
     },
+
     {
       "body_name": "ProcessingPiece",
       "type": "fixed",
@@ -106,21 +152,28 @@
       "name": "ProcessingPiece",
       "variables": [
         {
-          "real_type": ["Pressure", "IntactFactor", "Compression"],
+          "real_type": ["Pressure", "IntactFactor", "HardeningFactor", "Damage", "Compression"],
+
           "vector_type": ["HourglassStressDivergence"]
         }
       ]
     },
+
     {
       "name": "MillingTool",
-      "variables": [{ "vector_type": ["NormalDirection", "Velocity"] }]
+      "variables": [
+        {
+          "vector_type": ["NormalDirection", "Velocity"]
+        }
+      ]
     }
   ],
 
   "solver_parameters": {
-    "end_time": 0.3,
+    "end_time": 1.0,
     "output_interval": 0.01,
     "screen_interval": 100,
+
     "continuum_dynamics": {
       "acoustic_cfl": 0.4,
       "advection_cfl": 0.2,

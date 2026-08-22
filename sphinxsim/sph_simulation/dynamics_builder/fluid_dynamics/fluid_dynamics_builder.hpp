@@ -106,7 +106,6 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
     auto &sph_body = inner_relation.getSPHBody();
     std::string body_name = sph_body.Name();
     auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
-    auto &acoustic_step_half_step = main_methods.addParticleDynamicsGroup();
 
     if (sph_body.template isMatterMaterial<WeaklyCompressibleFluid>())
     {
@@ -122,7 +121,7 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
             addAcousticHalfStepWithSolidBodies<RiemannSolverType, NoKernelCorrectionCK>(
                 sim, complex_dynamics, body_name);
 
-            acoustic_step_half_step.add(&complex_dynamics);
+            return complex_dynamics;
         }
         else
         {
@@ -131,10 +130,8 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
 
             addAcousticHalfStepWithSolidBodies<RiemannSolverType, LinearCorrectionCK>(
                 sim, complex_dynamics, body_name);
-
-            acoustic_step_half_step.add(&complex_dynamics);
+            return complex_dynamics;
         }
-        return acoustic_step_half_step;
     }
 
     if (sph_body.template isMatterMaterial<WeaklyCompressibleMixture>())
@@ -143,13 +140,12 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
             RiemannSolver<WeaklyCompressibleMixture, WeaklyCompressibleMixture, TruncatedLinear>;
 
         auto &complex_dynamics = main_methods.template addInteractionDynamicsOneLevel<
-            AcousticStep1stHalf, RiemannSolverType, LinearCorrectionCK>(inner_relation);
+            AcousticHalfStepForOneBodyType, RiemannSolverType, LinearCorrectionCK>(inner_relation);
 
         addAcousticHalfStepWithSolidBodies<RiemannSolverType, LinearCorrectionCK>(
             sim, complex_dynamics, body_name);
 
-        acoustic_step_half_step.add(&complex_dynamics);
-        return acoustic_step_half_step;
+        return complex_dynamics;
     }
 
     throw std::runtime_error(

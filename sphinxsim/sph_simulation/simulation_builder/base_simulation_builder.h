@@ -39,7 +39,6 @@ enum class SimulationHookPoint
 {
     BeforeMainPhysicalTimeStep,
     BoundaryCondition,
-    MainPhysicalTimeStep,
     CouplingSynchronization,
     PositionConstraint,
     ParticleCreation,

@@ -1,6 +1,7 @@
 #include "fluid_simulation_builder.hpp"
 
 #include "base_simulation_builder.hpp"
+#include "fluid_dynamics_builder.hpp"
 #include "solid_dynamics_builder.hpp"
 
 #include "composite_solid.h"
@@ -223,13 +224,14 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             .add(&main_methods.addCellLinkedListDynamics(fluid_body))
             .add(&main_methods.addRelationDynamics(fluid_inner, fluid_wall_contact));
 
-    auto &fluid_advection_step_setup = main_methods.addStateDynamics<fluid_dynamics::AdvectionStepSetup>(fluid_body);
-    auto &fluid_particle_position = main_methods.addStateDynamics<fluid_dynamics::UpdateParticlePosition>(fluid_body);
+    auto &fluid_advection_step_setup = FluidDynamicsBuilder::addAdvectionStepSetup(sim, main_methods);
+    auto &fluid_particle_position = FluidDynamicsBuilder::addUpdateParticlePosition(sim, main_methods);
 
     auto &fluid_linear_correction_matrix = addLinearCorrectionMatrixWithScope(
         config_manager, main_methods, fluid_inner, fluid_wall_contact);
 
-    addMainPhysicalTimeStep(sim, main_methods, fluid_inner, fluid_wall_contact);
+    auto &fluid_acoustic_step_1st_half = FluidDynamicsBuilder::addAcousticStep1stHalf(sim, main_methods);
+    auto &fluid_acoustic_step_2nd_half = FluidDynamicsBuilder::addAcousticStep2ndHalf(sim, main_methods);
 
     // Coupling forces the fluid exerts on each structure.
     for (Contact<> *structure_contact : structure_fluid_contacts)
@@ -255,9 +257,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     auto &fluid_density_regularization = addDensityRegularization(
         sim, main_methods, fluid_inner, fluid_wall_contact);
 
-    auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
-    auto &fluid_advection_time_step = main_methods.addReduceDynamics<
-        fluid_dynamics::AdvectionTimeStepCK>(fluid_body, Real(1), fluid_solver_config.advection_cfl_);
+    auto &fluid_advection_time_step = FluidDynamicsBuilder::addAdvectionTimeStep(sim, main_methods);
+    auto &fluid_acoustic_time_step = FluidDynamicsBuilder::addAcousticTimeStep(sim, main_methods);
     //----------------------------------------------------------------------
     //	Define time integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------
@@ -324,7 +325,10 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     simulation_pipeline.main_steps.push_back(
         [&]()
         {
-            simulation_pipeline.run_hooks(SimulationHookPoint::MainPhysicalTimeStep);
+            Real dt = time_stepper.incrementPhysicalTime(fluid_acoustic_time_step);
+            fluid_acoustic_step_1st_half.exec(dt);
+            simulation_pipeline.run_hooks(SimulationHookPoint::BoundaryCondition);
+            fluid_acoustic_step_2nd_half.exec(dt);
             simulation_pipeline.run_hooks(SimulationHookPoint::CouplingSynchronization);
         });
 

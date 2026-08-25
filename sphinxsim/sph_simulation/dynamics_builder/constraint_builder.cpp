@@ -34,7 +34,7 @@ void ConstraintBuilder::addConstraint(
     if (sph_body_config.is_moving_ == false)
     {
         throw std::runtime_error(
-            "ConstraintBuilder::ConstraintBuilder: constrained body must be moving: "+ real_body.Name());
+            "ConstraintBuilder::ConstraintBuilder: constrained body must be moving: " + real_body.Name());
     };
 
     const std::string type = config.at("type").get<std::string>();
@@ -71,6 +71,9 @@ void ConstraintBuilder::addConstraint(
         SolidBodyPartForSimbody &body_part = real_body.addBodyPart<SolidBodyPartForSimbody>(shape);
         SimTK::Body::Rigid &simbody_body = *config_manager.emplaceEntity<
             SimTK::Body::Rigid>(body_part.Name(), *body_part.body_part_mass_properties_);
+        // After creating the body part and before integration, print or check:
+        std::cout << "Mass: " << body_part.body_part_mass_properties_->getMass() << std::endl;
+        std::cout << "Inertia: " << body_part.body_part_mass_properties_->getInertia() << std::endl;
 
         const std::string mobilized_body_type = config.at("mobilized_body").get<std::string>();
 

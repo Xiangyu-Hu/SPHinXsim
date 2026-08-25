@@ -69,9 +69,16 @@ def test_chainlit_callbacks_keep_a_multi_turn_mock_conversation(
     assert controller is not None
     assert [message.content for message in fake.sent_messages] == [
         (
-            "Hello. I am the SPHinXsim general chatbot. I can have a normal "
-            "conversation, but this version is not connected to SPHinXsim project "
-            "knowledge, AgentCAE, or simulation tools."
+            "# 👋 SPHinXsim Chatbot\n\n"
+            "I can have a normal conversation and run the current AgentCAE "
+            "column-collapse workflow.\n\n"
+            "### 🤖 Agent commands\n\n"
+            "- `agent start <request>` — draft a simulation Plan\n"
+            "- `agent approve` — approve and run the Plan\n"
+            "- `agent status` — inspect current progress\n"
+            "- `agent report` — show the final report\n"
+            "- `agent cancel` — cancel the workflow\n\n"
+            + app._agent_context_text()
         ),
         "Mock response: First message",
         "Mock response: Second message",
@@ -139,9 +146,10 @@ def test_launcher_runs_chainlit_with_an_isolated_app_root(monkeypatch) -> None:
     monkeypatch.setattr(application.importlib.util, "find_spec", lambda name: object())
     monkeypatch.setenv("DEBUG", "release")
 
-    def fake_call(command, *, env):
+    def fake_call(command, *, env, cwd):
         captured["command"] = command
         captured["app_root"] = env["CHAINLIT_APP_ROOT"]
+        captured["cwd"] = cwd
         assert "DEBUG" not in env
         assert Path(env["CHAINLIT_APP_ROOT"]).is_dir()
         config = Path(env["CHAINLIT_APP_ROOT"], ".chainlit", "config.toml")
@@ -175,6 +183,7 @@ def test_launcher_runs_chainlit_with_an_isolated_app_root(monkeypatch) -> None:
         "--headless",
         "--watch",
     ]
+    assert captured["cwd"] == str(Path.cwd().resolve())
     assert not Path(captured["app_root"]).exists()
 
 

@@ -24,6 +24,7 @@ visualization = [
     "pyvista>=0.43",
     "pyvistaqt>=0.11",
     "PySide6>=6.5",
+    "matplotlib>=3.7",
 ]
 chatbot = [
     "chainlit>=2.11,<3.0",

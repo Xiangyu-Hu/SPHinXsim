@@ -63,6 +63,8 @@ def test_report_is_built_from_persisted_workflow_and_saved(
     assert report.best_result is not None
     assert report.best_result.absolute_error == pytest.approx(0.0)
     assert len(report.iterations) == 4
+    assert report.iterations[0].task_id == "facade_report_iteration_001"
+    assert report.iterations[0].metric_name == "runout_extension"
     saved = facade.runtime.workspace / "reports" / "facade_report.json"
     assert saved.is_file()
     assert "runout_extension" in saved.read_text(encoding="utf-8")

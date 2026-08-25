@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 import sys
+import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -135,6 +137,9 @@ def cmd_agent_start(args: argparse.Namespace) -> int:
             args.prompt,
             workflow_id=workflow_id,
         )
+        if not args.json:
+            print(f"[Agent] Project root: {runtime.project_root}")
+            print(f"[Agent] Workspace: {runtime.workspace}")
         _print_status(status, as_json=args.json)
         return _status_code(status.status.value)
     except (AgentServiceError, OSError, ValueError, RuntimeError) as exc:
@@ -147,6 +152,8 @@ def cmd_agent_status(args: argparse.Namespace) -> int:
 
 
 def cmd_agent_approve(args: argparse.Namespace) -> int:
+    if not args.json:
+        return _run_approve_with_progress(args)
     return _run_existing(args, "approve", execution_enabled=True)
 
 
@@ -276,6 +283,93 @@ def _run_existing(
     except (AgentServiceError, OSError, ValueError, RuntimeError) as exc:
         print(f"Agent {operation} failed: {exc}", file=sys.stderr)
         return 1
+
+
+def _run_approve_with_progress(args: argparse.Namespace) -> int:
+    """Approve in a worker while printing durable workflow progress."""
+    runtime = AgentRuntime(args.agent_project_root, args.workspace)
+    try:
+        settings = runtime.load_settings(args.workflow_id)
+        service = runtime.create_service(
+            settings,
+            starting=False,
+            execution_enabled=True,
+        )
+        print("[Agent] Plan approved. Execution started.", flush=True)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(service.approve, args.workflow_id)
+            last_key = None
+            while not future.done():
+                try:
+                    status = service.status(args.workflow_id)
+                    key = _progress_key(status)
+                    if key != last_key:
+                        _print_progress(status)
+                        last_key = key
+                except (AgentServiceError, OSError, ValueError, RuntimeError) as exc:
+                    print(f"[Agent] Progress temporarily unavailable: {exc}", flush=True)
+                time.sleep(1.0)
+            status = future.result()
+        _print_status(status, as_json=False)
+        return _status_code(status.status.value)
+    except (AgentServiceError, OSError, ValueError, RuntimeError) as exc:
+        print(f"Agent approve failed: {exc}", file=sys.stderr)
+        return 1
+
+
+def _progress_key(status) -> tuple[object, ...]:
+    return (
+        status.status.value,
+        status.phase,
+        status.current_node,
+        status.current_candidate_value,
+        status.iteration_count,
+        status.best_parameter_value,
+        status.best_metric_value,
+        status.best_absolute_error,
+        status.error_message,
+    )
+
+
+def _print_progress(status) -> None:
+    node = status.next_nodes[0] if status.next_nodes else "workflow_complete"
+    activities = {
+        "prepare_case": "preparing the isolated simulation case",
+        "decide": "selecting the next calibration candidate",
+        "execute_candidate": "running SPHinXsim and analyzing the VTP result",
+        "replan": "evaluating recovery after a failed candidate",
+        "workflow_complete": "workflow reached a terminal state",
+    }
+    print(
+        "[Agent] "
+        f"phase={status.phase}; "
+        f"activity={activities.get(node, node)}; "
+        f"simulations={status.iteration_count}/"
+        f"{status.plan_summary.maximum_simulations}; "
+        f"target={status.target_metric} {status.target_value:g} "
+        f"{status.plan_summary.target_unit}",
+        flush=True,
+    )
+    if status.best_metric_value is not None:
+        print(
+            "[Agent] "
+            f"best_parameter={status.best_parameter_value:g} "
+            f"{status.plan_summary.parameter_unit}; "
+            f"best_metric={status.best_metric_value:.9g} "
+            f"{status.plan_summary.target_unit}; "
+            f"error={status.best_absolute_error:.9g} "
+            f"{status.plan_summary.target_unit}",
+            flush=True,
+        )
+    if status.current_candidate_value is not None:
+        print(
+            "[Agent] "
+            f"current_candidate={status.current_candidate_value:g} "
+            f"{status.plan_summary.parameter_unit}",
+            flush=True,
+        )
+    if status.error_message:
+        print(f"[Agent] message={status.error_message}", flush=True)
 
 
 def _print_status(status, *, as_json: bool) -> None:

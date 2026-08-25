@@ -35,6 +35,8 @@ class AgentCAEIterationReport(BaseModel):
 
     iteration: int = Field(..., ge=1)
     parameter_value: float
+    task_id: str
+    metric_name: str
     metric_value: float
     absolute_error: float = Field(..., ge=0.0)
     case_path: str
@@ -116,6 +118,8 @@ class AgentCAEReport(BaseModel):
                 AgentCAEIterationReport(
                     iteration=item.iteration,
                     parameter_value=item.parameter_value,
+                    task_id=item.task_id,
+                    metric_name=item.metric_name,
                     metric_value=item.metric_value,
                     absolute_error=item.absolute_error,
                     case_path=item.case_path,

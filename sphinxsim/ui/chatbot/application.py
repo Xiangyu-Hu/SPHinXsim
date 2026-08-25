@@ -82,6 +82,14 @@ def launch_chatbot(
         watch=watch,
     )
     environment = os.environ.copy()
+    # Chainlit inherits the terminal's working directory, but make the Agent
+    # project root explicit so the Chatbot and CLI resolve the same case files.
+    project_root = Path.cwd().resolve()
+    environment.setdefault("SPHINXSIM_AGENT_PROJECT_ROOT", str(project_root))
+    environment.setdefault(
+        "SPHINXSIM_AGENT_WORKSPACE",
+        str(project_root / ".build-temp" / "chatbot_agent"),
+    )
     # Chainlit's Click command treats a generic DEBUG variable as the value for
     # its boolean --debug option. Build environments commonly set DEBUG=release,
     # which is not a valid boolean and would prevent the server from starting.
@@ -100,4 +108,4 @@ def launch_chatbot(
         # The actual greeting is sent by on_chat_start; suppress Chainlit's
         # generic developer welcome page.
         Path(app_root, "chainlit.md").write_text("", encoding="utf-8")
-        return subprocess.call(command, env=environment)
+        return subprocess.call(command, env=environment, cwd=str(project_root))

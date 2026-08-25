@@ -81,6 +81,8 @@ class AgentServiceStatus(BaseModel):
     awaiting_approval: bool
     approval_request: dict[str, Any] | None = None
     next_nodes: list[str] = Field(default_factory=list)
+    current_node: str | None = None
+    current_candidate_value: float | None = None
     iteration_count: int = Field(..., ge=0)
     replan_count: int = Field(..., ge=0)
     target_metric: str
@@ -207,6 +209,14 @@ class AgentCAEAgentService:
             if isinstance(value, dict):
                 approval_request = value
         final = result.final_decision
+        next_nodes = list(snapshot.next)
+        graph_values = getattr(snapshot, "values", {}) or {}
+        decision = graph_values.get("decision")
+        current_candidate = None
+        if isinstance(decision, dict):
+            value = decision.get("candidate_value")
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                current_candidate = float(value)
         if approval_request is not None:
             phase = "awaiting_plan_approval"
         elif result.status != CalibrationWorkflowStatus.RUNNING:
@@ -225,7 +235,9 @@ class AgentCAEAgentService:
             case_prepared=result.case_prepared,
             awaiting_approval=approval_request is not None,
             approval_request=approval_request,
-            next_nodes=list(snapshot.next),
+            next_nodes=next_nodes,
+            current_node=next_nodes[0] if next_nodes else None,
+            current_candidate_value=current_candidate,
             iteration_count=len(result.iterations),
             replan_count=len(result.replan_history),
             target_metric=result.definition.calibration.objective.metric_name,

@@ -70,20 +70,23 @@ void ConstraintBuilder::addConstraint(
         Shape &shape = config_manager.getEntity<Shape>(real_body.Name());
         SolidBodyPartForSimbody &body_part = real_body.addBodyPart<SolidBodyPartForSimbody>(shape);
         SimTK::Body::Rigid &simbody_body = *config_manager.emplaceEntity<
-            SimTK::Body::Rigid>(body_part.Name(), *body_part.body_part_mass_properties_);
-        // After creating the body part and before integration, print or check:
-        std::cout << "Mass: " << body_part.body_part_mass_properties_->getMass() << std::endl;
-        std::cout << "Inertia: " << body_part.body_part_mass_properties_->getInertia() << std::endl;
+            SimTK::Body::Rigid>(body_part.Name(), body_part.getSimTKMassProperties());
+
+        std::cout << "\n------------------------------------------------------------" << std::endl;
+        std::cout << "Simbody constraint information: " << std::endl;
+        std::cout << "Name: " << body_part.Name() << std::endl;
+        std::cout << "Mass: " << body_part.getSimTKMassProperties().getMass() << std::endl;
+        std::cout << "Inertia: " << body_part.getSimTKMassProperties().getInertia() << std::endl;
+        std::cout << "------------------------------------------------------------" << std::endl;
 
         const std::string mobilized_body_type = config.at("mobilized_body").get<std::string>();
-
         if (mobilized_body_type == "planar")
         {
             SimTK::MobilizedBody::Planar &mobilized_body =
                 *config_manager.emplaceEntity<SimTK::MobilizedBody::Planar>(
                     "SimbodyMobilizedBody",
-                    matter.Ground(), SimTK::Transform(SimTKVec3(0.0, 0.0, 0.0)),
-                    simbody_body, SimTK::Transform(SimTKVec3(0.0, 0.0, 0.0)));
+                    matter.Ground(), body_part.getSimTKMassCenter(),
+                    simbody_body, body_part.getSimTKTransform());
             SimTK::RungeKuttaMersonIntegrator &integ =
                 *config_manager.emplaceEntity<SimTK::RungeKuttaMersonIntegrator>(
                     "SimbodyIntegrator", MBsystem);

@@ -18,7 +18,7 @@ from difflib import get_close_matches
 from pathlib import Path
 from typing import Any, Dict
 
-from sphinxsim.config.schemas import PhysicalCorrectionWarning, SimulationConfig
+from sphinxsim.config.schemas import SimulationConfig
 
 
 class LLMRepairWarning(UserWarning):
@@ -76,8 +76,9 @@ BODY_TYPE_RULES: str = (
     "cohesion, dilatancy, plastic material, or PlasticContinuum requests, "
     "use simulation_type 'continuum_dynamics' with a continuum_bodies material.type of "
     "'plastic_continuum'. "
-    "(5) plastic_continuum material requires density, sound_speed, youngs_modulus, "
-    "poisson_ratio, and friction_angle; cohesion and dilatancy_angle are optional. "
+    "(5) plastic_continuum material requires density, youngs_modulus, poisson_ratio, "
+    "and friction_angle; sound_speed, cohesion, and dilatancy_angle are optional. "
+    "When sound_speed is omitted, it is calculated at runtime. "
     "(6) friction_angle and dilatancy_angle in JSON are always radians, not degrees; "
     "convert degree values to radians before returning JSON. For plastic_continuum, "
     "use 0 <= poisson_ratio < 0.5, 0 <= friction_angle < pi/2, and, when present, "
@@ -86,10 +87,8 @@ BODY_TYPE_RULES: str = (
     "(8) If the user mentions an STL file or .stl path, represent that geometry as a "
     "triangle_mesh shape with file_name, translation, and scale. "
     "(9) Return ONLY the JSON object - no markdown fences, no comments, no extra keys. "
-    "(10) For plastic_continuum, calculate sound_speed from the final material values as "
-    "sqrt(youngs_modulus / (3 * density * (1 - 2 * poisson_ratio))). "
-    "Do not copy sound_speed from example_output when density, youngs_modulus, or "
-    "poisson_ratio changes. "
+    "(10) For plastic_continuum, preserve an explicitly supplied sound_speed. When it is "
+    "omitted, runtime calculates sqrt(youngs_modulus / (3 * density * (1 - 2 * poisson_ratio))). "
     "(11) Store dimensional JSON values in SI units: length in m, time in s, density "
     "in kg/m^3, speed in m/s, acceleration in m/s^2, and stress-like values such as "
     "youngs_modulus and cohesion in Pa. Convert units explicitly stated by the user "
@@ -316,72 +315,6 @@ def suppress_implicit_plastic_observers(
     if not explicitly_requested or explicitly_disabled:
         config.pop("observers", None)
     return config
-
-
-def apply_plastic_sound_speed_formula(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    """Derive PlasticContinuum sound speed from the final elastic properties.
-
-    This is intentionally a generation-time physical constraint rather than a
-    global schema mutation: fixture files and user-authored configs keep their
-    literal values, while newly generated configs cannot retain a stale sound
-    speed copied from an example template.
-    """
-    updated = json.loads(json.dumps(cfg))
-
-    for body in updated.get("continuum_bodies", []):
-        if not isinstance(body, dict):
-            continue
-        material = body.get("material")
-        if not isinstance(material, dict) or material.get("type") != "plastic_continuum":
-            continue
-
-        values: list[float] = []
-        for key in ("density", "youngs_modulus", "poisson_ratio"):
-            value = material.get(key)
-            if isinstance(value, bool):
-                values = []
-                break
-            try:
-                numeric = float(value)
-            except (TypeError, ValueError):
-                values = []
-                break
-            if not math.isfinite(numeric):
-                values = []
-                break
-            values.append(numeric)
-
-        if len(values) != 3:
-            continue
-        density, youngs_modulus, poisson_ratio = values
-        denominator = 3.0 * density * (1.0 - 2.0 * poisson_ratio)
-        if density <= 0.0 or youngs_modulus <= 0.0 or denominator <= 0.0:
-            continue
-
-        expected = math.sqrt(youngs_modulus / denominator)
-        previous = material.get("sound_speed")
-        try:
-            previous_numeric = float(previous)
-        except (TypeError, ValueError):
-            previous_numeric = None
-
-        if previous_numeric is not None and math.isclose(
-            previous_numeric, expected, rel_tol=1.0e-12, abs_tol=0.0
-        ):
-            material["sound_speed"] = expected
-            continue
-
-        material["sound_speed"] = expected
-        body_name = body.get("name", "<unnamed>")
-        warnings.warn(
-            f"Calculated PlasticContinuum sound_speed for body '{body_name}' as "
-            f"{expected:.12g} m/s from youngs_modulus, density, and poisson_ratio"
-            + (f"; replaced {previous!r}." if previous is not None else "."),
-            PhysicalCorrectionWarning,
-            stacklevel=2,
-        )
-
-    return updated
 
 
 def apply_explicit_instruction_overrides(cfg: Dict[str, Any], description: str) -> Dict[str, Any]:
@@ -806,6 +739,15 @@ _SHAPE_FIELDS_BY_TYPE = {
     "expanded_box": {"name", "type", "original", "expansion"},
     "complex_shape": {"name", "type", "sub_shapes", "operations"},
     "multipolygon": {"name", "type", "polygons"},
+    "cylinder": {
+        "name",
+        "type",
+        "radius",
+        "half_height",
+        "transform",
+        "primitive",
+        "_description",
+    },
     "triangle_mesh": {"name", "type", "file_name", "translation", "scale"},
 }
 
@@ -1033,7 +975,6 @@ def coerce_simulation_type(
                     material = {
                         "type": "plastic_continuum",
                         "density": 2600.0,
-                        "sound_speed": 23.179591595844596,
                         "youngs_modulus": 5980000.0,
                         "poisson_ratio": 0.3,
                         "friction_angle": 0.5235987755982988,
@@ -1061,7 +1002,6 @@ def coerce_simulation_type(
                 body["material"] = {
                     "type": "plastic_continuum",
                     "density": 2600.0,
-                    "sound_speed": 23.179591595844596,
                     "youngs_modulus": 5980000.0,
                     "poisson_ratio": 0.3,
                     "friction_angle": 0.5235987755982988,

@@ -1,7 +1,7 @@
 #include "continuum_dynamics_builder.h"
 
 #include "all_continuum_dynamics_ck.h"
-#include "fluid_dynamics_builder.hpp"
+#include "density_regularization.h"
 #include "recording_builder.h"
 #include "sph_simulation.h"
 
@@ -247,7 +247,7 @@ void ContinuumDynamicsBuilder::buildDensityRegularizationIfPresent(
             auto &continuum_body = sph_system.getBodyByName<RealBody>(body_name);
             density_regularization.add(
                 &main_methods.template addStateDynamics<
-                    fluid_dynamics::DensityRegularization, WeaklyCompressibleFluid, Failure>(
+                    fluid_dynamics::DensityRegularization, WeaklyCompressibleFluid, fluid_dynamics::Failure>(
                     continuum_body));
         }
     }

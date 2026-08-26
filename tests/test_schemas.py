@@ -1154,7 +1154,6 @@ class TestSimulationConfig:
                         "material": {
                             "type": "plastic_continuum",
                             "density": 1000.0,
-                            "sound_speed": 20.0,
                             "youngs_modulus": 1.0e6,
                             "poisson_ratio": 0.3,
                             "friction_angle": 30.0,
@@ -1167,6 +1166,22 @@ class TestSimulationConfig:
         assert material.friction_angle == pytest.approx(math.pi / 6)
         assert material.cohesion is None
         assert material.dilatancy_angle is None
+
+    def test_plastic_continuum_accepts_optional_sound_speed_override(self):
+        material = {
+            "type": "plastic_continuum",
+            "density": 1000.0,
+            "youngs_modulus": 1.0e6,
+            "poisson_ratio": 0.3,
+            "friction_angle": math.radians(30),
+            "sound_speed": 42.0,
+        }
+
+        cfg = _make_minimal_continuum_config(
+            continuum_bodies=[{"name": "ContinuumBody", "material": material}]
+        )
+
+        assert cfg.continuum_bodies[0].material.sound_speed == pytest.approx(42.0)
 
     @pytest.mark.parametrize(
         ("updates", "message"),
@@ -1183,7 +1198,6 @@ class TestSimulationConfig:
         material = {
             "type": "plastic_continuum",
             "density": 1000.0,
-            "sound_speed": 20.0,
             "youngs_modulus": 1.0e6,
             "poisson_ratio": 0.3,
             "friction_angle": math.radians(30),
@@ -1198,7 +1212,6 @@ class TestSimulationConfig:
         material = {
             "type": "plastic_continuum",
             "density": 1000.0,
-            "sound_speed": 20.0,
             "youngs_modulus": 1.0e6,
             "poisson_ratio": 0.3,
             "friction_angle": 30.0,
@@ -1221,7 +1234,6 @@ class TestSimulationConfig:
                         "material": {
                             "type": "plastic_continuum",
                             "density": 1000.0,
-                            "sound_speed": 20.0,
                             "youngs_modulus": 1.0e6,
                             "poisson_ratio": 0.3,
                         },

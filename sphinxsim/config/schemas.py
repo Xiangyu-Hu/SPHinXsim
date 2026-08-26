@@ -540,47 +540,6 @@ class ActiveStrainConfig(BaseModel):
     wavelength_factor: float = Field(..., gt=0)
     start_time: float = Field(..., gt=0)
 
-class DuctileDamageConfig(BaseModel):
-    enabled: bool = False
-
-    threshold_equivalent_plastic_strain: Optional[float] = Field(
-        default=None, ge=0.0
-    )
-
-    critical_equivalent_plastic_strain: Optional[float] = Field(
-        default=None, gt=0.0
-    )
-
-    critical_damage: Optional[float] = Field(
-        default=None, gt=0.0
-    )
-
-    @model_validator(mode="after")
-    def _validate_ductile_damage(self) -> "DuctileDamageConfig":
-        if not self.enabled:
-            return self
-
-        if (
-            self.threshold_equivalent_plastic_strain is None
-            or self.critical_equivalent_plastic_strain is None
-            or self.critical_damage is None
-        ):
-            raise ValueError(
-                "enabled ductile_damage requires "
-                "threshold_equivalent_plastic_strain, "
-                "critical_equivalent_plastic_strain and critical_damage"
-            )
-
-        if (
-            self.critical_equivalent_plastic_strain
-            <= self.threshold_equivalent_plastic_strain
-        ):
-            raise ValueError(
-                "critical_equivalent_plastic_strain must be greater than "
-                "threshold_equivalent_plastic_strain"
-            )
-
-        return self
 
 class MaterialConfig(BaseModel):
     type: MaterialType
@@ -597,7 +556,6 @@ class MaterialConfig(BaseModel):
     poisson_ratio: Optional[float] = None
     yield_stress: Optional[float] = Field(default=None, gt=0)
     hardening_modulus: Optional[float] = Field(default=None, gt=0)
-    ductile_damage: Optional[DuctileDamageConfig] = None
     friction_angle: Optional[float] = Field(default=None, ge=0)
     cohesion: Optional[float] = Field(default=None, ge=0)
     dilatancy_angle: Optional[float] = Field(default=None, ge=0)
@@ -682,15 +640,14 @@ class MaterialConfig(BaseModel):
         elif self.type == MaterialType.PLASTIC_CONTINUUM:
             required = (
                 self.density,
-                self.sound_speed,
                 self.youngs_modulus,
                 self.poisson_ratio,
                 self.friction_angle,
             )
             if any(v is None for v in required):
                 raise ValueError(
-                    "plastic_continuum requires density, sound_speed, youngs_modulus, "
-                    "poisson_ratio and friction_angle"
+                    "plastic_continuum requires density, youngs_modulus, poisson_ratio "
+                    "and friction_angle"
                 )
             assert self.poisson_ratio is not None
             assert self.friction_angle is not None
@@ -758,7 +715,6 @@ class FluidBodyConfig(BaseModel):
 class SolidBodyConfig(BaseModel):
     name: str = Field(..., min_length=1)
     material: MaterialConfig
-    is_moving: bool = False
 
     @model_validator(mode="after")
     def _material_type(self) -> "SolidBodyConfig":

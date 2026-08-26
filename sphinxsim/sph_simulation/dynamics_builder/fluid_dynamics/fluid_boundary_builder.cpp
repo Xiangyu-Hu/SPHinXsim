@@ -1,4 +1,4 @@
-#include "fluid_dynamics_builder.h"
+#include "fluid_dynamics_builder.hpp"
 
 #include "material_builder.h"
 #include "sph_simulation.h"

@@ -44,11 +44,6 @@ class FluidSimulationBuilder : public SimulationBuilder
     FluidSolverConfig parseFluidSolverConfig(const ScalingConfig &scaling_config, const json &config);
 
     template <class InnerRelationType, class ContactRelationType>
-    void addMainPhysicalTimeStep(
-        SPHSimulation &sim, MainMethods &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &fluid_wall_contact);
-
-    template <class InnerRelationType, class ContactRelationType>
     BaseDynamics<void> &addDensityRegularization(
         SPHSimulation &sim, MainMethods &main_methods,
         InnerRelationType &inner_relation, ContactRelationType &contact_relation);

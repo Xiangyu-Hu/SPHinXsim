@@ -189,6 +189,19 @@ SystemDomainConfig GeometryBuilder::parseSystemDomainConfig(
         system_config.system_bounds_ = parseBoundingBox(scaling_config, config.at("system_domain"));
     }
     system_config.particle_spacing_ = parseGlobalResolution(scaling_config, config.at("global_resolution"));
+
+#if SPHINXSYS_USE_FLOAT
+    if (std::pow(system_config.particle_spacing_, Dimensions) < 1.0e-6)
+    {
+        std::cout << "\n------------------------------------------------------------" << std::endl;
+        std::cout << "Error: particle spacing is too small for float precision!" << std::endl;
+        std::cout << "The particle volume measure is less than 1.0e-6." << std::endl;
+        std::cout << "Please use characteristic scaling for the simulation." << std::endl;
+        std::cout << "------------------------------------------------------------" << std::endl;
+        exit(1);
+    }
+#endif
+
     return system_config;
 }
 //=================================================================================================//

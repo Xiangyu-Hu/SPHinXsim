@@ -74,7 +74,7 @@
   },
 
   "particle_generation": {
-    "build_and_run": true,
+    "build_and_run": false,
     "settings": {
       "bodies": [
         {
@@ -198,7 +198,7 @@
   },
 
   "restart": {
-    "save_interval": 1000,
+    "save_interval": 1,
     "restore_step": 0,
     "summary_enabled": true
   }

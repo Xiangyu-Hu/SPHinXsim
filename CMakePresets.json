@@ -72,7 +72,7 @@
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build-integrated",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/../vcpkg/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_CXX_STANDARD": "17",
         "CMAKE_C_COMPILER_LAUNCHER": "ccache",

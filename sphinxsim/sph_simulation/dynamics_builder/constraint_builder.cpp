@@ -72,11 +72,13 @@ void ConstraintBuilder::addConstraint(
         SimTK::Body::Rigid &simbody_body = *config_manager.emplaceEntity<
             SimTK::Body::Rigid>(body_part.Name(), body_part.getSimTKMassProperties());
 
+        auto &mass_properties = simbody_body.getDefaultRigidBodyMassProperties();
         std::cout << "\n------------------------------------------------------------" << std::endl;
         std::cout << "Simbody constraint information: " << std::endl;
         std::cout << "Name: " << body_part.Name() << std::endl;
-        std::cout << "Mass: " << body_part.getSimTKMassProperties().getMass() << std::endl;
-        std::cout << "Inertia: " << body_part.getSimTKMassProperties().getInertia() << std::endl;
+        std::cout << "Mass: " << mass_properties.getMass() << std::endl;
+        std::cout << "UnitInertia Moments: " << mass_properties.getUnitInertia().getMoments() << std::endl;
+        std::cout << "UnitInertia Products: " << mass_properties.getUnitInertia().getProducts() << std::endl;
         std::cout << "------------------------------------------------------------" << std::endl;
 
         const std::string mobilized_body_type = config.at("mobilized_body").get<std::string>();

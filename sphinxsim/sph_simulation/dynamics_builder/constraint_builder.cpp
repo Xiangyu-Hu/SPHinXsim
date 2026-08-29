@@ -69,14 +69,16 @@ void ConstraintBuilder::addConstraint(
             SimTK::SimbodyMatterSubsystem>("SimbodyMatterSubsystem", MBsystem);
         Shape &shape = config_manager.getEntity<Shape>(real_body.Name());
         SolidBodyPartForSimbody &body_part = real_body.addBodyPart<SolidBodyPartForSimbody>(shape);
+        auto &mass_properties = body_part.getSimTKMassProperties();
         SimTK::Body::Rigid &simbody_body = *config_manager.emplaceEntity<
-            SimTK::Body::Rigid>(body_part.Name(), body_part.getSimTKMassProperties());
+            SimTK::Body::Rigid>(body_part.Name(), mass_properties);
 
         std::cout << "\n------------------------------------------------------------" << std::endl;
         std::cout << "Simbody constraint information: " << std::endl;
         std::cout << "Name: " << body_part.Name() << std::endl;
-        std::cout << "Mass: " << body_part.getSimTKMassProperties().getMass() << std::endl;
-        std::cout << "Inertia: " << body_part.getSimTKMassProperties().getInertia() << std::endl;
+        std::cout << "Mass: " << mass_properties.getMass() << std::endl;
+        std::cout << "Inertia Moments: " << mass_properties.getInertia().getMoments() << std::endl;
+        std::cout << "Inertia Products: " << mass_properties.getInertia().getProducts() << std::endl;
         std::cout << "------------------------------------------------------------" << std::endl;
 
         const std::string mobilized_body_type = config.at("mobilized_body").get<std::string>();

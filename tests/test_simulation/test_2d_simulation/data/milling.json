@@ -11,7 +11,7 @@
       "hint": "externally_defined"
     }
   ],
-    
+
   "geometries": {
     "system_domain": {
       "upper_bound": [0.08, 0.04],
@@ -36,6 +36,19 @@
             "operation": "union",
             "type": "data_file",
             "file_name": "milling_tool.dat"
+          }
+        ]
+      },
+      {
+        "name": "WallBoundary",
+        "type": "multipolygon",
+        "polygons": [
+          {
+            "operation": "union",
+            "type": "container_box",
+            "inner_lower_bound": [-0.07, -0.08],
+            "inner_upper_bound": [0.13, 0.07],
+            "thickness": 0.0032
           }
         ]
       }
@@ -64,6 +77,10 @@
           "name": "MillingTool",
           "solid_body": {},
           "relaxation": { "level_set": {} }
+        },
+        {
+          "name": "WallBoundary",
+          "solid_body": {}
         }
       ],
       "relaxation_parameters": {
@@ -93,6 +110,12 @@
     {
       "name": "MillingTool",
       "is_moving": true,
+      "material": {
+        "type": "rigid_body"
+      }
+    },
+    {
+      "name": "WallBoundary",
       "material": {
         "type": "rigid_body"
       }

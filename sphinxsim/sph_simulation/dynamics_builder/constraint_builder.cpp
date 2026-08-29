@@ -119,10 +119,12 @@ void ConstraintBuilder::addConstraint(
                 if (restart_config.restore_step_ != 0)
                 {
                     state_engine.readStateFromXml(restart_config.restore_step_, state);
-                    MBsystem.realize(state);
                 }
             }
+
+            MBsystem.realize(state);
             integ.initialize(state);
+            checkSimbodyState(sim);
 
             auto &constraint = main_methods.template addStateDynamics<
                 solid_dynamics::ConstraintBodyPartBySimBodyCK>(body_part, MBsystem, mobilized_body, integ);
@@ -130,6 +132,7 @@ void ConstraintBuilder::addConstraint(
                 SimulationHookPoint::PositionConstraint, [&]()
                 {
                 // (A) move the mobilized body to the target state at the current physical time
+                checkSimbodyState(sim);
                 Real t_target = time_stepper.getPhysicalTime();
                 if (t_target > integ.getState().getTime())
                 {
@@ -146,6 +149,31 @@ void ConstraintBuilder::addConstraint(
 
     throw std::runtime_error(
         "ConstraintBuilder::ConstraintBuilder: unsupported: " + type);
+}
+//=================================================================================================//
+void ConstraintBuilder::checkSimbodyState(SPHSimulation &sim)
+{
+    EntityManager &config_manager = sim.getConfigManager();
+    if (!config_manager.hasEntity<SimTK::MultibodySystem>("SimbodyMultibodySystem"))
+        return;
+
+    auto &MBsystem = config_manager.getEntity<SimTK::MultibodySystem>("SimbodyMultibodySystem");
+    auto &mobilized_body = config_manager.getEntity<SimTK::MobilizedBody::Planar>("SimbodyMobilizedBody");
+    auto &integ = config_manager.getEntity<SimTK::RungeKuttaMersonIntegrator>("SimbodyIntegrator");
+    SimTK::State state = integ.getState();
+
+    std::cout << "\n------------------------------------------------------------" << std::endl;
+    std::cout << "Simbody state information: " << std::endl;
+    std::cout << "Time: " << state.getTime() << std::endl;
+    std::cout << "Position: " << state.getQ() << std::endl;
+    std::cout << "Velocity: " << state.getU() << std::endl;
+    std::cout << "AngularAcceleration: " << state.getYDot() << std::endl;
+    std::cout << "OriginAcceleration: " << state.getUDot() << std::endl;
+    std::cout << "------------------------------------------------------------" << std::endl;
+
+    MBsystem.realize(state);
+    SimbodyState test_simbody_state(mobilized_body.getBodyOriginLocation(state), mobilized_body, state);
+    test_simbody_state.printSimbodyState();
 }
 //=================================================================================================//
 } // namespace SPH

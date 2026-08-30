@@ -1,4 +1,4 @@
-#include "fluid_simulation_builder.hpp"
+#include "fluid_simulation_builder.h"
 
 #include "base_simulation_builder.hpp"
 #include "fluid_dynamics_builder.hpp"
@@ -8,8 +8,10 @@
 #include "force_on_structure.h"
 #include "structure_surface_motion.h"
 #include "traveling_wave_active_strain.h"
+#include "thermal_dynamics_builder.hpp"
 namespace SPH
 {
+using namespace fluid_dynamics;
 //=================================================================================================//
 void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &config)
 {

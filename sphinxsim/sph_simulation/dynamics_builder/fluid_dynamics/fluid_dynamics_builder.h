@@ -64,6 +64,11 @@ class FluidDynamicsBuilder
     static BaseDynamics<void> &addUpdateParticlePosition(SPHSimulation &sim, MainMethods &main_methods);
     static BaseDynamics<void> &addAcousticStep1stHalf(SPHSimulation &sim, MainMethods &main_methods);
     static BaseDynamics<void> &addAcousticStep2ndHalf(SPHSimulation &sim, MainMethods &main_methods);
+    static BaseDynamics<void> &addLinearCorrectionMatrix(SPHSimulation &sim, MainMethods &main_methods);
+    static BaseDynamics<void> &addDensityRegularization(SPHSimulation &sim, MainMethods &main_methods);
+    static void buildViscousForceIfPresent(SPHSimulation &sim, MainMethods &main_methods);
+    static void buildSurfaceIndicationIfOpenBoundary(SPHSimulation &sim, MainMethods &main_methods);
+    static void buildTransportVelocityFormulationIfNotFreeSurface(SPHSimulation &sim, MainMethods &main_methods);
 
     template <class FluidType, class InnerRelationType, class ContactRelationType>
     static BaseDynamics<void> &buildDensityRegularization(
@@ -76,6 +81,9 @@ class FluidDynamicsBuilder
     static BaseDynamics<Real> &addAcousticTimeStep(SPHSimulation &sim, MainMethods &main_methods);
 
   private:
+    static BaseDynamics<void> &addTransportVelocityCorrection(
+        MainMethods &main_methods, SPHBody &sph_body, FluidSolverConfig &fluid_solver_config);
+
     static void addBoundaryCondition(
         SPHSimulation &sim, MainMethods &main_methods, const json &config);
 

@@ -60,7 +60,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     // Define dependent optional methods using hooking point in stage pipelines.
     //----------------------------------------------------------------------
-    buildSurfaceIndicationIfOpenBoundary(sim, main_methods, fluid_inner, fluid_wall_contact);
+    FluidDynamicsBuilder::buildSurfaceIndicationIfOpenBoundary(sim, main_methods);
     //----------------------------------------------------------------------
     // The essential main methods used for the simulation.
     // Generally, the configuration dynamics, such as update cell linked list,
@@ -227,8 +227,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     auto &fluid_advection_step_setup = FluidDynamicsBuilder::addAdvectionStepSetup(sim, main_methods);
     auto &fluid_particle_position = FluidDynamicsBuilder::addUpdateParticlePosition(sim, main_methods);
 
-    auto &fluid_linear_correction_matrix = addLinearCorrectionMatrixWithScope(
-        config_manager, main_methods, fluid_inner, fluid_wall_contact);
+    auto &fluid_linear_correction_matrix = FluidDynamicsBuilder::addLinearCorrectionMatrix(sim, main_methods);
 
     auto &fluid_acoustic_step_1st_half = FluidDynamicsBuilder::addAcousticStep1stHalf(sim, main_methods);
     auto &fluid_acoustic_step_2nd_half = FluidDynamicsBuilder::addAcousticStep2ndHalf(sim, main_methods);
@@ -254,8 +253,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             { viscous_force_on_structure.exec(); });
     }
 
-    auto &fluid_density_regularization = addDensityRegularization(
-        sim, main_methods, fluid_inner, fluid_wall_contact);
+    auto &fluid_density_regularization = FluidDynamicsBuilder::addDensityRegularization(sim, main_methods);
 
     auto &fluid_advection_time_step = FluidDynamicsBuilder::addAdvectionTimeStep(sim, main_methods);
     auto &fluid_acoustic_time_step = FluidDynamicsBuilder::addAcousticTimeStep(sim, main_methods);
@@ -272,8 +270,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     // Define dependent optional methods using hooking point in stage pipelines.
     //----------------------------------------------------------------------
     buildExternalForceIfPresent(sim, main_methods, config);
-    buildTransportVelocityFormulationIfNotFreeSurface(sim, main_methods, fluid_inner, fluid_wall_contact);
-    buildViscousForceIfPresent(sim, main_methods, fluid_inner, fluid_wall_contact);
+    FluidDynamicsBuilder::buildTransportVelocityFormulationIfNotFreeSurface(sim, main_methods);
+    FluidDynamicsBuilder::buildViscousForceIfPresent(sim, main_methods);
     ThermalDynamicsBuilder::buildThermalDynamicsIfPresent(sim, main_methods, fluid_inner, fluid_wall_contact);
     //----------------------------------------------------------------------
     // Define initial and boundary conditions,
@@ -462,31 +460,6 @@ void FluidSimulationBuilder::buildParticleSortIfPresent(
                     particle_sort.exec();
                 } });
     }
-}
-//=================================================================================================//
-BaseDynamics<void> &FluidSimulationBuilder::addTransportVelocityCorrection(
-    MainMethods &main_methods, SPHBody &sph_body, FluidSolverConfig &fluid_solver_config)
-{
-    if (fluid_solver_config.surface_type_ == "confined")
-    {
-        return main_methods.template addStateDynamics<
-            TransportVelocityCorrectionCK, TruncatedLinear>(sph_body);
-    }
-
-    if (fluid_solver_config.surface_type_ == "open_boundary")
-    {
-        return main_methods.template addStateDynamics<
-            TransportVelocityCorrectionCK, TruncatedLinear, BulkParticles>(sph_body);
-    }
-
-    if (fluid_solver_config.surface_type_ == "free_stream")
-    {
-        return main_methods.template addStateDynamics<
-            TransportVelocityCorrectionCK, NoLimiter, BulkParticles>(sph_body);
-    }
-
-    throw std::runtime_error(
-        "FluidSimulationBuilder::addTransportVelocityCorrection: no supported flow type found!");
 }
 //=================================================================================================//
 } // namespace SPH

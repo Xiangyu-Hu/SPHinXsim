@@ -6,7 +6,6 @@
 
 #include "composite_solid.h"
 #include "force_on_structure.h"
-#include "region_shape_material_id.h"
 #include "structure_surface_motion.h"
 #include "traveling_wave_active_strain.h"
 namespace SPH
@@ -67,51 +66,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     // update body relations, are defined first.
     //----------------------------------------------------------------------
     auto &solid_cell_linked_list = main_methods.addCellLinkedListDynamics(solid_bodies);
-    // Optional per particle material id assignment, driven by the region model
-    // given in each solid body configuration.
-    auto &material_id_assignment = main_methods.addParticleDynamicsGroup();
-    bool has_material_id_assignment = false;
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
-    for (const auto &solid_config : config.at("solid_bodies"))
-    {
-        const json &material_config = solid_config.at("material");
-        if (!material_config.contains("material_id_regions"))
-            continue;
-
-        const json &region_config = material_config.at("material_id_regions");
-        std::string body_name = solid_config.at("name").get<std::string>();
-        SolidBody *target_body = nullptr;
-        for (SolidBody *solid_body : solid_bodies)
-        {
-            if (solid_body->Name() == body_name)
-                target_body = solid_body;
-        }
-        if (target_body == nullptr)
-        {
-            throw std::runtime_error("material id regions refer to an unknown solid body: " + body_name);
-        }
-
-        StdVec<Shape *> region_shapes;
-        StdVec<int> region_ids;
-        for (const auto &region : region_config.at("regions"))
-        {
-            std::string shape_name = region.at("shape").get<std::string>();
-            region_shapes.push_back(&config_manager.getEntity<Shape>(shape_name));
-            region_ids.push_back(region.at("id").get<int>());
-        }
-        int default_id = region_config.at("default_id").get<int>();
-
-        material_id_assignment.add(&main_methods.addStateDynamics<RegionShapeMaterialId>(
-            *target_body, region_shapes, region_ids, default_id));
-        has_material_id_assignment = true;
-    }
-
-    if (has_material_id_assignment)
-    {
-        sim.getInitializationPipeline().insert_hook(
-            InitializationHookPoint::InitialCondition, [&]()
-            { material_id_assignment.exec(); });
-    }
+    SolidDynamicsBuilder::buildMaterialIdAssignmentIfPresent(sim, main_methods, config);
     // Structure contacts kept for the coupling forces, which can only be built
     // once the fluid has registered its own kinematic variables.
     // StdVec here would be a stack-use-after-return once buildSimulation()

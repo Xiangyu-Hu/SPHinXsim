@@ -72,15 +72,6 @@ void ConstraintBuilder::addConstraint(
         SimTK::Body::Rigid &simbody_body = *config_manager.emplaceEntity<
             SimTK::Body::Rigid>("RigidBody", body_part.getSimTKMassProperties());
 
-        auto &mass_properties = simbody_body.getDefaultRigidBodyMassProperties();
-        std::cout << "\n------------------------------------------------------------" << std::endl;
-        std::cout << "Simbody constraint information: " << std::endl;
-        std::cout << "Name: " << body_part.Name() << std::endl;
-        std::cout << "Mass: " << mass_properties.getMass() << std::endl;
-        std::cout << "UnitInertia Moments: " << mass_properties.getUnitInertia().getMoments() << std::endl;
-        std::cout << "UnitInertia Products: " << mass_properties.getUnitInertia().getProducts() << std::endl;
-        std::cout << "------------------------------------------------------------" << std::endl;
-
         const std::string mobilized_body_type = config.at("mobilized_body").get<std::string>();
         if (mobilized_body_type == "planar")
         {
@@ -132,7 +123,6 @@ void ConstraintBuilder::addConstraint(
                 SimulationHookPoint::PositionConstraint, [&]()
                 {
                 // (A) move the mobilized body to the target state at the current physical time
-                checkSimbodyState(sim);
                 Real t_target = time_stepper.getPhysicalTime();
                 if (t_target > integ.getState().getTime())
                 {
@@ -159,9 +149,7 @@ void ConstraintBuilder::checkSimbodyState(SPHSimulation &sim)
 
     auto &MBsystem = config_manager.getEntity<SimTK::MultibodySystem>("SimbodyMultibodySystem");
     auto &mobilized_body = config_manager.getEntity<SimTK::MobilizedBody::Planar>("SimbodyMobilizedBody");
-
     auto &simbody_body = config_manager.getEntity<SimTK::Body::Rigid>("RigidBody");
-
     auto &mass_properties = simbody_body.getDefaultRigidBodyMassProperties();
     std::cout << "\n------------------------------------------------------------" << std::endl;
     std::cout << "Simbody constraint information: " << std::endl;
@@ -171,17 +159,8 @@ void ConstraintBuilder::checkSimbodyState(SPHSimulation &sim)
     std::cout << "------------------------------------------------------------" << std::endl;
 
     auto &integ = config_manager.getEntity<SimTK::RungeKuttaMersonIntegrator>("SimbodyIntegrator");
-    SimTK::State state = integ.getState();
-
-    std::cout << "\n------------------------------------------------------------" << std::endl;
-    std::cout << "Simbody state information: " << std::endl;
-    std::cout << "Time: " << state.getTime() << std::endl;
-    std::cout << "Position: " << state.getQ() << std::endl;
-    std::cout << "Velocity: " << state.getU() << std::endl;
-    std::cout << "AngularAcceleration: " << state.getYDot() << std::endl;
-    std::cout << "OriginAcceleration: " << state.getUDot() << std::endl;
-    std::cout << "------------------------------------------------------------" << std::endl;
-
+    SimTK::State state = integ.getState(); // copy to allow cache invalidation
+    state.invalidateAllCacheAtOrAbove(SimTK::Stage::Dynamics);
     MBsystem.realize(state);
     SimbodyState test_simbody_state(mobilized_body.getBodyOriginLocation(state), mobilized_body, state);
     test_simbody_state.printSimbodyState();

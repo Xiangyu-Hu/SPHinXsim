@@ -189,7 +189,7 @@ void ContinuumDynamicsBuilder::buildContactRepulsionIfPresent(
                             contact_relation, continuum_solver_parameters.contact_numerical_damping_));
                 }
             }
-            ConstraintBuilder::buildConstraintsIfPresent(sim, main_methods, config);
+
             if (config_manager.hasEntity<SPHBodiesConfig>("SolidBodiesConfig"))
             {
                 auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");

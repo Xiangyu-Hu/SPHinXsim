@@ -70,7 +70,7 @@ void ConstraintBuilder::addConstraint(
         Shape &shape = config_manager.getEntity<Shape>(real_body.Name());
         SolidBodyPartForSimbody &body_part = real_body.addBodyPart<SolidBodyPartForSimbody>(shape);
         SimTK::Body::Rigid &simbody_body = *config_manager.emplaceEntity<
-            SimTK::Body::Rigid>(body_part.Name(), body_part.getSimTKMassProperties());
+            SimTK::Body::Rigid>("RigidBody", body_part.getSimTKMassProperties());
 
         auto &mass_properties = simbody_body.getDefaultRigidBodyMassProperties();
         std::cout << "\n------------------------------------------------------------" << std::endl;
@@ -159,6 +159,17 @@ void ConstraintBuilder::checkSimbodyState(SPHSimulation &sim)
 
     auto &MBsystem = config_manager.getEntity<SimTK::MultibodySystem>("SimbodyMultibodySystem");
     auto &mobilized_body = config_manager.getEntity<SimTK::MobilizedBody::Planar>("SimbodyMobilizedBody");
+
+    auto &simbody_body = config_manager.getEntity<SimTK::Body::Rigid>("RigidBody");
+
+    auto &mass_properties = simbody_body.getDefaultRigidBodyMassProperties();
+    std::cout << "\n------------------------------------------------------------" << std::endl;
+    std::cout << "Simbody constraint information: " << std::endl;
+    std::cout << "Mass: " << mass_properties.getMass() << std::endl;
+    std::cout << "UnitInertia Moments: " << mass_properties.getUnitInertia().getMoments() << std::endl;
+    std::cout << "UnitInertia Products: " << mass_properties.getUnitInertia().getProducts() << std::endl;
+    std::cout << "------------------------------------------------------------" << std::endl;
+
     auto &integ = config_manager.getEntity<SimTK::RungeKuttaMersonIntegrator>("SimbodyIntegrator");
     SimTK::State state = integ.getState();
 

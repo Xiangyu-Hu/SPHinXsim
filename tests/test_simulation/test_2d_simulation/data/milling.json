@@ -108,14 +108,14 @@
 
   "solid_bodies": [
     {
-      "name": "WallBoundary",
+      "name": "MillingTool",
+      "is_moving": true,
       "material": {
         "type": "rigid_body"
       }
     },
     {
-      "name": "MillingTool",
-      "is_moving": true,
+      "name": "WallBoundary",
       "material": {
         "type": "rigid_body"
       }

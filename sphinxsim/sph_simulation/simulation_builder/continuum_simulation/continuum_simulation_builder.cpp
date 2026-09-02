@@ -41,7 +41,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     // Optional methods that depend on the presence of certain features in the simulation.
     //----------------------------------------------------------------------
     ContinuumDynamicsBuilder::buildShearForceIntegrationIfPresent(sim, main_methods);
-    //ContinuumDynamicsBuilder::buildContactRepulsionIfPresent(sim, main_methods);
+    ContinuumDynamicsBuilder::buildContactRepulsionIfPresent(sim, main_methods, config);
     ContinuumDynamicsBuilder::buildDensityRegularizationIfPresent(sim, main_methods);
     ContinuumDynamicsBuilder::buildStressDiffusionIfPresent(sim, main_methods);
     //----------------------------------------------------------------------

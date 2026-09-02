@@ -84,11 +84,8 @@
         {
           "name": "MillingTool",
           "solid_body": {},
-          "relaxation": {
-            "level_set": {}
-          }
+          "relaxation": { "level_set": {} }
         },
-
         {
           "name": "WallBoundary",
           "solid_body": {}
@@ -136,6 +133,12 @@
     {
       "name": "MillingTool",
       "is_moving": true,
+      "material": {
+        "type": "rigid_body"
+      }
+    },
+    {
+      "name": "WallBoundary",
       "material": {
         "type": "rigid_body"
       }

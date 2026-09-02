@@ -1,6 +1,7 @@
 #include "continuum_dynamics_builder.h"
 
 #include "all_continuum_dynamics_ck.h"
+#include "constraint_builder.h"
 #include "density_regularization.h"
 #include "recording_builder.h"
 #include "sph_simulation.h"
@@ -155,7 +156,7 @@ void ContinuumDynamicsBuilder::buildShearForceIntegrationIfPresent(
 }
 //=================================================================================================//
 void ContinuumDynamicsBuilder::buildContactRepulsionIfPresent(
-    SPHSimulation &sim, MainMethods &main_methods)
+    SPHSimulation &sim, MainMethods &main_methods, const json &config)
 {
     auto &sph_system = sim.getSPHSystem();
     auto &config_manager = sim.getConfigManager();
@@ -197,9 +198,12 @@ void ContinuumDynamicsBuilder::buildContactRepulsionIfPresent(
                     std::string relation_name = body_name + sb_tgt->name_;
                     auto &contact_relation = sph_system.getRelationByName<
                         Contact<Relation<RealBody, SolidBody>>>(relation_name);
+                    
                     contact_repulsion_factor.add(
                         &main_methods.template addInteractionDynamics<solid_dynamics::RepulsionFactor>(
                             contact_relation));
+
+
                     contact_repulsion_force.add(
                         &main_methods.template addInteractionDynamicsWithUpdate<
                             solid_dynamics::RepulsionForceCK, Wall>(

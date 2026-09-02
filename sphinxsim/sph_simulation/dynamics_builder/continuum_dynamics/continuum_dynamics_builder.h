@@ -62,7 +62,7 @@ class ContinuumDynamicsBuilder
     static BaseDynamics<Real> &addAdvectionTimeStep(SPHSimulation &sim, MainMethods &main_methods);
     static BaseDynamics<Real> &addAcousticTimeStep(SPHSimulation &sim, MainMethods &main_methods);
     static void buildShearForceIntegrationIfPresent(SPHSimulation &sim, MainMethods &main_methods);
-    static void buildContactRepulsionIfPresent(SPHSimulation &sim, MainMethods &main_methods);
+    static void buildContactRepulsionIfPresent(SPHSimulation &sim, MainMethods &main_methods, const json &config);
     static void buildDensityRegularizationIfPresent(SPHSimulation &sim, MainMethods &main_methods);
     static void buildStressDiffusionIfPresent(SPHSimulation &sim, MainMethods &main_methods);
 

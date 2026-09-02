@@ -85,6 +85,24 @@
       }
     },
     {
+      "name": "gcc-build-memory-check",
+      "displayName": "GCC RelWithDebugInfo Build With Memory Check",
+      "description": "GCC Build with memory check",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-integrated",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/../vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "CMAKE_CXX_STANDARD": "17",
+        "SPHINXSYS_BUILD_TESTS": "OFF",
+        "SPHINXSYS_DEVELOPER_MODE": "ON",
+        "SPHINXSYS_USE_SYCL": "OFF",
+        "SPHINXSIM_COPY_BINDINGS_AFTER_BUILD": "ON",
+        "SPHINXSIM_BINDINGS_OUTPUT_DIR": "${sourceDir}/sphinxsim/bindings/native"
+      }
+    },
+    {
       "name": "integrated-build-release-windows",
       "displayName": "Integrated SPHinXsys + Python Release Build Windows",
       "description": "Build SPHinXsys libraries and Python bindings together in Windows",
@@ -157,6 +175,11 @@
       "name": "integrated-build-release",
       "displayName": "Build Integrated SPHinXsys + Python Release",
       "configurePreset": "integrated-build-release"
+    },
+    {
+      "name": "gcc-build-memory-check",
+      "displayName": "GCC RelWithDebugInfo Build With Memory Check",
+      "configurePreset": "gcc-build-memory-check"
     },
     {
       "name": "integrated-build-release-windows",

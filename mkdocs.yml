@@ -34,13 +34,13 @@ font:
   text: Roboto
   code: Roboto Mono
 
-  markdown_extensions:
-    - admonition
-    - pymdownx.details
-    - pymdownx.highlight
-    - pymdownx.superfences
-    - pymdownx.arithmatex:
-        generic: true
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.arithmatex:
+      generic: true
 
 extra_javascript:
   - javascripts/mathjax.js

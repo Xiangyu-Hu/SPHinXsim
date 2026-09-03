@@ -69,7 +69,7 @@
       "name": "integrated-build-release",
       "displayName": "Integrated SPHinXsys + Python Release Build",
       "description": "Build SPHinXsys libraries and Python bindings together",
-      "generator": "Ninja",
+      "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build-integrated",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",

@@ -30,7 +30,7 @@ void SPHSimulation::resetOutputRoot(const fs::path &output_root, bool keep_exist
     io_env.resetReloadFolder((output_root / "reload").string(), keep_existing);
 }
 //=================================================================================================//
-SPHSystem &SPHSimulation::defineSPHSystem()
+SPHSystem &SPHSimulation::defineSPHSystem(const json &config)
 {
     SystemDomainConfig &system_config = config_manager_.getEntity<
         SystemDomainConfig>("SystemDomainConfig");
@@ -39,6 +39,7 @@ SPHSystem &SPHSimulation::defineSPHSystem()
     auto &scaling_config = config_manager_.getEntity<ScalingConfig>("ScalingConfig");
     sph_system_ptr_->svPhysicalTime().setScalingRef(scaling_config.getScalingRef("Time"));
     sph_system_ptr_->writeSystemDomainShapeToVtp(scaling_config.getScalingRef("Length"));
+    sph_system_ptr_->setLogLevel(SimulationBuilder::parseLoglevel(config));
     return *sph_system_ptr_.get();
 }
 //=================================================================================================//

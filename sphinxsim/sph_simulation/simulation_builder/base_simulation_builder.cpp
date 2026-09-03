@@ -170,7 +170,35 @@ SolverCommonConfig SimulationBuilder::parseSolverCommonConfig(
 
     if (config.contains("observation_interval"))
         solver_common_config.observation_interval_ = config.at("observation_interval").get<UnsignedInt>();
+
     return solver_common_config;
+}
+//=================================================================================================//
+int SimulationBuilder::parseLoglevel(const json &config)
+{
+    std::string log_description = "info"; // default log level
+    if (config.contains("log_level"))
+    {
+        log_description = config.at("log_level").get<std::string>();
+        if (log_description == "trace")
+            return 0;
+        if (log_description == "debug")
+            return 1;
+        if (log_description == "info")
+            return 2;
+        if (log_description == "warning")
+            return 3;
+        if (log_description == "error")
+            return 4;
+        if (log_description == "critical")
+            return 5;
+        if (log_description == "off")
+            return 6;
+
+        throw std::runtime_error(
+            "parseLoglevel: invalid log level description: " + log_description);
+    }
+    return 2; // default log level is info
 }
 //=================================================================================================//
 void SimulationBuilder::parseScheduledEvents(SPHSimulation &sim, const json &config, bool &on_flag)

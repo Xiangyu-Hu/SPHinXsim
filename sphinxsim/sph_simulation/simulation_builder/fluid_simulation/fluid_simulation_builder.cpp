@@ -20,7 +20,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     // and the entity manager is the container of all simulation setting
     // configurations and external (not SPH) simulation environments.
     //----------------------------------------------------------------------
-    SPHSystem &sph_system = sim.defineSPHSystem();
+    SPHSystem &sph_system = sim.defineSPHSystem(config);
     EntityManager &config_manager = sim.getConfigManager();
     SPHSolver &sph_solver = sim.defineSPHSolver(*this, config);
     //----------------------------------------------------------------------

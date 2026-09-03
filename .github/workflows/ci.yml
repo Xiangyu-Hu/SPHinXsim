@@ -492,13 +492,13 @@ jobs:
             python3-dev \
             autoconf automake autoconf-archive \
             libxmu-dev libxi-dev libgl-dev libxt-dev \
-            libxcb-cursor0 libvtk9-dev
+            libxcb-cursor0
 
       - name: Install macOS system dependencies
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install ninja autoconf automake autoconf-archive pkg-config vtk
+          brew install ninja autoconf automake autoconf-archive pkg-config
 
       - name: Install Windows build tools
         if: runner.os == 'Windows'

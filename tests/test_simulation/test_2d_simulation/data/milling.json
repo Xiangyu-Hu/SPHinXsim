@@ -179,7 +179,7 @@
   ],
 
   "solver_parameters": {
-    "end_time": 1.0,
+    "end_time": 0.3,
     "output_interval": 0.01,
     "screen_interval": 100,
 
@@ -194,7 +194,7 @@
   },
 
   "restart": {
-    "save_interval": 1,
+    "save_interval": 1000,
     "restore_step": 0,
     "summary_enabled": true
   }

@@ -10,6 +10,10 @@ nav:
   - CLI Usage: cli-usage.md
   - Visualization: visualization.md
   - LLM Testing: llm-testing.md
+  - Theoretical Backgrounds:
+      - Overview: theoretical-background.md
+      - Physical Models: theoretical-background-physical-models.md
+      - SPH Methods: theoretical-background-sph-methods.md
 
 theme:
   name: material

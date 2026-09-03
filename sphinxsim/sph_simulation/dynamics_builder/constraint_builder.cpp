@@ -46,13 +46,11 @@ void ConstraintBuilder::addConstraint(
         {
             auto &oriented_box = config_manager.getEntity<OrientedBox>(config.at("region").get<std::string>());
             auto &body_part = real_body.template addBodyPart<OrientedBoxByParticle>(oriented_box);
-            constraint.add(&main_methods.template addStateDynamics<
-                            ConstantConstraintCK, Vecd>(body_part, "Velocity", Vecd::Zero()));
+            constraint.add(&main_methods.template addStateDynamics<FixConstraintCK>(body_part));
         }
         else
         {
-            constraint.add(&main_methods.template addStateDynamics<
-                            ConstantConstraintCK, Vecd>(real_body, "Velocity", Vecd::Zero()));
+            constraint.add(&main_methods.template addStateDynamics<FixConstraintCK>(real_body));
         }
 
         simulation_pipeline.insert_hook(
@@ -122,23 +120,12 @@ void ConstraintBuilder::addConstraint(
             simulation_pipeline.insert_hook(
                 SimulationHookPoint::PositionConstraint, [&]()
                 {
-                const SimTK::State &test_state0 = integ.getState();
-                MBsystem.realize(test_state0);
-                std::cout << "OriginAcc: " << mobilized_body.getBodyOriginAcceleration(test_state0) << std::endl;
-                SimbodyState test_simbody_state0(mobilized_body.getBodyOriginLocation(test_state0), mobilized_body, test_state0);
-                test_simbody_state0.printSimbodyState();
-
                 // (A) move the mobilized body to the target state at the current physical time
                 Real t_target = time_stepper.getPhysicalTime();
                 if (t_target > integ.getState().getTime())
                 {
                     integ.stepTo(t_target);
                 }
-                
-                const SimTK::State &test_state = integ.getState();
-                MBsystem.realize(test_state);
-                SimbodyState test_simbody_state(mobilized_body.getBodyOriginLocation(test_state), mobilized_body, test_state);
-                test_simbody_state.printSimbodyState();
                 // (B) carry out the constraint
                 constraint.exec(); });
 

@@ -41,7 +41,10 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     // Optional methods that depend on the presence of certain features in the simulation.
     //----------------------------------------------------------------------
     ContinuumDynamicsBuilder::buildShearForceIntegrationIfPresent(sim, main_methods);
-    ContinuumDynamicsBuilder::buildContactRepulsionIfPresent(sim, main_methods);
+    ConstraintBuilder::buildConstraintsIfPresent(sim, main_methods, config); 
+    // There is a mysterious issue (corruption of simbody construction) 
+    // if this is placed after the contact repulsion builder, so we put it here for now.
+    ContinuumDynamicsBuilder::buildContactRepulsionIfPresent(sim, main_methods, config);
     ContinuumDynamicsBuilder::buildDensityRegularizationIfPresent(sim, main_methods);
     ContinuumDynamicsBuilder::buildStressDiffusionIfPresent(sim, main_methods);
     //----------------------------------------------------------------------
@@ -52,7 +55,6 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     // Constraints carried at last due to possible third-party dependencies.
     //----------------------------------------------------------------------
-    ConstraintBuilder::buildConstraintsIfPresent(sim, main_methods, config);
     buildExternalForceIfPresent(sim, main_methods, config);
     RecordingBuilder::buildObservationIfPresent(sim, main_methods, config);
     //----------------------------------------------------------------------
@@ -115,9 +117,11 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
             {
                 std::cout << std::fixed << std::setprecision(9)
                           << "N=" << time_stepper.getIterationStep()
-                          << "  Time = " << time_stepper.getPhysicalTime()
-                          << "  advection_dt = " << advection_step.getInterval()
-                          << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize()
+                          << "  Time = " << time_stepper.getPhysicalTimeWithScalingRef()
+                          << "  advection_dt = " << advection_step.getIntervalWithScalingRef()
+                          << "(scaled: " << advection_step.getInterval() << "),"
+                          << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSizeWithScalingRef()
+                          << "(scaled: " << time_stepper.getGlobalTimeStepSize() << ")"
                           << "\n";
             }
         });

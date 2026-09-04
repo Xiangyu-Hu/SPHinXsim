@@ -33,8 +33,6 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/../vcpkg/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_CXX_STANDARD": "17",
-        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
         "SPHINXSYS_BUILD_TESTS": "OFF",
         "SPHINXSYS_DEVELOPER_MODE": "ON",
         "SPHINXSYS_USE_SYCL": "OFF",
@@ -75,8 +73,24 @@
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/../vcpkg/scripts/buildsystems/vcpkg.cmake",
         "CMAKE_CXX_STANDARD": "17",
-        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "SPHINXSYS_BUILD_TESTS": "OFF",
+        "SPHINXSYS_DEVELOPER_MODE": "ON",
+        "SPHINXSYS_USE_SYCL": "OFF",
+        "SPHINXSIM_COPY_BINDINGS_AFTER_BUILD": "ON",
+        "SPHINXSIM_BINDINGS_OUTPUT_DIR": "${sourceDir}/sphinxsim/bindings/native"
+      }
+    },
+    {
+      "name": "gcc-build-memory-check",
+      "displayName": "GCC RelWithDebugInfo Build With Memory Check",
+      "description": "GCC Build with memory check",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-integrated",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/../vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "CMAKE_CXX_STANDARD": "17",
         "SPHINXSYS_BUILD_TESTS": "OFF",
         "SPHINXSYS_DEVELOPER_MODE": "ON",
         "SPHINXSYS_USE_SYCL": "OFF",
@@ -101,8 +115,6 @@
         "CMAKE_C_COMPILER": "cl",
         "CMAKE_CXX_COMPILER": "cl",
         "CMAKE_CXX_STANDARD": "17",
-        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
         "SPHINXSYS_BUILD_TESTS": "OFF",
         "SPHINXSYS_DEVELOPER_MODE": "ON",
         "SPHINXSYS_USE_SYCL": "OFF",
@@ -127,8 +139,6 @@
         "CMAKE_C_COMPILER": "cl",
         "CMAKE_CXX_COMPILER": "cl",
         "CMAKE_CXX_STANDARD": "17",
-        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
-        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
         "SPHINXSYS_BUILD_TESTS": "OFF",
         "SPHINXSYS_DEVELOPER_MODE": "ON",
         "SPHINXSYS_USE_SYCL": "OFF",
@@ -157,6 +167,11 @@
       "name": "integrated-build-release",
       "displayName": "Build Integrated SPHinXsys + Python Release",
       "configurePreset": "integrated-build-release"
+    },
+    {
+      "name": "gcc-build-memory-check",
+      "displayName": "GCC RelWithDebugInfo Build With Memory Check",
+      "configurePreset": "gcc-build-memory-check"
     },
     {
       "name": "integrated-build-release-windows",

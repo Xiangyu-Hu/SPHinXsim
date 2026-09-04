@@ -157,6 +157,12 @@ ScalingConfig::ScalingConfig(const json &config)
     bool user_scaling_provided = false;
     if (config.contains("characteristic_dimensions"))
     {
+        if (config.at("characteristic_dimensions").size() < 2)
+        {
+            throw std::runtime_error(
+                "ScalingConfig::ScalingConfig: At least two different characteristic dimensions must be provided.");
+        }
+
         bool has_length_unit = false;
         for (const auto &cd : config.at("characteristic_dimensions"))
         {
@@ -276,12 +282,24 @@ CharacteristicDimension ScalingConfig::parseCharacteristicDimension(
     else
     {
         character_dim.hint_ = config.at("hint").get<std::string>();
-        Real hint_value = resolve(root_config, character_dim.hint_);
-        if (!isSameOrderOfMagnitude(character_dim.value_, hint_value))
+        if (character_dim.hint_ == "externally_defined")
         {
-            throw std::runtime_error(
-                "ScalingConfig::parseCharacteristicDimension: value of '" + character_dim.name_ +
-                "' is not the same order of magnitude as its hint '" + character_dim.hint_ + "'.");
+            std::cout << "\n------------------------------------------------------------" << std::endl;
+            std::cout << "Warning: hint for '" << character_dim.name_ << "' is externally defined. " << std::endl;
+            std::cout << "Considering using a hint defined in the configuration file to avoid ambiguity." << std::endl;
+            std::cout << "------------------------------------------------------------" << std::endl;
+
+            return character_dim;
+        }
+        else
+        {
+            Real hint_value = resolve(root_config, character_dim.hint_);
+            if (!isSameOrderOfMagnitude(character_dim.value_, hint_value))
+            {
+                throw std::runtime_error(
+                    "ScalingConfig::parseCharacteristicDimension: value of '" + character_dim.name_ +
+                    "' is not the same order of magnitude as its hint '" + character_dim.hint_ + "'.");
+            }
         }
     }
     return character_dim;

@@ -32,17 +32,14 @@ BaseDynamics<void> &ContinuumDynamicsBuilder::addAcousticStep1stHalfForOneBody(
             RiemannSolverType, NoKernelCorrectionCK>(inner_relation);
 
         auto &sph_system = sim.getSPHSystem();
-        if (config_manager.hasEntity<SPHBodiesConfig>("SolidBodiesConfig"))
+        auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
+        for (const auto &sb_tgt : solid_bodies_config)
         {
-            auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
-            for (const auto &sb_tgt : solid_bodies_config)
-            {
-                std::string relation_name = body_name + sb_tgt->name_;
-                auto &contact_relation = sph_system.getRelationByName<
-                    Contact<Relation<RealBody, SolidBody>>>(relation_name);
-                complex_dynamics.template addPostContactInteraction<
-                    Wall, RiemannSolverType, NoKernelCorrectionCK>(contact_relation);
-            }
+            std::string relation_name = body_name + sb_tgt->name_;
+            auto &contact_relation = sph_system.getRelationByName<
+                Contact<Relation<RealBody, SolidBody>>>(relation_name);
+            complex_dynamics.template addPostContactInteraction<
+                Wall, RiemannSolverType, NoKernelCorrectionCK>(contact_relation);
         }
         return complex_dynamics;
     }
@@ -77,17 +74,14 @@ BaseDynamics<void> &ContinuumDynamicsBuilder::addAcousticStep2ndHalfForOneBody(
             inner_relation, continuum_solver_parameters.plastic_riemann_dissipation_factor_);
 
         auto &sph_system = sim.getSPHSystem();
-        if (config_manager.hasEntity<SPHBodiesConfig>("SolidBodiesConfig"))
+        auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
+        for (const auto &sb_tgt : solid_bodies_config)
         {
-            auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
-            for (const auto &sb_tgt : solid_bodies_config)
-            {
-                std::string relation_name = body_name + sb_tgt->name_;
-                auto &contact_relation = sph_system.getRelationByName<
-                    Contact<Relation<RealBody, SolidBody>>>(relation_name);
-                complex_dynamics.template addPostContactInteraction<
-                    Wall, RiemannSolverType, NoKernelCorrectionCK>(contact_relation);
-            }
+            std::string relation_name = body_name + sb_tgt->name_;
+            auto &contact_relation = sph_system.getRelationByName<
+                Contact<Relation<RealBody, SolidBody>>>(relation_name);
+            complex_dynamics.template addPostContactInteraction<
+                Wall, RiemannSolverType, NoKernelCorrectionCK>(contact_relation);
         }
         return complex_dynamics;
     }

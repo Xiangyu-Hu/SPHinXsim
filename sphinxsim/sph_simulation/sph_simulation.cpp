@@ -117,6 +117,7 @@ void SPHSimulation::buildSimulation()
     }
 
     json config = loadConfig();
+    SimulationBuilder::initializeAllBodyConfigs(config_manager_);
     if (config.contains("simulation_type"))
     {
         std::string simulation_type = config.at("simulation_type").get<std::string>();

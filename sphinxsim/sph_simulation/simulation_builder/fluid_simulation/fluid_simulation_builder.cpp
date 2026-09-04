@@ -7,8 +7,8 @@
 #include "composite_solid.h"
 #include "force_on_structure.h"
 #include "structure_surface_motion.h"
-#include "traveling_wave_active_strain.h"
 #include "thermal_dynamics_builder.hpp"
+#include "traveling_wave_active_strain.h"
 namespace SPH
 {
 using namespace fluid_dynamics;
@@ -176,7 +176,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     buildExternalForceIfPresent(sim, main_methods, config);
     FluidDynamicsBuilder::buildTransportVelocityFormulationIfNotFreeSurface(sim, main_methods);
     FluidDynamicsBuilder::buildViscousForceIfPresent(sim, main_methods);
-    if (config_manager.hasEntity<SPHBodiesConfig>("SolidBodiesConfig"))
+    if (!config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig").empty())
     {
         auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
         auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");

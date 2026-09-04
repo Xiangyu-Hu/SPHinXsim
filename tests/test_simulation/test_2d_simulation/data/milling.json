@@ -1,4 +1,17 @@
-{
+{  
+  "characteristic_dimensions": [
+    {
+      "value": 0.02,
+      "name": "Length",
+      "hint": "geometries.shapes[name=ProcessingPiece].half_size"
+    },
+    {
+      "value": 1.0,
+      "name": "Velocity",
+      "hint": "externally_defined"
+    }
+  ],
+
   "geometries": {
     "system_domain": {
       "upper_bound": [0.08, 0.04],

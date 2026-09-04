@@ -227,7 +227,6 @@ void SimulationBuilder::buildSolidRelationDynamics(
                     update_contact_relation.add(&main_methods.addRelationDynamics(solid_contact));
                 }
             }
-
             if (config_manager.hasEntity<SPHBodiesConfig>("ContinuumBodiesConfig"))
             {
                 auto &continuum_bodies_config = config_manager.getEntity<SPHBodiesConfig>("ContinuumBodiesConfig");
@@ -237,8 +236,8 @@ void SimulationBuilder::buildSolidRelationDynamics(
                     auto &solid_contact = sph_system.addContactRelation(solid_body, continuum_body_target);
                     update_contact_relation.add(&main_methods.addRelationDynamics(solid_contact));
                 }
-                update_all_contact_relations.add(&update_contact_relation);
             }
+            update_all_contact_relations.add(&update_contact_relation);
         }
     }
 

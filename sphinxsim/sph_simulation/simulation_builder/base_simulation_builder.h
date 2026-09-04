@@ -149,6 +149,7 @@ class SimulationBuilder
     virtual void parseSolverParameters(EntityManager &config_manager, const json &config);
     static void parseScheduledEvents(SPHSimulation &sim, const json &config, bool &on_flag);
     static RestartConfig parseRestartConfig(const json &config);
+    static int parseLoglevel(const json &config);
 
   protected:
     void buildFluidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);

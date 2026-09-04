@@ -12,7 +12,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     //	Build up an SPHSystem and IO environment.
     //----------------------------------------------------------------------
-    SPHSystem &sph_system = sim.defineSPHSystem();
+    SPHSystem &sph_system = sim.defineSPHSystem(config);
     EntityManager &config_manager = sim.getConfigManager();
     SPHSolver &sph_solver = sim.defineSPHSolver(*this, config);
     //----------------------------------------------------------------------

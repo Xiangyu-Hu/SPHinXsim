@@ -1,5 +1,6 @@
 {
   "simulation_type": "fluid_dynamics",
+  "log_level": "debug",
 
   "geometries": {
     "system_domain": {

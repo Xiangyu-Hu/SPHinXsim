@@ -18,7 +18,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     // SPHSystem and entity manager.
     //----------------------------------------------------------------------
-    SPHSystem &sph_system = sim.defineSPHSystem();
+    SPHSystem &sph_system = sim.defineSPHSystem(config);
     EntityManager &config_manager = sim.getConfigManager();
     SPHSolver &sph_solver = sim.defineSPHSolver(*this, config);
     //----------------------------------------------------------------------

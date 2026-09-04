@@ -19,6 +19,16 @@ class SimulationType(str, Enum):
     CONTINUUM_DYNAMICS = "continuum_dynamics"
 
 
+class LogLevel(str, Enum):
+    TRACE = "trace"
+    DEBUG = "debug"
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+    CRITICAL = "critical"
+    OFF = "off"
+
+
 class CharacteristicDimensionName(str, Enum):
     LENGTH = "Length"
     MASS = "Mass"
@@ -897,6 +907,7 @@ class SimulationConfig(BaseModel):
 
     characteristic_dimensions: Optional[List[CharacteristicDimensionConfig]] = None
     simulation_type: SimulationType
+    log_level: LogLevel = LogLevel.INFO
     geometries: GeometriesConfig
     particle_generation: ParticleGenerationConfig
 

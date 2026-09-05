@@ -189,22 +189,19 @@ void ContinuumDynamicsBuilder::buildContactRepulsionIfPresent(
                 }
             }
 
-            if (config_manager.hasEntity<SPHBodiesConfig>("SolidBodiesConfig"))
+            auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
+            for (const auto &sb_tgt : solid_bodies_config)
             {
-                auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
-                for (const auto &sb_tgt : solid_bodies_config)
-                {
-                    std::string relation_name = body_name + sb_tgt->name_;
-                    auto &contact_relation = sph_system.getRelationByName<
-                        Contact<Relation<RealBody, SolidBody>>>(relation_name);
-                    contact_repulsion_factor.add(
-                        &main_methods.template addInteractionDynamics<solid_dynamics::RepulsionFactor>(
-                            contact_relation));
-                    contact_repulsion_force.add(
-                        &main_methods.template addInteractionDynamicsWithUpdate<
-                            solid_dynamics::RepulsionForceCK, Wall>(
-                            contact_relation, continuum_solver_parameters.contact_numerical_damping_));
-                }
+                std::string relation_name = body_name + sb_tgt->name_;
+                auto &contact_relation = sph_system.getRelationByName<
+                    Contact<Relation<RealBody, SolidBody>>>(relation_name);
+                contact_repulsion_factor.add(
+                    &main_methods.template addInteractionDynamics<solid_dynamics::RepulsionFactor>(
+                        contact_relation));
+                contact_repulsion_force.add(
+                    &main_methods.template addInteractionDynamicsWithUpdate<
+                        solid_dynamics::RepulsionForceCK, Wall>(
+                        contact_relation, continuum_solver_parameters.contact_numerical_damping_));
             }
         }
     }

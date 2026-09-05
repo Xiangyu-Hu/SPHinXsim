@@ -158,17 +158,14 @@ void FluidDynamicsBuilder::addAcousticHalfStepWithSolidBodies(
 {
     auto &sph_system = sim.getSPHSystem();
     auto &config_manager = sim.getConfigManager();
-    if (config_manager.hasEntity<SPHBodiesConfig>("SolidBodiesConfig"))
+    auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
+    for (const auto &sb_tgt : solid_bodies_config)
     {
-        auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
-        for (const auto &sb_tgt : solid_bodies_config)
-        {
-            std::string relation_name = body_name + sb_tgt->name_;
-            auto &contact_relation = sph_system.getRelationByName<
-                Contact<Relation<FluidBody, SolidBody>>>(relation_name);
-            complex_dynamics.template addPostContactInteraction<
-                Wall, RiemannSolverType, KernelCorrectionType>(contact_relation);
-        }
+        std::string relation_name = body_name + sb_tgt->name_;
+        auto &contact_relation = sph_system.getRelationByName<
+            Contact<Relation<FluidBody, SolidBody>>>(relation_name);
+        complex_dynamics.template addPostContactInteraction<
+            Wall, RiemannSolverType, KernelCorrectionType>(contact_relation);
     }
 }
 //=================================================================================================//

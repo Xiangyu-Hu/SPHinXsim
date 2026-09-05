@@ -31,12 +31,18 @@ SimulationBuilder::SimulationBuilder() : material_builder_ptr_(std::make_unique<
 //=================================================================================================//
 SimulationBuilder ::~SimulationBuilder() = default;
 //=================================================================================================//
+void SimulationBuilder::initializeAllBodyConfigs(EntityManager &config_manager)
+{
+    config_manager.emplaceEntity<SPHBodiesConfig>("FluidBodiesConfig");
+    config_manager.emplaceEntity<SPHBodiesConfig>("ContinuumBodiesConfig");
+    config_manager.emplaceEntity<SPHBodiesConfig>("SolidBodiesConfig");
+}
+//=================================================================================================//
 void SimulationBuilder::buildFluidBodies(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
-    SPHBodiesConfig &fluid_bodies_config =
-        *config_manager.emplaceEntity<SPHBodiesConfig>("FluidBodiesConfig");
+    auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
 
     for (const auto &fb : config)
     {
@@ -64,8 +70,7 @@ void SimulationBuilder::buildFluidBodies(
 void SimulationBuilder::buildContinuumBodies(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
-    SPHBodiesConfig &continuum_bodies_config =
-        *config_manager.emplaceEntity<SPHBodiesConfig>("ContinuumBodiesConfig");
+    auto &continuum_bodies_config = config_manager.getEntity<SPHBodiesConfig>("ContinuumBodiesConfig");
 
     for (const auto &cb : config)
     {
@@ -104,8 +109,7 @@ void SPHBodyConfig::setHasDynamics()
 void SimulationBuilder::buildSolidBodies(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
-    SPHBodiesConfig &solid_bodies_config =
-        *config_manager.emplaceEntity<SPHBodiesConfig>("SolidBodiesConfig");
+    auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
 
     for (const auto &sb : config)
     {
@@ -237,26 +241,20 @@ void SimulationBuilder::buildExternalForceIfPresent(
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     Vecd gravity_vector = scaling_config.jsonToVecd(config_gravity, "Acceleration");
 
-    if (config_manager.hasEntity<SPHBodiesConfig>("FluidBodiesConfig"))
+    auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
+    for (const auto &fb : fluid_bodies_config)
     {
-        auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
-        for (const auto &fb : fluid_bodies_config)
-        {
-            auto &fluid_body = sph_system.getBodyByName<FluidBody>(fb->name_);
-            gravity_force.add(&main_methods.template addStateDynamics<GravityForceCK<Gravity>>(
-                fluid_body, Gravity(gravity_vector)));
-        }
+        auto &fluid_body = sph_system.getBodyByName<FluidBody>(fb->name_);
+        gravity_force.add(&main_methods.template addStateDynamics<GravityForceCK<Gravity>>(
+            fluid_body, Gravity(gravity_vector)));
     }
 
-    if (config_manager.hasEntity<SPHBodiesConfig>("ContinuumBodiesConfig"))
+    auto &continuum_bodies_config = config_manager.getEntity<SPHBodiesConfig>("ContinuumBodiesConfig");
+    for (const auto &cb : continuum_bodies_config)
     {
-        auto &continuum_bodies_config = config_manager.getEntity<SPHBodiesConfig>("ContinuumBodiesConfig");
-        for (const auto &cb : continuum_bodies_config)
-        {
-            auto &continuum_body = sph_system.getBodyByName<RealBody>(cb->name_);
-            gravity_force.add(&main_methods.template addStateDynamics<GravityForceCK<Gravity>>(
-                continuum_body, Gravity(gravity_vector)));
-        }
+        auto &continuum_body = sph_system.getBodyByName<RealBody>(cb->name_);
+        gravity_force.add(&main_methods.template addStateDynamics<GravityForceCK<Gravity>>(
+            continuum_body, Gravity(gravity_vector)));
     }
 
     if (config_gravity.contains("enabled_solid_bodies"))

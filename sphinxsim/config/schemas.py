@@ -60,6 +60,7 @@ class BodyShapeType(str, Enum):
     BOX = "box"
     BOUNDING_BOX = "bounding_box"
     EXPANDED_BOX = "expanded_box"
+    EXTRUDE_SHAPE = "extrude_shape"    
     COMPLEX_SHAPE = "complex_shape"
     MULTIPOLYGON = "multipolygon"
     CYLINDER = "cylinder"
@@ -127,11 +128,12 @@ class DomainConfig(BaseModel):
 class GlobalResolutionConfig(BaseModel):
     particle_spacing: Optional[float] = Field(default=None, gt=0)
     characteristic_length_particles: Optional[int] = Field(default=None, gt=0)
+    first_shape_size_particles: Optional[int] = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def _requires_one_mode(self) -> "GlobalResolutionConfig":
-        if self.particle_spacing is None and self.characteristic_length_particles is None:
-            raise ValueError("global_resolution requires particle_spacing or characteristic_length_particles")
+        if self.particle_spacing is None and self.characteristic_length_particles is None and self.first_shape_size_particles is None:
+            raise ValueError("global_resolution requires particle_spacing or characteristic_length_particles or first_shape_size_particles")
         return self
 
 
@@ -219,6 +221,8 @@ class ShapeConfig(BaseModel):
 
     original: Optional[str] = None
     expansion: Optional[float] = Field(default=None, gt=0)
+    thickness: Optional[float] = Field(default=None)
+    thickness: Optional[str] = Field(default=None, min_length=1)
 
     sub_shapes: Optional[List[str]] = None
     operations: Optional[List[GeometricOperationType]] = None
@@ -249,6 +253,11 @@ class ShapeConfig(BaseModel):
         if self.type == BodyShapeType.EXPANDED_BOX:
             if not self.original or self.expansion is None:
                 raise ValueError("expanded_box shape requires original and expansion")
+            return self
+        
+        if self.type == BodyShapeType.EXTRUDE_SHAPE:
+            if not self.original or self.thickness is None:
+                raise ValueError("extrude_shape requires original and thickness")
             return self
 
         if self.type == BodyShapeType.COMPLEX_SHAPE:
@@ -286,6 +295,7 @@ class OrientedBoxConfig(BaseModel):
     center: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     normal: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     radius: Optional[float] = Field(default=None, gt=0)
+    surface_half_size: Optional[List[float]] = Field(default=None, length=2)
 
     half_size: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     transform: Optional[TransformConfig] = None
@@ -293,8 +303,8 @@ class OrientedBoxConfig(BaseModel):
     @model_validator(mode="after")
     def _validate_oriented_box(self) -> "OrientedBoxConfig":
         if self.type == OrientedBoxType.BOUNDARY:
-            if self.center is None or self.normal is None or self.radius is None:
-                raise ValueError("boundary oriented_box requires center, normal and radius")
+            if self.center is None or self.normal is None or (self.radius is None and self.surface_half_size is None):
+                raise ValueError("boundary oriented_box requires center, normal and (radius or surface_half_size(3D))")
         elif self.type == OrientedBoxType.REGION:
             if not self.primitive and (self.half_size is None or self.transform is None):
                 raise ValueError("region oriented_box requires primitive or half_size and transform")
@@ -337,6 +347,12 @@ class GeometriesConfig(BaseModel):
                     raise ValueError(
                         f"expanded_box shape '{shape.name}' must reference a previously defined shape in original"
                     )
+
+            if shape.type == BodyShapeType.EXTRUDE_SHAPE:
+                if shape.original not in defined_shape_names:
+                        raise ValueError(
+                            f"extrude_shape '{shape.name}' must reference a previously defined shape in original"
+                        )
 
             if shape.type == BodyShapeType.COMPLEX_SHAPE:
                 for sub_shape in shape.sub_shapes or []:
@@ -725,6 +741,7 @@ class FluidBodyConfig(BaseModel):
 class SolidBodyConfig(BaseModel):
     name: str = Field(..., min_length=1)
     material: MaterialConfig
+    is_moving: bool = False
 
     @model_validator(mode="after")
     def _material_type(self) -> "SolidBodyConfig":
@@ -896,8 +913,12 @@ class BodyConstraintConfig(BaseModel):
     def _validate_constraint_type(self) -> "BodyConstraintConfig":
         if self.type == BodyConstraintType.FIXED:
             return self
-        if self.mobilized_body is None or self.velocity is None or self.angular_velocity is None:
-            raise ValueError("simbody constraint requires mobilized_body, velocity and angular_velocity")
+        if self.mobilized_body is None or self.angular_velocity is None:
+            raise ValueError("simbody constraint requires mobilized_body and angular_velocity")
+        if self.mobilized_body == "planar" and self.velocity is None:
+            raise ValueError("planar simbody constraint requires velocity")
+        if self.mobilized_body not in ("pin", "planar"):
+            raise ValueError("simbody constraint mobilized_body must be pin or planar")
         return self
 
 
@@ -1189,11 +1210,6 @@ class SimulationConfig(BaseModel):
                     raise ValueError(
                         "initial_conditions assignment region must reference an existing oriented box name"
                     )
-
-        # Simbody constraints require restart section to exist at runtime.
-        if any(constraint.type == BodyConstraintType.SIMBODY for constraint in self.body_constraints):
-            if self.restart is None:
-                raise ValueError("simbody body_constraints require config.restart")
 
         # Dimensional consistency if system_domain is present
         if self.geometries.system_domain is not None:

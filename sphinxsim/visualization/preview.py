@@ -852,7 +852,7 @@ class ConfigVisualizer:
         # --- Render each shape ---
         if not hide_shapes:
             for shape in config.geometries.shapes:
-                if shape.type.value == "complex_shape":
+                if shape.type.value == "extrude_shape" or shape.type.value == "complex_shape":
                     # Skip — rendered via sub-shapes
                     continue
 

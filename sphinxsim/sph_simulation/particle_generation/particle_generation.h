@@ -101,7 +101,6 @@ class ParticleGeneration
     void addAllBodies(RelaxationSystem &relaxation_system, EntityManager &config_manager, const json &config);
     RelaxationBodyConfig parseRelaxationBodyConfig(std::string body_name, const json &config);
     void defineBodyRelations(RelaxationSystem &relaxation_system);
-    std::string getContactRelationName(const RelaxationBodyConfig &body_config);
 
     ParticleDynamicsGroup &randomizeParticlePositions(RelaxationSystem &relaxation_system, HostMethods &host_methods);
 

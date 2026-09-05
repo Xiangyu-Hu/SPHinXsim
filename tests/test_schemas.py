@@ -1556,3 +1556,17 @@ class TestSimulationConfig:
                     ],
                 }
             )
+
+    def test_3d_fuel_tank_fixture_accepts_pin_constraint_without_velocity(self):
+        fixture_path = (
+            Path(__file__).parent
+            / "test_simulation"
+            / "test_3d_simulation"
+            / "data"
+            / "fuel_tank.json"
+        )
+        cfg = SimulationConfig.model_validate(json.loads(fixture_path.read_text()))
+
+        assert cfg.solid_bodies[0].is_moving is True
+        assert cfg.body_constraints[0].mobilized_body == "pin"
+        assert cfg.body_constraints[0].velocity is None

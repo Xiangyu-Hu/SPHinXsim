@@ -1,0 +1,121 @@
+{
+  "characteristic_dimensions": [
+    {
+      "value": 2.3,
+      "name": "Length",
+      "hint": "geometries.oriented_boxes[name=FillLevel].center"
+    },
+    {
+      "value": 1.0,
+      "name": "Gravity",
+      "hint": "gravity"
+    },
+    {
+      "value": 1.0,
+      "name": "Density",
+      "hint": "fluid_bodies[name=FuelBody].material.density"
+    }
+  ],
+
+  "simulation_type": "fluid_dynamics",
+
+  "geometries": {
+    "global_resolution": {
+      "first_shape_size_particles": 20
+    },
+    "shapes": [
+      {
+        "name": "FuelBody",
+        "type": "triangle_mesh",
+        "file_name": "triangle_prism.stl",
+        "scale": 100.0
+      },
+      {
+        "name": "OuterWallSurface",
+        "type": "extrude_shape",
+        "original": "FuelBody",
+        "thickness": "boundary"
+      },
+      {
+        "name": "FuelTank",
+        "type": "complex_shape",
+        "sub_shapes": ["OuterWallSurface", "FuelBody"],
+        "operations": ["union", "subtraction"]
+      }
+    ],
+    "oriented_boxes": [
+      {
+        "name": "FillLevel",
+        "type": "boundary",
+        "center": [0.0, 2.3, 0.0],
+        "normal": [0.0, -1.0, 0.0],
+        "surface_half_size": [3.0, 8.0]
+      }
+    ]
+  },
+
+  "particle_generation": {
+    "build_and_run": true,
+    "settings": {
+      "bodies": [
+        {
+          "name": "FuelBody",
+          "blockers": ["FillLevel"],
+          "relaxation": { "dependent_bodies": ["FuelTank"] }
+        },
+        {
+          "name": "FuelTank",
+          "solid_body": {},
+          "relaxation": { "level_set": {} }
+        }
+      ],
+      "relaxation_parameters": {
+        "total_iterations": 1000
+      }
+    }
+  },
+
+  "fluid_bodies": [
+    {
+      "name": "FuelBody",
+      "material": {
+        "type": "weakly_compressible_fluid",
+        "density": 1.0
+      },
+      "particle_reserve_factor": 1.0
+    }
+  ],
+
+  "solid_bodies": [
+    {
+      "name": "FuelTank",
+      "is_moving": true,
+      "material": {
+        "type": "rigid_body"
+      }
+    }
+  ],
+
+  "body_constraints": [
+    {
+      "body_name": "FuelTank",
+      "type": "simbody",
+      "mobilized_body": "pin",
+      "angular_velocity": 0.1
+    }
+  ],
+
+  "gravity": [0.0, -1.0, 0.0],
+
+  "solver_parameters": {
+    "end_time": 20.0,
+    "output_interval": 0.1,
+    "screen_interval": 100,
+    "fluid_dynamics": {
+      "acoustic_cfl": 0.6,
+      "advection_cfl": 0.25,
+      "surface_type": "free_surface",
+      "particle_sort_frequency": 100
+    }
+  }
+}

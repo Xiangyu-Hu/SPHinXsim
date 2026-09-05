@@ -196,14 +196,8 @@ class IODynamicsGroup : public BaseIO
     }
 };
 
-class BaseMethodContainer
-{
-  public:
-    virtual ~BaseMethodContainer() {};
-};
-
 template <typename ExecutionPolicy>
-class ParticleMethodContainer : public BaseMethodContainer
+class ParticleMethodContainer
 {
     UniquePtrsKeeper<AbstractDynamics> particle_dynamics_keeper_;
     UniquePtrsKeeper<BodyStatesRecording> state_recorders_keeper_;
@@ -211,7 +205,7 @@ class ParticleMethodContainer : public BaseMethodContainer
 
   public:
     typedef ExecutionPolicy ExPolicy;
-    ParticleMethodContainer(const ExecutionPolicy &ex_policy) : BaseMethodContainer() {};
+    ParticleMethodContainer(const ExecutionPolicy &ex_policy) {};
     virtual ~ParticleMethodContainer() {};
 
     ParticleDynamicsGroup &addParticleDynamicsGroup()
@@ -384,17 +378,6 @@ class ParticleMethodContainer : public BaseMethodContainer
 
     template <template <typename...> class InteractionType, typename... ControlParameters,
               template <typename...> class RelationType, typename... RelationParameters, typename... Args>
-    auto &addInteractionDynamics(
-        RelationView<RelationType<RelationParameters...>> &interaction, Args &&...args)
-    {
-        return *particle_dynamics_keeper_.createPtr<
-            InteractionDynamicsCK<
-                ExecutionPolicy, InteractionType<RelationType<ControlParameters..., RelationParameters...>>>>(
-            interaction, std::forward<Args>(args)...);
-    };
-
-    template <template <typename...> class InteractionType, typename... ControlParameters,
-              template <typename...> class RelationType, typename... RelationParameters, typename... Args>
     auto &addInteractionDynamicsOneLevel(
         RelationType<RelationParameters...> &relation, Args &&...args)
     {
@@ -402,17 +385,6 @@ class ParticleMethodContainer : public BaseMethodContainer
             InteractionDynamicsCK<
                 ExecutionPolicy, InteractionType<RelationType<OneLevel, ControlParameters..., RelationParameters...>>>>(
             relation, std::forward<Args>(args)...);
-    };
-
-    template <template <typename...> class InteractionType, typename... ControlParameters,
-              template <typename...> class RelationType, typename... RelationParameters, typename... Args>
-    auto &addInteractionDynamicsOneLevel(
-        RelationView<RelationType<RelationParameters...>> &interaction, Args &&...args)
-    {
-        return *particle_dynamics_keeper_.createPtr<
-            InteractionDynamicsCK<
-                ExecutionPolicy, InteractionType<RelationType<OneLevel, ControlParameters..., RelationParameters...>>>>(
-            interaction, std::forward<Args>(args)...);
     };
 
     template <template <typename...> class InteractionType, typename... ControlParameters,
@@ -428,17 +400,6 @@ class ParticleMethodContainer : public BaseMethodContainer
 
     template <template <typename...> class InteractionType, typename... ControlParameters,
               template <typename...> class RelationType, typename... RelationParameters, typename... Args>
-    auto &addInteractionDynamicsWithUpdate(
-        RelationView<RelationType<RelationParameters...>> &interaction, Args &&...args)
-    {
-        return *particle_dynamics_keeper_.createPtr<
-            InteractionDynamicsCK<
-                ExecutionPolicy, InteractionType<RelationType<WithUpdate, ControlParameters..., RelationParameters...>>>>(
-            interaction, std::forward<Args>(args)...);
-    };
-
-    template <template <typename...> class InteractionType, typename... ControlParameters,
-              template <typename...> class RelationType, typename... RelationParameters, typename... Args>
     auto &addInteractionDynamicsWithInitialization(
         RelationType<RelationParameters...> &relation, Args &&...args)
     {
@@ -446,17 +407,6 @@ class ParticleMethodContainer : public BaseMethodContainer
             InteractionDynamicsCK<
                 ExecutionPolicy, InteractionType<RelationType<WithInitialization, ControlParameters..., RelationParameters...>>>>(
             relation, std::forward<Args>(args)...);
-    };
-
-    template <template <typename...> class InteractionType, typename... ControlParameters,
-              template <typename...> class RelationType, typename... RelationParameters, typename... Args>
-    auto &addInteractionDynamicsWithInitialization(
-        RelationView<RelationType<RelationParameters...>> &interaction, Args &&...args)
-    {
-        return *particle_dynamics_keeper_.createPtr<
-            InteractionDynamicsCK<
-                ExecutionPolicy, InteractionType<RelationType<WithInitialization, ControlParameters..., RelationParameters...>>>>(
-            interaction, std::forward<Args>(args)...);
     };
 
     template <template <typename...> class InteractionType, typename... ControlParameters,
@@ -470,19 +420,6 @@ class ParticleMethodContainer : public BaseMethodContainer
                 InteractionType<RelationType<OneLevel, RungeKutta1stStage, ControlParameters..., RelationParameters...>>,
                 InteractionType<RelationType<OneLevel, RungeKutta2ndStage, ControlParameters..., RelationParameters...>>>>>(
             relation, std::forward<Args>(args)...);
-    };
-
-    template <template <typename...> class InteractionType, typename... ControlParameters,
-              template <typename...> class RelationType, typename... RelationParameters, typename... Args>
-    auto &addRK2Sequence(
-        RelationView<RelationType<RelationParameters...>> &interaction, Args &&...args)
-    {
-        return *particle_dynamics_keeper_.createPtr<
-            RungeKuttaSequence<InteractionDynamicsCK<
-                ExecutionPolicy,
-                InteractionType<RelationType<OneLevel, RungeKutta1stStage, ControlParameters..., RelationParameters...>>,
-                InteractionType<RelationType<OneLevel, RungeKutta2ndStage, ControlParameters..., RelationParameters...>>>>>(
-            interaction, std::forward<Args>(args)...);
     };
 
     template <template <typename...> class RecorderType, typename... Args>

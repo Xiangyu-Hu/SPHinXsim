@@ -37,20 +37,20 @@ int main(int ac, char *av[])
     //----------------------------------------------------------------------
     Inner<> fish_inner(fish_body, ConfigType::Lagrangian);
     Inner<> water_block_inner(water_block);
-    Contact<> water_block_contact(water_block, {&fish_body}); // fish as stationary wall
-    Contact<> fish_contact(fish_body, {&water_block});
+    Contact<> water_block_contact(water_block, fish_body); // fish as stationary wall
+    Contact<> fish_contact(fish_body, water_block);
     //----------------------------------------------------------------------
     //	Define SPH solver — all operators via ParticleMethodContainer.
     //----------------------------------------------------------------------
     SPHSolver sph_solver(sph_system);
 
     // CPU-only one-shot initialisation (no GPU CK version needed for these).
-    auto &host_methods = sph_solver.addParticleMethodContainer(par_host);
+    auto &host_methods = sph_solver.getHostMethodContainer();
     host_methods.addStateDynamics<NormalFromBodyShapeCK>(fish_body).exec();
     host_methods.addStateDynamics<FishMaterialInitialization>(fish_body).exec();
 
     // All GPU operators via main_methods (par_ck = MainExecutionPolicy).
-    auto &main_methods = sph_solver.addParticleMethodContainer(par_ck);
+    auto &main_methods = sph_solver.getMainMethodContainer();
     //----------------------------------------------------------------------
     //	Configuration dynamics.
     //----------------------------------------------------------------------

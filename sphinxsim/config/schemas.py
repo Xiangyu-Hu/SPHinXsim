@@ -741,6 +741,7 @@ class FluidBodyConfig(BaseModel):
 class SolidBodyConfig(BaseModel):
     name: str = Field(..., min_length=1)
     material: MaterialConfig
+    is_moving: bool = False
 
     @model_validator(mode="after")
     def _material_type(self) -> "SolidBodyConfig":
@@ -912,8 +913,12 @@ class BodyConstraintConfig(BaseModel):
     def _validate_constraint_type(self) -> "BodyConstraintConfig":
         if self.type == BodyConstraintType.FIXED:
             return self
-        if self.mobilized_body is None or self.velocity is None or self.angular_velocity is None:
-            raise ValueError("simbody constraint requires mobilized_body, velocity and angular_velocity")
+        if self.mobilized_body is None or self.angular_velocity is None:
+            raise ValueError("simbody constraint requires mobilized_body and angular_velocity")
+        if self.mobilized_body == "planar" and self.velocity is None:
+            raise ValueError("planar simbody constraint requires velocity")
+        if self.mobilized_body not in ("pin", "planar"):
+            raise ValueError("simbody constraint mobilized_body must be pin or planar")
         return self
 
 
@@ -1205,11 +1210,6 @@ class SimulationConfig(BaseModel):
                     raise ValueError(
                         "initial_conditions assignment region must reference an existing oriented box name"
                     )
-
-        # Simbody constraints require restart section to exist at runtime.
-        if any(constraint.type == BodyConstraintType.SIMBODY for constraint in self.body_constraints):
-            if self.restart is None:
-                raise ValueError("simbody body_constraints require config.restart")
 
         # Dimensional consistency if system_domain is present
         if self.geometries.system_domain is not None:

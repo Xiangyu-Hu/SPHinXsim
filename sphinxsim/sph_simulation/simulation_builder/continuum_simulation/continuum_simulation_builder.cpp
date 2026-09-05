@@ -115,9 +115,11 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
             {
                 std::cout << std::fixed << std::setprecision(9)
                           << "N=" << time_stepper.getIterationStep()
-                          << "  Time = " << time_stepper.getPhysicalTime()
-                          << "  advection_dt = " << advection_step.getInterval()
-                          << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSize()
+                          << "  Time = " << time_stepper.getPhysicalTimeWithScalingRef()
+                          << "  advection_dt = " << advection_step.getIntervalWithScalingRef()
+                          << "(scaled: " << advection_step.getInterval() << "),"
+                          << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSizeWithScalingRef()
+                          << "(scaled: " << time_stepper.getGlobalTimeStepSize() << ")"
                           << "\n";
             }
         });

@@ -13,7 +13,7 @@
     {
       "value": 1.0,
       "name": "Density",
-      "hint": "fluid_bodies[name=WaterBody].material.density"
+      "hint": "fluid_bodies[name=FuelBody].material.density"
     }
   ],
 
@@ -25,7 +25,7 @@
     },
     "shapes": [
       {
-        "name": "WaterBody",
+        "name": "FuelBody",
         "type": "triangle_mesh",
         "file_name": "triangle_prism.stl",
         "scale": 100.0
@@ -33,13 +33,13 @@
       {
         "name": "OuterWallSurface",
         "type": "extrude_shape",
-        "original": "WaterBody",
+        "original": "FuelBody",
         "thickness": "boundary"
       },
       {
-        "name": "WallBoundary",
+        "name": "FuelTank",
         "type": "complex_shape",
-        "sub_shapes": ["OuterWallSurface", "WaterBody"],
+        "sub_shapes": ["OuterWallSurface", "FuelBody"],
         "operations": ["union", "subtraction"]
       }
     ],
@@ -55,16 +55,16 @@
   },
 
   "particle_generation": {
-    "build_and_run": false,
+    "build_and_run": true,
     "settings": {
       "bodies": [
         {
-          "name": "WaterBody",
+          "name": "FuelBody",
           "blockers": ["FillLevel"],
-          "relaxation": { "dependent_bodies": ["WallBoundary"] }
+          "relaxation": { "dependent_bodies": ["FuelTank"] }
         },
         {
-          "name": "WallBoundary",
+          "name": "FuelTank",
           "solid_body": {},
           "relaxation": { "level_set": {} }
         }
@@ -77,7 +77,7 @@
 
   "fluid_bodies": [
     {
-      "name": "WaterBody",
+      "name": "FuelBody",
       "material": {
         "type": "weakly_compressible_fluid",
         "density": 1.0
@@ -88,7 +88,7 @@
 
   "solid_bodies": [
     {
-      "name": "WallBoundary",
+      "name": "FuelTank",
       "is_moving": true,
       "material": {
         "type": "rigid_body"
@@ -98,7 +98,7 @@
 
   "body_constraints": [
     {
-      "body_name": "WallBoundary",
+      "body_name": "FuelTank",
       "type": "simbody",
       "mobilized_body": "pin",
       "angular_velocity": 0.1

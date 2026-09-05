@@ -57,11 +57,13 @@
       "bodies": [
         {
           "name": "WaterBody",
-          "blockers": ["FillLevel"]
+          "blockers": ["FillLevel"],
+          "relaxation": { "dependent_bodies": ["WallBoundary"] }
         },
         {
           "name": "WallBoundary",
-          "solid_body": {}
+          "solid_body": {},
+          "relaxation": { "level_set": {} }
         }
       ],
       "relaxation_parameters": {

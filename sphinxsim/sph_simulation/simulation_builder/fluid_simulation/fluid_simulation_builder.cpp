@@ -3,6 +3,7 @@
 #include "base_simulation_builder.hpp"
 #include "fluid_dynamics_builder.hpp"
 #include "solid_dynamics_builder.hpp"
+#include "constraint_builder.h"
 
 #include "composite_solid.h"
 #include "force_on_structure.h"
@@ -180,6 +181,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     // Define initial and boundary conditions, particle deletion and sorting.
     //----------------------------------------------------------------------
+    ConstraintBuilder::buildConstraintsIfPresent(sim, main_methods, config);
     auto &fluid_body = *sph_system.collectBodies<FluidBody>().front();
     buildInitialConditionIfPresent(sim, main_methods, config);
     FluidDynamicsBuilder::buildBoundaryConditionsIfPresent(sim, main_methods, config);

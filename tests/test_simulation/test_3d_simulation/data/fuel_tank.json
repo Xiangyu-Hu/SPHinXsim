@@ -16,7 +16,9 @@
       "hint": "fluid_bodies[name=WaterBody].material.density"
     }
   ],
+
   "simulation_type": "fluid_dynamics",
+
   "geometries": {
     "global_resolution": {
       "first_shape_size_particles": 20
@@ -51,8 +53,9 @@
       }
     ]
   },
+
   "particle_generation": {
-    "build_and_run": true,
+    "build_and_run": false,
     "settings": {
       "bodies": [
         {
@@ -71,6 +74,7 @@
       }
     }
   },
+
   "fluid_bodies": [
     {
       "name": "WaterBody",
@@ -81,15 +85,28 @@
       "particle_reserve_factor": 1.0
     }
   ],
+
   "solid_bodies": [
     {
       "name": "WallBoundary",
+      "is_moving": true,
       "material": {
         "type": "rigid_body"
       }
     }
   ],
+
+  "body_constraints": [
+    {
+      "body_name": "WallBoundary",
+      "type": "simbody",
+      "mobilized_body": "pin",
+      "angular_velocity": 0.1
+    }
+  ],
+
   "gravity": [0.0, -1.0, 0.0],
+
   "solver_parameters": {
     "end_time": 20.0,
     "output_interval": 0.1,

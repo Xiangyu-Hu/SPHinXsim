@@ -5,13 +5,12 @@
 #include "geometry_builder.h"
 #include "material_builder.h"
 #include "particle_generation.h"
-#include "recording_builder.h"
 
 namespace SPH
 {
 //=================================================================================================//
 SPHSimulation::SPHSimulation(const fs::path &config_path)
-    : config_path_(config_path), recording_builder_ptr_(std::make_unique<RecordingBuilder>())
+    : config_path_(config_path)
 {
     IOEnvironment &io_env = IO::initEnvironment();
     io_env.resetInputFolder((config_path_.parent_path()).string(), true);
@@ -31,7 +30,7 @@ void SPHSimulation::resetOutputRoot(const fs::path &output_root, bool keep_exist
     io_env.resetReloadFolder((output_root / "reload").string(), keep_existing);
 }
 //=================================================================================================//
-SPHSystem &SPHSimulation::defineSPHSystem()
+SPHSystem &SPHSimulation::defineSPHSystem(const json &config)
 {
     SystemDomainConfig &system_config = config_manager_.getEntity<
         SystemDomainConfig>("SystemDomainConfig");
@@ -40,6 +39,7 @@ SPHSystem &SPHSimulation::defineSPHSystem()
     auto &scaling_config = config_manager_.getEntity<ScalingConfig>("ScalingConfig");
     sph_system_ptr_->svPhysicalTime().setScalingRef(scaling_config.getScalingRef("Time"));
     sph_system_ptr_->writeSystemDomainShapeToVtp(scaling_config.getScalingRef("Length"));
+    sph_system_ptr_->setLogLevel(SimulationBuilder::parseLoglevel(config));
     return *sph_system_ptr_.get();
 }
 //=================================================================================================//
@@ -74,11 +74,19 @@ void SPHSimulation::generateParticles()
         exit(1);
     }
 
-    json config = loadConfig().at("particle_generation");
-    if (config.at("build_and_run").get<bool>())
+    json config = loadConfig();
+    auto &restart_config = *config_manager_.emplaceEntity<RestartConfig>("RestartConfig");
+    if (config.contains("restart"))
+    {
+        restart_config = SimulationBuilder::parseRestartConfig(config.at("restart"));
+    }
+
+    json particle_generation_config = config.at("particle_generation");
+    if (particle_generation_config.at("build_and_run").get<bool>() &&
+        restart_config.restore_step_ == 0)
     {
         ParticleGeneration particle_generation;
-        particle_generation.buildParticleGeneration(*this, config.at("settings"));
+        particle_generation.buildParticleGeneration(*this, particle_generation_config.at("settings"));
         particle_generation.runRelaxation();
     }
     particles_generated_ = true;
@@ -109,6 +117,7 @@ void SPHSimulation::buildSimulation()
     }
 
     json config = loadConfig();
+    SimulationBuilder::initializeAllBodyConfigs(config_manager_);
     if (config.contains("simulation_type"))
     {
         std::string simulation_type = config.at("simulation_type").get<std::string>();

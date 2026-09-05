@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from sphinxsim.config.schemas import DomainConfig, SimulationConfig
+from sphinxsim.config.schemas import DomainConfig, LogLevel, SimulationConfig
 
 
 def _make_minimal_fluid_config(**overrides) -> SimulationConfig:
@@ -218,9 +218,19 @@ class TestSimulationConfig:
     def test_minimal_fluid_config(self):
         cfg = _make_minimal_fluid_config()
         assert cfg.simulation_type.value == "fluid_dynamics"
+        assert cfg.log_level is LogLevel.INFO
         assert len(cfg.fluid_bodies) == 1
         assert cfg.solver_parameters.fluid_dynamics is not None
         assert cfg.solver_parameters.fluid_dynamics.surface_type == "free_surface"
+
+    def test_log_level_accepts_cpp_parser_values(self):
+        for log_level in ("trace", "debug", "info", "warning", "error", "critical", "off"):
+            cfg = _make_minimal_fluid_config(log_level=log_level)
+            assert cfg.log_level.value == log_level
+
+    def test_log_level_rejects_unknown_value(self):
+        with pytest.raises(ValidationError, match="log_level"):
+            _make_minimal_fluid_config(log_level="verbose")
 
     def test_fluid_solver_accepts_surface_type(self):
         cfg = _make_minimal_fluid_config(
@@ -1154,7 +1164,6 @@ class TestSimulationConfig:
                         "material": {
                             "type": "plastic_continuum",
                             "density": 1000.0,
-                            "sound_speed": 20.0,
                             "youngs_modulus": 1.0e6,
                             "poisson_ratio": 0.3,
                             "friction_angle": 30.0,
@@ -1167,6 +1176,22 @@ class TestSimulationConfig:
         assert material.friction_angle == pytest.approx(math.pi / 6)
         assert material.cohesion is None
         assert material.dilatancy_angle is None
+
+    def test_plastic_continuum_accepts_optional_sound_speed_override(self):
+        material = {
+            "type": "plastic_continuum",
+            "density": 1000.0,
+            "youngs_modulus": 1.0e6,
+            "poisson_ratio": 0.3,
+            "friction_angle": math.radians(30),
+            "sound_speed": 42.0,
+        }
+
+        cfg = _make_minimal_continuum_config(
+            continuum_bodies=[{"name": "ContinuumBody", "material": material}]
+        )
+
+        assert cfg.continuum_bodies[0].material.sound_speed == pytest.approx(42.0)
 
     @pytest.mark.parametrize(
         ("updates", "message"),
@@ -1183,7 +1208,6 @@ class TestSimulationConfig:
         material = {
             "type": "plastic_continuum",
             "density": 1000.0,
-            "sound_speed": 20.0,
             "youngs_modulus": 1.0e6,
             "poisson_ratio": 0.3,
             "friction_angle": math.radians(30),
@@ -1198,7 +1222,6 @@ class TestSimulationConfig:
         material = {
             "type": "plastic_continuum",
             "density": 1000.0,
-            "sound_speed": 20.0,
             "youngs_modulus": 1.0e6,
             "poisson_ratio": 0.3,
             "friction_angle": 30.0,
@@ -1221,7 +1244,6 @@ class TestSimulationConfig:
                         "material": {
                             "type": "plastic_continuum",
                             "density": 1000.0,
-                            "sound_speed": 20.0,
                             "youngs_modulus": 1.0e6,
                             "poisson_ratio": 0.3,
                         },
@@ -1504,7 +1526,7 @@ class TestSimulationConfig:
 
     def test_continuum_config_can_omit_restart(self):
         cfg = _make_minimal_continuum_config()
-        assert cfg.solver_parameters.restart is None
+        assert cfg.restart is None
 
     def test_complex_shape_disallows_intersection(self):
         with pytest.raises(ValidationError, match="only support union and subtraction"):

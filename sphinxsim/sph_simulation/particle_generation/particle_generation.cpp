@@ -18,7 +18,6 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     EntityManager &config_manager = sim.getConfigManager();
     RelaxationSystem &relaxation_system = defineRelaxationSystem(config_manager, config);
-    RecordingBuilder &recording_builder = sim.getRecordingBuilder();
     //----------------------------------------------------------------------
     addAllBodies(relaxation_system, config_manager, config.at("bodies"));
     defineBodyRelations(relaxation_system);
@@ -31,6 +30,7 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     auto &randomize_particle_position = randomizeParticlePositions(relaxation_system, host_methods);
 
     auto &main_methods = sph_solver.getMainMethodContainer();
+    RecordingBuilder::createBodyStatesRecording(relaxation_system, config_manager, main_methods);
     auto &body_update_configuration = addConfigurationDynamics(relaxation_system, main_methods);
     auto &relaxation_residual = addRelaxationResidue(relaxation_system, config_manager, main_methods);
     auto &relaxation_scaling = addRelaxationScaling(relaxation_system, config_manager, main_methods);
@@ -39,9 +39,9 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     //	Define simple file input and outputs functions.
     //----------------------------------------------------------------------
-    auto &body_state_recorder = recording_builder.createBodyStatesRecording(
-        relaxation_system, config_manager, main_methods, config);
+    RecordingBuilder::finalizeBodyStatesRecording(relaxation_system, config_manager, config);
     auto &write_particle_reload_files = main_methods.addIODynamics<ReloadParticleIOCK>(relaxation_system);
+    auto &body_state_recorder = RecordingBuilder::getBodyStatesRecording(config_manager);
     //----------------------------------------------------------------------
     //	Out initial particle distribution after setting up.
     //----------------------------------------------------------------------
@@ -155,14 +155,14 @@ void ParticleGeneration ::addAllBodies(
     {
         std::string body_name = bd.at("name").get<std::string>();
 
-        CommonBodyConfig common_body_config;
-        common_body_config.name_ = body_name;
+        GenerationBodyConfig generation_body_config;
+        generation_body_config.name_ = body_name;
         Shape &shape = config_manager.getEntity<Shape>(body_name);
         auto &real_body = relaxation_system.addBody<RealBody>(shape, body_name);
 
         if (bd.contains("relaxation"))
         {
-            common_body_config.is_relaxation_body_ = true;
+            generation_body_config.is_relaxation_body_ = true;
             RelaxationBodyConfig relax_body_config = parseRelaxationBodyConfig(body_name, bd.at("relaxation"));
             if (relax_body_config.with_level_set_)
             {
@@ -175,9 +175,9 @@ void ParticleGeneration ::addAllBodies(
 
         if (bd.contains("solid_body"))
         {
-            common_body_config.is_solid_body_ = true;
+            generation_body_config.is_solid_body_ = true;
         }
-        bodies_config_.all_bodies_.push_back(common_body_config);
+        bodies_config_.all_bodies_.push_back(generation_body_config);
 
         StdVec<OrientedBox *> &blockers = *config_manager.emplaceEntity<
             StdVec<OrientedBox *>>(body_name + "Blockers", StdVec<OrientedBox *>{});
@@ -258,14 +258,14 @@ void ParticleGeneration::defineBodyRelations(RelaxationSystem &relaxation_system
 }
 //=================================================================================================//
 ParticleDynamicsGroup &ParticleGeneration::randomizeParticlePositions(
-    RelaxationSystem &relaxation_system, MainMethods &main_methods)
+    RelaxationSystem &relaxation_system, HostMethods &host_methods)
 {
-    auto &randomize_particle_position = main_methods.addParticleDynamicsGroup();
+    auto &randomize_particle_position = host_methods.addParticleDynamicsGroup();
     for (const auto &body_config : bodies_config_.relaxation_bodies_)
     {
         RealBody &real_body = relaxation_system.getBodyByName<RealBody>(body_config.name_);
         randomize_particle_position.add(
-            &main_methods.template addStateDynamics<RandomizeParticlePositionCK>(real_body));
+            &host_methods.template addStateDynamics<RandomizeParticlePositionCK>(real_body));
     }
     return randomize_particle_position;
 }
@@ -377,16 +377,17 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationPositionUpdate(
 }
 //=================================================================================================//
 ParticleDynamicsGroup &ParticleGeneration::addBodyNormalDirection(
-    RelaxationSystem &relaxation_system, EntityManager &config_manager, MainMethods &main_methods)
+    RelaxationSystem &relaxation_system, EntityManager &config_manager, HostMethods &host_methods)
 {
-    ParticleDynamicsGroup &normal_direction_update = main_methods.addParticleDynamicsGroup();
+    ParticleDynamicsGroup &normal_direction_update = host_methods.addParticleDynamicsGroup();
     for (const auto &body_config : bodies_config_.all_bodies_)
     {
         RealBody &real_body = relaxation_system.getBodyByName<RealBody>(body_config.name_);
         if (body_config.is_solid_body_)
         {
-            normal_direction_update.add(&main_methods.template addStateDynamics<NormalFromBodyShapeCK>(real_body));
+            normal_direction_update.add(&host_methods.template addStateDynamics<NormalFromBodyShapeCK>(real_body));
             real_body.getBaseParticles().template addEvolvingVariable<Vecd>("NormalDirection");
+            real_body.getBaseParticles().template addEvolvingVariable<Real>("SignedDistance");
         }
     }
     return normal_direction_update;

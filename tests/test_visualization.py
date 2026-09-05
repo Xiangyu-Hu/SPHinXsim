@@ -8,11 +8,13 @@ library is not installed.
 from __future__ import annotations
 
 import json
+import math
 import sys
 from pathlib import Path
 
 from typing import Any
 import copy
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -122,6 +124,7 @@ class TestBodyLabel:
         assert "Fluid: WaterBody" in label
         assert "1000.0" in label
 
+
     def test_fluid_body_label_omits_sound_speed(self, fluid_config):
         from sphinxsim.visualization.annotations import body_label
 
@@ -147,6 +150,146 @@ class TestBodyLabel:
         # WaterBody in heat_transfer has thermal_properties
         label = body_label("WaterBody", heat_config)
         assert "Fluid: WaterBody" in label
+
+
+class TestPreviewMaterialInformation:
+    def _config(self, *materials):
+        bodies = [
+            SimpleNamespace(name=f"GranularBody{index}", material=material)
+            for index, material in enumerate(materials, start=1)
+        ]
+        return SimpleNamespace(continuum_bodies=bodies)
+
+    def test_formats_continuum_material_units_and_angle(self):
+        from sphinxsim.config.schemas import MaterialConfig, MaterialType
+        from sphinxsim.visualization.annotations import collect_preview_body_information
+
+        material = MaterialConfig(
+            type=MaterialType.GENERAL_CONTINUUM,
+            density=2040.0,
+            sound_speed=100.0,
+            youngs_modulus=1.0e6,
+            poisson_ratio=0.3,
+            friction_angle=math.radians(30.0),
+            cohesion=1500.0,
+        )
+        info = collect_preview_body_information(self._config(material))[0]
+
+        assert info["density"] == "2040 kg/m³"
+        assert info["friction_angle"] == "30.0°"
+        assert info["cohesion"] == "1.5 kPa"
+
+    def test_missing_friction_angle_and_cohesion_are_safe(self):
+        from sphinxsim.config.schemas import MaterialConfig, MaterialType
+        from sphinxsim.visualization.annotations import collect_preview_body_information
+
+        material = MaterialConfig(
+            type=MaterialType.GENERAL_CONTINUUM,
+            density=2040.0,
+            sound_speed=100.0,
+            youngs_modulus=1.0e6,
+            poisson_ratio=0.3,
+        )
+        info = collect_preview_body_information(self._config(material))[0]
+
+        assert info["friction_angle"] == "—"
+        assert info["cohesion"] == "—"
+
+    def test_multiple_continuum_bodies_remain_separate(self):
+        from sphinxsim.config.schemas import MaterialConfig, MaterialType
+        from sphinxsim.visualization.annotations import collect_preview_body_information
+
+        materials = [
+            MaterialConfig(
+                type=MaterialType.GENERAL_CONTINUUM,
+                density=1800.0,
+                sound_speed=100.0,
+                youngs_modulus=1.0e6,
+                poisson_ratio=0.3,
+            ),
+            MaterialConfig(
+                type=MaterialType.GENERAL_CONTINUUM,
+                density=2200.0,
+                sound_speed=100.0,
+                youngs_modulus=1.0e6,
+                poisson_ratio=0.3,
+            ),
+        ]
+        info = collect_preview_body_information(self._config(*materials))
+
+        assert [item["name"] for item in info] == ["GranularBody1", "GranularBody2"]
+        assert [item["density"] for item in info] == ["1800 kg/m³", "2200 kg/m³"]
+
+    def test_plastic_continuum_shows_dilatancy_but_j2_does_not(self):
+        from sphinxsim.config.schemas import MaterialConfig, MaterialType
+        from sphinxsim.visualization.annotations import collect_preview_body_information
+
+        plastic = MaterialConfig(
+            type=MaterialType.PLASTIC_CONTINUUM,
+            density=2040.0,
+            youngs_modulus=5.8e6,
+            poisson_ratio=0.3,
+            friction_angle=math.radians(30.0),
+            dilatancy_angle=math.radians(8.0),
+            cohesion=0.0,
+        )
+        j2 = MaterialConfig(
+            type=MaterialType.J2_PLASTICITY,
+            density=2040.0,
+            sound_speed=48.0,
+            youngs_modulus=5.8e6,
+            poisson_ratio=0.3,
+            yield_stress=1000.0,
+            hardening_modulus=200.0,
+        )
+        plastic_rows = dict(collect_preview_body_information(self._config(plastic))[0]["rows"])
+        j2_rows = dict(collect_preview_body_information(self._config(j2))[0]["rows"])
+
+        assert plastic_rows["Dilatancy angle"] == "8.0°"
+        expected_sound_speed = math.sqrt(5.8e6 / (2040.0 * 3.0 * (1.0 - 2.0 * 0.3)))
+        assert plastic_rows["Sound speed"] == f"{expected_sound_speed:g} m/s"
+        assert "Yield stress" not in plastic_rows
+        assert "Dilatancy angle" not in j2_rows
+        assert "Friction angle" not in j2_rows
+        assert j2_rows["Yield stress"] == "1 kPa" or j2_rows["Yield stress"] == "1000 Pa"
+
+    def test_plastic_continuum_displays_explicit_sound_speed_override(self):
+        from sphinxsim.config.schemas import MaterialConfig, MaterialType
+        from sphinxsim.visualization.annotations import collect_preview_body_information
+
+        material = MaterialConfig(
+            type=MaterialType.PLASTIC_CONTINUUM,
+            density=2040.0,
+            sound_speed=42.0,
+            youngs_modulus=5.8e6,
+            poisson_ratio=0.3,
+            friction_angle=math.radians(30.0),
+        )
+
+        rows = dict(collect_preview_body_information(self._config(material))[0]["rows"])
+        assert rows["Sound speed"] == "42 m/s"
+
+    def test_particle_spacing_is_displayed_from_global_resolution(self):
+        from sphinxsim.visualization.annotations import particle_resolution_label
+
+        config = SimpleNamespace(
+            geometries=SimpleNamespace(
+                global_resolution=SimpleNamespace(particle_spacing=0.002)
+            )
+        )
+        assert particle_resolution_label(config) == ("Particle spacing", "0.002 m")
+
+
+class TestPreviewLegend:
+    def test_fluid_legend_uses_material_model_not_granular_label(self, fluid_config):
+        from sphinxsim.visualization.preview import _legend_entries_for_config
+
+        entries = _legend_entries_for_config(fluid_config)
+        labels = [label for label, _ in entries]
+
+        assert "Weakly compressible fluid" in labels
+        assert "Granular material" not in labels
+        assert "Rigid boundary" in labels
 
 
 class TestOrientedBoxLabel:
@@ -293,7 +436,7 @@ class TestSpatialDimensionInference:
                 "angular_velocity": 2.0,
             }
         ]
-        data["solver_parameters"]["restart"] = {
+        data["restart"] = {
             "restore_step": 0,
             "save_interval": 1000,
             "summary_enabled": True,
@@ -415,7 +558,7 @@ class TestPreviewObservers:
         observer_label_calls = [
             call
             for call in fake_plotter.point_label_calls
-            if call["labels"] and "Observer: ProbeA" in call["labels"][0]
+            if call["labels"] and "Observer 1" in call["labels"][0]
         ]
         assert len(observer_label_calls) == 1
 
@@ -516,7 +659,7 @@ class TestPreviewGeneratedParticles:
             for call in fake_plotter.point_label_calls
             if call["labels"] and str(call["labels"][0]).startswith("Particles: ")
         ]
-        assert len(particle_label_calls) == 2
+        assert particle_label_calls == []
 
     def test_populate_plotter_hides_shapes_when_particles_present(self, fluid_config, tmp_path):
         from sphinxsim.visualization.preview import ConfigVisualizer
@@ -628,8 +771,8 @@ class TestConstraintLabel:
         from sphinxsim.visualization.annotations import body_constraint_label
 
         data = copy.deepcopy(fluid_config.model_dump(exclude_none=True))
-        # Simbody constraints require solver_parameters.restart
-        data["solver_parameters"]["restart"] = {
+        # Simbody constraints require config.restart
+        data["restart"] = {
             "restore_step": 0,
             "save_interval": 1000,
             "summary_enabled": False,
@@ -1004,6 +1147,179 @@ class TestShellPreview:
             )
 
         assert rc == 0
+
+    def test_shell_runtime_rebinds_editor_when_preview_path_changes(self, tmp_path, monkeypatch):
+        """An existing editor must follow the newly loaded shell config file."""
+        from sphinxsim import cli as cli_mod
+
+        cfg = SimulationConfig(**_minimal_fluid_config())
+        config_a = tmp_path / "preview-a.json"
+        config_b = tmp_path / "preview-b.json"
+        visualizer_paths: list[Path] = []
+
+        class FakeVisualizer:
+            _bounds_sim = None
+
+            def __init__(self, _config, _project_root, *, config_path, off_screen):
+                visualizer_paths.append(config_path)
+
+            def _spatial_dim(self):
+                return 2
+
+            def _populate_plotter(self, plotter, vtp_dir, latest_particle_vtps):
+                return None
+
+            def _configure_default_view(self, plotter, ndim):
+                return None
+
+            def _add_config_info_text(self, plotter, config_info, ndim):
+                return None
+
+            def _try_build_geometries(self, ndim, with_particles=False):
+                return None
+
+            def _discover_latest_particle_vtps(self, vtp_dir):
+                return {}
+
+        class FakePlotter:
+            def clear(self):
+                return None
+
+            def add_axes(self):
+                return None
+
+            def show_grid(self, **kwargs):
+                return None
+
+            def render(self):
+                return None
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = FakePlotter()
+        runtime._using_background_plotter = True
+        refresh_editor = MagicMock()
+        runtime._json_editor = {"refresh": refresh_editor}
+
+        monkeypatch.setitem(sys.modules, "pyvista", SimpleNamespace())
+        monkeypatch.setitem(sys.modules, "pyvistaqt", SimpleNamespace(BackgroundPlotter=object))
+        monkeypatch.setattr(cli_mod, "PROJECT_ROOT", tmp_path)
+
+        with patch("sphinxsim.visualization.preview.ConfigVisualizer", FakeVisualizer):
+            assert runtime.show_or_update(cfg, resolved_config_path=config_a, with_particles=False) == 0
+            assert runtime.show_or_update(cfg, resolved_config_path=config_b, with_particles=False) == 0
+
+        assert visualizer_paths == [config_a, config_b]
+        assert [call.args[1] for call in refresh_editor.call_args_list] == [config_a, config_b]
+
+    def test_shell_runtime_preserves_editor_when_preview_reset_is_canceled(
+        self, tmp_path, monkeypatch
+    ):
+        """Canceling the warning must leave both editor and preview state untouched."""
+        from sphinxsim import cli as cli_mod
+
+        cfg = SimulationConfig(**_minimal_fluid_config())
+        config_path = tmp_path / "config.json"
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        runtime._using_background_plotter = True
+        refresh_editor = MagicMock(return_value=False)
+        runtime._json_editor = {"refresh": refresh_editor}
+
+        monkeypatch.setitem(sys.modules, "pyvista", SimpleNamespace())
+
+        assert (
+            runtime.show_or_update(
+                cfg,
+                resolved_config_path=config_path,
+                with_particles=False,
+            )
+            == 0
+        )
+
+        refresh_editor.assert_called_once_with(cfg, config_path, False)
+        assert runtime.last_signature is None
+        runtime.plotter.clear.assert_not_called()
+
+    def test_shell_runtime_recreates_preview_after_user_closes_window(self, tmp_path, monkeypatch):
+        """Closing the native Qt window must allow the same config to reopen."""
+        from sphinxsim import cli as cli_mod
+
+        cfg = SimulationConfig(**_minimal_fluid_config())
+        config_path = tmp_path / "config.json"
+
+        class FakeVisualizer:
+            _bounds_sim = None
+
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def _spatial_dim(self):
+                return 2
+
+            def _populate_plotter(self, plotter, vtp_dir, latest_particle_vtps):
+                return None
+
+            def _configure_default_view(self, plotter, ndim):
+                return None
+
+            def _add_config_info_text(self, plotter, config_info, ndim):
+                return None
+
+            def _try_build_geometries(self, ndim, with_particles=False):
+                return None
+
+            def _discover_latest_particle_vtps(self, vtp_dir):
+                return {}
+
+        class FakeSignal:
+            def __init__(self):
+                self.callback = None
+
+            def connect(self, callback):
+                self.callback = callback
+
+            def emit(self):
+                assert self.callback is not None
+                self.callback()
+
+        class FakeBackgroundPlotter:
+            instances: list["FakeBackgroundPlotter"] = []
+
+            def __init__(self, **kwargs):
+                self.app_window = SimpleNamespace(signal_close=FakeSignal())
+                self.instances.append(self)
+
+            def clear(self):
+                return None
+
+            def add_axes(self):
+                return None
+
+            def show_grid(self, **kwargs):
+                return None
+
+            def render(self):
+                return None
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        monkeypatch.setattr(runtime, "_install_json_editor", MagicMock())
+        monkeypatch.setitem(sys.modules, "pyvista", SimpleNamespace())
+        monkeypatch.setitem(sys.modules, "pyvistaqt", SimpleNamespace(BackgroundPlotter=FakeBackgroundPlotter))
+        monkeypatch.setattr(cli_mod, "PROJECT_ROOT", tmp_path)
+
+        with patch("sphinxsim.visualization.preview.ConfigVisualizer", FakeVisualizer):
+            assert runtime.show_or_update(cfg, resolved_config_path=config_path, with_particles=False) == 0
+            first_plotter = runtime.plotter
+            assert first_plotter is FakeBackgroundPlotter.instances[0]
+
+            first_plotter.app_window.signal_close.emit()
+            assert runtime.plotter is None
+            assert runtime.last_signature is None
+
+            assert runtime.show_or_update(cfg, resolved_config_path=config_path, with_particles=False) == 0
+
+        assert len(FakeBackgroundPlotter.instances) == 2
+        assert runtime.plotter is FakeBackgroundPlotter.instances[1]
 
     def test_shell_runtime_hover_enlarges_annotation_font(self):
         from sphinxsim import cli as cli_mod
@@ -1654,7 +1970,7 @@ class TestPreviewGravityArrow:
         # An arrow mesh should have been added with the gravity colour and label.
         arrow_calls = [c for c in fake_plotter.mesh_calls if c.get("label") == "Gravity"]
         assert len(arrow_calls) == 1
-        assert arrow_calls[0]["color"] == (0.10, 0.90, 0.90)
+        assert arrow_calls[0]["color"] == (0.00, 0.48, 0.50)
 
         # The arrow direction should match the gravity direction (normalised).
         arrow = arrow_calls[0]["mesh"]
@@ -1699,15 +2015,11 @@ class TestPreviewGravityArrow:
         body_labels = [
             call for call in fake_plotter.label_calls
             if call.get("labels") and any(
-                ("Fluid:" in str(lbl)) or ("Solid:" in str(lbl)) or ("Continuum:" in str(lbl))
+                str(lbl) in {"WaterBody", "WallBoundary"}
                 for lbl in call["labels"]
             )
         ]
-        assert len(body_labels) >= 2
-
-        first = tuple(float(v) for v in body_labels[0]["points"][0])
-        second = tuple(float(v) for v in body_labels[1]["points"][0])
-        assert first != second
+        assert body_labels == []
 
     def test_gravity_arrow_3d(self, tmp_path):
         """A 3-D gravity vector should produce an arrow with 3-D direction."""
@@ -1744,3 +2056,35 @@ class TestPreviewGravityArrow:
         assert len(arrow_calls) == 1
         arrow = arrow_calls[0]["mesh"]
         assert arrow["direction"] == (0.0, 0.0, -1.0)
+
+    def test_zero_gravity_skips_arrow(self, fluid_config, tmp_path):
+        from sphinxsim.visualization.preview import ConfigVisualizer
+
+        data = copy.deepcopy(fluid_config.model_dump(exclude_none=True))
+        data["gravity"] = [0.0, 0.0]
+        cfg = SimulationConfig(**data)
+        viz = ConfigVisualizer(cfg, tmp_path, off_screen=True)
+        fake_plotter = _FakePlotter()
+        with patch.dict(sys.modules, {"pyvista": _FakePyVista}):
+            viz._populate_plotter(fake_plotter, vtp_dir=None)
+
+        assert not [call for call in fake_plotter.mesh_calls if call.get("label") == "Gravity"]
+
+    def test_non_vertical_gravity_uses_normalized_direction_and_y_scale(self, fluid_config, tmp_path):
+        from sphinxsim.visualization.preview import ConfigVisualizer
+
+        data = copy.deepcopy(fluid_config.model_dump(exclude_none=True))
+        data["geometries"]["system_domain"] = {
+            "lower_bound": [0.0, 0.0],
+            "upper_bound": [2.0, 4.0],
+        }
+        data["gravity"] = [3.0, -4.0]
+        cfg = SimulationConfig(**data)
+        viz = ConfigVisualizer(cfg, tmp_path, off_screen=True)
+        fake_plotter = _FakePlotter()
+        with patch.dict(sys.modules, {"pyvista": _FakePyVista}):
+            viz._populate_plotter(fake_plotter, vtp_dir=None)
+
+        arrow = next(call["mesh"] for call in fake_plotter.mesh_calls if call.get("label") == "Gravity")
+        assert arrow["direction"] == (0.6, -0.8, 0.0)
+        assert arrow["scale"] == pytest.approx(0.8)

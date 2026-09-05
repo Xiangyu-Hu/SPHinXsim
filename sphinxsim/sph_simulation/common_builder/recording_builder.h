@@ -39,6 +39,10 @@ class BaseIO;
 class BodyStatesRecording;
 class SPHBody;
 
+template <class ExecutionPolicy>
+class BodyStatesRecordingToVtpCK;
+using MainBodyStatesRecording = BodyStatesRecordingToVtpCK<MainExecutionPolicy>;
+
 struct ObserverConfig
 {
     std::string name_;
@@ -49,33 +53,31 @@ struct ObserverConfig
 class RecordingBuilder
 {
   public:
-    void buildObservationIfPresent(SPHSimulation &sim, MainMethods &main_methods, const json &config);
-
+    static void buildObservationIfPresent(SPHSimulation &sim, MainMethods &main_methods, const json &config);
     // Reduced-quantity recording (e.g. total mechanical energy) driven from a
     // JSON "energy_recording" list, generic over body and quantity type.
-    void buildEnergyRecordingIfPresent(SPHSimulation &sim, MainMethods &main_methods, const json &config);
-
-    BodyStatesRecording &createBodyStatesRecording(
-        SPHSystem &sph_system, EntityManager &config_manager,
-        MainMethods &main_methods, const json &config);
+    static void buildEnergyRecordingIfPresent(SPHSimulation &sim, MainMethods &main_methods, const json &config);
+    static void createBodyStatesRecording(SPHSystem &sph_system, EntityManager &config_manager, MainMethods &main_methods);
+    static void finalizeBodyStatesRecording(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
+    static MainBodyStatesRecording &getBodyStatesRecording(EntityManager &config_manager);
 
   private:
-    std::string getObserverRelationName(const ObserverConfig &observer_config);
-    ObserverConfig parseObserverConfig(const json &config);
-    void addObserves(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
+    static std::string getObserverRelationName(const ObserverConfig &observer_config);
+    static ObserverConfig parseObserverConfig(const json &config);
+    static void addObserves(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
 
-    ParticleDynamicsGroup &createObserverConfigurationDynamics(
+    static ParticleDynamicsGroup &createObserverConfigurationDynamics(
         SPHSystem &sph_system, EntityManager &config_manager, MainMethods &main_methods);
 
-    IODynamicsGroup &addObserveRecorder(
+    static IODynamicsGroup &addObserveRecorder(
         SPHSystem &sph_system, EntityManager &config_manager, MainMethods &main_methods);
 
     template <class ObserverRelationType>
-    BaseIO *addObserveRecorderWithVariableConfig(
+    static BaseIO *addObserveRecorderWithVariableConfig(
         const ScalingConfig &scaling_config, const VariableConfig &variable_config,
         MainMethods &main_methods, ObserverRelationType &observer_relation);
 
-    void addVariableToStateRecorder(
+    static void addVariableToStateRecorder(
         BodyStatesRecording &state_recording, SPHBody &sph_body, const json &config);
 };
 } // namespace SPH

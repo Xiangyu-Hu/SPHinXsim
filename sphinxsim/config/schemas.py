@@ -19,6 +19,16 @@ class SimulationType(str, Enum):
     CONTINUUM_DYNAMICS = "continuum_dynamics"
 
 
+class LogLevel(str, Enum):
+    TRACE = "trace"
+    DEBUG = "debug"
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+    CRITICAL = "critical"
+    OFF = "off"
+
+
 class CharacteristicDimensionName(str, Enum):
     LENGTH = "Length"
     MASS = "Mass"
@@ -656,15 +666,14 @@ class MaterialConfig(BaseModel):
         elif self.type == MaterialType.PLASTIC_CONTINUUM:
             required = (
                 self.density,
-                self.sound_speed,
                 self.youngs_modulus,
                 self.poisson_ratio,
                 self.friction_angle,
             )
             if any(v is None for v in required):
                 raise ValueError(
-                    "plastic_continuum requires density, sound_speed, youngs_modulus, "
-                    "poisson_ratio and friction_angle"
+                    "plastic_continuum requires density, youngs_modulus, poisson_ratio "
+                    "and friction_angle"
                 )
             assert self.poisson_ratio is not None
             assert self.friction_angle is not None
@@ -869,7 +878,7 @@ class FluidDynamicsSolverConfig(BaseModel):
 class ContinuumDynamicsSolverConfig(BaseModel):
     acoustic_cfl: float = Field(default=0.4, gt=0)
     advection_cfl: float = Field(default=0.2, gt=0)
-    # These controls apply to GeneralContinuum/J2Plasticity. PlasticContinuum
+    # These controls apply to J2Plasticity. PlasticContinuum
     # removes them during cross-validation because it does not build the
     # corresponding correction, repulsion, shear, or hourglass dynamics.
     linear_correction_matrix_coeff: Optional[float] = 0.5
@@ -885,7 +894,6 @@ class SolverParametersConfig(BaseModel):
     output_interval: Optional[float] = Field(default=None, gt=0)
     screen_interval: Optional[int] = Field(default=None, gt=0)
     observation_interval: int = Field(default=200, gt=0)
-    restart: Optional[RestartConfig] = None
     fluid_dynamics: Optional[FluidDynamicsSolverConfig] = None
     continuum_dynamics: Optional[ContinuumDynamicsSolverConfig] = None
 
@@ -915,6 +923,7 @@ class SimulationConfig(BaseModel):
 
     characteristic_dimensions: Optional[List[CharacteristicDimensionConfig]] = None
     simulation_type: SimulationType
+    log_level: LogLevel = LogLevel.INFO
     geometries: GeometriesConfig
     particle_generation: ParticleGenerationConfig
 
@@ -931,6 +940,7 @@ class SimulationConfig(BaseModel):
     energy_recording: List[EnergyRecordingConfig] = Field(default_factory=list)
 
     solver_parameters: SolverParametersConfig
+    restart: Optional[RestartConfig] = None
 
     def _infer_spatial_dim(self) -> int | None:
         """Infer spatial dimension from available vector-valued config fields."""
@@ -1198,8 +1208,8 @@ class SimulationConfig(BaseModel):
 
         # Simbody constraints require restart section to exist at runtime.
         if any(constraint.type == BodyConstraintType.SIMBODY for constraint in self.body_constraints):
-            if self.solver_parameters.restart is None:
-                raise ValueError("simbody body_constraints require solver_parameters.restart")
+            if self.restart is None:
+                raise ValueError("simbody body_constraints require config.restart")
 
         # Dimensional consistency if system_domain is present
         if self.geometries.system_domain is not None:

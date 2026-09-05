@@ -43,46 +43,11 @@ class FluidSimulationBuilder : public SimulationBuilder
   private:
     FluidSolverConfig parseFluidSolverConfig(const ScalingConfig &scaling_config, const json &config);
 
-    template <class InnerRelationType, class ContactRelationType>
-    void addMainPhysicalTimeStep(
-        SPHSimulation &sim, MainMethods &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &fluid_wall_contact);
-
-    template <class InnerRelationType, class ContactRelationType>
-    BaseDynamics<void> &addDensityRegularization(
-        SPHSimulation &sim, MainMethods &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
-
-    template <class InnerRelationType, class ContactRelationType>
-    void buildTransportVelocityFormulationIfNotFreeSurface(
-        SPHSimulation &sim, MainMethods &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
-
-    template <class InnerRelationType, class ContactRelationType>
-    BaseDynamics<void> &addLinearCorrectionMatrixWithScope(
-        EntityManager &config_manager, MainMethods &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
-
-    template <class KernelGradientIntegralType>
-    void addTransportVelocityCorrection(
-        KernelGradientIntegralType &kernel_gradient_integral,
-        SPHBody &sph_body, FluidSolverConfig &fluid_solver_config);
-
-    template <class InnerRelationType, class ContactRelationType>
-    void buildViscousForceIfPresent(
-        SPHSimulation &sim, MainMethods &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
-
     void buildParticleDeletionIfPresent(
         SPHSimulation &sim, MainMethods &main_methods, RealBody &real_body);
 
     void buildParticleSortIfPresent(
         SPHSimulation &sim, MainMethods &main_methods, RealBody &real_body);
-
-    template <class InnerRelationType, class ContactRelationType>
-    void buildSurfaceIndicationIfOpenBoundary(
-        SPHSimulation &sim, MainMethods &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
 };
 } // namespace SPH
 #endif // FLUID_SIMULATION_BUILDER_H

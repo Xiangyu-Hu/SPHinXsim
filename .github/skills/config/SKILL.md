@@ -68,8 +68,8 @@ SimulationConfig
 ├── initial_conditions: List[InitialConditionConfig]
 ├── extra_state_recording: List[ExtraStateRecordingConfig]
 ├── energy_recording: List[EnergyRecordingConfig]
+├── restart: RestartConfig
 └── solver_parameters: SolverParametersConfig
-    ├── restart: RestartConfig
     ├── fluid_dynamics: FluidDynamicsSolverConfig
     └── continuum_dynamics: ContinuumDynamicsSolverConfig
 ```
@@ -98,7 +98,7 @@ Current parser-aligned constraint:
 `BodyConstraintConfig`:
 - `FIXED` type: no additional fields required
 - `SIMBODY` type: requires `mobilized_body`, `velocity`, and `angular_velocity`
-- Simbody constraints also require `solver_parameters.restart` to exist (cross-validated at top level)
+- Simbody constraints also require `config.restart` to exist (cross-validated at top level)
 
 ### Cross-Field Validation
 
@@ -114,7 +114,7 @@ Current parser-aligned constraint:
 9. `observers.observed_body` must reference an existing fluid/continuum body
 10. `body_constraints.body_name` must reference an existing continuum/solid body; `region` must reference an oriented box
 11. `initial_conditions.body_name` must reference an existing body; assignment `region` must reference an oriented box
-12. Simbody constraints require `solver_parameters.restart`
+12. Simbody constraints require `config.restart`
 13. `solid_bodies[*].material.material_id_regions.regions[*].shape` must reference existing shapes
 14. Dimensional consistency across vectors (including gravity/observers, primitives, transforms, and active_strain center)
 15. 2D/3D compatibility checks: `multipolygon` is 2D-only; `triangle_mesh` is 3D-only

@@ -52,6 +52,9 @@ class SolidDynamicsBuilder
         InnerRelationType &inner_relation,
         std::function<void()> pre_substep_hook = nullptr);
 
+    static void buildMaterialIdAssignmentIfPresent(
+        SPHSimulation &sim, MainMethods &main_methods, const json &config);
+
   private:
 };
 } // namespace SPH

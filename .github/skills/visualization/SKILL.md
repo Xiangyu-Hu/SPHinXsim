@@ -125,7 +125,7 @@ Use `tests/test_visualization.py`.
 - Build test config via `SimulationConfig(**data)`.
 - Respect schema requirements:
   - region oriented box requires `half_size` and `transform`.
-  - simbody constraints require `solver_parameters.restart`.
+  - simbody constraints require `config.restart`.
 
 ## Common failure patterns
 - Missing import in local `annotations` import block inside `_populate_plotter`.

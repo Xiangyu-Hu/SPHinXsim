@@ -1,4 +1,17 @@
-{
+{  
+  "characteristic_dimensions": [
+    {
+      "value": 0.02,
+      "name": "Length",
+      "hint": "geometries.shapes[name=ProcessingPiece].half_size"
+    },
+    {
+      "value": 1.0,
+      "name": "Velocity",
+      "hint": "externally_defined"
+    }
+  ],
+
   "geometries": {
     "system_domain": {
       "upper_bound": [0.08, 0.04],
@@ -79,6 +92,7 @@
   "solid_bodies": [
     {
       "name": "MillingTool",
+      "is_moving": true,
       "material": {
         "type": "rigid_body"
       }
@@ -103,7 +117,12 @@
   "extra_state_recording": [
     {
       "name": "ProcessingPiece",
-      "variables": [{ "real_type": ["Pressure", "IntactFactor"] }]
+      "variables": [
+        {
+          "real_type": ["Pressure", "IntactFactor", "Compression"],
+          "vector_type": ["HourglassStressDivergence"]
+        }
+      ]
     },
     {
       "name": "MillingTool",
@@ -112,14 +131,9 @@
   ],
 
   "solver_parameters": {
-    "end_time": 0.1,
+    "end_time": 0.3,
     "output_interval": 0.01,
     "screen_interval": 100,
-    "restart": {
-      "save_interval": 400,
-      "restore_step": 0,
-      "summary_enabled": true
-    },
     "continuum_dynamics": {
       "acoustic_cfl": 0.4,
       "advection_cfl": 0.2,
@@ -128,5 +142,11 @@
       "shear_stress_damping": 1.0,
       "hourglass_factor": 2.0
     }
+  },
+
+  "restart": {
+    "save_interval": 1000,
+    "restore_step": 0,
+    "summary_enabled": true
   }
 }

@@ -133,7 +133,7 @@
       "name": "FishBody",
       "variables": [
         { "int_type": ["MaterialID"] },
-        { "vector_type": ["Velocity", "Force", "ForcePrior"] }
+        { "vector_type": ["Velocity", "NormalDirection"] }
       ]
     },
     {

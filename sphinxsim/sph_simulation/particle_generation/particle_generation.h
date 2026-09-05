@@ -42,9 +42,10 @@ template <class T>
 class BaseDynamics;
 class RecordingBuilder;
 
-struct CommonBodyConfig
+struct GenerationBodyConfig
 {
     std::string name_;
+    std::string adaptation_;
     bool is_relaxation_body_ = false;
     bool is_solid_body_ = false;
 };
@@ -58,7 +59,7 @@ struct RelaxationBodyConfig
 
 struct AllBodiesConfig
 {
-    std::vector<CommonBodyConfig> all_bodies_;
+    std::vector<GenerationBodyConfig> all_bodies_;
     std::vector<RelaxationBodyConfig> relaxation_bodies_; // particles in these bodies will be relaxed
 };
 struct RelaxationParameters
@@ -102,7 +103,7 @@ class ParticleGeneration
     void defineBodyRelations(RelaxationSystem &relaxation_system);
     std::string getContactRelationName(const RelaxationBodyConfig &body_config);
 
-    ParticleDynamicsGroup &randomizeParticlePositions(RelaxationSystem &relaxation_system, MainMethods &main_methods);
+    ParticleDynamicsGroup &randomizeParticlePositions(RelaxationSystem &relaxation_system, HostMethods &host_methods);
 
     ParticleDynamicsGroup &addDummyBodiesCellLinkedListDynamics(
         RelaxationSystem &relaxation_system, MainMethods &main_methods);
@@ -119,7 +120,7 @@ class ParticleGeneration
         RelaxationSystem &relaxation_system, EntityManager &config_manager, MainMethods &main_methods);
 
     ParticleDynamicsGroup &addBodyNormalDirection(
-        RelaxationSystem &relaxation_system, EntityManager &config_manager, MainMethods &main_methods);
+        RelaxationSystem &relaxation_system, EntityManager &config_manager, HostMethods &host_methods);
 
     void addRelaxationConstraintsIfPresent(
         RelaxationSystem &relaxation_system, EntityManager &config_manager,

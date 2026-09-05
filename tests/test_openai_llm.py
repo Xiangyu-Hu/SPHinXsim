@@ -55,7 +55,7 @@ def test_generate_applies_exact_unicode_soil_and_stl_values():
     assert material.friction_angle == pytest.approx(math.radians(10.5))
     assert material.cohesion == pytest.approx(15.0e3)
     assert material.dilatancy_angle == pytest.approx(0.0)
-    assert material.sound_speed == pytest.approx(304.2903097250923)
+    assert material.sound_speed is None
     assert config.geometries.global_resolution.particle_spacing == pytest.approx(10.0)
     assert config.solver_parameters.end_time == pytest.approx(80.0)
     assert config.solver_parameters.output_interval == pytest.approx(5.0)

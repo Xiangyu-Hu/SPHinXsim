@@ -1,5 +1,6 @@
 #include "recording_builder.hpp"
 
+#include "io_base_ck.h"
 #include "sph_simulation.h"
 
 namespace SPH
@@ -84,13 +85,20 @@ void RecordingBuilder::addVariableToStateRecorder(
     }
 }
 //=================================================================================================//
-BodyStatesRecording &RecordingBuilder::createBodyStatesRecording(
-    SPHSystem &sph_system, EntityManager &config_manager,
-    MainMethods &main_methods, const json &config)
+void RecordingBuilder::createBodyStatesRecording(
+    SPHSystem &sph_system, EntityManager &config_manager, MainMethods &main_methods)
 {
-    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     auto &state_recorder = main_methods.template addBodyStateRecorder<
         BodyStatesRecordingToVtpCK>(sph_system);
+    config_manager.removeEntity<MainBodyStatesRecording>("BodyStatesRecording");
+    config_manager.addEntity<MainBodyStatesRecording>("BodyStatesRecording", &state_recorder);
+}
+//=================================================================================================//
+void RecordingBuilder::finalizeBodyStatesRecording(
+    SPHSystem &sph_system, EntityManager &config_manager, const json &config)
+{
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
+    auto &state_recorder = getBodyStatesRecording(config_manager);
 
     if (config.contains("extra_state_recording"))
     {
@@ -131,7 +139,11 @@ BodyStatesRecording &RecordingBuilder::createBodyStatesRecording(
             variable->setScalingRef(scaling_config.getScalingRef(variable->Name(), false));
         }
     }
-    return state_recorder;
+}
+//=================================================================================================//
+MainBodyStatesRecording &RecordingBuilder::getBodyStatesRecording(EntityManager &config_manager)
+{
+    return config_manager.getEntity<MainBodyStatesRecording>("BodyStatesRecording");
 }
 //=================================================================================================//
 void RecordingBuilder::buildObservationIfPresent(

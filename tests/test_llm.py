@@ -6,10 +6,9 @@ import math
 import pytest
 from pydantic import ValidationError
 
-from sphinxsim.config.schemas import PhysicalCorrectionWarning, SimulationConfig
+from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.llm.common import (
     apply_explicit_instruction_overrides,
-    apply_plastic_sound_speed_formula,
     apply_stl_geometry_overrides,
     dump_simulation_config_json,
     example_config,
@@ -167,7 +166,7 @@ class TestMockLLM:
         assert material.friction_angle == pytest.approx(math.radians(10.5))
         assert material.cohesion == pytest.approx(15.0e3)
         assert material.dilatancy_angle == pytest.approx(0.0)
-        assert material.sound_speed == pytest.approx(304.2903097250923)
+        assert material.sound_speed is None
         assert cfg.geometries.global_resolution.particle_spacing == pytest.approx(10.0)
         assert cfg.solver_parameters.end_time == pytest.approx(80.0)
         assert cfg.solver_parameters.output_interval == pytest.approx(5.0)
@@ -194,6 +193,7 @@ class TestExampleConfig:
         example = example_config("elastic solid milling")
 
         solver = example["solver_parameters"]["continuum_dynamics"]
+        assert solver["linear_correction_matrix_coeff"] == pytest.approx(0.5)
         assert solver["linear_correction_matrix_coeff"] == pytest.approx(0.5)
         assert solver["contact_numerical_damping"] == pytest.approx(1.0)
         assert solver["shear_stress_damping"] == pytest.approx(1.0)
@@ -233,7 +233,7 @@ class TestExampleConfig:
         assert example["geometries"]["system_domain"]["upper_bound"] == pytest.approx(
             [0.588, 0.16, 0.588]
         )
-        assert shapes["GranularBody"]["type"] == "bounding_box"
+        assert shapes["GranularBody"]["type"] == "cylinder"
         assert shapes["WallBoundary"]["type"] == "complex_shape"
 
     def test_3d_landslide_without_two_stl_files_keeps_repose_angle_fixture(self):
@@ -242,7 +242,7 @@ class TestExampleConfig:
         assert example["geometries"]["system_domain"]["upper_bound"] == pytest.approx(
             [0.588, 0.16, 0.588]
         )
-        assert example["geometries"]["shapes"][0]["type"] == "bounding_box"
+        assert example["geometries"]["shapes"][0]["type"] == "cylinder"
         assert "relaxation_parameters" not in example["particle_generation"]["settings"]
 
 
@@ -411,7 +411,7 @@ class TestSTLGeometryOverrides:
         sanitized = sanitize_config_dict(cfg)
 
         granular = sanitized["geometries"]["shapes"][0]
-        assert granular["type"] == "bounding_box"
+        assert granular["type"] == "cylinder"
         assert "file_name" not in granular
         assert "scale" not in granular
 
@@ -426,46 +426,3 @@ class TestSTLGeometryOverrides:
 
         assert infer_requested_simulation_type(description) == "continuum_dynamics"
         assert infer_requested_material_type(description) == "plastic_continuum"
-
-
-class TestPlasticSoundSpeedFormula:
-    def test_calculates_from_final_elastic_properties_without_mutating_input(self):
-        cfg = {
-            "continuum_bodies": [
-                {
-                    "name": "GranularBody",
-                    "material": {
-                        "type": "plastic_continuum",
-                        "density": 2040.0,
-                        "sound_speed": 300.0,
-                        "youngs_modulus": 5.84e6,
-                        "poisson_ratio": 0.3,
-                    },
-                }
-            ]
-        }
-
-        with pytest.warns(PhysicalCorrectionWarning, match="Calculated PlasticContinuum"):
-            updated = apply_plastic_sound_speed_formula(cfg)
-
-        expected = (5.84e6 / (3.0 * 2040.0 * (1.0 - 2.0 * 0.3))) ** 0.5
-        assert updated["continuum_bodies"][0]["material"]["sound_speed"] == pytest.approx(expected)
-        assert cfg["continuum_bodies"][0]["material"]["sound_speed"] == 300.0
-
-    def test_leaves_nonplastic_material_unchanged(self):
-        cfg = {
-            "continuum_bodies": [
-                {
-                    "name": "Body",
-                    "material": {
-                        "type": "general_continuum",
-                        "density": 1000.0,
-                        "sound_speed": 100.0,
-                        "youngs_modulus": 1.0e6,
-                        "poisson_ratio": 0.3,
-                    },
-                }
-            ]
-        }
-
-        assert apply_plastic_sound_speed_formula(cfg) == cfg

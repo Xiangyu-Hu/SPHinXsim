@@ -160,6 +160,11 @@ _SOLID_TEMPLATE: Dict[str, Any] = {
             "hourglass_factor": 2.0,
         },
     },
+    "restart": {
+    "restore_step": 0,
+    "save_interval": 400,
+    "summary_enabled": True
+  }
 }
 
 _FSI_TEMPLATE: Dict[str, Any] = {
@@ -550,7 +555,6 @@ class MockLLM:
         template = _apply_overrides(base_template, description)
         from sphinxsim.llm.common import (
             apply_explicit_instruction_overrides,
-            apply_plastic_sound_speed_formula,
             apply_stl_geometry_overrides,
             suppress_implicit_plastic_observers,
         )
@@ -558,7 +562,6 @@ class MockLLM:
         template = apply_stl_geometry_overrides(template, description)
         template = apply_explicit_instruction_overrides(template, description)
         template = suppress_implicit_plastic_observers(template, description)
-        template = apply_plastic_sound_speed_formula(template)
 
         return SimulationConfig(**template)
 

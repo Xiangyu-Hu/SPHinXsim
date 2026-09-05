@@ -30,6 +30,16 @@ from typing import TYPE_CHECKING, Any
 
 from sphinxsim.bindings.loader import load_sphinxsys_core_nd
 
+
+# Gravity arrow length is always one fifth of the displayed model height.
+# Keep this in data coordinates so the arrow follows the absolute model scale.
+GRAVITY_ARROW_LENGTH_RATIO = 1.0 / 5.0
+PREVIEW_MAIN_VIEWPORT_WIDTH = 0.76
+PREVIEW_SIDEBAR_BACKGROUND = (0.93, 0.93, 0.93)
+PREVIEW_TEXT_COLOUR = (0.12, 0.12, 0.12)
+PREVIEW_AXIS_COLOUR = (0.25, 0.25, 0.25)
+PREVIEW_GRAVITY_TEXT_COLOUR = (0.0, 0.35, 0.38)
+
 if TYPE_CHECKING:
     from sphinxsim.config.schemas import (
         BodyConstraintConfig,
@@ -45,14 +55,14 @@ if TYPE_CHECKING:
 
 # Colours assigned per body category so users instantly see what is what.
 _FLUID_COLOUR = (0.20, 0.53, 0.85)       # blue
-_SOLID_COLOUR = (0.70, 0.70, 0.70)       # grey
-_CONTINUUM_COLOUR = (0.90, 0.60, 0.10)   # amber
+_SOLID_COLOUR = (0.48, 0.48, 0.48)       # grey
+_CONTINUUM_COLOUR = (0.78, 0.42, 0.05)   # amber
 _UNKNOWN_COLOUR = (0.60, 0.80, 0.40)     # green (shapes not in any body list)
 _INLET_OUTLET_COLOUR = (0.85, 0.20, 0.20)  # red
 _REGION_COLOUR = (0.85, 0.70, 0.10)        # yellow
 _OBSERVER_COLOUR = (0.93, 0.13, 0.93)      # magenta — observer positions
 _CONSTRAINT_COLOUR = (0.93, 0.55, 0.13)     # orange — body constraint regions
-_GRAVITY_COLOUR = (0.10, 0.90, 0.90)        # cyan — gravity direction arrow
+_GRAVITY_COLOUR = (0.00, 0.48, 0.50)        # dark cyan — gravity direction arrow
 _PARTICLE_POINT_SIZE = 5
 
 
@@ -67,6 +77,53 @@ def _body_colour(body_name: str, config: "SimulationConfig") -> tuple[float, flo
         if b.name == body_name:
             return _CONTINUUM_COLOUR
     return _UNKNOWN_COLOUR
+
+
+def _legend_entries_for_config(
+    config: "SimulationConfig",
+    particle_body_names: set[str] | None = None,
+) -> list[tuple[str, tuple[float, float, float]]]:
+    """Return semantic legend entries for the bodies currently displayed.
+
+    The legend must describe the validated configuration rather than infer a
+    material class from a colour. In particular, a fluid body with material
+    type ``weakly_compressible_fluid`` is not a granular body.
+    """
+    from sphinxsim.visualization.annotations import collect_preview_body_information
+
+    entries: list[tuple[str, tuple[float, float, float]]] = []
+    seen: set[tuple[str, tuple[float, float, float]]] = set()
+
+    for info in collect_preview_body_information(config):
+        body_type = str(info.get("body_type", ""))
+        material_model = str(info.get("material_model") or "Material")
+        colour = _FLUID_COLOUR if body_type == "Fluid body" else _CONTINUUM_COLOUR
+        key = (material_model, colour)
+        if key not in seen:
+            entries.append(key)
+            seen.add(key)
+
+    # Particle overlays can be displayed without a corresponding material
+    # entry. Name these from the actual body instead of calling them granular.
+    for body_name in sorted(particle_body_names or set()):
+        colour = _body_colour(body_name, config)
+        if any(body.name == body_name for body in config.fluid_bodies):
+            label = "Fluid particles"
+        elif any(body.name == body_name for body in config.continuum_bodies):
+            label = "Continuum particles"
+        elif any(body.name == body_name for body in config.solid_bodies):
+            label = "Rigid-boundary particles"
+        else:
+            label = f"Particles: {body_name}"
+        key = (label, colour)
+        if key not in seen:
+            entries.append(key)
+            seen.add(key)
+
+    if config.solid_bodies:
+        entries.append(("Rigid boundary", _SOLID_COLOUR))
+
+    return entries
 
 
 # ---------------------------------------------------------------------------
@@ -280,11 +337,20 @@ class ConfigVisualizer:
 
         # Screenshot mode implies off-screen rendering.
         off_screen = self.off_screen or screenshot_path is not None
-        plotter = pv.Plotter(title=title, off_screen=off_screen)
+        plotter = pv.Plotter(
+            title=title,
+            off_screen=off_screen,
+            shape=(1, 2),
+            border=False,
+            window_size=(1400, 800),
+        )
+        self._configure_layout(plotter)
+        self._draw_preview_sidebar(plotter)
         self._populate_plotter(plotter, vtp_dir, latest_particle_vtps)
+        self._configure_layout(plotter)
         self._configure_default_view(plotter, ndim)
         plotter.add_axes()
-        plotter.show_grid(font_size=10)
+        plotter.show_grid(font_size=10, color=PREVIEW_AXIS_COLOUR, bold=False)
 
         if vtp_dir:
             mode_label = "VTP geometry"
@@ -296,6 +362,10 @@ class ConfigVisualizer:
         sim_type_label = self.config.simulation_type.value.replace("_", " ").title()
         config_info = f"{dim_label}  •  {sim_type_label}  •  {mode_label}"
         self._add_config_info_text(plotter, config_info, ndim)
+        # Some PyVista legend actors temporarily make their active renderer
+        # current. Re-apply the split viewport and backgrounds immediately
+        # before capture/show so the main canvas cannot inherit a black default.
+        self._configure_layout(plotter)
 
         if screenshot_path is not None:
             plotter.screenshot(str(screenshot_path))
@@ -305,6 +375,142 @@ class ConfigVisualizer:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _configure_layout(self, plotter: Any) -> bool:
+        """Configure the existing two-renderer preview layout, if available."""
+        renderers = getattr(plotter, "renderers", None)
+        if renderers is None:
+            return False
+        try:
+            if len(renderers) < 2:
+                return False
+            try:
+                plotter.set_background("white")
+            except AttributeError:
+                pass
+            renderers[0].SetBackground((1.0, 1.0, 1.0))
+            renderers[1].SetBackground(PREVIEW_SIDEBAR_BACKGROUND)
+            renderers[0].SetViewport(0.0, 0.0, PREVIEW_MAIN_VIEWPORT_WIDTH, 1.0)
+            renderers[1].SetViewport(PREVIEW_MAIN_VIEWPORT_WIDTH, 0.0, 1.0, 1.0)
+            plotter.subplot(0, 0)
+            return True
+        except (AttributeError, IndexError, TypeError):
+            return False
+
+    @staticmethod
+    def _select_subplot(plotter: Any, index: int) -> None:
+        try:
+            plotter.subplot(0, index)
+        except (AttributeError, IndexError, TypeError):
+            pass
+
+    def _draw_preview_sidebar(self, plotter: Any) -> None:
+        """Render structured model/material information in the right panel."""
+        import textwrap
+
+        from sphinxsim.visualization.annotations import (
+            collect_preview_body_information,
+            observer_details,
+            particle_resolution_label,
+        )
+
+        renderers = getattr(plotter, "renderers", None)
+        if renderers is None:
+            return
+        try:
+            if len(renderers) < 2:
+                return
+        except TypeError:
+            return
+
+        self._select_subplot(plotter, 1)
+        try:
+            renderers[1].SetBackground(PREVIEW_SIDEBAR_BACKGROUND)
+        except (AttributeError, IndexError, TypeError):
+            pass
+
+        # The sidebar is rendered as a viewport-relative text actor.  Keep a
+        # conservative character width so long names/values wrap before they
+        # reach the viewport edge instead of being clipped.
+        sidebar_text_width = 39
+        lines: list[str] = []
+
+        def append_wrapped(text: Any, *, indent: str = "") -> None:
+            wrapped = textwrap.wrap(
+                str(text),
+                width=max(sidebar_text_width - len(indent), 8),
+                initial_indent=indent,
+                subsequent_indent=indent,
+                break_long_words=True,
+                break_on_hyphens=False,
+            )
+            lines.extend(wrapped or [indent])
+
+        def append_field(label: Any, value: Any) -> None:
+            prefix = f"  {str(label):<18}"
+            value_lines = textwrap.wrap(
+                str(value),
+                width=max(sidebar_text_width - len(prefix), 8),
+                break_long_words=True,
+                break_on_hyphens=False,
+            ) or ["—"]
+            lines.append(prefix + value_lines[0])
+            lines.extend(f"{' ' * len(prefix)}{part}" for part in value_lines[1:])
+
+        resolution = particle_resolution_label(self.config)
+        if resolution is not None:
+            append_field(resolution[0], resolution[1])
+            lines.append("")
+        body_information = collect_preview_body_information(self.config)
+        for info in body_information:
+            rows = info.get("rows", [])
+            append_wrapped(info["name"])
+            append_field("Type", info["body_type"])
+            append_field("Material model", info["material_model"])
+            for label, value in rows:
+                append_field(label, value)
+            lines.append("")
+
+        if self.config.solid_bodies:
+            lines.extend(["Rigid boundaries", ""])
+            for body in self.config.solid_bodies:
+                append_wrapped(f"{body.name}  (Rigid boundary)", indent="  ")
+            lines.append("")
+
+        if not body_information and not self.config.solid_bodies:
+            lines.append("No continuum material information")
+
+        if self.config.observers:
+            lines.extend(["OBSERVERS", ""])
+            for index, observer in enumerate(self.config.observers, start=1):
+                lines.append(f"Observer {index}")
+                for label, value in observer_details(observer):
+                    append_field(label, value)
+                lines.append("")
+
+        # Keep the title visually distinct from the data block.  A text-only
+        # frame works in both the Qt and off-screen renderers and does not
+        # depend on pixel coordinates, so it remains stable when resized.
+        title = "MODEL INFORMATION"
+        plotter.add_text(
+            title,
+            position="upper_left",
+            font_size=13,
+            color=PREVIEW_TEXT_COLOUR,
+            font="arial",
+            shadow=False,
+            name="preview-sidebar-title",
+        )
+        plotter.add_text(
+            "\n\n".join(["", "------------------", "\n".join(lines)]),
+            position="upper_left",
+            font_size=12,
+            color=PREVIEW_TEXT_COLOUR,
+            font="courier",
+            shadow=False,
+            name="preview-sidebar-content",
+        )
+        self._select_subplot(plotter, 0)
 
     def _configure_default_view(self, plotter: Any, ndim: int) -> None:
         """Set a sensible initial camera and interaction style."""
@@ -331,16 +537,18 @@ class ConfigVisualizer:
             plotter.add_text(
                 config_info,
                 position="upper_edge",
-                font_size=10,
-                color="cyan",
+                font_size=11,
+                color=PREVIEW_GRAVITY_TEXT_COLOUR,
+                font="arial",
             )
             return
 
         plotter.add_text(
             config_info,
             position="upper_edge",
-            font_size=10,
-            color="cyan",
+            font_size=11,
+            color=PREVIEW_GRAVITY_TEXT_COLOUR,
+            font="arial",
         )
 
     def _try_build_geometries(self, ndim: int, with_particles: bool = False) -> Path | None:
@@ -483,13 +691,13 @@ class ConfigVisualizer:
 
         from sphinxsim.visualization.annotations import (
             body_constraint_label,
-            body_label,
             gravity_label,
-            observer_label,
+            observer_short_label,
             oriented_box_label,
         )
 
         config = self.config
+        self._select_subplot(plotter, 0)
         self._annotation_label_actors = []
         hide_shapes = bool(latest_particle_vtps)
 
@@ -498,7 +706,9 @@ class ConfigVisualizer:
             labels: list[str],
             *,
             font_size: int,
-            text_color: str,
+            text_color: Any,
+            background_color: Any = (0.88, 0.88, 0.88),
+            background_opacity: float = 0.0,
         ) -> None:
             def _deconflict_anchor(anchor: tuple[float, float, float]) -> tuple[float, float, float]:
                 if not occupied_points:
@@ -587,6 +797,12 @@ class ConfigVisualizer:
                 font_size=font_size,
                 text_color=text_color,
                 always_visible=True,
+                shape="rounded_rect",
+                fill_shape=background_opacity > 0.0,
+                shape_color=background_color,
+                shape_opacity=background_opacity,
+                background_color=background_color,
+                background_opacity=background_opacity,
             )
             if actor is not None:
                 self._annotation_label_actors.append(
@@ -658,14 +874,6 @@ class ConfigVisualizer:
                 )
                 _update_scene_bounds(mesh)
 
-                label_anchor = _label_anchor_point(mesh)
-                label_text = body_label(shape.name, config) if is_body else shape.name
-                _add_annotation_label(
-                    [label_anchor],
-                    [label_text],
-                    font_size=8,
-                    text_color="white",
-                )
                 occupied_points.append(
                     (
                         float(mesh.center[0]),
@@ -690,17 +898,9 @@ class ConfigVisualizer:
                 opacity=0.95,
                 style="points",
                 point_size=_PARTICLE_POINT_SIZE,
-                render_points_as_spheres=True,
                 label=f"Particles: {body_name}",
             )
 
-            step_text = vtp_path.stem.rsplit("_", 1)[-1]
-            _add_annotation_label(
-                [particle_mesh.center],
-                [f"Particles: {body_name} (step {step_text})"],
-                font_size=7,
-                text_color="white",
-            )
             _update_scene_bounds(particle_mesh)
             occupied_points.append(
                 (
@@ -731,7 +931,7 @@ class ConfigVisualizer:
                 [mesh.center],
                 [label_text],
                 font_size=7,
-                text_color="yellow",
+                text_color=(0.45, 0.25, 0.0),
             )
             occupied_points.append(
                 (
@@ -768,7 +968,7 @@ class ConfigVisualizer:
                         [mesh.center],
                         [label_text],
                         font_size=7,
-                        text_color="orange",
+                        text_color=(0.55, 0.20, 0.0),
                     )
             else:
                 # No region — try to label at the body shape centroid.
@@ -780,7 +980,7 @@ class ConfigVisualizer:
                             [mesh.center],
                             [label_text],
                             font_size=7,
-                            text_color="orange",
+                            text_color=(0.55, 0.20, 0.0),
                         )
 
         # --- Domain bounding box ---
@@ -806,7 +1006,7 @@ class ConfigVisualizer:
         )
 
         # --- Observer positions ---
-        for observer in config.observers:
+        for observer_index, observer in enumerate(config.observers, start=1):
             if not observer.positions:
                 continue
 
@@ -830,42 +1030,40 @@ class ConfigVisualizer:
             )
             _add_annotation_label(
                 [points[0]],
-                [observer_label(observer)],
-                font_size=7,
-                text_color="magenta",
+                [observer_short_label(observer_index)],
+                font_size=9,
+                text_color=(0.55, 0.0, 0.45),
+                background_color=(0.94, 0.94, 0.94),
+                background_opacity=0.96,
             )
 
         # --- Legend ---
-        legend_entries = []
-        if not hide_shapes:
-            legend_entries.extend(
-                [
-                    ["Fluid body", _FLUID_COLOUR],
-                    ["Solid body", _SOLID_COLOUR],
-                    ["Continuum body", _CONTINUUM_COLOUR],
-                    ["Other shape", _UNKNOWN_COLOUR],
-                ]
-            )
-        if particle_vtps:
-            legend_entries.append(["Generated particles", (1.0, 1.0, 1.0)])
-        legend_entries.extend(
+        legend_entries = _legend_entries_for_config(config, set(particle_vtps))
+        legend = plotter.add_legend(
             [
-                ["Inlet/Outlet", _INLET_OUTLET_COLOUR],
-                ["Region", _REGION_COLOUR],
-                ["Observer", _OBSERVER_COLOUR],
-                ["Constraint", _CONSTRAINT_COLOUR],
-                ["Gravity", _GRAVITY_COLOUR],
-            ]
-        )
-        plotter.add_legend(
-            [
-                (entry[0], [int(c * 255) for c in entry[1]])
+                (entry[0], [int(c * 255) for c in entry[1]], "rectangle")
                 for entry in legend_entries
             ],
-            size=(0.16, 0.16),
-            bcolor="black",
+            # A larger legend viewport gives the rectangular material swatches
+            # enough visual weight beside their labels.
+            size=(0.28, 0.10),
+            bcolor="white",
             border=True,
+            loc="upper left",
+            background_opacity=0.88,
         )
+        if legend is not None:
+            try:
+                text_property = legend.GetEntryTextProperty()
+                text_property.SetFontSize(5)
+                text_property.SetBold(False)
+                text_property.SetColor(0.1, 0.1, 0.1)
+            except AttributeError:
+                pass
+        try:
+            plotter.set_background("white")
+        except AttributeError:
+            pass
 
     def _add_gravity_arrow(
         self,
@@ -907,11 +1105,14 @@ class ConfigVisualizer:
             # Fall back to the extent of all shape bounds if available.
             lower, upper = self._scene_extent(ndim)
 
-        extent = [upper[i] - lower[i] for i in range(ndim)]
+        extent = [abs(upper[i] - lower[i]) for i in range(ndim)]
         max_extent = max(extent) if extent else 1.0
         if max_extent <= 0:
             max_extent = 1.0
-        arrow_length = 0.25 * max_extent
+        vertical_extent = extent[1] if len(extent) > 1 else max_extent
+        if vertical_extent <= 0:
+            vertical_extent = max_extent
+        arrow_length = GRAVITY_ARROW_LENGTH_RATIO * vertical_extent
 
         # Gravity direction (unit vector).  PyVista's Arrow always requires a
         # 3-D direction vector, so pad 2-D gravity with a zero z-component.
@@ -969,7 +1170,7 @@ class ConfigVisualizer:
         )
 
         # Place the gravity text label just above the arrow start.
-        label_offset = 0.03 * max_extent
+        label_offset = 0.04 * vertical_extent
         if ndim == 2:
             label_pos = (start[0], start[1] + label_offset, 0.0)
         else:
@@ -980,18 +1181,24 @@ class ConfigVisualizer:
                 [label_pos],
                 [g_label],
                 point_size=0,
-                font_size=9,
-                text_color="cyan",
+                font_size=10,
+                text_color=PREVIEW_GRAVITY_TEXT_COLOUR,
                 always_visible=True,
+                shape="rounded_rect",
+                fill_shape=True,
+                shape_color=(0.2, 0.2, 0.2),
+                shape_opacity=0.96,
+                background_color=(0.2, 0.2, 0.2),
+                background_opacity=0.96,
             )
             if actor is not None:
                 self._annotation_label_actors.append(
                     {
                         "actor": actor,
-                        "font_size": 9,
+                        "font_size": 10,
                         "points": [label_pos],
                         "labels": [g_label],
-                        "text_color": "cyan",
+                        "text_color": PREVIEW_GRAVITY_TEXT_COLOUR,
                     }
                 )
         except Exception:

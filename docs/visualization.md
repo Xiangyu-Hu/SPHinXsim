@@ -124,6 +124,16 @@ Notes:
 - `preview --screenshot ...` is one-shot and does not use the persistent window.
 - Persistent interactive mode relies on `pyvistaqt` plus a Qt backend (for
    example `PySide6` or `PyQt5`).
+- In the Qt-backed persistent window, the full-height dark configuration editor on the right
+  presents JSON fields as a searchable property tree: setting names on the
+  left and editable value boxes on the right. It uses type-appropriate controls
+  for booleans, numbers, and common enumerations. A change is saved only when
+  you press `Ctrl+S`; it validates and atomically saves the currently loaded
+  JSON file before rebuilding the preview. Running `preview` asks for
+  confirmation before discarding unapplied editor changes. Loading a different
+  configuration and running `preview` rebinds the editor to that file.
+  If the persistent Preview window is closed, running `preview` again creates a
+  fresh window and reattaches the editor.
 
 ```
 sphinxsim> load config.json

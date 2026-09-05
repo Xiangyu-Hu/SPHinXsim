@@ -30,6 +30,7 @@
 #define CONTINUUM_SIMULATION_BUILDER_H
 
 #include "base_simulation_builder.h"
+#include "continuum_dynamics_builder.h"
 #include "sph_solver.h"
 
 namespace SPH
@@ -41,18 +42,6 @@ class BaseDynamics;
 class BodyStatesRecording;
 class SPHBody;
 
-struct ContinuumSolverParameters
-{
-    Real acoustic_cfl_{0.4};
-    Real advection_cfl_{0.2};
-    Real linear_correction_matrix_coeff_{0.5};
-    Real contact_numerical_damping_{0.5};
-    Real shear_stress_damping_{0.0};
-    Real hourglass_factor_{2.0};
-    Real plastic_riemann_dissipation_factor_{20.0 * (Real)Dimensions};
-    std::string surface_type_ = "free_surface";
-};
-
 class ContinuumSimulationBuilder : public SimulationBuilder
 {
   public:
@@ -62,40 +51,6 @@ class ContinuumSimulationBuilder : public SimulationBuilder
   private:
     ContinuumSolverParameters parseContinuumSolverParameters(
         const ScalingConfig &scaling_config, const json &config);
-
-    template <class InnerRelationType, class ContactRelationType>
-    BaseDynamics<void> &addAcousticStep1stHalf(
-        EntityManager &config_manager, MainMethods &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
-
-    template <class InnerRelationType, class ContactRelationType>
-    BaseDynamics<void> &addAcousticStep2ndHalf(
-        EntityManager &config_manager, MainMethods &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
-
-    template <class InnerRelationType>
-    void buildShearForceIntegrationIfPresent(
-        SPHSimulation &sim, MainMethods &main_methods, InnerRelationType &inner_relation);
-
-    template <class InnerRelationType>
-    ParticleDynamicsGroup &addLinearCorrectionMatrix(
-        EntityManager &config_manager, MainMethods &main_methods, InnerRelationType &inner_relation);
-
-    template <class ContactRelationType>
-    void buildContactRepulsionIfPresent(
-        SPHSimulation &sim, MainMethods &main_methods, ContactRelationType &contact_relation);
-
-    template <class InnerRelationType, class ContactRelationType>
-    void buildDensityRegularizationIfPresent(
-        SPHSimulation &sim, MainMethods &main_methods,
-        SPHBody &continuum_body, InnerRelationType &inner_relation,
-        ContactRelationType &contact_relation);
-
-    template <class InnerRelationType>
-    void buildStressDiffusionIfPresent(
-        SPHSimulation &sim, MainMethods &main_methods,
-        SPHBody &continuum_body, InnerRelationType &inner_relation,
-        BodyStatesRecording &body_state_recorder);
 };
 } // namespace SPH
 #endif // CONTINUUM_SIMULATION_BUILDER_H

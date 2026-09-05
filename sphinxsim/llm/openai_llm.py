@@ -12,7 +12,6 @@ from sphinxsim.config.update_patch import UpdatePatch
 from sphinxsim.llm.common import (
     BODY_TYPE_RULES,
     apply_explicit_instruction_overrides,
-    apply_plastic_sound_speed_formula,
     apply_stl_geometry_overrides,
     dict_diff,
     json_safe_errors,
@@ -53,9 +52,9 @@ class OpenAILLM:
             "For granular soil, landslide, slope, column collapse, Drucker-Prager, "
             "friction angle, cohesion, or dilatancy requests, use simulation_type "
             "'continuum_dynamics' with a continuum_bodies material.type of "
-            "'plastic_continuum'. plastic_continuum requires density, sound_speed, "
-            "youngs_modulus, poisson_ratio, and friction_angle; cohesion and "
-            "dilatancy_angle are optional. "
+            "'plastic_continuum'. plastic_continuum requires density, youngs_modulus, "
+            "poisson_ratio, and friction_angle; sound_speed, cohesion, and dilatancy_angle "
+            "are optional. "
             "Do not include markdown, comments, or extra keys."
         ) + BODY_TYPE_RULES
 
@@ -78,7 +77,6 @@ class OpenAILLM:
         data = apply_stl_geometry_overrides(data, description)
         data = apply_explicit_instruction_overrides(data, description)
         data = suppress_implicit_plastic_observers(data, description)
-        data = apply_plastic_sound_speed_formula(data)
 
         try:
             return SimulationConfig(**data)
@@ -110,7 +108,6 @@ class OpenAILLM:
             retry_data = apply_stl_geometry_overrides(retry_data, description)
             retry_data = apply_explicit_instruction_overrides(retry_data, description)
             retry_data = suppress_implicit_plastic_observers(retry_data, description)
-            retry_data = apply_plastic_sound_speed_formula(retry_data)
             validated = SimulationConfig(**retry_data)
             report_llm_repair(data, retry_data)
             return validated

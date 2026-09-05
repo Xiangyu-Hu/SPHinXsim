@@ -39,7 +39,6 @@ enum class SimulationHookPoint
 {
     BeforeMainPhysicalTimeStep,
     BoundaryCondition,
-    MainPhysicalTimeStep,
     CouplingSynchronization,
     PositionConstraint,
     ParticleCreation,
@@ -48,8 +47,10 @@ enum class SimulationHookPoint
     Observation,
     ExtraOutput,
     ParticleSort,
-    ParticleIndicationTagging,
+    AfterUpdateConfiguration,
+    UpdateConfiguration,
     AfterLinearCorrectionMatrix,
+    AfterKernelGradientIntegral,
     NumHooks
 };
 
@@ -57,11 +58,12 @@ enum class InitializationHookPoint
 {
     InitialCondition,
     AfterInitialCondition,
+    InitialUpdateConfiguration,
     RestartFromFile,
     UpdateConfigurationAfterRestart,
     InitialObservation,
-    InitialParticleIndicationTagging,
     InitialAfterLinearCorrectionMatrix,
+    InitialAfterKernelGradientIntegral,
     PreSimulationSanityCheck,
     NumHooks
 };
@@ -97,6 +99,20 @@ class SPHBody;
 template <class ReturnType>
 class BaseDynamics;
 
+struct SPHBodyConfig
+{
+    std::string name_;
+    std::string adaptation_;
+    int is_moving_ = true;
+    bool has_dynamics_ = true;
+    bool is_interactive_ = true;
+
+    void setStatic();
+    void setDeformable();
+    void setHasDynamics();
+};
+using SPHBodiesConfig = StdVec<SPHBodyConfig *>;
+
 struct VariableConfig
 {
     std::string type_;
@@ -119,6 +135,11 @@ struct RestartConfig
     bool summary_enabled_{false};
 };
 
+struct GravityConfig
+{
+    Real gravity_ = 0.0;
+    StdVec<std::string> enabled_solid_bodies_{};
+};
 class SimulationBuilder
 {
   public:
@@ -127,24 +148,30 @@ class SimulationBuilder
     virtual void buildSimulation(SPHSimulation &sim, const json &config) = 0;
     virtual void parseSolverParameters(EntityManager &config_manager, const json &config);
     static void parseScheduledEvents(SPHSimulation &sim, const json &config, bool &on_flag);
+    static RestartConfig parseRestartConfig(const json &config);
+    static void initializeAllBodyConfigs(EntityManager &config_manager);
+    static int parseLoglevel(const json &config);
 
   protected:
     void buildFluidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void buildContinuumBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
     void buildSolidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
-    RestartConfig parseRestartConfig(const json &config);
+    void buildUpdateConfiguration(SPHSimulation &sim, MainMethods &main_methods, const json &config);
 
-    void buildExternalForceIfPresent(
-        SPHSimulation &sim, MainMethods &main_methods, SPHBody &sph_body, const json &config);
-
-    void buildInitialConditionIfPresent(
-        SPHSimulation &sim, MainMethods &main_methods, const json &config);
-    void buildRestartFromFileIfPresent(
-        SPHSimulation &sim, MainMethods &main_methods, const json &config);
+    void buildExternalForceIfPresent(SPHSimulation &sim, MainMethods &main_methods, const json &config);
+    void buildInitialConditionIfPresent(SPHSimulation &sim, MainMethods &main_methods, const json &config);
+    void buildRestartFromFileIfPresent(SPHSimulation &sim, MainMethods &main_methods, const json &config);
 
   private:
     std::unique_ptr<MaterialBuilder> material_builder_ptr_;
     SolverCommonConfig parseSolverCommonConfig(const ScalingConfig &scaling_config, const json &config);
+
+    void buildCellLinkedListDynamics(SPHSimulation &sim, MainMethods &main_methods, const json &config);
+    void buildFluidRelationDynamics(SPHSimulation &sim, MainMethods &main_methods, const json &config);
+    void buildContinuumRelationDynamics(SPHSimulation &sim, MainMethods &main_methods, const json &config);
+    void buildSolidRelationDynamics(SPHSimulation &sim, MainMethods &main_methods, const json &config);
+    void addUpdateConfigurationDynamicsToPipeline(
+        SPHSimulation &sim, EntityManager &config_manager, ParticleDynamicsGroup &configuration_dynamics);
 
     template <class IdentifierType>
     BaseDynamics<void> &addVariableAssignment(

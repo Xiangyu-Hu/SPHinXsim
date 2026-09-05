@@ -115,24 +115,15 @@ void MaterialBuilder::addMatterMaterial(
         return;
     }
 
-    if (type == "general_continuum")
-    {
-        Real density = scaling_config.jsonToReal(config.at("density"), "Density");
-        Real sound_speed = scaling_config.jsonToReal(config.at("sound_speed"), "Speed");
-        Real youngs_modulus = scaling_config.jsonToReal(config.at("youngs_modulus"), "Stress");
-        Real poisson_ratio = scaling_config.jsonToReal(config.at("poisson_ratio"), "Dimensionless");
-        auto &material = sph_body.defineMatterMaterial<GeneralContinuum>(
-            density, sound_speed, youngs_modulus, poisson_ratio);
-        config_manager.addEntity(sph_body.Name() + "GeneralContinuum", &material);
-        return;
-    }
-
     if (type == "plastic_continuum")
     {
         Real density = scaling_config.jsonToReal(config.at("density"), "Density");
-        Real sound_speed = scaling_config.jsonToReal(config.at("sound_speed"), "Speed");
         Real youngs_modulus = scaling_config.jsonToReal(config.at("youngs_modulus"), "Stress");
         Real poisson_ratio = scaling_config.jsonToReal(config.at("poisson_ratio"), "Dimensionless");
+        Real sound_speed = config.contains("sound_speed")
+                               ? scaling_config.jsonToReal(config.at("sound_speed"), "Speed")
+                               : sqrt(youngs_modulus /
+                                      (density * Real(3) * (Real(1) - Real(2) * poisson_ratio)));
         Real friction_angle = scaling_config.jsonToReal(config.at("friction_angle"), "Dimensionless");
         Real cohesion = config.contains("cohesion")
                             ? scaling_config.jsonToReal(config.at("cohesion"), "Stress")
@@ -213,6 +204,9 @@ void MaterialBuilder::addThermalProperties(
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     if (!config.contains("thermal_boundary"))
     {
+        auto &sph_body_config = config_manager.getEntity<SPHBodyConfig>(sph_body.Name());
+        sph_body_config.setHasDynamics();
+
         Real d_coeff_ref = scaling_config.jsonToReal(
             config.at("thermal_conductivity"), "ThermalConductivity");
         Real cv = scaling_config.jsonToReal(

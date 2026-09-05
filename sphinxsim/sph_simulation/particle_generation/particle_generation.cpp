@@ -232,11 +232,6 @@ RelaxationBodyConfig ParticleGeneration::parseRelaxationBodyConfig(std::string b
     return relax_body_config;
 }
 //=================================================================================================//
-std::string ParticleGeneration::getContactRelationName(const RelaxationBodyConfig &body_config)
-{
-    return body_config.name_ + body_config.dependent_bodies_.front();
-}
-//=================================================================================================//
 void ParticleGeneration::defineBodyRelations(RelaxationSystem &relaxation_system)
 {
     for (const auto &relax_body_config : bodies_config_.relaxation_bodies_)
@@ -250,9 +245,8 @@ void ParticleGeneration::defineBodyRelations(RelaxationSystem &relaxation_system
             for (const auto &dependent_body_name : relax_body_config.dependent_bodies_)
             {
                 RealBody &dependent_body = relaxation_system.getBodyByName<RealBody>(dependent_body_name);
-                dependent_bodies.push_back(&dependent_body);
+                relaxation_system.addContactRelation(real_body, dependent_body);
             }
-            relaxation_system.addContactRelation(real_body, dependent_bodies);
         }
     }
 }
@@ -301,16 +295,12 @@ ParticleDynamicsGroup &ParticleGeneration::addConfigurationDynamics(
         auto &inner_relation = relaxation_system.getRelationByName<
             Inner<Relation<RealBody>>>(body_config.name_);
 
-        if (body_config.dependent_bodies_.empty())
+        configuration_update.add(&main_methods.addRelationDynamics(inner_relation));
+        for (const auto &db_config : body_config.dependent_bodies_)
         {
-            configuration_update.add(&main_methods.addRelationDynamics(inner_relation));
-        }
-        else
-        {
-            std::string relation_name = getContactRelationName(body_config);
             auto &contact_relation = relaxation_system.getRelationByName<
-                Contact<Relation<RealBody, RealBody>>>(relation_name);
-            configuration_update.add(&main_methods.addRelationDynamics(inner_relation, contact_relation));
+                Contact<Relation<RealBody, RealBody>>>(body_config.name_ + db_config);
+            configuration_update.add(&main_methods.addRelationDynamics(contact_relation));
         }
     }
     return configuration_update;
@@ -334,13 +324,13 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationResidue(
             residual_dynamics.template addPostStateDynamics<LevelsetKernelGradientIntegral>(real_body, level_set_shape);
         }
 
-        if (!body_config.dependent_bodies_.empty())
+        for (const auto &db_config : body_config.dependent_bodies_)
         {
-            std::string relation_name = getContactRelationName(body_config);
             auto &contact_relation = relaxation_system.getRelationByName<
-                Contact<Relation<RealBody, RealBody>>>(relation_name);
+                Contact<Relation<RealBody, RealBody>>>(body_config.name_ + db_config);
             residual_dynamics.template addPostContactInteraction<Boundary, NoKernelCorrectionCK>(contact_relation);
         }
+
         relaxation_residue.add(&residual_dynamics);
     }
     return relaxation_residue;

@@ -176,17 +176,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     buildExternalForceIfPresent(sim, main_methods, config);
     FluidDynamicsBuilder::buildTransportVelocityFormulationIfNotFreeSurface(sim, main_methods);
     FluidDynamicsBuilder::buildViscousForceIfPresent(sim, main_methods);
-    if (!config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig").empty())
-    {
-        auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
-        auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
-        std::string fluid_name = fluid_bodies_config.front()->name_;
-        auto &fluid_inner = sph_system.getRelationByName<Inner<Relation<FluidBody>>>(fluid_name);
-        auto &fluid_wall_contact = sph_system.getRelationByName<Contact<Relation<FluidBody, SolidBody>>>(
-            fluid_name + solid_bodies_config.front()->name_);
-        ThermalDynamicsBuilder::buildThermalDynamicsIfPresent(
-            sim, main_methods, fluid_inner, fluid_wall_contact);
-    }
+    ThermalDynamicsBuilder::buildThermalDynamicsIfPresent(sim, main_methods);
     //----------------------------------------------------------------------
     // Define initial and boundary conditions, particle deletion and sorting.
     //----------------------------------------------------------------------

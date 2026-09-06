@@ -27,14 +27,8 @@
       {
         "name": "WaterBody",
         "type": "bounding_box",
-        "lower_bound": [
-          0.0,
-          0.0
-        ],
-        "upper_bound": [
-          2.0,
-          1.0
-        ]
+        "lower_bound": [0.0, 0.0],
+        "upper_bound": [2.0, 1.0]
       },
       {
         "name": "WallBoundary",
@@ -43,14 +37,8 @@
           {
             "operation": "union",
             "type": "container_box",
-            "inner_lower_bound": [
-              0.0,
-              0.0
-            ],
-            "inner_upper_bound": [
-              5.366,
-              5.366
-            ],
+            "inner_lower_bound": [0.0, 0.0],
+            "inner_upper_bound": [5.366, 5.366],
             "thickness": 0.1
           }
         ]
@@ -107,10 +95,7 @@
       "is_moving": false
     }
   ],
-  "gravity": [
-    0.0,
-    -1.0
-  ],
+  "gravity": [0.0, -1.0],
   "observers": [
     {
       "name": "FluidObserver",
@@ -118,12 +103,7 @@
       "variable": {
         "real_type": "Pressure"
       },
-      "positions": [
-        [
-          5.366,
-          0.2
-        ]
-      ]
+      "positions": [[5.366, 0.2]]
     }
   ],
   "fluid_boundary_conditions": [],
@@ -134,9 +114,7 @@
       "name": "WaterBody",
       "variables": [
         {
-          "real_type": [
-            "Pressure"
-          ]
+          "real_type": ["Pressure"]
         }
       ]
     },
@@ -144,9 +122,7 @@
       "name": "WallBoundary",
       "variables": [
         {
-          "vector_type": [
-            "NormalDirection"
-          ]
+          "vector_type": ["NormalDirection"]
         }
       ]
     }

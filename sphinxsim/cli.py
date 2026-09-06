@@ -199,6 +199,103 @@ def _config_spatial_dim(config: SimulationConfig) -> int:
     return 3
 
 
+def _new_json_editor_list_item(path: tuple[Any, ...], spatial_dim: int) -> Any:
+    """Return an editable starter value for an empty JSON editor list."""
+    normalized_path = tuple(part for part in path if not isinstance(part, int))
+    vector = [0.0] * spatial_dim
+    unit_vector = [1.0] * spatial_dim
+    transform = {
+        "translation": vector,
+        "rotation_angle": 0.0,
+    }
+    if spatial_dim == 3:
+        transform["rotation_axis"] = [0.0, 0.0, 1.0]
+
+    templates: dict[tuple[Any, ...], Any] = {
+        ("characteristic_dimensions",): {
+            "name": "Length",
+            "value": 1.0,
+            "hint": "Characteristic length",
+        },
+        ("geometries", "primitives"): {
+            "name": "New primitive",
+            "type": "box",
+            "half_size": unit_vector,
+            "transform": transform,
+        },
+        ("geometries", "shapes"): {
+            "name": "New shape",
+            "type": "bounding_box",
+            "lower_bound": vector,
+            "upper_bound": unit_vector,
+        },
+        ("geometries", "shapes", "polygons"): {
+            "operation": "union",
+            "type": "bounding_box",
+            "lower_bound": vector,
+            "upper_bound": unit_vector,
+        },
+        ("geometries", "oriented_boxes"): {
+            "name": "New region",
+            "type": "region",
+            "half_size": unit_vector,
+            "transform": transform,
+        },
+        ("particle_generation", "settings", "bodies"): {"name": "New body"},
+        ("particle_generation", "settings", "relaxation_constraints"): {
+            "body_name": "",
+            "oriented_box": "",
+            "type": "",
+        },
+        ("fluid_bodies",): {
+            "name": "New fluid body",
+            "material": {"type": "weakly_compressible_fluid", "density": 1000.0},
+        },
+        ("continuum_bodies",): {
+            "name": "New continuum body",
+            "material": {
+                "type": "general_continuum",
+                "density": 1000.0,
+                "sound_speed": 100.0,
+                "youngs_modulus": 1000000.0,
+                "poisson_ratio": 0.3,
+            },
+        },
+        ("solid_bodies",): {
+            "name": "New solid body",
+            "material": {"type": "rigid_body"},
+        },
+        ("observers",): {
+            "name": "New observer",
+            "observed_body": "",
+            "variable": {"real_type": "Pressure"},
+            "positions": [vector],
+        },
+        ("fluid_boundary_conditions",): {
+            "body_name": "",
+            "oriented_box": "",
+            "type": "emitter",
+            "inflow_speed": 1.0,
+        },
+        ("body_constraints",): {"body_name": "", "type": "fixed"},
+        ("initial_conditions",): {
+            "body_name": "",
+            "assignments": [{"variable": {"real_type": "Pressure"}, "value": 0.0}],
+        },
+        ("initial_conditions", "assignments"): {
+            "variable": {"real_type": "Pressure"},
+            "value": 0.0,
+        },
+        ("extra_state_recording",): {
+            "name": "New recording",
+            "variables": [{"real_type": ["Pressure"]}],
+        },
+        ("extra_state_recording", "variables"): {"real_type": ["Pressure"]},
+        ("energy_recording",): {"name": "New energy recording", "body": ""},
+    }
+    return copy.deepcopy(templates.get(normalized_path, {}))
+
+
 # ---------------------------------------------------------------------------
 # Sub-command handlers
 # ---------------------------------------------------------------------------
@@ -644,6 +741,30 @@ def _resolve_preview_config_path(config_file: str) -> Path:
     return cwd_path if cwd_path.exists() else build_temp_path
 
 
+def _set_windows_dark_title_bar(window: Any) -> None:
+    """Request Windows dark mode for a Qt top-level window's native title bar."""
+    if sys.platform != "win32":
+        return
+
+    try:
+        import ctypes
+
+        hwnd = int(window.winId())
+        enabled = ctypes.c_int(1)
+        dwmapi = ctypes.windll.dwmapi
+        for attribute in (20, 19):  # Windows 10 build-dependent dark-mode IDs.
+            result = dwmapi.DwmSetWindowAttribute(
+                hwnd,
+                attribute,
+                ctypes.byref(enabled),
+                ctypes.sizeof(enabled),
+            )
+            if result == 0:
+                break
+    except Exception:
+        pass
+
+
 class _ShellPreviewRuntime:
     """Persistent shell preview runtime.
 
@@ -722,6 +843,25 @@ class _ShellPreviewRuntime:
         app_window = getattr(self.plotter, "app_window", None)
         if app_window is None:
             return True
+        _set_windows_dark_title_bar(app_window)
+        app_window.setStyleSheet(
+            "QMainWindow { background: #181a1f; }"
+            "QMenuBar { background: #202329; color: #e6e8ec; border-bottom: 1px solid #3b4049; }"
+            "QMenuBar::item { padding: 5px 9px; background: transparent; }"
+            "QMenuBar::item:selected { background: #30343c; color: #ffffff; }"
+            "QMenu { background: #24272d; color: #e6e8ec; border: 1px solid #454b55; }"
+            "QMenu::item { padding: 5px 24px 5px 10px; }"
+            "QMenu::item:selected { background: #315f8c; color: #ffffff; }"
+            "QToolBar { background: #202329; border: 0; border-bottom: 1px solid #3b4049; spacing: 3px; }"
+            "QToolBar QToolButton { min-width: 26px; min-height: 26px; padding: 2px; "
+            "background: #24272d; color: #f0f2f5; border: 1px solid #4a505b; border-radius: 3px; }"
+            "QToolBar QToolButton:hover { background: #30343c; color: #ffffff; border-color: #75a9d0; }"
+            "QToolBar QToolButton:pressed { background: #315f8c; color: #ffffff; border-color: #80bde8; }"
+            "QToolBar QToolButton:disabled { background: #202329; color: #6f7680; border-color: #343a43; }"
+            "QStatusBar { background: #202329; color: #c8ccd4; border-top: 1px solid #3b4049; }"
+            "QSplitter::handle { background: #3b4049; }"
+            "QSplitter::handle:hover { background: #5794cf; }"
+        )
 
         dock = QtWidgets.QDockWidget("Simulation Properties", app_window)
         dock.setObjectName("sphinxsim-json-editor")
@@ -744,39 +884,50 @@ class _ShellPreviewRuntime:
             "QToolButton {"
             "    min-height: 24px;"
             "    padding: 2px 5px;"
-            "    border: 1px solid transparent;"
+            "    border: 1px solid #4a505b;"
             "    border-radius: 3px;"
-            "    background: transparent;"
-            "    color: #c8ccd4;"
+            "    background: #24272d;"
+            "    color: #d7dae0;"
             "}"
             "QToolButton:hover {"
             "    background: #30343c;"
-            "    border: 1px solid #4a505b;"
+            "    border: 1px solid #61707e;"
             "    color: #ffffff;"
             "}"
             "QToolButton:pressed {"
             "    background: #3a404a;"
-            "    border: 1px solid #616a78;"
+            "    border: 1px solid #7b8997;"
             "    color: #ffffff;"
             "}"
             "QToolButton:disabled {"
-            "    background: transparent;"
-            "    border: 1px solid transparent;"
+            "    background: #202329;"
+            "    border: 1px solid #343a43;"
             "    color: #686e79;"
+            "}"
+            "QToolButton#sphinxsim-json-editor-list-action {"
+            "    min-height: 28px;"
+            "    font-weight: 600;"
+            "    background: #2f6f9f;"
+            "    border: 1px solid #235a84;"
+            "    color: #ffffff;"
+            "}"
+            "QToolButton#sphinxsim-json-editor-list-action:hover {"
+            "    background: #245d88;"
+            "    border-color: #164969;"
+            "}"
+            "QToolButton#sphinxsim-json-editor-list-action:pressed {"
+            "    background: #1c4c70;"
+            "    border-color: #123b59;"
+            "}"
+            "QToolButton#sphinxsim-json-editor-list-action:disabled {"
+            "    background: #25313b;"
+            "    border: 1px solid #374956;"
+            "    color: #788895;"
             "}"
         )
         layout = QtWidgets.QVBoxLayout(content)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
-        hint = QtWidgets.QLabel("<b style='color:#ffffff'>Use Ctrl+S to save changes</b>")
-        hint.setWordWrap(True)
-        hint.setAlignment(
-            QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter
-        )
-        hint.setStyleSheet(
-            "padding: 8px 10px; border: 1px solid #3d6f9e; border-radius: 4px; "
-            "background: #1f3042; color: #cbd8e6;"
-        )
         filter_box = QtWidgets.QLineEdit(content)
         filter_box.setObjectName("sphinxsim-json-editor-filter")
         filter_box.setPlaceholderText("Filter settings…")
@@ -806,6 +957,15 @@ class _ShellPreviewRuntime:
         move_up_button.setText("Move up")
         move_down_button = QtWidgets.QToolButton(content)
         move_down_button.setText("Move down")
+        list_action_buttons = (
+            add_item_button,
+            duplicate_item_button,
+            remove_item_button,
+            move_up_button,
+            move_down_button,
+        )
+        for button in list_action_buttons:
+            button.setObjectName("sphinxsim-json-editor-list-action")
         tool_buttons = (
             expand_button,
             collapse_button,
@@ -829,7 +989,7 @@ class _ShellPreviewRuntime:
             row = 0 if index < 5 else 1
             column = index if index < 5 else index - 5
             tools_grid.addWidget(button, row, column)
-            button.setVisible(False)
+            button.setVisible(True)
 
         for column in range(5):
             tools_grid.setColumnStretch(column, 1)
@@ -862,9 +1022,12 @@ class _ShellPreviewRuntime:
         status.setAlignment(
             QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter
         )
-        status.setStyleSheet("color: #aeb4bf;")
-        layout.addWidget(hint)
+        status.setStyleSheet(
+            "padding: 7px 9px; border: 1px solid #3d6f9e; border-radius: 4px; "
+            "background: #1f3042; color: #d9e8f5;"
+        )
         layout.addWidget(filter_box)
+        layout.addLayout(tools_grid)
         layout.addWidget(tree, 1)
         layout.addWidget(status)
         dock.setWidget(content)
@@ -1032,7 +1195,12 @@ class _ShellPreviewRuntime:
                 widget.setText(json.dumps(value, ensure_ascii=False))
             return widget
 
-        def populate_editor(text: str, *, reset_history: bool = False) -> None:
+        def populate_editor(
+            text: str,
+            *,
+            reset_history: bool = False,
+            expand_defaults: bool = True,
+        ) -> None:
             iterator = QtWidgets.QTreeWidgetItemIterator(tree)
             while iterator.value() is not None:
                 previous_item = iterator.value()
@@ -1059,7 +1227,10 @@ class _ShellPreviewRuntime:
                     item = _new_tree_item(parent, _display_label(label), f"Object · {len(value)}")
                     item.setData(0, QtCore.Qt.ItemDataRole.UserRole, path_key)
                     editor_state["item_paths"][id(item)] = path
-                    item.setExpanded(path_key in editor_state["expanded_paths"] or depth < 2)
+                    item.setExpanded(
+                        path_key in editor_state["expanded_paths"]
+                        or (expand_defaults and depth < 2)
+                    )
                     font = item.font(0)
                     font.setBold(True)
                     item.setFont(0, font)
@@ -1071,7 +1242,10 @@ class _ShellPreviewRuntime:
                     item.setData(0, QtCore.Qt.ItemDataRole.UserRole, path_key)
                     editor_state["item_paths"][id(item)] = path
                     editor_state["list_paths"].add(path)
-                    item.setExpanded(path_key in editor_state["expanded_paths"] or depth < 2)
+                    item.setExpanded(
+                        path_key in editor_state["expanded_paths"]
+                        or (expand_defaults and depth < 2)
+                    )
                     font = item.font(0)
                     font.setBold(True)
                     item.setFont(0, font)
@@ -1233,9 +1407,11 @@ class _ShellPreviewRuntime:
                 if operation == "add" and path in editor_state["list_paths"]:
                     target_list = _payload_at(path)
                     if not target_list:
-                        status.setText("Cannot infer a new entry for an empty list; edit [] directly to add its first item.")
-                        return
-                    target_list.append(copy.deepcopy(target_list[-1]))
+                        target_list.append(
+                            _new_json_editor_list_item(path, _config_spatial_dim(config))
+                        )
+                    else:
+                        target_list.append(copy.deepcopy(target_list[-1]))
                 elif path[:-1] in editor_state["list_paths"] and isinstance(path[-1], int):
                     target_list = _payload_at(path[:-1])
                     index = path[-1]
@@ -1256,8 +1432,11 @@ class _ShellPreviewRuntime:
                 return
 
             editor_state["undo_stack"].append(before_edit)
-            editor_state["expanded_paths"].add(".".join(str(part) for part in path[:-1]))
-            populate_editor(json.dumps(editor_state["payload"], indent=2, ensure_ascii=False))
+            editor_state["expanded_paths"].add(".".join(str(part) for part in path))
+            populate_editor(
+                json.dumps(editor_state["payload"], indent=2, ensure_ascii=False),
+                expand_defaults=False,
+            )
             _mark_dirty()
             update_array_actions()
 

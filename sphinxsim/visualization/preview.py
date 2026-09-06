@@ -113,7 +113,7 @@ def _legend_entries_for_config(
         elif any(body.name == body_name for body in config.continuum_bodies):
             label = "Continuum particles"
         elif any(body.name == body_name for body in config.solid_bodies):
-            label = "Rigid-boundary particles"
+            label = "Solid particles"
         else:
             label = f"Particles: {body_name}"
         key = (label, colour)
@@ -122,7 +122,7 @@ def _legend_entries_for_config(
             seen.add(key)
 
     if config.solid_bodies:
-        entries.append(("Rigid boundary", _SOLID_COLOUR))
+        entries.append(("Solid", _SOLID_COLOUR))
 
     return entries
 
@@ -230,6 +230,8 @@ class ConfigVisualizer:
         self._vtp_dir: Path | None = None
         self._shape_bounds_cache: dict[str, Any] | None = None
         self._annotation_label_actors: list[dict[str, Any]] = []
+        self._particle_simulation: Any | None = None
+        self._particle_runtime_config_path: Path | None = None
 
     def _spatial_dim(self) -> int:
         """Return the spatial dimension (2 or 3) inferred from the config.
@@ -290,6 +292,16 @@ class ConfigVisualizer:
     def annotation_label_actors(self) -> list[dict[str, Any]]:
         """Label actors created by the latest preview population pass."""
         return list(self._annotation_label_actors)
+
+    def take_particle_simulation(self) -> tuple[Any, Path] | None:
+        """Transfer a generated-particle simulation and its runtime config."""
+        simulation = self._particle_simulation
+        runtime_config_path = self._particle_runtime_config_path
+        self._particle_simulation = None
+        self._particle_runtime_config_path = None
+        if simulation is None or runtime_config_path is None:
+            return None
+        return simulation, runtime_config_path
 
     # ------------------------------------------------------------------
     # Public API
@@ -473,9 +485,9 @@ class ConfigVisualizer:
             lines.append("")
 
         if self.config.solid_bodies:
-            lines.extend(["Rigid boundaries", ""])
+            lines.extend(["Solid", ""])
             for body in self.config.solid_bodies:
-                append_wrapped(f"{body.name}  (Rigid boundary)", indent="  ")
+                append_wrapped(f"{body.name}  (Solid)", indent="  ")
             lines.append("")
 
         if not body_information and not self.config.solid_bodies:
@@ -563,7 +575,12 @@ class ConfigVisualizer:
         """
         if self.config_path is None:
             self._shape_bounds_cache = None
+            self._particle_simulation = None
+            self._particle_runtime_config_path = None
             return None
+
+        self._particle_simulation = None
+        self._particle_runtime_config_path = None
 
         try:
             sph = load_sphinxsys_core_nd(ndim)
@@ -618,11 +635,18 @@ class ConfigVisualizer:
                     self._shape_bounds_cache = sim.getShapeBounds()
                 except Exception:
                     self._shape_bounds_cache = None               
+                self._particle_simulation = sim
+                self._particle_runtime_config_path = runtime_config_path
         except Exception:
             self._shape_bounds_cache = None
+            self._particle_simulation = None
+            self._particle_runtime_config_path = None
             return None
         finally:
-            if runtime_config_path is not None:
+            if (
+                runtime_config_path is not None
+                and runtime_config_path != self._particle_runtime_config_path
+            ):
                 try:
                     runtime_config_path.unlink()
                 except OSError:
@@ -670,13 +694,14 @@ class ConfigVisualizer:
                 suffix = stem[len(prefix):]
                 if suffix.startswith("ite_"):
                     suffix = suffix[len("ite_"):]
-                if not suffix.isdigit():
+                try:
+                    sequence = float(suffix)
+                except ValueError:
                     continue
 
-                step = int(suffix)
                 previous = latest.get(body_name)
-                if previous is None or step >= previous[0]:
-                    latest[body_name] = (step, path)
+                if previous is None or sequence >= previous[0]:
+                    latest[body_name] = (sequence, path)
                 break
 
         return {body_name: item[1] for body_name, item in latest.items()}
@@ -895,6 +920,7 @@ class ConfigVisualizer:
 
             plotter.add_mesh(
                 particle_mesh,
+                name=f"particle-preview-{body_name}",
                 color=_body_colour(body_name, config),
                 opacity=0.95,
                 style="points",

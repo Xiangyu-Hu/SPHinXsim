@@ -30,7 +30,7 @@ void ThermalDynamicsBuilder::buildThermalBoundaryCondition(
         return;
     }
 
-    std::runtime_error(
+    throw std::runtime_error(
         "Error: the boundary type is not supported in buildThermalBoundaryCondition.");
 }
 //=================================================================================================//

@@ -28,6 +28,7 @@ import tempfile
 import time
 import warnings
 from pathlib import Path
+from threading import Thread
 from typing import Any, Tuple
 
 # Set up sys.path FIRST, before any sphinxsim imports
@@ -779,10 +780,20 @@ class _ShellPreviewRuntime:
         self._hover_interactor: Any | None = None
         self._hover_observer_tag: Any | None = None
         self._json_editor: Any | None = None
+        self._pending_simulation: Any | None = None
+        self._pending_runtime_config_path: Path | None = None
+        self._live_run_thread: Thread | None = None
+        self._live_refresh_timer: Any | None = None
+        self._live_output_dir: Path | None = None
+        self._live_particle_body_names: set[str] = set()
+        self._live_particle_colours: dict[str, Any] = {}
+        self._live_particle_versions: dict[str, float] = {}
 
     def _reset_preview_state(self) -> None:
         """Forget all state associated with a closed preview window."""
         self._remove_hover_observer()
+        self._stop_live_refresh()
+        self.discard_pending_simulation()
         self.plotter = None
         self._json_editor = None
         self.last_signature = None
@@ -813,6 +824,154 @@ class _ShellPreviewRuntime:
             except Exception:
                 pass
         self._reset_preview_state()
+
+    def discard_pending_simulation(self) -> None:
+        """Release a simulation retained by ``preview --with-particles``."""
+        self._pending_simulation = None
+        runtime_config_path = self._pending_runtime_config_path
+        self._pending_runtime_config_path = None
+        if runtime_config_path is not None:
+            try:
+                runtime_config_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    def _stop_live_refresh(self) -> None:
+        timer = self._live_refresh_timer
+        self._live_refresh_timer = None
+        if timer is not None:
+            try:
+                timer.stop()
+            except Exception:
+                pass
+        self._live_output_dir = None
+        self._live_particle_body_names = set()
+        self._live_particle_colours = {}
+        self._live_particle_versions = {}
+
+    def _refresh_live_particles(self) -> None:
+        """Replace particle actors with the newest completed runtime snapshots."""
+        if self.plotter is None or self._live_output_dir is None:
+            return
+
+        from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE
+
+        try:
+            import pyvista as pv
+        except ImportError:
+            return
+
+        for vtp_path in self._live_output_dir.glob("*.vtp"):
+            for body_name in self._live_particle_body_names:
+                prefix = f"{body_name}_"
+                if not vtp_path.stem.startswith(prefix):
+                    continue
+                suffix = vtp_path.stem[len(prefix):]
+                if suffix.startswith("ite_"):
+                    suffix = suffix[len("ite_"):]
+                try:
+                    sequence = float(suffix)
+                except ValueError:
+                    break
+                previous_sequence = self._live_particle_versions.get(body_name, float("-inf"))
+                if sequence <= previous_sequence:
+                    break
+                try:
+                    mesh = pv.read(str(vtp_path))
+                except Exception:
+                    break
+                self.plotter.add_mesh(
+                    mesh,
+                    name=f"particle-preview-{body_name}",
+                    color=self._live_particle_colours.get(body_name),
+                    opacity=0.95,
+                    style="points",
+                    point_size=_PARTICLE_POINT_SIZE,
+                    label=f"Particles: {body_name}",
+                )
+                self._live_particle_versions[body_name] = sequence
+                break
+
+        thread = self._live_run_thread
+        if thread is not None and not thread.is_alive():
+            self._stop_live_refresh()
+            self._live_run_thread = None
+
+    def _start_live_refresh(self, refresh_interval: float) -> None:
+        timer = self._live_refresh_timer
+        if timer is not None:
+            try:
+                timer.stop()
+            except Exception:
+                pass
+        self._live_refresh_timer = None
+        self._live_particle_versions = {}
+        if not self._using_background_plotter or self.plotter is None:
+            return
+        try:
+            from qtpy import QtCore
+        except ImportError:
+            return
+        timer = QtCore.QTimer()
+        timer.setInterval(max(1, round(refresh_interval * 1000)))
+        timer.timeout.connect(self._refresh_live_particles)
+        timer.start()
+        self._live_refresh_timer = timer
+
+    def continue_to_run(self, refresh_interval: float = 10.0) -> int:
+        """Run the retained simulation and refresh its particle preview periodically."""
+        simulation = self._pending_simulation
+        runtime_config_path = self._pending_runtime_config_path
+        self._pending_simulation = None
+        self._pending_runtime_config_path = None
+        if simulation is None:
+            if runtime_config_path is not None:
+                try:
+                    runtime_config_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            print(
+                "No particle-preview simulation is available. Run 'preview --with-particles' first.",
+                file=sys.stderr,
+            )
+            return 1
+
+        try:
+            simulation.buildSimulation()
+            print("✅ Simulation built")
+            simulation.initializeSimulation()
+            print("✅ Simulation initialized")
+            print("\n🚀 Running simulation...")
+            self._start_live_refresh(refresh_interval)
+
+            def run_simulation() -> None:
+                try:
+                    simulation.run()
+                    print("✅ Simulation completed successfully!")
+                except Exception as exc:
+                    print(f"❌ Continued run failed: {exc}", file=sys.stderr)
+                finally:
+                    if runtime_config_path is not None:
+                        try:
+                            runtime_config_path.unlink(missing_ok=True)
+                        except OSError:
+                            pass
+
+            self._live_run_thread = Thread(target=run_simulation, daemon=True)
+            self._live_run_thread.start()
+            print(f"ℹ️ Preview refreshes every {refresh_interval:g} seconds while simulation runs.")
+            return 0
+        except Exception as exc:
+            print(f"❌ Continued run failed: {exc}", file=sys.stderr)
+            return 1
+        finally:
+            if self._live_run_thread is None:
+                del simulation
+                if runtime_config_path is not None:
+                    try:
+                        runtime_config_path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
 
     def _install_json_editor(
         self,
@@ -1901,6 +2060,23 @@ class _ShellPreviewRuntime:
             if draw_sidebar is not None:
                 draw_sidebar(self.plotter)
             visualizer._populate_plotter(self.plotter, vtp_dir, latest_particle_vtps)
+            if with_particles:
+                pending_simulation = visualizer.take_particle_simulation()
+                if pending_simulation is not None:
+                    from sphinxsim.visualization.preview import _body_colour
+
+                    (
+                        self._pending_simulation,
+                        self._pending_runtime_config_path,
+                    ) = pending_simulation
+                    self._live_output_dir = vtp_dir or (
+                        PROJECT_ROOT / ".build-temp" / "test_simulation" / "output"
+                    )
+                    self._live_particle_body_names = visualizer._particle_generation_body_names()
+                    self._live_particle_colours = {
+                        body_name: _body_colour(body_name, config)
+                        for body_name in self._live_particle_body_names
+                    }
             if configure_layout is not None:
                 configure_layout(self.plotter)
             visualizer._configure_default_view(self.plotter, ndim)
@@ -1909,7 +2085,7 @@ class _ShellPreviewRuntime:
 
             if vtp_dir:
                 mode_label = "VTP geometry"
-            elif visualizer._bounds_sim is not None:
+            elif visualizer.used_cpp_bounds:
                 mode_label = "C++ bounds fallback"
             else:
                 mode_label = "No C++ geometry"
@@ -1947,7 +2123,8 @@ def cmd_shell(args: argparse.Namespace) -> int:
     print(
             "Commands: load FILE, generate DESCRIPTION FILE, "
             "update [--patch-mode] [--dry-run] [--strict true|false] INSTRUCTION, "
-                    "validate, run, preview [--with-particles] [--screenshot FILE], explore QUESTION, exit"
+                "validate, run, preview [--with-particles] [--screenshot FILE], "
+                    "continue-to-run [--refresh-interval SECONDS], explore QUESTION, exit"
     )
     print("Note: relative paths are resolved from the current directory first, then .build-temp/.")
 
@@ -1971,6 +2148,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             return 0
 
         if line == "help":
+            preview_runtime.discard_pending_simulation()
             print("Commands:")
             print("  load FILE                       - Load an existing config file")
             print("  generate DESCRIPTION FILE       - Generate new config via LLM and save to FILE")
@@ -1985,6 +2163,8 @@ def cmd_shell(args: argparse.Namespace) -> int:
             print("  preview                         - Render geometry/BC preview (requires pyvista)")
             print("  preview --with-particles        - Run particle generation and overlay particles")
             print("  preview --screenshot FILE        - Save a screenshot to FILE instead of interactive window")
+            print("  continue-to-run [--refresh-interval SECONDS]")
+            print("                                 - Finish and run the retained particle preview simulation")
             print("  run                             - Run simulation from loaded config")
             print("  exit                            - Exit shell")
             continue
@@ -2003,6 +2183,11 @@ def cmd_shell(args: argparse.Namespace) -> int:
             continue
 
         cmd = parts[0]
+
+        # A retained simulation has exactly one follow-up command. Any other
+        # command abandons it and lets the native wrapper release its state.
+        if cmd != "continue-to-run":
+            preview_runtime.discard_pending_simulation()
 
         if cmd == "load":
             if len(parts) < 2:
@@ -2167,6 +2352,25 @@ def cmd_shell(args: argparse.Namespace) -> int:
             )
             if rc == 0:
                 print("ℹ️ Preview window is persistent in shell mode; run `preview` again after edits.")
+            continue
+
+        if cmd == "continue-to-run":
+            refresh_interval = 10.0
+            if len(parts) == 3 and parts[1] == "--refresh-interval":
+                try:
+                    refresh_interval = float(parts[2])
+                except ValueError:
+                    refresh_interval = 0.0
+            elif len(parts) != 1:
+                print(
+                    "Usage: continue-to-run [--refresh-interval SECONDS]",
+                    file=sys.stderr,
+                )
+                continue
+            if refresh_interval <= 0.0:
+                print("Refresh interval must be greater than zero.", file=sys.stderr)
+                continue
+            _ = preview_runtime.continue_to_run(refresh_interval)
             continue
 
         if cmd == "run":
@@ -2427,7 +2631,9 @@ def _parse_shell_ai_cli_style(text: str) -> list[str] | None:
         return None
 
     command = parts[0][1:]
-    valid_commands = {"generate", "validate", "update", "run", "preview", "explore", "shell"}
+    valid_commands = {
+        "generate", "validate", "update", "run", "preview", "continue-to-run", "explore", "shell"
+    }
     if command not in valid_commands:
         return None
 

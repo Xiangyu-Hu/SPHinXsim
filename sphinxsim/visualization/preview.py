@@ -35,10 +35,11 @@ from sphinxsim.bindings.loader import load_sphinxsys_core_nd
 # Keep this in data coordinates so the arrow follows the absolute model scale.
 GRAVITY_ARROW_LENGTH_RATIO = 1.0 / 5.0
 PREVIEW_MAIN_VIEWPORT_WIDTH = 0.76
-PREVIEW_SIDEBAR_BACKGROUND = (0.93, 0.93, 0.93)
-PREVIEW_TEXT_COLOUR = (0.12, 0.12, 0.12)
-PREVIEW_AXIS_COLOUR = (0.25, 0.25, 0.25)
-PREVIEW_GRAVITY_TEXT_COLOUR = (0.0, 0.35, 0.38)
+PREVIEW_MAIN_BACKGROUND = (0.09, 0.10, 0.12)
+PREVIEW_SIDEBAR_BACKGROUND = (0.12, 0.14, 0.17)
+PREVIEW_TEXT_COLOUR = (0.90, 0.92, 0.95)
+PREVIEW_AXIS_COLOUR = (0.55, 0.59, 0.64)
+PREVIEW_GRAVITY_TEXT_COLOUR = (0.30, 0.82, 0.85)
 
 if TYPE_CHECKING:
     from sphinxsim.config.schemas import (
@@ -397,10 +398,10 @@ class ConfigVisualizer:
             if len(renderers) < 2:
                 return False
             try:
-                plotter.set_background("white")
+                plotter.set_background(PREVIEW_MAIN_BACKGROUND)
             except AttributeError:
                 pass
-            renderers[0].SetBackground((1.0, 1.0, 1.0))
+            renderers[0].SetBackground(PREVIEW_MAIN_BACKGROUND)
             renderers[1].SetBackground(PREVIEW_SIDEBAR_BACKGROUND)
             renderers[0].SetViewport(0.0, 0.0, PREVIEW_MAIN_VIEWPORT_WIDTH, 1.0)
             renderers[1].SetViewport(PREVIEW_MAIN_VIEWPORT_WIDTH, 0.0, 1.0, 1.0)
@@ -1059,7 +1060,7 @@ class ConfigVisualizer:
                 [observer_short_label(observer_index)],
                 font_size=9,
                 text_color=(0.55, 0.0, 0.45),
-                background_color=(0.94, 0.94, 0.94),
+                background_color=PREVIEW_SIDEBAR_BACKGROUND,
                 background_opacity=0.96,
             )
 
@@ -1073,8 +1074,8 @@ class ConfigVisualizer:
             # A larger legend viewport gives the rectangular material swatches
             # enough visual weight beside their labels.
             size=(0.28, 0.10),
-            bcolor="white",
-            border=True,
+            bcolor=PREVIEW_SIDEBAR_BACKGROUND,
+            border=False,
             loc="upper left",
             background_opacity=0.88,
         )
@@ -1083,11 +1084,11 @@ class ConfigVisualizer:
                 text_property = legend.GetEntryTextProperty()
                 text_property.SetFontSize(5)
                 text_property.SetBold(False)
-                text_property.SetColor(0.1, 0.1, 0.1)
+                text_property.SetColor(PREVIEW_TEXT_COLOUR)
             except AttributeError:
                 pass
         try:
-            plotter.set_background("white")
+            plotter.set_background(PREVIEW_MAIN_BACKGROUND)
         except AttributeError:
             pass
 

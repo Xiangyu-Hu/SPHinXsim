@@ -1,0 +1,1721 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../cli-usage/">
+      
+      
+        <link rel="next" href="../llm-testing/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../images/logo-16x16.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Visualization - SPHinXsim</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#visualization" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="SPHinXsim" class="md-header__button md-logo" aria-label="SPHinXsim" data-md-component="logo">
+      
+  <img src="../images/logo-white.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            SPHinXsim
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Visualization
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../installation/" class="md-tabs__link">
+          
+  
+  
+  Installation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../cli-usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  CLI Usage
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Visualization
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../llm-testing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  LLM Testing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../theoretical-background/" class="md-tabs__link">
+          
+  
+  
+  Theoretical Backgrounds
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="SPHinXsim" class="md-nav__button md-logo" aria-label="SPHinXsim" data-md-component="logo">
+      
+  <img src="../images/logo-white.png" alt="logo">
+
+    </a>
+    SPHinXsim
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation-linux/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation-windows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Windows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation-macos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    macOS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-shows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it shows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI usage
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CLI usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic-preview-direct-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic preview (direct command)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preview-with-generated-particles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preview with generated particles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#off-screen-rendering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Off-screen rendering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#screenshot-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Screenshot output
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interactive-shell" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive shell
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python API
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Python API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configvisualizer-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ConfigVisualizer parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preview-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        preview() parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inspecting-which-tier-was-used" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspecting which tier was used
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#two-tier-rendering-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two-tier rendering strategy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Two-tier rendering strategy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vtp-geometry-preferred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VTP geometry (preferred)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bounds-fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bounds fallback
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#shape-types-and-vtp-availability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shape types and VTP availability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#annotations-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Annotations module
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#future-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Future work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Theoretical Backgrounds
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Theoretical Backgrounds
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theoretical-background/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theoretical-background-physical-models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Physical Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theoretical-background-sph-methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SPH Methods
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-it-shows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What it shows
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cli-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CLI usage
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CLI usage">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#basic-preview-direct-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Basic preview (direct command)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preview-with-generated-particles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preview with generated particles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#off-screen-rendering" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Off-screen rendering
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#screenshot-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Screenshot output
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interactive-shell" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive shell
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python API
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Python API">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#configvisualizer-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ConfigVisualizer parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preview-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        preview() parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inspecting-which-tier-was-used" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspecting which tier was used
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#two-tier-rendering-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two-tier rendering strategy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Two-tier rendering strategy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#vtp-geometry-preferred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VTP geometry (preferred)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bounds-fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bounds fallback
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#shape-types-and-vtp-availability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shape types and VTP availability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#annotations-module" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Annotations module
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#future-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Future work
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="visualization">Visualization</h1>
+<p>SPHinXsim includes a pre-run configuration visualizer that renders your simulation
+setup — geometries, bodies, boundary conditions, and physics annotations — before
+the expensive C++ solver starts.  This lets you catch setup mistakes early and build
+an intuitive picture of what the simulation will run.</p>
+<h2 id="requirements">Requirements</h2>
+<p>PyVista is required:</p>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>sphinxsim<span class="o">[</span>visualization<span class="o">]</span>
+</code></pre></div>
+<p>For responsive persistent preview in interactive shell mode, install
+<code>pyvistaqt</code> with a Qt binding backend:</p>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>pyvistaqt<span class="w"> </span>PySide6
+<span class="c1"># alternatively: pip install pyvistaqt PyQt5</span>
+</code></pre></div>
+<p>The compiled C++ extension (<code>_sphinxsys_core_2d</code> or <code>_sphinxsys_core_3d</code>) is
+required for preview geometry generation. The preview always attempts to build
+VTP meshes first and automatically falls back to cached shape bounds when VTP
+files are not produced.</p>
+<h2 id="what-it-shows">What it shows</h2>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Visual style</th>
+<th>Colour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fluid body shapes</td>
+<td>Solid surface</td>
+<td>Blue</td>
+</tr>
+<tr>
+<td>Solid body shapes</td>
+<td>Solid surface</td>
+<td>Grey</td>
+</tr>
+<tr>
+<td>Continuum body shapes</td>
+<td>Solid surface</td>
+<td>Amber</td>
+</tr>
+<tr>
+<td>Other defined shapes</td>
+<td>Wireframe</td>
+<td>Green</td>
+</tr>
+<tr>
+<td>Inlet/Outlet oriented boxes</td>
+<td>Wireframe</td>
+<td>Red</td>
+</tr>
+<tr>
+<td>Constraint region oriented boxes</td>
+<td>Wireframe</td>
+<td>Yellow</td>
+</tr>
+<tr>
+<td>System domain bounding box</td>
+<td>Wireframe</td>
+<td>White (10 % opacity)</td>
+</tr>
+<tr>
+<td>Generated particles (<code>--with-particles</code>)</td>
+<td>Points</td>
+<td>White (per-body colour)</td>
+</tr>
+</tbody>
+</table>
+<p>Each shape and oriented box is labelled with an annotation that includes:</p>
+<ul>
+<li><strong>Body shapes</strong>: material type, density, sound speed, thermal boundary type (when applicable).</li>
+<li><strong>Oriented boxes</strong>: BC type (emitter, bi-directional), inflow speed or pressure, and particle-relaxation constraints targeting that oriented box.</li>
+<li><strong>Gravity</strong>: shown in the lower-left corner when a gravity vector is defined.</li>
+</ul>
+<h2 id="cli-usage">CLI usage</h2>
+<h3 id="basic-preview-direct-command">Basic preview (direct command)</h3>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>preview<span class="w"> </span>path/to/config.json
+</code></pre></div>
+<p>This opens an interactive PyVista window showing the geometry.  The original
+JSON file is passed directly to the C++ <code>SPHSimulation</code> — it is the single
+source of truth, no intermediate copy is written.</p>
+<h3 id="preview-with-generated-particles">Preview with generated particles</h3>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>preview<span class="w"> </span>path/to/config.json<span class="w"> </span>--with-particles
+</code></pre></div>
+<p>Also runs particle generation (<code>generateParticles()</code>) and overlays the latest
+generated particle cloud for each particle-generation body.  This is opt-in
+because particle generation can be expensive.</p>
+<p>When particles are shown:</p>
+<ul>
+<li>Regular body shapes are hidden to keep the view clear.</li>
+<li>Oriented boxes, constraints, observers, gravity, and all annotations remain visible.</li>
+<li>One particle cloud is rendered per body, using the highest step VTP file
+  (<code>BodyName_&lt;step&gt;.vtp</code> or <code>BodyName_ite_&lt;step&gt;.vtp</code>).</li>
+<li>A small label shows the body name and step number for each particle cloud.</li>
+</ul>
+<p>This is useful for verifying particle distribution and spacing before running
+the full simulation.</p>
+<h3 id="off-screen-rendering">Off-screen rendering</h3>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>preview<span class="w"> </span>path/to/config.json<span class="w"> </span>--off-screen
+</code></pre></div>
+<p>Renders to an off-screen buffer instead of opening a window.  Intended for
+automated testing or headless environments.</p>
+<h3 id="screenshot-output">Screenshot output</h3>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>preview<span class="w"> </span>path/to/config.json<span class="w"> </span>--screenshot<span class="w"> </span>preview.png
+<span class="c1"># or equivalently:</span>
+sphinxsim<span class="w"> </span>preview<span class="w"> </span>path/to/config.json<span class="w"> </span>-s<span class="w"> </span>preview.png
+</code></pre></div>
+<p>Saves a screenshot of the preview to the specified file instead of opening an
+interactive window.  This automatically enables off-screen rendering, so
+<code>--off-screen</code> is implied and does not need to be passed separately.</p>
+<p>Supported formats depend on your PyVista/VTK build, but typically include PNG,
+JPEG, and TIFF.</p>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>preview<span class="w"> </span>path/to/config.json<span class="w"> </span>-s<span class="w"> </span>preview.png
+📸<span class="w"> </span>Screenshot<span class="w"> </span>saved<span class="w"> </span>to:<span class="w"> </span>preview.png
+</code></pre></div>
+<p>This is useful for:
+- Generating preview images for reports or documentation.
+- Batch-generating previews in CI pipelines.
+- Headless environments where no display is available.</p>
+<h3 id="interactive-shell">Interactive shell</h3>
+<p><code>preview</code> is available as a first-class shell command:</p>
+<p>In shell mode, <code>preview</code> keeps a persistent window and returns control to the
+shell prompt. Running <code>preview</code> again updates the existing window and rebuilds
+geometry from the current config.</p>
+<p>Notes:
+- <code>preview --screenshot ...</code> is one-shot and does not use the persistent window.
+- Persistent interactive mode relies on <code>pyvistaqt</code> plus a Qt backend (for
+   example <code>PySide6</code> or <code>PyQt5</code>).
+- In the Qt-backed persistent window, the full-height dark configuration editor on the right
+  presents JSON fields as a searchable property tree: setting names on the
+  left and editable value boxes on the right. It uses type-appropriate controls
+  for booleans, numbers, and common enumerations. A change is saved only when
+  you press <code>Ctrl+S</code>; it validates and atomically saves the currently loaded
+  JSON file before rebuilding the preview. Running <code>preview</code> asks for
+  confirmation before discarding unapplied editor changes. Loading a different
+  configuration and running <code>preview</code> rebinds the editor to that file.
+  If the persistent Preview window is closed, running <code>preview</code> again creates a
+  fresh window and reattaches the editor.</p>
+<div class="highlight"><pre><span></span><code>sphinxsim&gt; load config.json
+✅ Loaded config from config.json
+
+sphinxsim&gt; preview
+🖼  Building configuration preview for: .../config.json
+   Building C++ geometry; bounds cache fallback will be used if VTP meshes are unavailable.
+✅ Preview used C++ geometry (VTP meshes).
+
+sphinxsim&gt; preview --screenshot preview.png
+🖼  Building configuration preview for: .../config.json
+   Building C++ geometry; bounds cache fallback will be used if VTP meshes are unavailable.
+✅ Preview used C++ geometry (VTP meshes).
+📸 Screenshot saved to: preview.png
+
+sphinxsim&gt; preview --with-particles
+🖼  Building configuration preview for: .../config.json
+   Building C++ geometry; bounds cache fallback will be used if VTP meshes are unavailable.
+   Particle generation overlay is enabled (--with-particles).
+✅ Preview used C++ geometry (VTP meshes).
+
+sphinxsim&gt; continue-to-run --refresh-interval 10
+✅ Simulation built
+✅ Simulation initialized
+🚀 Running simulation...
+ℹ️ Preview refreshes every 10 seconds while simulation runs.
+✅ Simulation completed successfully!
+</code></pre></div>
+<p><code>preview</code> requires a config to be loaded first (via <code>load</code> or <code>generate</code>).</p>
+<p>After <code>preview --with-particles</code>, the shell retains the generated-particle
+<code>SPHSimulation</code> instance and its temporary runtime config for one immediate
+<code>continue-to-run</code>. This continues the same instance through
+<code>buildSimulation()</code>, <code>initializeSimulation()</code>, and <code>run()</code>, without generating
+particles again. Any other shell command discards the retained instance and its
+temporary config; use <code>run</code> when a fresh simulation from the saved config is
+intended.</p>
+<p><code>continue-to-run</code> accepts an optional wall-clock refresh interval:</p>
+<div class="highlight"><pre><span></span><code>sphinxsim&gt; continue-to-run --refresh-interval 2.5
+</code></pre></div>
+<p>The default is <code>10</code> seconds and the value must be greater than zero. While the
+simulation runs, the persistent Qt preview checks the output folder at that
+interval and replaces each particle cloud when a newer complete body-state VTP
+snapshot is available. This uses <code>pyvistaqt</code> plus <code>PySide6</code> or <code>PyQt5</code>; without
+a Qt-backed persistent preview, the simulation still continues but the window
+cannot refresh its particles live.</p>
+<h2 id="python-api">Python API</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sphinxsim.config.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sphinxsim.visualization.preview</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConfigVisualizer</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+
+<span class="n">config_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">"my_config.json"</span><span class="p">)</span>
+<span class="n">config</span> <span class="o">=</span> <span class="n">SimulationConfig</span><span class="p">(</span><span class="o">**</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">config_path</span><span class="o">.</span><span class="n">read_text</span><span class="p">()))</span>
+
+<span class="n">viz</span> <span class="o">=</span> <span class="n">ConfigVisualizer</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">project_root</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s2">"."</span><span class="p">),</span> <span class="n">config_path</span><span class="o">=</span><span class="n">config_path</span><span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">preview</span><span class="p">()</span>                     <span class="c1"># opens interactive window</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">preview</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"My setup"</span><span class="p">)</span>     <span class="c1"># custom window title</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">preview</span><span class="p">(</span><span class="n">screenshot_path</span><span class="o">=</span><span class="s2">"preview.png"</span><span class="p">)</span>  <span class="c1"># save screenshot, no window</span>
+</code></pre></div>
+<h3 id="configvisualizer-parameters"><code>ConfigVisualizer</code> parameters</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>config</code></td>
+<td><code>SimulationConfig</code></td>
+<td>Validated Pydantic config object</td>
+</tr>
+<tr>
+<td><code>project_root</code></td>
+<td><code>Path</code></td>
+<td>Root of the SPHinXsim project (locates <code>.build-temp/</code>)</td>
+</tr>
+<tr>
+<td><code>config_path</code></td>
+<td><code>Path \| None</code></td>
+<td>Path to the original JSON file — passed directly to C++. Required for geometry rendering.</td>
+</tr>
+<tr>
+<td><code>off_screen</code></td>
+<td><code>bool</code></td>
+<td>Render off-screen when <code>True</code> (default <code>False</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="preview-parameters"><code>preview()</code> parameters</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>title</code></td>
+<td><code>str</code></td>
+<td><code>"SPHinXsim - Configuration Preview"</code></td>
+<td>Window title</td>
+</tr>
+<tr>
+<td><code>with_particles</code></td>
+<td><code>bool</code></td>
+<td><code>False</code></td>
+<td>Run particle generation and overlay latest particles per body. In shell persistent mode, enabling this always redraws the scene.</td>
+</tr>
+<tr>
+<td><code>screenshot_path</code></td>
+<td><code>str \| Path \| None</code></td>
+<td><code>None</code></td>
+<td>When set, saves a screenshot to this path instead of opening a window. Implies off-screen rendering.</td>
+</tr>
+</tbody>
+</table>
+<p>After rendering, the CLI reports which tier was used:
+- <code>✅ Preview used C++ geometry (VTP meshes).</code>
+- <code>ℹ️ Preview used C++ bounds fallback (no VTP meshes produced).</code></p>
+<h3 id="inspecting-which-tier-was-used">Inspecting which tier was used</h3>
+<div class="highlight"><pre><span></span><code><span class="n">viz</span><span class="o">.</span><span class="n">preview</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">viz</span><span class="o">.</span><span class="n">used_cpp_geometry</span><span class="p">)</span>   <span class="c1"># True if VTP meshes were rendered</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">viz</span><span class="o">.</span><span class="n">used_cpp_bounds</span><span class="p">)</span>     <span class="c1"># True if live C++ bounds were used</span>
+</code></pre></div>
+<h2 id="two-tier-rendering-strategy">Two-tier rendering strategy</h2>
+<h3 id="vtp-geometry-preferred">VTP geometry (preferred)</h3>
+<p>The visualizer always:</p>
+<ol>
+<li>Passes your original JSON file directly to <code>SPHSimulation</code> (no copy written).</li>
+<li>Calls <code>SPHSimulation.buildGeometries()</code> from the C++ extension.</li>
+<li>The C++ builders write <code>Shape&lt;Name&gt;.vtp</code> files to <code>.build-temp/preview_geometry/output/</code>.</li>
+<li>PyVista reads and renders those polygon meshes.</li>
+</ol>
+<p>This gives <strong>accurate geometry</strong> — including rotations, boolean-composition results,
+and imported triangle meshes.</p>
+<h3 id="bounds-fallback">Bounds fallback</h3>
+<p>When VTP files are not produced, the visualizer queries <code>getShapeBounds()</code> from
+the geometry builder and renders axis-aligned bounding boxes from the cached
+shape bounds.</p>
+<p>Both paths require the C++ extension.  If it is not installed, an <code>ImportError</code>
+is raised with an install hint.</p>
+<h2 id="shape-types-and-vtp-availability">Shape types and VTP availability</h2>
+<p>Not all shape types produce VTP files in the C++ builders.  Here is the
+complete mapping:</p>
+<table>
+<thead>
+<tr>
+<th>Shape type</th>
+<th>VTP written by C++?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bounding_box</code></td>
+<td>✅ Yes</td>
+</tr>
+<tr>
+<td><code>box</code> (with transform/rotation)</td>
+<td>✅ Yes</td>
+</tr>
+<tr>
+<td><code>expanded_box</code></td>
+<td>✅ Yes</td>
+</tr>
+<tr>
+<td><code>multipolygon</code> (2D)</td>
+<td>✅ Yes</td>
+</tr>
+<tr>
+<td><code>triangle_mesh</code> (3D)</td>
+<td>✅ Yes</td>
+</tr>
+<tr>
+<td><code>complex_shape</code></td>
+<td>❌ No (boolean composition of named sub-shapes)</td>
+</tr>
+</tbody>
+</table>
+<p><code>complex_shape</code> geometries are skipped in the VTP pass; their constituent
+sub-shapes are rendered individually via Tier 2 bounds.</p>
+<h2 id="annotations-module">Annotations module</h2>
+<p>The <code>sphinxsim.visualization.annotations</code> module provides standalone label
+generators that can be used outside of PyVista:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">sphinxsim.visualization.annotations</span><span class="w"> </span><span class="kn">import</span> <span class="n">body_label</span><span class="p">,</span> <span class="n">oriented_box_label</span><span class="p">,</span> <span class="n">gravity_label</span>
+
+<span class="c1"># Human-readable body summary</span>
+<span class="n">label</span> <span class="o">=</span> <span class="n">body_label</span><span class="p">(</span><span class="s2">"WaterBody"</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+<span class="c1"># → "Fluid: WaterBody\nρ=1000.0\nc=10.0"</span>
+
+<span class="c1"># Oriented box with BC annotation</span>
+<span class="n">ob</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">geometries</span><span class="o">.</span><span class="n">oriented_boxes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">label</span> <span class="o">=</span> <span class="n">oriented_box_label</span><span class="p">(</span><span class="n">ob</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+<span class="c1"># → "Inlet [in_outlet]\nBC → WaterBody: emitter v=1.5"</span>
+
+<span class="c1"># Gravity vector</span>
+<span class="n">g</span> <span class="o">=</span> <span class="n">gravity_label</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+<span class="c1"># → "g = (0.0, -9.81)"  or None if not set</span>
+</code></pre></div>
+<h2 id="future-work">Future work</h2>
+<p>The visualization module is intentionally minimal for this phase.  Planned extensions include:</p>
+<ul>
+<li><strong>SDF / level-set geometry</strong>: rendering signed-distance-function shapes once those are added to the geometry builder.</li>
+<li><strong>Initial condition colouring</strong>: colour-mapping particle regions by their initial temperature, velocity, or density.</li>
+<li><strong>BC arrow glyphs</strong>: directional arrows for inflow/outflow boundaries.</li>
+<li><strong>Embedded notebook support</strong>: inline rendering for Jupyter environments.</li>
+</ul>
+<h2 id="see-also">See also</h2>
+<ul>
+<li><a href="../cli-usage/">CLI Usage</a> for the full command reference</li>
+<li><a href="../installation/">Installation</a> for build requirements including VTK/PyVista</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "content.code.copy", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

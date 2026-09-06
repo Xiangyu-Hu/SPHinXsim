@@ -1,0 +1,1089 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../theoretical-background-physical-models/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../images/logo-16x16.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>SPH Methods - SPHinXsim</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#smoothed-particle-hydrodynamics-sph" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="SPHinXsim" class="md-header__button md-logo" aria-label="SPHinXsim" data-md-component="logo">
+      
+  <img src="../images/logo-white.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            SPHinXsim
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              SPH Methods
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../installation/" class="md-tabs__link">
+          
+  
+  
+  Installation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../cli-usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  CLI Usage
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../visualization/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Visualization
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../llm-testing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  LLM Testing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../theoretical-background/" class="md-tabs__link">
+          
+  
+  
+  Theoretical Backgrounds
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="SPHinXsim" class="md-nav__button md-logo" aria-label="SPHinXsim" data-md-component="logo">
+      
+  <img src="../images/logo-white.png" alt="logo">
+
+    </a>
+    SPHinXsim
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation-linux/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation-windows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Windows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation-macos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    macOS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Theoretical Backgrounds
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Theoretical Backgrounds
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theoretical-background/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theoretical-background-physical-models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Physical Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SPH Methods
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SPH Methods
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#gradient-approximation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gradient Approximation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#gradient-approximation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gradient Approximation
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="smoothed-particle-hydrodynamics-sph">Smoothed Particle Hydrodynamics (SPH)</h1>
+<p>SPH is a meshless Lagrangian particle method that was 
+originally developed for astrophysical problems by Lucy \cite{lucy1977numerical} 
+and Gingold and Monaghan \cite{gingold1977smoothed}.
+In SPHinXsys, the SPH method is employed to solve the governing equations of
+fluid and solid mechanics, as well as their interactions.</p>
+<h2 id="gradient-approximation">Gradient Approximation</h2>
+<p>In SPH discretization of the partial differential equation of fluid 
+dynamics, the kernel approximation for the gradient operator 
+acting on a smooth field <span class="arithmatex">\(\psi\left({\boldsymbol{\rm r}}\right)\)</span> </p>
+<div class="arithmatex">\[\begin{equation}
+    \nabla\psi\left(\boldsymbol{\rm r}\right)\approx
+    \int_{\Omega}\nabla\psi\left({\boldsymbol{\rm r}^{*}}
+    \right) W\left(\boldsymbol{\rm r}-\boldsymbol{\rm r}^{v*},
+    h\right)d\boldsymbol{\rm r}^{*}=
+    -\int_{\Omega}\psi\left({\boldsymbol{\rm r}^{*}}
+    \right)\nabla W\left(\boldsymbol{\rm r}-
+    \boldsymbol{\rm r}^{*},h\right)
+    d\boldsymbol{\rm r}^{*}.
+\label{SPHapproximation}
+\end{equation}\]</div>
+<p>where <span class="arithmatex">\(W\left(\boldsymbol{\rm r}, h\right)\)</span> is the kernel 
+function scaled by the smoothing length <span class="arithmatex">\(h\)</span>.
+While the first stage introduces smoothing errors by the 
+kernel function, the second stage entails integration 
+by parts, assuming the kernel function vanishes at the 
+boundary of a compact support.
+Through Taylor expansion, for Eq. <span class="arithmatex">\(\eqref{SPHapproximation}\)</span>
+one can find that the zero-order consistency condition is</p>
+<div class="arithmatex">\[\begin{equation}
+    \int_{\Omega}\nabla W\left(\boldsymbol{\rm r}-
+    \boldsymbol{\rm r}^{*},h\right)d\boldsymbol{\rm r}^{*}=0,
+    \label{zeroorderkernel}
+\end{equation}\]</div>
+<p>and the first-order consistency condition is</p>
+<div class="arithmatex">\[\begin{equation}
+    -\int_{\Omega}\left(\boldsymbol{\rm r}^{*}-
+    \boldsymbol{\rm r}\right)\otimes\nabla W
+    \left(\boldsymbol{\rm r}-\boldsymbol{\rm r}^{*},
+    h\right)d\boldsymbol{\rm r}^{*}=\mathbf{I}.
+\label{firstorderconsistencyintegration}
+\end{equation}\]</div>
+<p>where <span class="arithmatex">\(\mathbf{I}\)</span> represents the identity matrix.
+Zero-order consistency condition allows rewriting the kernel 
+approximation in two equivalent forms:</p>
+<div class="arithmatex">\[\begin{equation}
+    \nabla\psi\left(\boldsymbol{\rm r}\right)=
+    \int_{\Omega}\left(\psi\left({\boldsymbol{\rm r}}
+    \right) - \psi\left({\boldsymbol{\rm r}^{*}}\right)\right)
+    \nabla W\left(\boldsymbol{\rm r}-\boldsymbol{\rm r}^{*},
+    h\right)d\boldsymbol{\rm r}^{*} \\
+    \equiv 
+    -\int_{\Omega}\left(\psi\left({\boldsymbol{\rm r}}
+    \right) + \psi\left({\boldsymbol{\rm r}^{*}}\right)\right)
+    \nabla W\left(\boldsymbol{\rm r}-\boldsymbol{\rm r}^{*},
+    h\right)d\boldsymbol{\rm r}^{*}.
+\label{SPHgradientapproximations}
+\end{equation}\]</div>
+<p>By introducing particle summation, the first approximation in 
+Eq. <span class="arithmatex">\(\eqref{SPHgradientapproximations}\)</span> can be further
+approximated for an SPH particle <span class="arithmatex">\(i\)</span> as</p>
+<div class="arithmatex">\[\begin{equation}
+    \nabla\psi_{i} = \sum_{j}
+    \psi_{ij} \nabla W_{ij}V_{j}.
+\label{strong}
+\end{equation}\]</div>
+<p>where <span class="arithmatex">\(V_{j}\)</span> is the volume of the neighbor particles within 
+the support, and the particle-pair difference is <span class="arithmatex">\(\psi_{ij}=
+\psi_{i}-\psi_{j}\)</span>.
+This form is often referred to as a symmetric or non-conservative 
+form.
+Similarly, the second approximation in Eq. <span class="arithmatex">\(\eqref{SPHgradientapproximations}\)</span>
+can be also approximated as
+    \nabla\psi_{i} = -\sum_{j}
+    \left(\psi_{i}+\psi_{j}\right) \nabla W_{ij}V_{j}.
+\label{weak}
+\end{equation}</p>
+<p>where the particle-pair sum is employed.
+This form, known as the anti-symmetric or conservative form, 
+ensures discrete conservation and is commonly chosen in classical 
+SPH methods for discretizing physical conservation laws.</p>
+<p>For the non-conservative form of Eq. <span class="arithmatex">\(\eqref{strong}\)</span>, zero-order
+consistency is automatically satisfied as the particle-pair 
+difference is used.
+To achieve first-order consistency, one requires that the 
+approximation of Eq. <span class="arithmatex">\(\eqref{firstorderconsistencyintegration}\)</span>
+satisfies</p>
+<div class="arithmatex">\[\begin{equation}
+    -\sum_{j}\boldsymbol{\rm r}_{ij}\otimes
+    \nabla W_{ij}V_{j} = \mathbf{I}.
+\label{firstorderconsistency}
+\end{equation}\]</div>
+<p>To precisely fulfill the above condition, the KGC approach 
+\cite{randles1996smoothed}, introducing a correction matrix 
+<span class="arithmatex">\(\mathbf{B}_{i}\)</span> to adjust the gradient of the kernel function, 
+can be employed, so that one has </p>
+<div class="arithmatex">\[\begin{equation}
+    -\sum_{j}\boldsymbol{\rm r}_{ij}\otimes
+    \mathbf{B}_{i}\nabla W_{ij}V_{j}=\mathbf{I}, 
+    \quad \mathbf{B}_{i}=\left(-\sum_{j}
+    \mathbf{r}_{ij}\otimes\nabla  
+    W_{ij}V_{j}\right)^{-1}.
+\label{KGC}
+\end{equation}\]</div>
+<p>With the KGC, Eq. <span class="arithmatex">\(\eqref{strong}\)</span> is modified as
+\begin{equation}
+    \nabla\psi_{i} = \sum_{j}
+    \psi_{ij} \mathbf{B}<em>{i}\nabla W</em>{ij}V_{j}.
+\label{strong-corrected}
+\end{equation}</p>
+<p>Note that, introducing <span class="arithmatex">\(\mathbf{B}_{i}\)</span> does not affect
+the zero-order consistency of Eq. <span class="arithmatex">\(\eqref{strong-corrected}\)</span>.
+Also note that, although the non-conservation form is not 
+desirable for the discretization of physical conservation laws, 
+Eq. <span class="arithmatex">\(\eqref{strong-corrected}\)</span> is often used when the conservation
+is not a primary concern because it can reproduce the linear 
+gradient and achieve second-order accuracy.</p>
+<p>In the conservative form of Eq. <span class="arithmatex">\(\eqref{weak}\)</span>, where the
+particle-pair sum other than the difference is used, the 
+zero-order consistency condition becomes nontrivial as  </p>
+<div class="arithmatex">\[\begin{equation}
+    \sum_{j}\nabla W_{ij}V_{j}=0.
+\label{zeroorderconsistency}
+\end{equation}\]</div>
+<p>Litvinov et al. \cite{litvinov2015towards} proposed a particle 
+relaxation process driven by a constant background pressure 
+assuming invariant particle volume.
+After the particles are settled down or fully relaxed, Eq. 
+<span class="arithmatex">\(\eqref{zeroorderconsistency}\)</span> is satisfied for the zero-order
+consistency.
+To achieve first-order constancy, as a straightforward 
+extension for Eq. <span class="arithmatex">\(\eqref{weak}\)</span>, one may suggest</p>
+<div class="arithmatex">\[\begin{equation}
+    \nabla\psi_{i}=-\sum_{j}
+    \left(\psi_{i}\mathbf{B'}_{i}+\psi_{j}\mathbf{B'}_{j}\right)
+    \nabla W_{ij}V_{j}.
+\label{weak-corrected}
+\end{equation}\]</div>
+<p>where <span class="arithmatex">\(\mathbf{B'}_{i}\)</span> and <span class="arithmatex">\(\mathbf{B'}_{j}\)</span> are some 
+correction matrices for particles <span class="arithmatex">\(i\)</span> and <span class="arithmatex">\(j\)</span>, is able to 
+reproduce a linear gradient similar to Eq. <span class="arithmatex">\(\eqref{strong-corrected}\)</span>.
+How to obtain these correction matrices is not straightforward,
+and various attempts based on the original KGC matrix for the 
+non-conservative form have been carried out.
+One widely used formulation, introduced by Oger et al. 
+\cite{oger2007improved}, is expressed as,</p>
+<div class="arithmatex">\[\begin{equation}
+    \nabla\psi_{i}=-\sum_{j}
+    \left(\psi_{i}\mathbf{B}_{i}+\psi_{j}\mathbf{B}_{j}\right)
+    \nabla W_{ij}V_{j}.
+\label{Oger-corrected}
+\end{equation}\]</div>
+<p>where the KGC matrix is applied for each particle pair separately.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "content.code.copy", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,1967 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../installation-macos/">
+      
+      
+        <link rel="next" href="../visualization/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../images/logo-16x16.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>CLI Usage - SPHinXsim</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#cli-usage-guide" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="SPHinXsim" class="md-header__button md-logo" aria-label="SPHinXsim" data-md-component="logo">
+      
+  <img src="../images/logo-white.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            SPHinXsim
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CLI Usage
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../installation/" class="md-tabs__link">
+          
+  
+  
+  Installation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  CLI Usage
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../visualization/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Visualization
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../llm-testing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  LLM Testing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../theoretical-background/" class="md-tabs__link">
+          
+  
+  
+  Theoretical Backgrounds
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="SPHinXsim" class="md-nav__button md-logo" aria-label="SPHinXsim" data-md-component="logo">
+      
+  <img src="../images/logo-white.png" alt="logo">
+
+    </a>
+    SPHinXsim
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation-linux/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation-windows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Windows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation-macos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    macOS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Usage
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quick start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#shell-auto-completion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shell auto-completion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interactive-shell-mode-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive shell mode (recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shell-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shell commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#geometry-update-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Geometry update workflow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#direct-commands-non-interactive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Direct commands (non-interactive)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Direct commands (non-interactive)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#generate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Update
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#explore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Explore
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preview
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workflow-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow examples
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Workflow examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-1-quick-iteration-with-the-shell" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 1: Quick iteration with the shell
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-2-compare-two-configurations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 2: Compare two configurations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-3-external-editing-loop-in-shell" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 3: External editing loop in shell
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-4-batch-process-with-direct-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 4: Batch process with direct commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-5-preview-before-running" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 5: Preview before running
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-6-geometry-edit-loop-in-shell" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 6: Geometry edit loop in shell
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-7-soil-column-collapse-workflow-continuum-dynamics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 7: Soil column-collapse workflow (continuum dynamics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm-provider-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM provider selection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="LLM provider selection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#use-ollama-local-llm-inference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use Ollama (local LLM inference)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-openai" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use OpenAI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-nvidia-nim-openai-compatible-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use NVIDIA NIM (OpenAI-compatible API)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-mock-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use mock (default)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output-locations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output locations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Theoretical Backgrounds
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Theoretical Backgrounds
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theoretical-background/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theoretical-background-physical-models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Physical Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theoretical-background-sph-methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SPH Methods
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quick start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#shell-auto-completion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shell auto-completion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interactive-shell-mode-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interactive shell mode (recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shell-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shell commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#geometry-update-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Geometry update workflow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#direct-commands-non-interactive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Direct commands (non-interactive)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Direct commands (non-interactive)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#generate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Update
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#explore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Explore
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Preview
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#workflow-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow examples
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Workflow examples">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#example-1-quick-iteration-with-the-shell" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 1: Quick iteration with the shell
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-2-compare-two-configurations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 2: Compare two configurations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-3-external-editing-loop-in-shell" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 3: External editing loop in shell
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-4-batch-process-with-direct-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 4: Batch process with direct commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-5-preview-before-running" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 5: Preview before running
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-6-geometry-edit-loop-in-shell" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 6: Geometry edit loop in shell
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#example-7-soil-column-collapse-workflow-continuum-dynamics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example 7: Soil column-collapse workflow (continuum dynamics)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm-provider-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM provider selection
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="LLM provider selection">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#use-ollama-local-llm-inference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use Ollama (local LLM inference)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-openai" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use OpenAI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-nvidia-nim-openai-compatible-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use NVIDIA NIM (OpenAI-compatible API)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#use-mock-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Use mock (default)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#output-locations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output locations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error handling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#see-also" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        See also
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="cli-usage-guide">CLI Usage Guide</h1>
+<p>SPHinXsim provides a command-line interface for building, validating, updating, and running SPH simulations. This guide covers all available commands and workflows.</p>
+<h2 id="quick-start">Quick start</h2>
+<h3 id="shell-auto-completion">Shell auto-completion</h3>
+<p>Generate completion scripts directly from the CLI:</p>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>--generate-completion<span class="w"> </span>bash
+sphinxsim<span class="w"> </span>--generate-completion<span class="w"> </span>zsh
+sphinxsim<span class="w"> </span>--generate-completion<span class="w"> </span>fish
+</code></pre></div>
+<p>You can evaluate the script for the current shell session:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># bash</span>
+<span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>sphinxsim<span class="w"> </span>--generate-completion<span class="w"> </span>bash<span class="k">)</span><span class="s2">"</span>
+
+<span class="c1"># zsh</span>
+<span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>sphinxsim<span class="w"> </span>--generate-completion<span class="w"> </span>zsh<span class="k">)</span><span class="s2">"</span>
+
+<span class="c1"># fish</span>
+sphinxsim<span class="w"> </span>--generate-completion<span class="w"> </span>fish<span class="w"> </span><span class="p">|</span><span class="w"> </span><span class="nb">source</span>
+</code></pre></div>
+<p>For persistent completion, add the command to your shell startup file
+(<code>~/.bashrc</code>, <code>~/.zshrc</code>, or <code>~/.config/fish/config.fish</code>).</p>
+<p>Troubleshooting:
+- If completion is not active in the current terminal, reload your shell config:</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># bash</span>
+<span class="nb">source</span><span class="w"> </span>~/.bashrc
+
+<span class="c1"># zsh</span>
+<span class="nb">source</span><span class="w"> </span>~/.zshrc
+
+<span class="c1"># fish</span>
+<span class="nb">source</span><span class="w"> </span>~/.config/fish/config.fish
+</code></pre></div>
+<ul>
+<li>For zsh, ensure completion is initialized before evaluating the script:</li>
+</ul>
+<div class="highlight"><pre><span></span><code>autoload<span class="w"> </span>-Uz<span class="w"> </span>compinit
+compinit
+<span class="nb">eval</span><span class="w"> </span><span class="s2">"</span><span class="k">$(</span>sphinxsim<span class="w"> </span>--generate-completion<span class="w"> </span>zsh<span class="k">)</span><span class="s2">"</span>
+</code></pre></div>
+<ul>
+<li>To verify script output quickly:</li>
+</ul>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>--generate-completion<span class="w"> </span>bash<span class="w"> </span><span class="p">|</span><span class="w"> </span>head
+</code></pre></div>
+<h3 id="interactive-shell-mode-recommended">Interactive shell mode (recommended)</h3>
+<p>The easiest way to get started is the interactive shell:</p>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>shell
+</code></pre></div>
+<p>This opens an interactive prompt where you can enter commands sequentially:</p>
+<div class="highlight"><pre><span></span><code>&gt; generate "water dam break simulation" config.json
+✓ Config generated and written to .../.build-temp/config.json
+✓ Schema validation passed
+
+&gt; validate
+Configuration: WaterBody (fluid) + WallBoundary (solid)
+  Domain: [0, 0] to [5.37, 5.37]
+  Resolution: 0.025 m
+  End time: 0.5 s
+  Gravity: [0, -1] m/s²
+
+&gt; update "simulate for 2 s"
+✓ Updated config written to .../.build-temp/config.json
+✓ Schema validation passed
+
+&gt; explore what bodies and materials does this simulation support?
+SPHinXsim supports fluid, continuum, and solid body definitions, with schema-validated material types.
+
+&gt; validate
+Configuration: WaterBody (fluid) + WallBoundary (solid)
+  Domain: [0, 0] to [5.37, 5.37]
+  Resolution: 0.025 m
+  End time: 2.0 s
+  Gravity: [0, -1] m/s²
+
+&gt; run
+✅ Simulation configuration loaded
+✅ Simulation initialized
+🚀 Running simulation...
+
+&gt; update "water flow with 5 mm resolution"
+&gt; update "water flow with 5 mm resolution"
+✓ Updated config written to .../.build-temp/config.json
+✓ Schema validation passed
+
+&gt; exit
+Goodbye!
+</code></pre></div>
+<p>In shell mode you can also use slash-prefixed commands without quotes around the description, for example:</p>
+<div class="highlight"><pre><span></span><code>sphinxsim&gt; /generate water dam break simulation config.json
+sphinxsim&gt; /update simulate for 2 s
+</code></pre></div>
+<h3 id="shell-commands">Shell commands</h3>
+<p>Inside the shell, you can use the following commands:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>load FILE</code></td>
+<td>Load and validate an existing config file</td>
+</tr>
+<tr>
+<td><code>generate "description" FILE</code></td>
+<td>Generate a new config and write it to FILE</td>
+</tr>
+<tr>
+<td><code>update "instruction"</code></td>
+<td>Modify the loaded config with an instruction (e.g., "change end time to 5 s")</td>
+</tr>
+<tr>
+<td><code>update --patch-mode "instruction"</code></td>
+<td>Apply operation-based patch updates</td>
+</tr>
+<tr>
+<td><code>update --patch-mode --dry-run "instruction"</code></td>
+<td>Preview patch update without writing</td>
+</tr>
+<tr>
+<td><code>update --patch-mode --strict false "instruction"</code></td>
+<td>Use non-strict patch apply behavior</td>
+</tr>
+<tr>
+<td><code>explore "question"</code></td>
+<td>Ask the configured LLM questions about the simulator schema and capabilities</td>
+</tr>
+<tr>
+<td><code>validate</code></td>
+<td>Reload the loaded file from disk and validate it</td>
+</tr>
+<tr>
+<td><code>preview</code></td>
+<td>Render an interactive geometry/BC preview of the loaded config</td>
+</tr>
+<tr>
+<td><code>preview --with-particles</code></td>
+<td>Also run particle generation and overlay the latest generated particles per body</td>
+</tr>
+<tr>
+<td><code>preview --screenshot FILE</code></td>
+<td>Save a screenshot to FILE instead of opening an interactive window</td>
+</tr>
+<tr>
+<td><code>continue-to-run [--refresh-interval SECONDS]</code></td>
+<td>Build, initialize, and run the simulation retained by the most recent particle preview; refresh displayed particles every 10 seconds by default</td>
+</tr>
+<tr>
+<td><code>run</code></td>
+<td>Build and execute the loaded config</td>
+</tr>
+<tr>
+<td><code>help</code></td>
+<td>Show available commands</td>
+</tr>
+<tr>
+<td><code>exit</code></td>
+<td>Quit the shell</td>
+</tr>
+</tbody>
+</table>
+<p>Notes:
+- <code>sphinxsim shell</code> starts with no file loaded.
+- Relative file paths inside the shell resolve from the current directory first, then fall back to <code>.build-temp/</code>.
+- In shell mode, slash-prefixed commands are also accepted, e.g. <code>/generate water dam break simulation config.json</code> or <code>/update simulate for 2 s</code>.
+- <code>validate</code> always reloads from disk, so external edits are picked up immediately.
+- In shell mode, <code>preview</code> keeps a persistent window and returns control to the prompt. Running <code>preview</code> again updates the same window.
+- <code>preview --with-particles</code> retains its generated-particle simulation for one immediate <code>continue-to-run</code> command. Any other command discards that retained simulation.
+- <code>continue-to-run --refresh-interval SECONDS</code> checks for newer body-state VTP files at the requested positive wall-clock interval. The default is <code>10</code> seconds. Live refresh requires the Qt-backed persistent preview (<code>pyvistaqt</code> with <code>PySide6</code> or <code>PyQt5</code>); the simulation still runs when that preview is unavailable, but its particles are not updated live.
+- For responsive persistent preview, install <code>pyvistaqt</code> and a Qt backend (<code>PySide6</code> or <code>PyQt5</code>).
+- In the Qt-backed preview, edit settings in the searchable dark property tree on the right and press <code>Ctrl+S</code>; only then are changes validated, saved, and rendered. If <code>preview</code> would reset unapplied edits, it asks for confirmation first.
+- To switch configurations while the Preview window remains open, run <code>load OTHER.json</code> followed by <code>preview</code>; the property editor is rebound to the newly loaded file.
+- If the persistent Preview window is closed, run <code>preview</code> again to create a new window.</p>
+<h2 id="geometry-update-workflow">Geometry update workflow</h2>
+<p>Shell workflows do not keep a persistent geometry lock state.</p>
+<ul>
+<li>Geometry changes can be applied with <code>update</code> whenever needed.</li>
+<li>After changing geometry, rerun <code>validate</code>, <code>preview</code>, or <code>run</code> to rebuild from the updated JSON config.</li>
+<li><code>run</code> always rebuilds the simulation from the current config before executing it.</li>
+</ul>
+<p>In non-interactive direct commands (<code>sphinxsim update ...</code>), the same config-first behavior applies: the updated JSON is the source of truth for the next <code>preview</code> or <code>run</code>.</p>
+<h2 id="direct-commands-non-interactive">Direct commands (non-interactive)</h2>
+<p>You can also run individual commands directly:</p>
+<h3 id="generate">Generate</h3>
+<p>Create a new simulation config from a natural language description:</p>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>generate<span class="w"> </span><span class="s2">"2D water dam break with 0.5 m/s initial velocity"</span><span class="w"> </span>--output<span class="w"> </span>config.json
+</code></pre></div>
+<p>This:
+1. Sends your description to the LLM provider (mock by default, or Ollama if configured)
+2. Receives a JSON config in response
+3. Validates the config against strict schemas
+4. Saves the result to <code>config.json</code>
+5. Prints a summary</p>
+<h3 id="validate">Validate</h3>
+<p>Check an existing config without modifying it:</p>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>validate<span class="w"> </span>config.json
+</code></pre></div>
+<p>This displays:
+- Simulation type (fluid_dynamics, continuum_dynamics, or coupled)
+- List of bodies and their material types
+- Domain bounds and resolution
+- Solver parameters (end time, output interval, etc.)
+- Any validation errors</p>
+<h3 id="update">Update</h3>
+<p>Modify an existing config with natural language instructions:</p>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>update<span class="w"> </span>config.json<span class="w"> </span><span class="s2">"increase end time to 10 s"</span><span class="w"> </span>--output<span class="w"> </span>config_updated.json
+</code></pre></div>
+<p>This:
+1. Loads the existing config
+2. Sends it to the LLM provider along with your instruction
+3. Receives a modified JSON config
+4. Validates the updated config
+5. Saves the result to <code>config_updated.json</code></p>
+<h3 id="explore">Explore</h3>
+<p>Ask the configured LLM questions about the simulator schema, supported bodies, materials, and workflow behavior:</p>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>explore<span class="w"> </span><span class="s2">"What body types are valid in SimulationConfig?"</span>
+</code></pre></div>
+<p>This:
+1. Sends your question and schema context to the selected LLM provider
+2. Returns a plain-text explanation of the simulator schema and capabilities
+3. Uses the same provider selection as <code>generate</code> and <code>update</code></p>
+<h3 id="run">Run</h3>
+<p>Execute a validated simulation:</p>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>run<span class="w"> </span>config.json
+</code></pre></div>
+<p>This:
+1. Validates the config
+2. Builds SPHinXsys simulation components in C++
+3. Runs the simulation
+4. Saves output to <code>build-integrated/output</code></p>
+<h3 id="preview">Preview</h3>
+<p>Render an interactive 3-D geometry/BC preview before running the solver:</p>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>preview<span class="w"> </span>config.json
+</code></pre></div>
+<p>This:
+1. Validates the config
+2. Attempts to invoke <code>buildGeometries()</code> from the C++ extension to produce accurate VTP meshes
+3. Opens an interactive PyVista window with colour-coded bodies, oriented boxes, and annotations</p>
+<p>Options:</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--with-particles</code></td>
+<td>Also run particle generation and overlay the latest generated particles per body. Hides regular shapes; keeps oriented boxes and annotations.</td>
+</tr>
+<tr>
+<td><code>--off-screen</code></td>
+<td>Render off-screen (no window) — useful for automated testing</td>
+</tr>
+<tr>
+<td><code>--screenshot FILE</code> / <code>-s FILE</code></td>
+<td>Save a screenshot to FILE instead of opening a window. Implies <code>--off-screen</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>Requires the optional <code>[visualization]</code> extra:</p>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>sphinxsim<span class="o">[</span>visualization<span class="o">]</span>
+</code></pre></div>
+<p>For responsive persistent shell preview:</p>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>pyvistaqt<span class="w"> </span>PySide6
+<span class="c1"># or: pip install pyvistaqt PyQt5</span>
+</code></pre></div>
+<p>See <a href="../visualization/">Visualization</a> for full details.</p>
+<h2 id="workflow-examples">Workflow examples</h2>
+<h3 id="example-1-quick-iteration-with-the-shell">Example 1: Quick iteration with the shell</h3>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>shell
+&gt;<span class="w"> </span>generate<span class="w"> </span><span class="s2">"2D water dam break, domain 5m x 5m, resolution 2.5cm"</span><span class="w"> </span>config.json
+&gt;<span class="w"> </span>validate
+&gt;<span class="w"> </span>run
+&gt;<span class="w"> </span><span class="nb">exit</span>
+</code></pre></div>
+<h3 id="example-2-compare-two-configurations">Example 2: Compare two configurations</h3>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>generate<span class="w"> </span><span class="s2">"water dam break"</span><span class="w"> </span>--output<span class="w"> </span>config_v1.json
+sphinxsim<span class="w"> </span>validate<span class="w"> </span>config_v1.json
+
+sphinxsim<span class="w"> </span>generate<span class="w"> </span><span class="s2">"water dam break with faster gravity"</span><span class="w"> </span>--output<span class="w"> </span>config_v2.json
+sphinxsim<span class="w"> </span>validate<span class="w"> </span>config_v2.json
+
+<span class="c1"># Then run the version you prefer:</span>
+sphinxsim<span class="w"> </span>run<span class="w"> </span>config_v1.json
+</code></pre></div>
+<h3 id="example-3-external-editing-loop-in-shell">Example 3: External editing loop in shell</h3>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>shell
+&gt;<span class="w"> </span>load<span class="w"> </span>config.json
+&gt;<span class="w"> </span>validate
+<span class="c1"># edit config.json in your editor while shell remains open</span>
+&gt;<span class="w"> </span>validate
+&gt;<span class="w"> </span>update<span class="w"> </span><span class="s2">"change particle spacing to 1 cm"</span>
+&gt;<span class="w"> </span>explore<span class="w"> </span>what<span class="w"> </span>materials<span class="w"> </span>can<span class="w"> </span>I<span class="w"> </span>use<span class="w"> </span><span class="k">for</span><span class="w"> </span>solid<span class="w"> </span>bodies?
+&gt;<span class="w"> </span>validate
+&gt;<span class="w"> </span>run
+</code></pre></div>
+<h3 id="example-4-batch-process-with-direct-commands">Example 4: Batch process with direct commands</h3>
+<div class="highlight"><pre><span></span><code><span class="k">for</span><span class="w"> </span>desc<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="s2">"water dam break"</span><span class="w"> </span><span class="s2">"sloshing tank"</span><span class="w"> </span><span class="s2">"wave propagation"</span><span class="p">;</span><span class="w"> </span><span class="k">do</span>
+<span class="w">  </span>sphinxsim<span class="w"> </span>generate<span class="w"> </span><span class="s2">"</span><span class="nv">$desc</span><span class="s2">"</span><span class="w"> </span>--output<span class="w"> </span><span class="s2">"config_</span><span class="nv">$desc</span><span class="s2">.json"</span>
+<span class="w">  </span>sphinxsim<span class="w"> </span>validate<span class="w"> </span><span class="s2">"config_</span><span class="nv">$desc</span><span class="s2">.json"</span>
+<span class="k">done</span>
+</code></pre></div>
+<h3 id="example-5-preview-before-running">Example 5: Preview before running</h3>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>shell
+&gt;<span class="w"> </span>generate<span class="w"> </span><span class="s2">"2D heat transfer in a channel"</span><span class="w"> </span>config.json
+&gt;<span class="w"> </span>validate
+&gt;<span class="w"> </span>preview<span class="w">                   </span><span class="c1"># inspect geometry and BCs interactively</span>
+&gt;<span class="w"> </span>preview<span class="w"> </span>--with-particles<span class="w">  </span><span class="c1"># overlay generated particles (hides shapes)</span>
+&gt;<span class="w"> </span>preview<span class="w"> </span>--screenshot<span class="w"> </span>preview.png<span class="w">   </span><span class="c1"># save a screenshot for a report</span>
+&gt;<span class="w"> </span>run
+&gt;<span class="w"> </span><span class="nb">exit</span>
+</code></pre></div>
+<h3 id="example-6-geometry-edit-loop-in-shell">Example 6: Geometry edit loop in shell</h3>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>shell
+&gt;<span class="w"> </span>load<span class="w"> </span>config.json
+&gt;<span class="w"> </span>run
+&gt;<span class="w"> </span>update<span class="w"> </span><span class="s2">"water flow with 5 mm resolution"</span>
+&gt;<span class="w"> </span>validate
+&gt;<span class="w"> </span>preview
+&gt;<span class="w"> </span>run
+</code></pre></div>
+<h3 id="example-7-soil-column-collapse-workflow-continuum-dynamics">Example 7: Soil column-collapse workflow (continuum dynamics)</h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># Validate and run the soil benchmark config</span>
+sphinxsim<span class="w"> </span>validate<span class="w"> </span>tests/test_simulation/test_2d_simulation/data/column_collapse.json
+sphinxsim<span class="w"> </span>run<span class="w"> </span>tests/test_simulation/test_2d_simulation/data/column_collapse.json
+
+<span class="c1"># Optional: iterate in shell</span>
+sphinxsim<span class="w"> </span>shell
+&gt;<span class="w"> </span>load<span class="w"> </span>tests/test_simulation/test_2d_simulation/data/column_collapse.json
+&gt;<span class="w"> </span>explore<span class="w"> </span>what<span class="w"> </span>material<span class="w"> </span>fields<span class="w"> </span>are<span class="w"> </span>required<span class="w"> </span><span class="k">for</span><span class="w"> </span>plastic_continuum?
+&gt;<span class="w"> </span>validate
+&gt;<span class="w"> </span>run
+</code></pre></div>
+<p>This case uses continuum dynamics with a <code>plastic_continuum</code> material model for granular/soil behavior.</p>
+<h2 id="llm-provider-selection">LLM provider selection</h2>
+<p>By default, <code>sphinxsim</code> uses a local mock LLM that works offline. To use a different provider:</p>
+<h3 id="use-ollama-local-llm-inference">Use Ollama (local LLM inference)</h3>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SPHINXSIM_LLM_PROVIDER</span><span class="o">=</span>ollama
+<span class="nb">export</span><span class="w"> </span><span class="nv">OLLAMA_BASE_URL</span><span class="o">=</span>http://localhost:11434
+<span class="nb">export</span><span class="w"> </span><span class="nv">OLLAMA_MODEL</span><span class="o">=</span>qwen2.5:3b
+sphinxsim<span class="w"> </span>generate<span class="w"> </span><span class="s2">"water dam break"</span>
+</code></pre></div>
+<p>First, ensure Ollama is running:</p>
+<div class="highlight"><pre><span></span><code>ollama<span class="w"> </span>serve
+<span class="c1"># In another terminal:</span>
+ollama<span class="w"> </span>pull<span class="w"> </span>qwen2.5:3b
+</code></pre></div>
+<h3 id="use-openai">Use OpenAI</h3>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SPHINXSIM_LLM_PROVIDER</span><span class="o">=</span>openai
+<span class="nb">export</span><span class="w"> </span><span class="nv">OPENAI_API_KEY</span><span class="o">=</span>sk-...
+<span class="nb">export</span><span class="w"> </span><span class="nv">OPENAI_MODEL</span><span class="o">=</span>gpt-4
+sphinxsim<span class="w"> </span>generate<span class="w"> </span><span class="s2">"water dam break"</span>
+</code></pre></div>
+<h3 id="use-nvidia-nim-openai-compatible-api">Use NVIDIA NIM (OpenAI-compatible API)</h3>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SPHINXSIM_LLM_PROVIDER</span><span class="o">=</span>nvidia_nim
+<span class="nb">export</span><span class="w"> </span><span class="nv">NVIDIA_NIM_API_KEY</span><span class="o">=</span>nvapi-...
+<span class="nb">export</span><span class="w"> </span><span class="nv">NVIDIA_NIM_MODEL</span><span class="o">=</span>z-ai/glm-5.2
+<span class="nb">export</span><span class="w"> </span><span class="nv">NVIDIA_NIM_BASE_URL</span><span class="o">=</span>https://integrate.api.nvidia.com/v1
+sphinxsim<span class="w"> </span>generate<span class="w"> </span><span class="s2">"water dam break"</span>
+</code></pre></div>
+<p><code>NVIDIA_API_KEY</code> is also accepted for compatibility.</p>
+<h3 id="use-mock-default">Use mock (default)</h3>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">SPHINXSIM_LLM_PROVIDER</span><span class="o">=</span>mock
+sphinxsim<span class="w"> </span>generate<span class="w"> </span><span class="s2">"water dam break"</span>
+</code></pre></div>
+<h2 id="output-locations">Output locations</h2>
+<ul>
+<li><strong>Generated configs</strong>: Printed to stdout unless <code>--output</code> is provided</li>
+<li><strong>Generated configs with <code>--output</code></strong>: Written to the exact path you provide (relative to your current directory)</li>
+<li><strong>Shell-generated configs</strong>: Saved to the FILE argument used by <code>generate "..." FILE</code> (resolved from current directory first, then <code>.build-temp/</code>)</li>
+<li><strong>Explore answers</strong>: Printed to stdout; no files are written</li>
+<li><strong>Simulation output</strong>: Saved under <code>.build-temp/test_simulation/</code> (runtime output root)</li>
+<li><strong>Temporary files</strong>: Stored in <code>.build-temp/</code></li>
+</ul>
+<h2 id="error-handling">Error handling</h2>
+<p>If config generation or validation fails:</p>
+<ol>
+<li><strong>Generation fails</strong>: The LLM response did not match the expected JSON schema. Check the error message for details, or try rephrasing your description.</li>
+<li><strong>Validation fails</strong>: The config violates a schema constraint (e.g., body type mismatch). Use <code>sphinxsim validate</code> to see which field is invalid.</li>
+<li><strong>Explore fails</strong>: The LLM could not answer using the schema context. Rephrase the question to focus on supported bodies, materials, solver settings, or CLI workflow.</li>
+<li><strong>Execution fails</strong>: The config is valid but the simulation failed. Check simulation output in <code>.build-temp/test_simulation/</code>.</li>
+</ol>
+<h2 id="see-also">See also</h2>
+<ul>
+<li><a href="../visualization/">Visualization</a> for the pre-run geometry/BC preview</li>
+<li><a href="../llm-testing/">LLM Testing</a> for local testing with mock and Ollama</li>
+<li><a href="../#current-capabilities">Schema reference</a> for supported simulation types and materials</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "content.code.copy", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

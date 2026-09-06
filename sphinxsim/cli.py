@@ -658,10 +658,13 @@ class _ShellPreviewRuntime:
         self._hover_interactor: Any | None = None
         self._hover_observer_tag: Any | None = None
         self._json_editor: Any | None = None
+        self._pending_simulation: Any | None = None
+        self._pending_runtime_config_path: Path | None = None
 
     def _reset_preview_state(self) -> None:
         """Forget all state associated with a closed preview window."""
         self._remove_hover_observer()
+        self.discard_pending_simulation()
         self.plotter = None
         self._json_editor = None
         self.last_signature = None
@@ -692,6 +695,55 @@ class _ShellPreviewRuntime:
             except Exception:
                 pass
         self._reset_preview_state()
+
+    def discard_pending_simulation(self) -> None:
+        """Release a simulation retained by ``preview --with-particles``."""
+        self._pending_simulation = None
+        runtime_config_path = self._pending_runtime_config_path
+        self._pending_runtime_config_path = None
+        if runtime_config_path is not None:
+            try:
+                runtime_config_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    def continue_to_run(self) -> int:
+        """Finish and run the simulation retained by particle preview."""
+        simulation = self._pending_simulation
+        runtime_config_path = self._pending_runtime_config_path
+        self._pending_simulation = None
+        self._pending_runtime_config_path = None
+        if simulation is None:
+            if runtime_config_path is not None:
+                try:
+                    runtime_config_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            print(
+                "No particle-preview simulation is available. Run 'preview --with-particles' first.",
+                file=sys.stderr,
+            )
+            return 1
+
+        try:
+            simulation.buildSimulation()
+            print("✅ Simulation built")
+            simulation.initializeSimulation()
+            print("✅ Simulation initialized")
+            print("\n🚀 Running simulation...")
+            simulation.run()
+            print("✅ Simulation completed successfully!")
+            return 0
+        except Exception as exc:
+            print(f"❌ Continued run failed: {exc}", file=sys.stderr)
+            return 1
+        finally:
+            del simulation
+            if runtime_config_path is not None:
+                try:
+                    runtime_config_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     def _install_json_editor(
         self,
@@ -1722,6 +1774,13 @@ class _ShellPreviewRuntime:
             if draw_sidebar is not None:
                 draw_sidebar(self.plotter)
             visualizer._populate_plotter(self.plotter, vtp_dir, latest_particle_vtps)
+            if with_particles:
+                pending_simulation = visualizer.take_particle_simulation()
+                if pending_simulation is not None:
+                    (
+                        self._pending_simulation,
+                        self._pending_runtime_config_path,
+                    ) = pending_simulation
             if configure_layout is not None:
                 configure_layout(self.plotter)
             visualizer._configure_default_view(self.plotter, ndim)
@@ -1730,7 +1789,7 @@ class _ShellPreviewRuntime:
 
             if vtp_dir:
                 mode_label = "VTP geometry"
-            elif visualizer._bounds_sim is not None:
+            elif visualizer.used_cpp_bounds:
                 mode_label = "C++ bounds fallback"
             else:
                 mode_label = "No C++ geometry"
@@ -1768,7 +1827,8 @@ def cmd_shell(args: argparse.Namespace) -> int:
     print(
             "Commands: load FILE, generate DESCRIPTION FILE, "
             "update [--patch-mode] [--dry-run] [--strict true|false] INSTRUCTION, "
-                    "validate, run, preview [--with-particles] [--screenshot FILE], explore QUESTION, exit"
+                "validate, run, preview [--with-particles] [--screenshot FILE], "
+                "continue-to-run, explore QUESTION, exit"
     )
     print("Note: relative paths are resolved from the current directory first, then .build-temp/.")
 
@@ -1792,6 +1852,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             return 0
 
         if line == "help":
+            preview_runtime.discard_pending_simulation()
             print("Commands:")
             print("  load FILE                       - Load an existing config file")
             print("  generate DESCRIPTION FILE       - Generate new config via LLM and save to FILE")
@@ -1806,6 +1867,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             print("  preview                         - Render geometry/BC preview (requires pyvista)")
             print("  preview --with-particles        - Run particle generation and overlay particles")
             print("  preview --screenshot FILE        - Save a screenshot to FILE instead of interactive window")
+            print("  continue-to-run                 - Finish and run the retained particle preview simulation")
             print("  run                             - Run simulation from loaded config")
             print("  exit                            - Exit shell")
             continue
@@ -1824,6 +1886,11 @@ def cmd_shell(args: argparse.Namespace) -> int:
             continue
 
         cmd = parts[0]
+
+        # A retained simulation has exactly one follow-up command. Any other
+        # command abandons it and lets the native wrapper release its state.
+        if cmd != "continue-to-run":
+            preview_runtime.discard_pending_simulation()
 
         if cmd == "load":
             if len(parts) < 2:
@@ -1988,6 +2055,10 @@ def cmd_shell(args: argparse.Namespace) -> int:
             )
             if rc == 0:
                 print("ℹ️ Preview window is persistent in shell mode; run `preview` again after edits.")
+            continue
+
+        if cmd == "continue-to-run":
+            _ = preview_runtime.continue_to_run()
             continue
 
         if cmd == "run":
@@ -2248,7 +2319,9 @@ def _parse_shell_ai_cli_style(text: str) -> list[str] | None:
         return None
 
     command = parts[0][1:]
-    valid_commands = {"generate", "validate", "update", "run", "preview", "explore", "shell"}
+    valid_commands = {
+        "generate", "validate", "update", "run", "preview", "continue-to-run", "explore", "shell"
+    }
     if command not in valid_commands:
         return None
 

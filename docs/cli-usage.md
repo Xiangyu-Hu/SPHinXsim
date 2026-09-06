@@ -132,6 +132,7 @@ Inside the shell, you can use the following commands:
 | `preview` | Render an interactive geometry/BC preview of the loaded config |
 | `preview --with-particles` | Also run particle generation and overlay the latest generated particles per body |
 | `preview --screenshot FILE` | Save a screenshot to FILE instead of opening an interactive window |
+| `continue-to-run` | Build, initialize, and run the simulation retained by the most recent particle preview |
 | `run` | Build and execute the loaded config |
 | `help` | Show available commands |
 | `exit` | Quit the shell |
@@ -142,6 +143,7 @@ Notes:
 - In shell mode, slash-prefixed commands are also accepted, e.g. `/generate water dam break simulation config.json` or `/update simulate for 2 s`.
 - `validate` always reloads from disk, so external edits are picked up immediately.
 - In shell mode, `preview` keeps a persistent window and returns control to the prompt. Running `preview` again updates the same window.
+- `preview --with-particles` retains its generated-particle simulation for one immediate `continue-to-run` command. Any other command discards that retained simulation.
 - For responsive persistent preview, install `pyvistaqt` and a Qt backend (`PySide6` or `PyQt5`).
 - In the Qt-backed preview, edit settings in the searchable dark property tree on the right and press `Ctrl+S`; only then are changes validated, saved, and rendered. If `preview` would reset unapplied edits, it asks for confirmation first.
 - To switch configurations while the Preview window remains open, run `load OTHER.json` followed by `preview`; the property editor is rebound to the newly loaded file.

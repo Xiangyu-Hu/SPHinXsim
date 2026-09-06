@@ -229,6 +229,8 @@ class ConfigVisualizer:
         self._vtp_dir: Path | None = None
         self._shape_bounds_cache: dict[str, Any] | None = None
         self._annotation_label_actors: list[dict[str, Any]] = []
+        self._particle_simulation: Any | None = None
+        self._particle_runtime_config_path: Path | None = None
 
     def _spatial_dim(self) -> int:
         """Return the spatial dimension (2 or 3) inferred from the config.
@@ -289,6 +291,16 @@ class ConfigVisualizer:
     def annotation_label_actors(self) -> list[dict[str, Any]]:
         """Label actors created by the latest preview population pass."""
         return list(self._annotation_label_actors)
+
+    def take_particle_simulation(self) -> tuple[Any, Path] | None:
+        """Transfer a generated-particle simulation and its runtime config."""
+        simulation = self._particle_simulation
+        runtime_config_path = self._particle_runtime_config_path
+        self._particle_simulation = None
+        self._particle_runtime_config_path = None
+        if simulation is None or runtime_config_path is None:
+            return None
+        return simulation, runtime_config_path
 
     # ------------------------------------------------------------------
     # Public API
@@ -562,7 +574,12 @@ class ConfigVisualizer:
         """
         if self.config_path is None:
             self._shape_bounds_cache = None
+            self._particle_simulation = None
+            self._particle_runtime_config_path = None
             return None
+
+        self._particle_simulation = None
+        self._particle_runtime_config_path = None
 
         try:
             sph = load_sphinxsys_core_nd(ndim)
@@ -617,11 +634,18 @@ class ConfigVisualizer:
                     self._shape_bounds_cache = sim.getShapeBounds()
                 except Exception:
                     self._shape_bounds_cache = None               
+                self._particle_simulation = sim
+                self._particle_runtime_config_path = runtime_config_path
         except Exception:
             self._shape_bounds_cache = None
+            self._particle_simulation = None
+            self._particle_runtime_config_path = None
             return None
         finally:
-            if runtime_config_path is not None:
+            if (
+                runtime_config_path is not None
+                and runtime_config_path != self._particle_runtime_config_path
+            ):
                 try:
                     runtime_config_path.unlink()
                 except OSError:

@@ -61,6 +61,12 @@ Design rule:
 - Keep rendering robust when PyVista or mesh assets are unavailable.
 - Support screenshot output via `screenshot_path` parameter on `preview()`.
 - Rebuild geometry on each preview run and refresh the shape-bounds cache from the builder.
+- For shell `preview --with-particles`, transfer the generated `SPHSimulation`
+  and its temporary runtime config to `_ShellPreviewRuntime`. The runtime keeps
+  both alive only until the immediate `continue-to-run` command invokes
+  `buildSimulation()`, `initializeSimulation()`, and `run()`.
+- Any other shell command must release the retained simulation and delete its
+  temporary runtime config.
 
 ### Annotation functions
 Keep annotation formatting centralized in `annotations.py`:
@@ -126,6 +132,14 @@ Use `tests/test_visualization.py`.
 - Respect schema requirements:
   - region oriented box requires `half_size` and `transform`.
   - simbody constraints require `config.restart`.
+
+5. Shell particle-preview continuation
+- Test that `continue-to-run` calls `buildSimulation()`,
+  `initializeSimulation()`, and `run()` on the retained simulation, in order.
+- Test that the retained temporary runtime config remains available through the
+  continued run and is deleted afterward.
+- Test that another shell command releases the retained simulation instead of
+  allowing it to survive into a later workflow.
 
 ## Common failure patterns
 - Missing import in local `annotations` import block inside `_populate_plotter`.

@@ -155,9 +155,23 @@ sphinxsim> preview --with-particles
    Building C++ geometry; bounds cache fallback will be used if VTP meshes are unavailable.
    Particle generation overlay is enabled (--with-particles).
 ✅ Preview used C++ geometry (VTP meshes).
+
+sphinxsim> continue-to-run
+✅ Simulation built
+✅ Simulation initialized
+🚀 Running simulation...
+✅ Simulation completed successfully!
 ```
 
 `preview` requires a config to be loaded first (via `load` or `generate`).
+
+After `preview --with-particles`, the shell retains the generated-particle
+`SPHSimulation` instance and its temporary runtime config for one immediate
+`continue-to-run`. This continues the same instance through
+`buildSimulation()`, `initializeSimulation()`, and `run()`, without generating
+particles again. Any other shell command discards the retained instance and its
+temporary config; use `run` when a fresh simulation from the saved config is
+intended.
 
 ## Python API
 

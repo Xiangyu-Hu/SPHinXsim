@@ -486,7 +486,7 @@ class ConfigVisualizer:
         if self.config.solid_bodies:
             lines.extend(["Solid", ""])
             for body in self.config.solid_bodies:
-                append_wrapped(f"{body.name}  (Soild)", indent="  ")
+                append_wrapped(f"{body.name}  (Solid)", indent="  ")
             lines.append("")
 
         if not body_information and not self.config.solid_bodies:

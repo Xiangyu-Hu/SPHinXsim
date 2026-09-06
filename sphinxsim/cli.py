@@ -666,7 +666,7 @@ class _ShellPreviewRuntime:
         self._live_output_dir: Path | None = None
         self._live_particle_body_names: set[str] = set()
         self._live_particle_colours: dict[str, Any] = {}
-        self._live_particle_versions: dict[str, int] = {}
+        self._live_particle_versions: dict[str, float] = {}
 
     def _reset_preview_state(self) -> None:
         """Forget all state associated with a closed preview window."""

@@ -289,7 +289,7 @@ class TestPreviewLegend:
 
         assert "Weakly compressible fluid" in labels
         assert "Granular material" not in labels
-        assert "Rigid boundary" in labels
+        assert "Solid" in labels
 
 
 class TestOrientedBoxLabel:

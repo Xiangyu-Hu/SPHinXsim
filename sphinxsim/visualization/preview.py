@@ -112,7 +112,7 @@ def _legend_entries_for_config(
         elif any(body.name == body_name for body in config.continuum_bodies):
             label = "Continuum particles"
         elif any(body.name == body_name for body in config.solid_bodies):
-            label = "Rigid-boundary particles"
+            label = "Solid particles"
         else:
             label = f"Particles: {body_name}"
         key = (label, colour)
@@ -121,7 +121,7 @@ def _legend_entries_for_config(
             seen.add(key)
 
     if config.solid_bodies:
-        entries.append(("Rigid boundary", _SOLID_COLOUR))
+        entries.append(("Solid", _SOLID_COLOUR))
 
     return entries
 
@@ -472,9 +472,9 @@ class ConfigVisualizer:
             lines.append("")
 
         if self.config.solid_bodies:
-            lines.extend(["Rigid boundaries", ""])
+            lines.extend(["Solid", ""])
             for body in self.config.solid_bodies:
-                append_wrapped(f"{body.name}  (Rigid boundary)", indent="  ")
+                append_wrapped(f"{body.name}  (Soild)", indent="  ")
             lines.append("")
 
         if not body_information and not self.config.solid_bodies:

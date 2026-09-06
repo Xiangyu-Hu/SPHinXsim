@@ -105,16 +105,6 @@
         "multi_species_phases": []
       },
       "is_moving": false
-    },
-    {
-      "name": "Obstacle",
-      "material": {
-        "type": "rigid_body",
-        "species": [],
-        "pure_phases": [],
-        "multi_species_phases": []
-      },
-      "is_moving": false
     }
   ],
   "gravity": [

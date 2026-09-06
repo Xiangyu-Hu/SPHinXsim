@@ -1049,7 +1049,7 @@ class ConfigVisualizer:
             # enough visual weight beside their labels.
             size=(0.28, 0.10),
             bcolor=PREVIEW_SIDEBAR_BACKGROUND,
-            border=True,
+            border=False,
             loc="upper left",
             background_opacity=0.88,
         )
@@ -1058,7 +1058,7 @@ class ConfigVisualizer:
                 text_property = legend.GetEntryTextProperty()
                 text_property.SetFontSize(5)
                 text_property.SetBold(False)
-                text_property.SetColor(0.1, 0.1, 0.1)
+                text_property.SetColor(PREVIEW_TEXT_COLOUR)
             except AttributeError:
                 pass
         try:

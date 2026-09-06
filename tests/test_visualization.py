@@ -289,7 +289,7 @@ class TestPreviewLegend:
 
         assert "Weakly compressible fluid" in labels
         assert "Granular material" not in labels
-        assert "Rigid boundary" in labels
+        assert "Solid" in labels
 
 
 class TestOrientedBoxLabel:
@@ -1086,6 +1086,62 @@ class TestShellPreview:
         _, kwargs = mock_show_or_update.call_args
         assert kwargs.get("with_particles") is True
 
+    def test_shell_runtime_continues_retained_particle_simulation(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        calls: list[str] = []
+
+        class FakeSimulation:
+            def buildSimulation(self):
+                calls.append("build")
+
+            def initializeSimulation(self):
+                calls.append("initialize")
+
+            def run(self):
+                calls.append("run")
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._pending_simulation = FakeSimulation()
+        runtime_config_path = tmp_path / "sphinxsim_preview.json"
+        runtime_config_path.write_text("{}")
+        runtime._pending_runtime_config_path = runtime_config_path
+
+        assert runtime.continue_to_run() == 0
+        assert runtime._live_run_thread is not None
+        runtime._live_run_thread.join()
+        assert calls == ["build", "initialize", "run"]
+        assert runtime._pending_simulation is None
+        assert not runtime_config_path.exists()
+
+    def test_shell_continue_to_run_accepts_refresh_interval(self):
+        from sphinxsim import cli as cli_mod
+
+        with patch.object(cli_mod._ShellPreviewRuntime, "continue_to_run", return_value=0) as continue_to_run:
+            with patch("builtins.input", side_effect=["continue-to-run --refresh-interval 2.5", "exit"]):
+                assert main(["shell"]) == 0
+
+        continue_to_run.assert_called_once_with(2.5)
+
+    def test_shell_runtime_releases_pending_simulation_for_other_command(self, build_temp_path):
+        _, rel = self._write_config(build_temp_path)
+        pending_simulation = object()
+
+        with patch.dict(sys.modules, {"pyvista": MagicMock()}):
+            with patch(
+                "sphinxsim.cli._ShellPreviewRuntime.show_or_update",
+                return_value=0,
+            ):
+                with patch.object(
+                    __import__("sphinxsim.cli", fromlist=["_ShellPreviewRuntime"])._ShellPreviewRuntime,
+                    "discard_pending_simulation",
+                ) as discard:
+                    with patch("builtins.input", side_effect=[f"load {rel}", "preview", "exit"]):
+                        rc = main(["shell"])
+
+        assert rc == 0
+        assert discard.call_count >= 2
+
     def test_shell_runtime_does_not_require_legacy_view_widgets(self, tmp_path, monkeypatch):
         from sphinxsim import cli as cli_mod
 
@@ -1093,7 +1149,7 @@ class TestShellPreview:
         runtime = cli_mod._ShellPreviewRuntime()
 
         class FakeVisualizer:
-            _bounds_sim = None
+            used_cpp_bounds = False
 
             def __init__(self, *args, **kwargs):
                 pass
@@ -1158,7 +1214,7 @@ class TestShellPreview:
         visualizer_paths: list[Path] = []
 
         class FakeVisualizer:
-            _bounds_sim = None
+            used_cpp_bounds = False
 
             def __init__(self, _config, _project_root, *, config_path, off_screen):
                 visualizer_paths.append(config_path)
@@ -1248,7 +1304,7 @@ class TestShellPreview:
         config_path = tmp_path / "config.json"
 
         class FakeVisualizer:
-            _bounds_sim = None
+            used_cpp_bounds = False
 
             def __init__(self, *args, **kwargs):
                 pass

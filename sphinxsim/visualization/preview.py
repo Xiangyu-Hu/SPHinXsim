@@ -693,13 +693,14 @@ class ConfigVisualizer:
                 suffix = stem[len(prefix):]
                 if suffix.startswith("ite_"):
                     suffix = suffix[len("ite_"):]
-                if not suffix.isdigit():
+                try:
+                    sequence = float(suffix)
+                except ValueError:
                     continue
 
-                step = int(suffix)
                 previous = latest.get(body_name)
-                if previous is None or step >= previous[0]:
-                    latest[body_name] = (step, path)
+                if previous is None or sequence >= previous[0]:
+                    latest[body_name] = (sequence, path)
                 break
 
         return {body_name: item[1] for body_name, item in latest.items()}
@@ -918,6 +919,7 @@ class ConfigVisualizer:
 
             plotter.add_mesh(
                 particle_mesh,
+                name=f"particle-preview-{body_name}",
                 color=_body_colour(body_name, config),
                 opacity=0.95,
                 style="points",

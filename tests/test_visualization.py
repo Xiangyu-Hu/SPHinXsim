@@ -1108,9 +1108,20 @@ class TestShellPreview:
         runtime._pending_runtime_config_path = runtime_config_path
 
         assert runtime.continue_to_run() == 0
+        assert runtime._live_run_thread is not None
+        runtime._live_run_thread.join()
         assert calls == ["build", "initialize", "run"]
         assert runtime._pending_simulation is None
         assert not runtime_config_path.exists()
+
+    def test_shell_continue_to_run_accepts_refresh_interval(self):
+        from sphinxsim import cli as cli_mod
+
+        with patch.object(cli_mod._ShellPreviewRuntime, "continue_to_run", return_value=0) as continue_to_run:
+            with patch("builtins.input", side_effect=["continue-to-run --refresh-interval 2.5", "exit"]):
+                assert main(["shell"]) == 0
+
+        continue_to_run.assert_called_once_with(2.5)
 
     def test_shell_runtime_releases_pending_simulation_for_other_command(self, build_temp_path):
         _, rel = self._write_config(build_temp_path)

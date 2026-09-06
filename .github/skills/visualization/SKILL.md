@@ -65,6 +65,11 @@ Design rule:
   and its temporary runtime config to `_ShellPreviewRuntime`. The runtime keeps
   both alive only until the immediate `continue-to-run` command invokes
   `buildSimulation()`, `initializeSimulation()`, and `run()`.
+- `continue-to-run` accepts `--refresh-interval SECONDS` with a default of
+  `10`. It runs the solver in a worker thread and, for a Qt-backed persistent
+  preview, uses a GUI-thread timer to replace particle actors from newer
+  completed body-state VTP snapshots. The interval is wall-clock time and must
+  be positive.
 - Any other shell command must release the retained simulation and delete its
   temporary runtime config.
 
@@ -140,6 +145,11 @@ Use `tests/test_visualization.py`.
   continued run and is deleted afterward.
 - Test that another shell command releases the retained simulation instead of
   allowing it to survive into a later workflow.
+- Test `--refresh-interval` parsing, including the default `10` seconds and
+  rejection of zero or negative values.
+- Mock the GUI timer and VTP reader when testing live refresh. Do not mutate
+  PyVista/VTK actors from the solver worker thread; timer callbacks own actor
+  updates on the Qt GUI thread.
 
 ## Common failure patterns
 - Missing import in local `annotations` import block inside `_populate_plotter`.

@@ -156,10 +156,11 @@ sphinxsim> preview --with-particles
    Particle generation overlay is enabled (--with-particles).
 ✅ Preview used C++ geometry (VTP meshes).
 
-sphinxsim> continue-to-run
+sphinxsim> continue-to-run --refresh-interval 10
 ✅ Simulation built
 ✅ Simulation initialized
 🚀 Running simulation...
+ℹ️ Preview refreshes every 10 seconds while simulation runs.
 ✅ Simulation completed successfully!
 ```
 
@@ -172,6 +173,19 @@ After `preview --with-particles`, the shell retains the generated-particle
 particles again. Any other shell command discards the retained instance and its
 temporary config; use `run` when a fresh simulation from the saved config is
 intended.
+
+`continue-to-run` accepts an optional wall-clock refresh interval:
+
+```text
+sphinxsim> continue-to-run --refresh-interval 2.5
+```
+
+The default is `10` seconds and the value must be greater than zero. While the
+simulation runs, the persistent Qt preview checks the output folder at that
+interval and replaces each particle cloud when a newer complete body-state VTP
+snapshot is available. This uses `pyvistaqt` plus `PySide6` or `PyQt5`; without
+a Qt-backed persistent preview, the simulation still continues but the window
+cannot refresh its particles live.
 
 ## Python API
 

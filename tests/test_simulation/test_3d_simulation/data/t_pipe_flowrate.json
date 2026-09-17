@@ -11,9 +11,9 @@
       "hint": "fluid_bodies[name=BloodBody].material.density"
     },
     {
-      "value": 4.0e-6,
-      "name": "VolumetricFlowRate",
-      "hint": "fluid_boundary_conditions[oriented_box=Inlet].inflow_rate"
+      "value": 0.4,
+      "name": "Speed",
+      "hint": "externally_defined"
     }
   ],
 

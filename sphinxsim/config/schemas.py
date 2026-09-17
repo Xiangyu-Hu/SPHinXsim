@@ -361,7 +361,7 @@ class GeometriesConfig(BaseModel):
                         raise ValueError(
                             f"complex_shape '{shape.name}' has sub_shape '{sub_shape}' that is not previously defined"
                         )
-            
+
             if shape.type == BodyShapeType.MULTIPOLYGON:
                 for polygon in shape.polygons or []:
                     if polygon.primitive is not None and polygon.primitive not in defined_primitive_names:

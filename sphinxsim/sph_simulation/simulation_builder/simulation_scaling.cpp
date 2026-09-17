@@ -234,7 +234,7 @@ UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name, bool is_require
     if (unit_name == "Velocity" || unit_name == "Speed")
         return UnitMetrics{1, 0, -1, 0, 0, 0, 0};
     if (unit_name == "VolumetricFlowRate")
-    return UnitMetrics{3, 0, -1, 0, 0, 0, 0};
+        return UnitMetrics{3, 0, -1, 0, 0, 0, 0};
     if (unit_name == "AngularVelocity")
         return UnitMetrics{0, 0, -1, 0, 0, 0, 0};
     if (unit_name == "Acceleration" || unit_name == "Gravity")

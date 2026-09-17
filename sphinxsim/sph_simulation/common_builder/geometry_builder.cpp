@@ -474,9 +474,6 @@ GeometricShapeBox GeometryBuilder::addOrientedBox(
     {
         Vecd center = scaling_config.jsonToVecd(config.at("center"), "Length");
         Vecd normal = scaling_config.jsonToVecd(config.at("normal"), "Dimensionless");
-        Real radius = scaling_config.jsonToReal(config.at("radius"), "Length");
-        Real area = Pi * radius * radius;
-        config_manager.emplaceEntity<Real>(name + "Area", area);
 
         SystemDomainConfig &system_domain_config =
             config_manager.getEntity<SystemDomainConfig>("SystemDomainConfig");
@@ -486,12 +483,18 @@ GeometricShapeBox GeometryBuilder::addOrientedBox(
         {
             Real radius = scaling_config.jsonToReal(config.at("radius"), "Length");
             half_size += Vecd::Constant(radius);
+#ifdef SPHINXSYS_3D
+            config_manager.emplaceEntity<Real>(name + "Area", Pi * radius * radius);
+#else
+            config_manager.emplaceEntity<Real>(name + "Area", 2.0 * radius);
+#endif
         }
 #ifdef SPHINXSYS_3D
         else if (config.contains("surface_half_size"))
         {
             Vec2d hf = scaling_config.jsonToVec2d(config.at("surface_half_size"), "Length");
             half_size += Vec3d(Real(0), hf[0], hf[1]);
+            config_manager.emplaceEntity<Real>(name + "Area", 4.0 * hf[0] * hf[1]);
         }
 #endif
         half_size[xAxis] = expansion_length * 0.5;

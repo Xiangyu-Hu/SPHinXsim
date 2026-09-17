@@ -81,7 +81,6 @@ EmitterInflowInjectionCK<OrientedBoxPartType>::UpdateKernel::
       rho_(encloser.dv_rho_->DelegatedData(ex_policy)),
       p_(encloser.dv_p_->DelegatedData(ex_policy)),
       buffer_indicator_(encloser.dv_buffer_indicator_->DelegatedData(ex_policy)) {}
-
 //=================================================================================================//
 template <typename OrientedBoxPartType>
 void EmitterInflowInjectionCK<OrientedBoxPartType>::UpdateKernel::update(size_t index_i, Real dt)

@@ -214,6 +214,7 @@ template <class ExecutionPolicy, class EncloserType>
 BufferQuantityAverageCK<DataType>::ReduceKernel::
     ReduceKernel(const ExecutionPolicy &ex_policy, EncloserType &encloser)
     : BaseDynamicsType::ReduceKernel(ex_policy, encloser),
+      zero_sample_(ZeroData<Sample<DataType>>::value),
       oriented_box_(encloser.sv_oriented_box_->DelegatedData(ex_policy)),
       pos_(encloser.dv_pos_->DelegatedData(ex_policy)) {}
 //=================================================================================================//
@@ -222,7 +223,7 @@ Sample<DataType> BufferQuantityAverageCK<DataType>::ReduceKernel::reduce(size_t 
 {
     return oriented_box_->checkContain(pos_[index_i])
                ? BaseDynamicsType::ReduceKernel::reduce(index_i, dt)
-               : ZeroData<Sample<DataType>>::value;
+               : zero_sample_;
 }
 //=================================================================================================//
 inline VelocityIncrementApplyCK::VelocityIncrementApplyCK(

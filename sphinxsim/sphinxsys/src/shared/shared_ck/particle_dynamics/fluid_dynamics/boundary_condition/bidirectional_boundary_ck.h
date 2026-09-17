@@ -307,6 +307,7 @@ class BufferQuantityAverageCK : public QuantityAverage<DataType, OrientedBoxByCe
         Sample<DataType> reduce(size_t index_i, Real dt = 0.0);
 
       protected:
+        Sample<DataType> zero_sample_;
         OrientedBox *oriented_box_;
         Vecd *pos_;
     };

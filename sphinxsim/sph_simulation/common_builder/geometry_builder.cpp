@@ -458,6 +458,7 @@ Shape *GeometryBuilder::addShape(
         shape->writTriangleMeshShapeToVtp(Transform(), scaling_factor);
         return shape;
     }
+
 #endif
 
     throw std::runtime_error("GeometryBuilder::addShape: unsupported shape: " + type);
@@ -473,6 +474,9 @@ GeometricShapeBox GeometryBuilder::addOrientedBox(
     {
         Vecd center = scaling_config.jsonToVecd(config.at("center"), "Length");
         Vecd normal = scaling_config.jsonToVecd(config.at("normal"), "Dimensionless");
+        Real radius = scaling_config.jsonToReal(config.at("radius"), "Length");
+        Real area = Pi * radius * radius;
+        config_manager.emplaceEntity<Real>(name + "Area", area);
 
         SystemDomainConfig &system_domain_config =
             config_manager.getEntity<SystemDomainConfig>("SystemDomainConfig");

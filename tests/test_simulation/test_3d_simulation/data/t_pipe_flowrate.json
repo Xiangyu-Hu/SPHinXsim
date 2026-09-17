@@ -1,0 +1,167 @@
+{
+  "characteristic_dimensions": [
+    {
+      "value": 0.001,
+      "name": "Length",
+      "hint": "geometries.oriented_boxes[name=Inlet].radius"
+    },
+    {
+      "value": 1060.0,
+      "name": "Density",
+      "hint": "fluid_bodies[name=BloodBody].material.density"
+    },
+    {
+      "value": 4.0e-6,
+      "name": "VolumetricFlowRate",
+      "hint": "fluid_boundary_conditions[oriented_box=Inlet].inflow_rate"
+    }
+  ],
+
+  "simulation_type": "fluid_dynamics",
+
+  "geometries": {
+    "global_resolution": { "characteristic_length_particles": 4 },
+    "shapes": [
+      {
+        "name": "BloodBody",
+        "type": "triangle_mesh",
+        "file_name": "blood.stl",
+        "scale": 0.001
+      },
+      {
+        "name": "WallBoundary",
+        "type": "triangle_mesh",
+        "file_name": "t_pipe.stl",
+        "scale": 0.001
+      }
+    ],
+    "oriented_boxes": [
+      {
+        "name": "Inlet",
+        "type": "boundary",
+        "center": [-0.01, 0.0, 0.0],
+        "normal": [1.0, 0.0, 0.0],
+        "radius": 0.00185
+      },
+      {
+        "name": "UpperOutlet",
+        "type": "boundary",
+        "center": [0.005, 0.03, 0.0],
+        "normal": [0.0, -1.0, 0.0],
+        "radius": 0.00145
+      },
+      {
+        "name": "LowerOutlet",
+        "type": "boundary",
+        "center": [0.005, -0.03, 0.0],
+        "normal": [0.0, 1.0, 0.0],
+        "radius": 0.00121
+      }
+    ]
+  },
+
+  "particle_generation": {
+    "build_and_run": true,
+    "settings": {
+      "bodies": [
+        {
+          "name": "BloodBody",
+          "relaxation": { "dependent_bodies": ["WallBoundary"] }
+        },
+        {
+          "name": "WallBoundary",
+          "relaxation": { "level_set": {} },
+          "solid_body": {}
+        }
+      ],
+      "relaxation_constraints": [
+        {
+          "body_name": "BloodBody",
+          "oriented_box": "Inlet",
+          "type": "normal"
+        },
+        {
+          "body_name": "BloodBody",
+          "oriented_box": "UpperOutlet",
+          "type": "normal"
+        },
+        {
+          "body_name": "BloodBody",
+          "oriented_box": "LowerOutlet",
+          "type": "normal"
+        }
+      ],
+      "relaxation_parameters": {
+        "total_iterations": 1000
+      }
+    }
+  },
+
+  "fluid_bodies": [
+    {
+      "name": "BloodBody",
+      "material": {
+        "type": "weakly_compressible_fluid",
+        "density": 1060.0,
+        "viscosity": 0.0035
+      },
+      "particle_reserve_factor": 0.2
+    }
+  ],
+
+  "solid_bodies": [
+    {
+      "name": "WallBoundary",
+      "material": {
+        "type": "rigid_body"
+      }
+    }
+  ],
+
+  "fluid_boundary_conditions": [
+    {
+      "body_name": "BloodBody",
+      "oriented_box": "Inlet",
+      "type": "bi_directional",
+      "inflow_rate": 4.0e-6
+    },
+    {
+      "body_name": "BloodBody",
+      "oriented_box": "UpperOutlet",
+      "type": "bi_directional",
+      "pressure": 0.0
+    },
+    {
+      "body_name": "BloodBody",
+      "oriented_box": "LowerOutlet",
+      "type": "bi_directional",
+      "pressure": 0.0
+    }
+  ],
+
+  "extra_state_recording": [
+    {
+      "name": "BloodBody",
+      "variables": [
+        {
+          "real_type": ["Pressure", "Density"],
+          "int_type": ["Indicator", "BufferIndicator"],
+          "vector_type": ["Velocity"]
+        }
+      ]
+    }
+  ],
+
+  "solver_parameters": {
+    "end_time": 0.1,
+    "output_interval": 0.001,
+    "screen_interval": 100,
+    "fluid_dynamics": {
+      "acoustic_cfl": 0.6,
+      "advection_cfl": 0.25,
+      "max_velocity_factor": 0.5,
+      "surface_type": "open_boundary",
+      "particle_sort_frequency": 100
+    }
+  }
+}

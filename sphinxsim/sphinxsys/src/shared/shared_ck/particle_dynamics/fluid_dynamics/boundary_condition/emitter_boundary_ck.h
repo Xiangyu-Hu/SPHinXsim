@@ -91,6 +91,8 @@ class EmitterInflowInjectionCK : public BaseLocalDynamics<OrientedBoxPartType>
         Real rho0_;
         Vecd *pos_;
         Real *rho_, *p_;
+        int *buffer_indicator_;
+
     };
 
     class FinishDynamics
@@ -108,6 +110,8 @@ class EmitterInflowInjectionCK : public BaseLocalDynamics<OrientedBoxPartType>
     Real rho0_;
     DiscreteVariable<Vecd> *dv_pos_;
     DiscreteVariable<Real> *dv_rho_, *dv_p_;
+    DiscreteVariable<int> *dv_buffer_indicator_;
+
 };
 
 class WithinDisposerIndication : public BaseLocalDynamics<OrientedBoxByCell>

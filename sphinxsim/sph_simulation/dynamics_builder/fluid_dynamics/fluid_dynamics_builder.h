@@ -85,8 +85,8 @@ class FluidDynamicsBuilder
         SPHSimulation &sim, MainMethods &main_methods, const json &config);
 
     static fluid_dynamics::AbstractBidirectionalBoundary &createBiDirectionBoundary(
-        OrientedBoxByCell &oriented_box_by_cell, EntityManager &config_manager,
-        MainMethods &main_methods, const json &config);
+        SPHSimulation &sim, OrientedBoxByCell &oriented_box_by_cell,
+        EntityManager &config_manager, MainMethods &main_methods, const json &config);
     
     static fluid_dynamics::AbstractBidirectionalBoundary &createVelocityBiDirectionBoundary(
         OrientedBoxByCell &oriented_box_by_cell, EntityManager &config_manager,

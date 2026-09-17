@@ -32,6 +32,7 @@
 #include "base_body_part.h"
 #include "base_fluid_dynamics.h"
 #include "fluid_boundary_state.hpp"
+#include "general_reduce_ck.hpp"
 #include "particle_operation.hpp"
 #include "particle_reserve.h"
 #include "simple_algorithms_ck.h"
@@ -287,6 +288,81 @@ class BidirectionalBoundaryCK : public AbstractBidirectionalBoundary
     virtual void applyBoundaryCondition(Real dt) override { boundary_condition_.exec(dt); }
     virtual void injectParticles() override { inflow_injection_.exec(); }
     virtual void indicateOutFlowParticles() override { outflow_indication_.exec(); }
+};
+
+template <typename DataType>
+class BufferQuantityAverageCK : public QuantityAverage<DataType, OrientedBoxByCell>
+{
+    using BaseDynamicsType = QuantityAverage<DataType, OrientedBoxByCell>;
+
+  public:
+    BufferQuantityAverageCK(OrientedBoxByCell &oriented_box_part, const std::string &variable_name);
+    virtual ~BufferQuantityAverageCK() {};
+
+    class ReduceKernel : public BaseDynamicsType::ReduceKernel
+    {
+      public:
+        template <class ExecutionPolicy, class EncloserType>
+        ReduceKernel(const ExecutionPolicy &ex_policy, EncloserType &encloser);
+        Sample<DataType> reduce(size_t index_i, Real dt = 0.0);
+
+      protected:
+        OrientedBox *oriented_box_;
+        Vecd *pos_;
+    };
+
+  protected:
+    SingleVariable<OrientedBox> *sv_oriented_box_;
+    DiscreteVariable<Vecd> *dv_pos_;
+};
+
+class VelocityIncrementApplyCK : public BaseLocalDynamics<OrientedBoxByCell>
+{
+  public:
+    VelocityIncrementApplyCK(OrientedBoxByCell &oriented_box_part,
+                             SingleVariable<Real> *sv_velocity_increment);
+    virtual ~VelocityIncrementApplyCK() {};
+
+    class UpdateKernel
+    {
+      public:
+        template <class ExecutionPolicy, class EncloserType>
+        UpdateKernel(const ExecutionPolicy &ex_policy, EncloserType &encloser);
+        void update(size_t index_i, Real dt = 0.0);
+
+      protected:
+        OrientedBox *oriented_box_;
+        Vecd *pos_, *vel_;
+        Real *velocity_increment_;
+        int axis_;
+        Transform *transform_;
+    };
+
+  protected:
+    SingleVariable<OrientedBox> *sv_oriented_box_;
+    DiscreteVariable<Vecd> *dv_pos_, *dv_vel_;
+    SingleVariable<Real> *sv_velocity_increment_;
+};
+
+template <typename ExecutionPolicy>
+class VelocityIncrementCK : public AbstractDynamics
+{
+    static constexpr Real IncrementFactor_ = 0.2;
+    ReduceDynamicsCK<ExecutionPolicy, BufferQuantityAverageCK<Vecd>> average_global_velocity_;
+    ReduceDynamicsCK<ExecutionPolicy, BufferQuantityAverageCK<Real>> average_pressure_;
+    Transform *transform_;
+    int axis_;
+    Real u_target_;
+    SingleVariable<Real> *sv_velocity_increment_;
+    SingleVariable<Real> *sv_reference_pressure_;
+    StateDynamics<ExecutionPolicy, VelocityIncrementApplyCK> apply_velocity_increment_;
+
+  public:
+    VelocityIncrementCK(OrientedBoxByCell &oriented_box_part, Real target_flow_rate, Real area);
+    virtual ~VelocityIncrementCK() {};
+
+    void updateVelocityIncrement();
+    SingleVariable<Real> *svReferencePressure() { return sv_reference_pressure_; };
 };
 } // namespace fluid_dynamics
 } // namespace SPH

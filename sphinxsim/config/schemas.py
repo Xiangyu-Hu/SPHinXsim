@@ -407,6 +407,7 @@ class ParticleGenerationBodyConfig(BaseModel):
     cylinder_shape_inserts: List[str] = Field(default_factory=list)
     solid_body: Optional[dict] = None
     relaxation: Optional[RelaxationBodyConfig] = None
+    adaptation_ratios: Optional[List[float]] = None
 
     @model_validator(mode="after")
     def _warn_unknown_fields(self) -> "ParticleGenerationBodyConfig":
@@ -742,6 +743,7 @@ class SolidBodyConfig(BaseModel):
     name: str = Field(..., min_length=1)
     material: MaterialConfig
     is_moving: bool = False
+    adaptation_ratios: Optional[List[float]] = Field(default=None, min_length=2, max_length=2)
 
     @model_validator(mode="after")
     def _material_type(self) -> "SolidBodyConfig":

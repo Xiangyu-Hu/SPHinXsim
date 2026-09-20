@@ -74,7 +74,8 @@
         {
           "name": "FishBody",
           "solid_body": {},
-          "relaxation": { "dependent_bodies": ["WaterBody"] }
+          "adaptation_ratios": [1.15, 2.0],
+          "relaxation": { "level_set": {}, "dependent_bodies": ["WaterBody"] }
         }
       ],
       "relaxation_parameters": { "total_iterations": 1000 }
@@ -90,6 +91,7 @@
   "solid_bodies": [
     {
       "name": "FishBody",
+      "adaptation_ratios": [1.15, 2.0],
       "material": {
         "type": "composite_solid",
         "density": 1050.0,

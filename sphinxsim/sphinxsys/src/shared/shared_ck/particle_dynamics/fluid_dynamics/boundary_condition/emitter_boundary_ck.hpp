@@ -52,7 +52,9 @@ EmitterInflowInjectionCK<OrientedBoxPartType>::
       rho0_(this->sph_body_->getMatterMaterial().ReferenceDensity()),
       dv_pos_(this->particles_->template getVariableByName<Vecd>("Position")),
       dv_rho_(this->particles_->template getVariableByName<Real>("Density")),
-      dv_p_(this->particles_->template getVariableByName<Real>("Pressure"))
+      dv_p_(this->particles_->template getVariableByName<Real>("Pressure")),
+      dv_buffer_indicator_(this->particles_->template registerStateVariable<int>("BufferIndicator"))
+
 {
     this->particles_->checkEnoughReserve();
 }
@@ -77,7 +79,8 @@ EmitterInflowInjectionCK<OrientedBoxPartType>::UpdateKernel::
       rho0_(encloser.rho0_),
       pos_(encloser.dv_pos_->DelegatedData(ex_policy)),
       rho_(encloser.dv_rho_->DelegatedData(ex_policy)),
-      p_(encloser.dv_p_->DelegatedData(ex_policy)) {}
+      p_(encloser.dv_p_->DelegatedData(ex_policy)),
+      buffer_indicator_(encloser.dv_buffer_indicator_->DelegatedData(ex_policy)) {}
 //=================================================================================================//
 template <typename OrientedBoxPartType>
 void EmitterInflowInjectionCK<OrientedBoxPartType>::UpdateKernel::update(size_t index_i, Real dt)
@@ -85,7 +88,8 @@ void EmitterInflowInjectionCK<OrientedBoxPartType>::UpdateKernel::update(size_t 
     if (oriented_box_->checkUpperBound(pos_[index_i]))
     {
         Vecd original_position = pos_[index_i];
-        spawn_real_particle_(index_i);
+        UnsignedInt new_particle_index = spawn_real_particle_(index_i);
+        buffer_indicator_[new_particle_index] = 0;
         pos_[index_i] = oriented_box_->getUpperPeriodic(original_position);
         rho_[index_i] = rho0_;
         p_[index_i] = 0.0;

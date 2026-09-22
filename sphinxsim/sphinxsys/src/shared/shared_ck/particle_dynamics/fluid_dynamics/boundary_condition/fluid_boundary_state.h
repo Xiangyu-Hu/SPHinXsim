@@ -78,6 +78,23 @@ struct VelocityPrescribed
     // to be implemented in derived class
 };
 
+template <class FluidType>
+struct FlowRatePrescribed
+{
+    typedef FluidType Fluid;
+    SingleVariable<Real> *sv_reference_pressure_;
+    FlowRatePrescribed(SingleVariable<Real> *sv_reference_pressure)
+        : sv_reference_pressure_(sv_reference_pressure) {};
+    Real getPressure(const Real &input_pressure, Real time)
+    {
+        return sv_reference_pressure_->getValue();
+    };
+    Real getAxisVelocity(const Vecd &input_position, const Real &input_axis_velocity, Real time)
+    {
+        return input_axis_velocity;
+    };
+};
+
 struct ConstantInflowSpeed
 {
     Real speed_;

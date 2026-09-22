@@ -1,5 +1,7 @@
 #include "fluid_dynamics_builder.hpp"
 
+#include "geometry_builder.h"
+
 #include "material_builder.h"
 #include "sph_simulation.h"
 
@@ -155,7 +157,7 @@ void FluidDynamicsBuilder::addBoundaryCondition(
 
         auto &oriented_box_by_cell = fluid_body.addBodyPart<OrientedBoxByCell>(oriented_box);
         auto &bi_directional_bd = createBiDirectionBoundary(
-            oriented_box_by_cell, config_manager, main_methods, config);
+            sim, oriented_box_by_cell, config_manager, main_methods, config);
 
         auto &supplementary_conditions = main_methods.addParticleDynamicsGroup();
         if (config_manager.hasEntity<WeaklyCompressibleMultiSpecies>(
@@ -272,8 +274,8 @@ void FluidDynamicsBuilder::addBoundaryCondition(
 }
 //=================================================================================================//
 AbstractBidirectionalBoundary &FluidDynamicsBuilder::createBiDirectionBoundary(
-    OrientedBoxByCell &oriented_box_by_cell, EntityManager &config_manager,
-    MainMethods &main_methods, const json &config)
+    SPHSimulation &sim, OrientedBoxByCell &oriented_box_by_cell,
+    EntityManager &config_manager, MainMethods &main_methods, const json &config)
 {
     if (config.contains("pressure") && config.contains("velocity"))
     {
@@ -299,6 +301,39 @@ AbstractBidirectionalBoundary &FluidDynamicsBuilder::createBiDirectionBoundary(
             auto &bi_directional_bd = main_methods.template addGeneralDynamics<
                 BidirectionalBoundaryCK, LinearCorrectionCK, PressurePrescribed<WeaklyCompressibleMixture>>(
                 oriented_box_by_cell, scaling_config.jsonToReal(config.at("pressure"), "Pressure"));
+            return bi_directional_bd;
+        }
+    }
+
+    if (config.contains("inflow_rate"))
+    {
+        SPHBody &sph_body = oriented_box_by_cell.getSPHBody();
+        std::string body_name = sph_body.Name();
+        std::string oriented_box_name = config.at("oriented_box").get<std::string>();
+        Real q_target = scaling_config.jsonToReal(config.at("inflow_rate"), "VolumetricFlowRate");
+        Real area = config_manager.getEntity<Real>(oriented_box_name + "Area");
+        auto &velocity_increment_manager = main_methods.template addGeneralDynamics<VelocityIncrementCK>(
+            oriented_box_by_cell, q_target, area);
+        auto &simulation_pipeline = sim.getSimulationPipeline();
+        sim.getInitializationPipeline().insert_hook(
+            InitializationHookPoint::InitialAfterLinearCorrectionMatrix, [&]()
+            { velocity_increment_manager.updateVelocityIncrement(); });
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::AfterLinearCorrectionMatrix, [&]()
+            { velocity_increment_manager.updateVelocityIncrement(); });
+        if (config_manager.hasEntity<WeaklyCompressibleFluid>(body_name + "WeaklyCompressibleFluid"))
+        {
+            auto &bi_directional_bd = main_methods.template addGeneralDynamics<
+                BidirectionalBoundaryCK, LinearCorrectionCK, FlowRatePrescribed<WeaklyCompressibleFluid>>(
+                oriented_box_by_cell, velocity_increment_manager.svReferencePressure());
+            return bi_directional_bd;
+        }
+
+        if (sph_body.isMatterMaterial<WeaklyCompressibleMixture>())
+        {
+            auto &bi_directional_bd = main_methods.template addGeneralDynamics<
+                BidirectionalBoundaryCK, LinearCorrectionCK, FlowRatePrescribed<WeaklyCompressibleMixture>>(
+                oriented_box_by_cell, velocity_increment_manager.svReferencePressure());
             return bi_directional_bd;
         }
     }

@@ -43,6 +43,7 @@ class CharacteristicDimensionName(str, Enum):
     VISCOSITY = "Viscosity"
     VELOCITY = "Velocity"
     SPEED = "Speed"
+    VOLUMETRIC_FLOW_RATE = "VolumetricFlowRate"
     ANGULAR_VELOCITY = "AngularVelocity"
     GRAVITY = "Gravity"
     ACCELERATION = "Acceleration"
@@ -809,6 +810,7 @@ class FluidBoundaryConditionConfig(BaseModel):
     oriented_box: str = Field(..., min_length=1)
     type: FluidBoundaryConditionType
     inflow_speed: Optional[float] = Field(default=None, gt=0)
+    inflow_rate: Optional[float] = Field(default=None, gt=0)
     pressure: Optional[float] = None
     velocity: Optional[ParabolicVelocityConfig] = None
     mass_fractions: Optional[List[float]] = None
@@ -832,10 +834,11 @@ class FluidBoundaryConditionConfig(BaseModel):
         if self.type == FluidBoundaryConditionType.EMITTER and self.inflow_speed is None:
             raise ValueError("emitter boundary condition requires inflow_speed")
         if self.type == FluidBoundaryConditionType.BI_DIRECTIONAL:
-            if (self.pressure is None) == (self.velocity is None):
-                raise ValueError("bi_directional boundary condition requires exactly one of pressure or velocity")
-        elif self.velocity is not None:
-            raise ValueError("velocity is only supported for bi_directional boundary conditions")
+            n_given = (self.pressure is not None) + (self.velocity is not None) + (self.inflow_rate is not None)
+            if n_given != 1:
+                raise ValueError("bi_directional boundary condition requires exactly one of pressure, velocity or inflow_rate")
+        elif self.velocity is not None or self.inflow_rate is not None:
+            raise ValueError("velocity and inflow_rate are only supported for bi_directional boundary conditions")
         if self.mass_fractions is not None:
             if self.type != FluidBoundaryConditionType.BI_DIRECTIONAL:
                 raise ValueError("mass_fractions are only supported for bi_directional boundary conditions")

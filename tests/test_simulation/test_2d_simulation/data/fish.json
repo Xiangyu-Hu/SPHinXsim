@@ -75,7 +75,7 @@
           "name": "FishBody",
           "solid_body": {},
           "adaptation_ratios": [1.15, 2.0],
-          "relaxation": { "level_set": {}, "dependent_bodies": ["WaterBody"] }
+          "relaxation": { "level_set": {} }
         }
       ],
       "relaxation_parameters": { "total_iterations": 1000 }

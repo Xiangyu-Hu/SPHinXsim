@@ -341,6 +341,17 @@ void FluidDynamicsBuilder::buildSurfaceIndicationIfOpenBoundary(
         initialization_pipeline.insert_hook(
             InitializationHookPoint::AfterInitialCondition, [&]()
             { all_surface_indication.exec(); });
+        // On a restart, the hook above ran on the reloaded state, which the restored
+        // particles then replaced. Recompute the indicator once the configuration has
+        // been rebuilt from the restored positions, so the first acoustic step does not
+        // treat free-surface particles as interior ones.
+        if (config_manager.hasEntity<RestartConfig>("RestartConfig") &&
+            config_manager.getEntity<RestartConfig>("RestartConfig").restore_step_ != 0)
+        {
+            initialization_pipeline.insert_hook(
+                InitializationHookPoint::UpdateConfigurationAfterRestart, [&]()
+                { all_surface_indication.exec(); });
+        }
         auto &simulation_pipeline = sim.getSimulationPipeline();
         simulation_pipeline.insert_hook(
             SimulationHookPoint::AfterUpdateConfiguration, [&]()

@@ -407,7 +407,7 @@ class ParticleGenerationBodyConfig(BaseModel):
     cylinder_shape_inserts: List[str] = Field(default_factory=list)
     solid_body: Optional[dict] = None
     relaxation: Optional[RelaxationBodyConfig] = None
-    adaptation_ratios: Optional[List[float]] = None
+    adaptation_ratios: Optional[List[float]] = Field(default=None, min_length=2, max_length=2)
 
     @model_validator(mode="after")
     def _warn_unknown_fields(self) -> "ParticleGenerationBodyConfig":

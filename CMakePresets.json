@@ -115,7 +115,7 @@
       "displayName": "Integrated SPHinXsys + Python Debug Build Windows",
       "description": "Debug build for SPHinXsys libraries and Python bindings on Windows",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build-integrated-debug",
+      "binaryDir": "${sourceDir}/build-integrated",
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",

@@ -35,6 +35,10 @@
 #include "material_builder.h"
 #include "sph_simulation.h"
 
+#include "composite_solid.h"
+#include "structure_surface_motion.h"
+#include "traveling_wave_active_strain.h"
+
 namespace SPH
 {
 //=================================================================================================//
@@ -109,6 +113,87 @@ auto &SolidDynamicsBuilder::buildSolidDynamics(
                 });
         });
     return correction_matrix;
+}
+//=================================================================================================//
+inline void SolidDynamicsBuilder::buildCompositeSolidsIfPresent(
+    SPHSimulation &sim, MainMethods &main_methods, const json &config)
+{
+    auto &sph_system = sim.getSPHSystem();
+    auto &config_manager = sim.getConfigManager();
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
+
+    for (const auto &solid_config : config.at("solid_bodies"))
+    {
+        const std::string material_type =
+            solid_config.at("material").at("type").get<std::string>();
+
+        if (material_type != "composite_solid")
+            continue;
+
+        std::string body_name = solid_config.at("name").get<std::string>();
+        RealBody &elastic_body = sph_system.getBodyByName<RealBody>(body_name);
+        auto &elastic_inner =
+            sph_system.getRelationByName<Inner<Relation<SolidBody>>>(body_name);
+
+        auto &initialize_displacement =
+            main_methods.addStateDynamics<InitializeDisplacementCK>(elastic_body);
+
+        auto &update_average_velocity =
+            main_methods.addStateDynamics<UpdateAverageVelocityAndAccelerationCK>(elastic_body);
+
+        // Snapshot the surface before the structure advances.
+        sim.getSimulationPipeline().insert_hook(
+            SimulationHookPoint::CouplingSynchronization, [&]()
+            { initialize_displacement.exec(); });
+
+        const json &material_config = solid_config.at("material");
+        std::function<void()> active_strain_pre_substep_hook = nullptr;
+        if (material_config.contains("active_strain"))
+        {
+            const json &wave_config = material_config.at("active_strain");
+
+            Vecd wave_center = Vecd::Zero();
+            for (int k = 0; k != wave_center.size(); ++k)
+            {
+                wave_center[k] = scaling_config.jsonToReal(wave_config.at("center").at(k), "Length");
+            }
+            Real wave_span = scaling_config.jsonToReal(wave_config.at("region_span"), "Length");
+            Real wave_core = scaling_config.jsonToReal(wave_config.at("core_thickness"), "Length");
+            Real amplitude = wave_config.at("amplitude").get<Real>();
+            Real frequency = wave_config.at("frequency").get<Real>();
+            Real wavelength_factor = wave_config.at("wavelength_factor").get<Real>();
+            Real start_time = wave_config.at("start_time").get<Real>();
+
+            auto &active_strain = main_methods.addStateDynamics<TravelingWaveActiveStrain>(
+                elastic_body, wave_center, wave_span, wave_core,
+                amplitude, frequency, wavelength_factor, start_time);
+
+            active_strain_pre_substep_hook = [&active_strain]()
+            { active_strain.exec(); };
+        }
+
+        auto &elastic_correction_matrix =
+            SolidDynamicsBuilder::buildSolidDynamics<CompositeSolidMaterial>(
+                sim, main_methods, elastic_inner, active_strain_pre_substep_hook);
+
+        // Recover the averaged surface motion the fluid sees over the interval.
+        sim.getSimulationPipeline().insert_hook(
+            SimulationHookPoint::CouplingSynchronization, [&]()
+            { update_average_velocity.exec(sim.getSPHSolver().getTimeStepper().getGlobalTimeStepSize()); });
+
+        auto &elastic_normal_direction =
+            main_methods.addStateDynamics<solid_dynamics::UpdateElasticNormalDirectionCK>(elastic_body);
+
+        sim.getSimulationPipeline().insert_hook(
+            SimulationHookPoint::AfterLinearCorrectionMatrix, [&]()
+            { elastic_normal_direction.exec(); });
+
+        sim.getInitializationPipeline().insert_hook(
+            InitializationHookPoint::InitialCondition, [&]()
+            {
+                elastic_correction_matrix.exec();
+                elastic_normal_direction.exec(); });
+    }
 }
 //=================================================================================================//
 } // namespace SPH

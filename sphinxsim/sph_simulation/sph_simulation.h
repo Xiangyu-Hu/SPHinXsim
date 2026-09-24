@@ -76,7 +76,7 @@ class SPHSimulation
     friend class SolidDynamicsBuilder;
     friend class RecordingBuilder;
 
-    SPHSystem &defineSPHSystem();
+    SPHSystem &defineSPHSystem(const json &config);
     SPHSolver &defineSPHSolver(SimulationBuilder &simulation_builder, const json &config);
     SPHSystem &getSPHSystem() { return *sph_system_ptr_; };
     SPHSolver &getSPHSolver() { return *sph_solver_ptr_; };

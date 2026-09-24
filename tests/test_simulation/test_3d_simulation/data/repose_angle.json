@@ -1,4 +1,22 @@
 {
+  "characteristic_dimensions": [
+    {
+      "value": 0.1,
+      "name": "Length",
+      "hint": "geometries.shapes[name=GranularBody].radius"
+    },
+    {
+      "value": 9.8,
+      "name": "Gravity",
+      "hint": "gravity"
+    },
+    {
+      "value": 2600.0,
+      "name": "Density",
+      "hint": "continuum_bodies[name=GranularBody].material.density"
+    }
+  ],
+
   "simulation_type": "continuum_dynamics",
 
   "geometries": {
@@ -6,13 +24,18 @@
       "lower_bound": [-0.04, -0.04, -0.04],
       "upper_bound": [0.588, 0.16, 0.588]
     },
-    "global_resolution": { "particle_spacing": 0.005 },
+    "global_resolution": { "particle_spacing": 0.01 },
     "shapes": [
       {
         "name": "GranularBody",
-        "type": "bounding_box",
-        "lower_bound": [0.174, 0.0, 0.174],
-        "upper_bound": [0.374, 0.1, 0.374]
+        "type": "cylinder",
+        "radius": 0.1,
+        "half_height": 0.05,
+        "transform": {
+          "translation": [0.274, 0.05, 0.274],
+          "rotation_angle": 1.5707963267948966,
+          "rotation_axis": [0.0, 0.0, 1.0]
+        }
       },
       {
         "name": "WallInnerBox",
@@ -55,11 +78,11 @@
       "name": "GranularBody",
       "material": {
         "type": "plastic_continuum",
-        "density": 2040.0,
-        "sound_speed": 50.0,
+        "density": 2600.0,
         "youngs_modulus": 5980000.0,
         "poisson_ratio": 0.3,
         "friction_angle": 0.5235987755982988,
+        "cohesion": 0.0,
         "dilatancy_angle": 0.0
       }
     }
@@ -90,7 +113,16 @@
       "name": "GranularBody",
       "variables": [
         {
+          "real_type": ["Density"],
           "vector_type": ["Velocity"]
+        }
+      ]
+    },
+    {
+      "name": "WallBoundary",
+      "variables": [
+        {
+          "vector_type": ["NormalDirection"]
         }
       ]
     }
@@ -98,8 +130,10 @@
 
   "solver_parameters": {
     "end_time": 0.5,
-    "output_interval": 0.02,
+    "output_interval": 0.01,
     "screen_interval": 500,
-    "continuum_dynamics": {}
+    "continuum_dynamics": {
+      "acoustic_cfl": 0.4
+    }
   }
 }

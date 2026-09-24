@@ -97,7 +97,7 @@ class CompressionSummation<Contact<Parameters...>>
     {
       public:
         template <class ExecutionPolicy, class Encloser>
-        InteractKernel(const ExecutionPolicy &ex_policy, Encloser &encloser, size_t contact_index);
+        InteractKernel(const ExecutionPolicy &ex_policy, Encloser &encloser);
         void interact(size_t index_i, Real dt = 0.0);
 
       protected:
@@ -106,7 +106,7 @@ class CompressionSummation<Contact<Parameters...>>
     };
 
   protected:
-    StdVec<DiscreteVariable<Real> *> dv_contact_Vol_ref_;
+    DiscreteVariable<Real> *dv_contact_Vol_ref_;
 };
 
 class AverageCompression : public BaseLocalDynamicsReduce<ReduceSum<Sample<Real>>, SPHBody>
@@ -241,6 +241,36 @@ class Regularization<FreeStream>
 
       protected:
         DataView<int> indicator_;
+    };
+};
+
+class Failure;
+
+template <>
+class Regularization<Failure>
+{
+    DiscreteVariable<Real> *dv_intact_factor_; // 1 for intact, 0 for fully failed
+    DiscreteVariable<Real> *dv_compression_;
+
+  public:
+    Regularization(BaseParticles *base_particles)
+        : dv_intact_factor_(base_particles->getVariableByName<Real>("IntactFactor")),
+          dv_compression_(base_particles->getVariableByName<Real>("Compression")) {};
+
+    class ComputingKernel
+    {
+        DataView<Real> intact_factor_, compression_;
+
+      public:
+        template <class ExecutionPolicy, class EnclosureType>
+        ComputingKernel(const ExecutionPolicy &ex_policy, EnclosureType &encloser)
+            : intact_factor_(encloser.dv_intact_factor_->DelegatedDataView(ex_policy)),
+              compression_(encloser.dv_compression_->DelegatedDataView(ex_policy)) {};
+        Real operator()(UnsignedInt index_i, const Real &compression_sum)
+        {
+            return (Real(1) - intact_factor_[index_i]) * SMAX(compression_sum, Real(1)) +
+                   compression_[index_i] * intact_factor_[index_i];
+        };
     };
 };
 } // namespace fluid_dynamics

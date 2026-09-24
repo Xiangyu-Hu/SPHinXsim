@@ -1,7 +1,7 @@
 #include "continuum_dynamics_builder.h"
 
 #include "all_continuum_dynamics_ck.h"
-#include "fluid_dynamics_builder.hpp"
+#include "density_regularization.h"
 #include "recording_builder.h"
 #include "sph_simulation.h"
 
@@ -132,20 +132,11 @@ void ContinuumDynamicsBuilder::buildShearForceIntegrationIfPresent(
             auto &continuum_solver_parameters = config_manager.getEntity<
                 ContinuumSolverParameters>("ContinuumSolverParameters");
 
-            if (config_manager.hasEntity<GeneralContinuum>(body_name + "GeneralContinuum"))
-            {
-                continuum_shear_force
-                    .add(&main_methods.template addInteractionDynamicsOneLevel<
-                          continuum_dynamics::ShearIntegration, GeneralContinuum>(
-                        inner_relation, continuum_solver_parameters.hourglass_factor_,
-                        continuum_solver_parameters.shear_stress_damping_));
-            }
-
             if (config_manager.hasEntity<J2Plasticity>(body_name + "J2Plasticity"))
             {
                 continuum_shear_force
                     .add(&main_methods.template addInteractionDynamicsOneLevel<
-                          continuum_dynamics::ShearIntegration, J2Plasticity>(
+                          continuum_dynamics::InelasticShearIntegration, J2Plasticity>(
                         inner_relation, continuum_solver_parameters.hourglass_factor_,
                         continuum_solver_parameters.shear_stress_damping_));
             }
@@ -184,7 +175,7 @@ void ContinuumDynamicsBuilder::buildContactRepulsionIfPresent(
             {
                 std::string tgt_body_name = cb_tgt->name_;
                 if (body_name != tgt_body_name &&
-                    !config_manager.hasEntity<GeneralContinuum>(tgt_body_name + "PlasticContinuum"))
+                    !config_manager.hasEntity<PlasticContinuum>(tgt_body_name + "PlasticContinuum"))
                 {
                     std::string relation_name = body_name + tgt_body_name;
                     auto &contact_relation =
@@ -198,22 +189,19 @@ void ContinuumDynamicsBuilder::buildContactRepulsionIfPresent(
                 }
             }
 
-            if (config_manager.hasEntity<SPHBodiesConfig>("SolidBodiesConfig"))
+            auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
+            for (const auto &sb_tgt : solid_bodies_config)
             {
-                auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
-                for (const auto &sb_tgt : solid_bodies_config)
-                {
-                    std::string relation_name = body_name + sb_tgt->name_;
-                    auto &contact_relation = sph_system.getRelationByName<
-                        Contact<Relation<RealBody, SolidBody>>>(relation_name);
-                    contact_repulsion_factor.add(
-                        &main_methods.template addInteractionDynamics<solid_dynamics::RepulsionFactor>(
-                            contact_relation));
-                    contact_repulsion_force.add(
-                        &main_methods.template addInteractionDynamicsWithUpdate<
-                            solid_dynamics::RepulsionForceCK, Wall>(
-                            contact_relation, continuum_solver_parameters.contact_numerical_damping_));
-                }
+                std::string relation_name = body_name + sb_tgt->name_;
+                auto &contact_relation = sph_system.getRelationByName<
+                    Contact<Relation<RealBody, SolidBody>>>(relation_name);
+                contact_repulsion_factor.add(
+                    &main_methods.template addInteractionDynamics<solid_dynamics::RepulsionFactor>(
+                        contact_relation));
+                contact_repulsion_force.add(
+                    &main_methods.template addInteractionDynamicsWithUpdate<
+                        solid_dynamics::RepulsionForceCK, Wall>(
+                        contact_relation, continuum_solver_parameters.contact_numerical_damping_));
             }
         }
     }
@@ -232,6 +220,41 @@ void ContinuumDynamicsBuilder::buildContactRepulsionIfPresent(
         simulation_pipeline.insert_hook(
             SimulationHookPoint::AfterLinearCorrectionMatrix, [&]()
             { contact_repulsion_factor.exec(); });
+    }
+}
+//=================================================================================================//
+void ContinuumDynamicsBuilder::buildDensityRegularizationIfPresent(
+    SPHSimulation &sim, MainMethods &main_methods)
+{
+    auto &sph_system = sim.getSPHSystem();
+    auto &config_manager = sim.getConfigManager();
+    auto &continuum_bodies_config = config_manager.getEntity<SPHBodiesConfig>(
+        "ContinuumBodiesConfig");
+    auto &density_regularization = main_methods.addParticleDynamicsGroup();
+
+    for (const auto &cb_src : continuum_bodies_config)
+    {
+        std::string body_name = cb_src->name_;
+        if (!config_manager.hasEntity<PlasticContinuum>(body_name + "PlasticContinuum"))
+        {
+            auto &inner_relation = sph_system.getRelationByName<Inner<Relation<RealBody>>>(body_name);
+            density_regularization.add(
+                &main_methods.template addInteractionDynamics<fluid_dynamics::CompressionSummation>(
+                    inner_relation));
+            auto &continuum_body = sph_system.getBodyByName<RealBody>(body_name);
+            density_regularization.add(
+                &main_methods.template addStateDynamics<
+                    fluid_dynamics::DensityRegularization, WeaklyCompressibleFluid, fluid_dynamics::Failure>(
+                    continuum_body));
+        }
+    }
+
+    if (density_regularization.hasDynamics())
+    {
+        auto &simulation_pipeline = sim.getSimulationPipeline();
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::AfterUpdateConfiguration, [&]()
+            { density_regularization.exec(); });
     }
 }
 //=================================================================================================//

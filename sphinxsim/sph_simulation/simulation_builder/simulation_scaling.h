@@ -65,6 +65,7 @@ class ScalingConfig
     ScalingConfig(const json &config);
     bool isScalingEnabled() const;
     Vecd jsonToVecd(const nlohmann::json &arr, const std::string &unit_name) const;
+    Vec2d jsonToVec2d(const nlohmann::json &arr, const std::string &unit_name) const;
     Real jsonToReal(const json &j, const std::string &unit_name) const;
     Real getScalingRef(const std::string &unit_name, bool is_required = true) const;
 #ifdef SPHINXSYS_2D

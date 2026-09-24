@@ -11,6 +11,10 @@ nav:
   - AgentCAE: agent-cae.md
   - Visualization: visualization.md
   - LLM Testing: llm-testing.md
+  - Theoretical Backgrounds:
+      - Overview: theoretical-background.md
+      - Physical Models: theoretical-background-physical-models.md
+      - SPH Methods: theoretical-background-sph-methods.md
 
 theme:
   name: material
@@ -31,13 +35,13 @@ font:
   text: Roboto
   code: Roboto Mono
 
-  markdown_extensions:
-    - admonition
-    - pymdownx.details
-    - pymdownx.highlight
-    - pymdownx.superfences
-    - pymdownx.arithmatex:
-        generic: true
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.arithmatex:
+      generic: true
 
 extra_javascript:
   - javascripts/mathjax.js

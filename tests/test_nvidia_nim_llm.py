@@ -155,7 +155,7 @@ class TestNvidiaNIMLLMGenerate:
         example_output = user_content["example_output"]
         shapes = {shape["name"]: shape for shape in example_output["geometries"]["shapes"]}
         assert "system_domain" in example_output["geometries"]
-        assert shapes["GranularBody"]["type"] == "bounding_box"
+        assert shapes["GranularBody"]["type"] == "cylinder"
         assert shapes["WallBoundary"]["type"] == "complex_shape"
 
         generated_shapes = {shape.name: shape for shape in config.geometries.shapes}

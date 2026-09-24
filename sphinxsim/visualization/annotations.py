@@ -121,6 +121,25 @@ def _format_value(value: object | None, unit: str = "") -> str:
     return f"{float(value):g}{unit}"
 
 
+def _plastic_sound_speed(material: object) -> float | None:
+    """Return an explicit PlasticContinuum sound speed or its runtime default."""
+    explicit = _material_value(material, "sound_speed")
+    if explicit is not None:
+        return float(explicit)
+    values = [
+        _material_value(material, "density"),
+        _material_value(material, "youngs_modulus"),
+        _material_value(material, "poisson_ratio"),
+    ]
+    if any(value is None for value in values):
+        return None
+    density, youngs_modulus, poisson_ratio = (float(value) for value in values)
+    denominator = density * 3.0 * (1.0 - 2.0 * poisson_ratio)
+    if density <= 0.0 or youngs_modulus <= 0.0 or denominator <= 0.0:
+        return None
+    return math.sqrt(youngs_modulus / denominator)
+
+
 def _material_rows(material: object) -> list[tuple[str, str]]:
     """Return only the fields that belong to this material family."""
     material_type = _material_type_value(material)
@@ -129,7 +148,7 @@ def _material_rows(material: object) -> list[tuple[str, str]]:
     if material_type == "plastic_continuum":
         rows.extend(
             [
-                ("Sound speed", _format_value(_material_value(material, "sound_speed"), " m/s")),
+                ("Sound speed", _format_value(_plastic_sound_speed(material), " m/s")),
                 ("Young's modulus", _format_value(_material_value(material, "youngs_modulus"), " Pa")),
                 ("Poisson ratio", _format_value(_material_value(material, "poisson_ratio"))),
                 (

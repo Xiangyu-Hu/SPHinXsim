@@ -131,9 +131,9 @@ class J2Plasticity : public GeneralContinuum
     Real hardening_modulus_;
     const Real sqrt_2_over_3_ = sqrt(2.0 / 3.0);
     DiscreteVariable<Real> *dv_hardening_factor_;
-    DiscreteVariable<Real> *dv_intact_factor_; // 1 for intact, 0 for fully failed
-    DiscreteVariable<Real> *dv_p_;             // pressure for damage evaluation
-    Real failure_tension_;                     // tension failure criterion
+    DiscreteVariable<Real> *dv_intact_factor_;       // 1 for intact, 0 for fully failed
+    DiscreteVariable<Real> *dv_p_, *dv_compression_; // for damage evaluation
+    Real failure_tension_;                           // tension failure criterion
 
   public:
     explicit J2Plasticity(Real rho0, Real c0, Real youngs_modulus, Real poisson_ratio,
@@ -162,21 +162,10 @@ class J2Plasticity : public GeneralContinuum
         Real yield_stress_;
         Real hardening_modulus_;
         Real sqrt_2_over_3_, failure_tension_;
-        Real *hardening_factor_, *intact_factor_, *p_;
+        Real *hardening_factor_, *intact_factor_, *p_, *compression_;
 
         inline Matd ReturnMapping(UnsignedInt index_i, Matd try_shear_stress);
         inline Real HardeningFactorRate(const Matd &shear_stress, Real &hardening_factor);
-    };
-
-    class EosKernel : public GeneralContinuum::EosKernel
-    {
-      public:
-        template <typename ExecutionPolicy>
-        EosKernel(const ExecutionPolicy &ex_policy, J2Plasticity &encloser);
-        Real getPressure(Real rho);
-
-      protected:
-        Real failure_tension_;
     };
 };
 } // namespace SPH

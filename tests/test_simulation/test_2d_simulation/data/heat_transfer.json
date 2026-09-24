@@ -7,8 +7,8 @@
     },
     {
       "value": 1.0,
-      "name": "Pressure",
-      "hint": "fluid_boundary_conditions[oriented_box=Inlet].pressure"
+      "name": "Speed",
+      "hint": "fluid_boundary_conditions[oriented_box=Inlet].velocity.max_speed"
     },
     {
       "value": 1.0,
@@ -132,19 +132,34 @@
   ],
 
   "fluid_boundary_conditions": [
-    {
-      "body_name": "WaterBody",
-      "oriented_box": "Inlet",
-      "type": "bi_directional",
-      "pressure": 1.0
-    },
-    {
-      "body_name": "WaterBody",
-      "oriented_box": "Outlet",
-      "type": "bi_directional",
-      "pressure": 0.0
+  {
+    "body_name": "WaterBody",
+    "oriented_box": "Inlet",
+    "type": "bi_directional",
+    "velocity": {
+      "profile": "parabolic",
+      "relaxation_rate": 0.3,
+      "max_speed": 1.0,
+      "channel_height": 0.4,
+      "startup": {
+        "type": "exponential",
+        "time_constant": 0.2
+      }
     }
-  ],
+  },
+  {
+    "body_name": "WaterBody",
+    "oriented_box": "Outlet",
+    "type": "bi_directional",
+    "pressure": 0.0
+  }
+],
+
+  "startup_acceleration": {
+    "body_name": "WaterBody",
+    "target_velocity": [0.5, 0.0],
+    "duration": 0.2
+  },
 
   "initial_conditions": [
     {
@@ -172,7 +187,6 @@
       ]
     }
   ],
-
   "extra_state_recording": [
     {
       "name": "WaterBody",

@@ -159,6 +159,11 @@ void ParticleGeneration ::addAllBodies(
         generation_body_config.name_ = body_name;
         Shape &shape = config_manager.getEntity<Shape>(body_name);
         auto &real_body = relaxation_system.addBody<RealBody>(shape, body_name);
+        if (bd.contains("adaptation_ratios"))
+        {
+            auto ratios = bd.at("adaptation_ratios");
+            real_body.defineAdaptationRatios(ratios[0].get<Real>(), ratios[1].get<Real>());
+        }
 
         if (bd.contains("relaxation"))
         {

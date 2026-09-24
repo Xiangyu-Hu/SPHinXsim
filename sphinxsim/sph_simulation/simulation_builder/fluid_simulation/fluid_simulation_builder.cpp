@@ -62,22 +62,13 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         auto &structure_contact = sph_system.getRelationByName<Contact<Relation<SolidBody, FluidBody>>>(
             body_name + fluid_body_local.Name());
 
-        auto &viscous_force_on_structure =
-            main_methods.addInteractionDynamics<FSI::ViscousForceFromFluid<Contact<WithUpdate, Viscosity, NoKernelCorrectionCK, Relation<SolidBody, FluidBody>>>>(structure_contact);
         auto &pressure_force_on_structure =
-            main_methods.addInteractionDynamics<FSI::PressureForceFromFluid<Contact<WithUpdate, AcousticRiemannSolverCK, NoKernelCorrectionCK, Relation<SolidBody, FluidBody>>>>(structure_contact);
-
-        sim.getInitializationPipeline().insert_hook(
-            InitializationHookPoint::InitialAfterLinearCorrectionMatrix, [&]()
-            { viscous_force_on_structure.exec(); });
+            main_methods.addInteractionDynamicsWithUpdate<
+                FSI::PressureForceFromFluid, AcousticRiemannSolverCK, NoKernelCorrectionCK>(structure_contact);
 
         sim.getSimulationPipeline().insert_hook(
             SimulationHookPoint::BoundaryCondition, [&]()
             { pressure_force_on_structure.exec(); });
-
-        sim.getSimulationPipeline().insert_hook(
-            SimulationHookPoint::AfterLinearCorrectionMatrix, [&]()
-            { viscous_force_on_structure.exec(); });
     }
 
     auto &fluid_density_regularization = FluidDynamicsBuilder::addDensityRegularization(sim, main_methods);

@@ -132,6 +132,7 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticStep1stHalf(
 {
     auto &sph_system = sim.getSPHSystem();
     auto &config_manager = sim.getConfigManager();
+    auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
     auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
     auto &acoustic_step_1st_half = main_methods.addParticleDynamicsGroup();
 
@@ -293,6 +294,9 @@ void FluidDynamicsBuilder::buildViscousForceIfPresent(
             addInteractionWithSolidBodies<Wall, Viscosity, NoKernelCorrectionCK>(
                 sim, viscous_force, fluid_body);
             all_viscous_force.add(&viscous_force);
+
+            addViscousForceOnSolidBodiesIfPresent<Viscosity, NoKernelCorrectionCK>(
+                sim, all_viscous_force, main_methods, fb);
         }
     }
 

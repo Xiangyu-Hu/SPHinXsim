@@ -41,6 +41,7 @@ class RealBody;
 class FluidBody;
 class WeaklyCompressibleMultiSpecies;
 class WeaklyCompressibleMultiPhase;
+
 namespace fluid_dynamics
 {
 class AbstractBidirectionalBoundary;
@@ -125,6 +126,11 @@ class FluidDynamicsBuilder
     template <class FluidType, class FluidBodyType>
     static BaseDynamics<void> &addDensityRegularizationForOneBody(
         MainMethods &main_methods, FluidBodyType &fluid_body, const std::string &surface_type);
+
+    template <class ViscosityType, class KernelCorrectionType>        
+    static void addViscousForceOnSolidBodiesIfPresent(
+        SPHSimulation &sim, ParticleDynamicsGroup &particle_dynamics_group,
+        MainMethods &main_methods, SPHBodyConfig *fb);
 };
 } // namespace SPH
 #endif // FLUID_DYNAMICS_BUILDER_H

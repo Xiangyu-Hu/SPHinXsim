@@ -99,6 +99,19 @@ class CalibrationGraph:
             "decision": decision.model_dump(mode="json"),
         }
 
+    def preview_case(self, state: CalibrationGraphState) -> CalibrationGraphState:
+        result = self._result(state)
+        try:
+            result = self.workflow.preview_case(result)
+        except (OSError, ValueError) as exc:
+            result = self.workflow.fail(result, str(exc))
+        update: CalibrationGraphState = {
+            "workflow_result": result.model_dump(mode="json")
+        }
+        if result.status == CalibrationWorkflowStatus.FAILED:
+            update["failed_node"] = "preview_case"
+        return update
+
     def execute_candidate(self, state: CalibrationGraphState) -> CalibrationGraphState:
         result = self._result(state)
         decision = state.get("decision")
@@ -146,6 +159,7 @@ class CalibrationGraph:
             "attempt": context.replan_attempt,
             "failed_node": context.failed_node,
             "error_message": context.error_message,
+            "failure_kind": context.failure_kind,
             "failed_candidate": context.failed_candidate,
             "decision": decision.model_dump(mode="json"),
         }
@@ -180,6 +194,7 @@ class CalibrationGraph:
             workflow_id=result.workflow_id,
             failed_node=state.get("failed_node", "unknown"),
             error_message=result.error_message or "Unknown workflow failure.",
+            failure_kind=result.failure_kind,
             failed_candidate=state.get("failed_candidate"),
             replan_attempt=attempt,
             maximum_replans=self.replanning_policy.maximum_replans,
@@ -252,6 +267,14 @@ class CalibrationGraph:
             return "replan"
         if result.status != CalibrationWorkflowStatus.RUNNING:
             return END
+        return "preview_case"
+
+    def route_after_preview(self, state: CalibrationGraphState) -> str:
+        result = self._result(state)
+        if result.status == CalibrationWorkflowStatus.FAILED and self.replanner:
+            return "replan"
+        if result.status != CalibrationWorkflowStatus.RUNNING:
+            return END
         return "decide"
 
     def route_after_decision(self, state: CalibrationGraphState) -> str:
@@ -302,6 +325,7 @@ class CalibrationGraph:
         builder.add_node("draft_plan", self.draft_plan)
         builder.add_node("request_plan_approval", self.request_plan_approval)
         builder.add_node("prepare_case", self.prepare_case)
+        builder.add_node("preview_case", self.preview_case)
         builder.add_node("decide", self.decide)
         builder.add_node("execute_candidate", self.execute_candidate)
         builder.add_node("replan", self.replan)
@@ -312,6 +336,7 @@ class CalibrationGraph:
             self.route_after_plan_approval,
         )
         builder.add_conditional_edges("prepare_case", self.route_after_preparation)
+        builder.add_conditional_edges("preview_case", self.route_after_preview)
         builder.add_conditional_edges("decide", self.route_after_decision)
         builder.add_conditional_edges("execute_candidate", self.route_after_candidate)
         builder.add_conditional_edges("replan", self.route_after_replan)

@@ -12,6 +12,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
 from sphinxsim.agent import (
+    AnalysisPlan,
     AgentTaskStore,
     CalibrationWorkflowStatus,
     DeterministicCalibrationWorkflow,
@@ -21,6 +22,8 @@ from sphinxsim.agent import (
     build_calibration_graph,
     open_sqlite_calibration_graph,
 )
+from sphinxsim.agent.declarative_extractors import DeclarativeExtractorSpec
+from sphinxsim.agent.calibration_workflow import CalibrationWorkflowDefinition
 from sphinxsim.services import CLICommandResult
 
 
@@ -151,6 +154,54 @@ class FormulaArtifactAdapter(DeterministicArtifactAdapter):
             encoding="utf-8",
         )
         return success("run")
+
+
+class DeclarativePlanner:
+    def plan(self, prompt):
+        payload = MockColumnCollapseCalibrationPlanner().plan(prompt).model_dump(
+            mode="json"
+        )
+        payload["analysis"] = None
+        payload["analysis_plan"] = AnalysisPlan(
+            kind="declarative",
+            metric_name="final_x",
+            declarative=DeclarativeExtractorSpec(
+                extractor_id="granular_final_extent",
+                description="Read the final maximum x coordinate.",
+                body_name="GranularBody",
+                outputs=[
+                    {
+                        "output_name": "final_x",
+                        "component_index": 0,
+                        "reduction": "maximum",
+                    }
+                ],
+            ),
+        ).model_dump(mode="json")
+        payload["calibration"]["objective"].update(
+            tool_name="analyze_result",
+            metric_name="final_x",
+            target_value=0.45,
+        )
+        return CalibrationWorkflowDefinition.model_validate(payload)
+
+
+def test_workflow_uses_declarative_analysis_plan_for_candidate_metric(
+    build_temp_path: Path,
+) -> None:
+    workflow = DeterministicCalibrationWorkflow(
+        make_store(build_temp_path, "declarative_plan"),
+        DeclarativePlanner(),
+        DeterministicArtifactAdapter(),
+    )
+
+    result = workflow.initialize("Measure final extent.", workflow_id="declarative_plan")
+    iteration = workflow.execute_candidate(result, 0.0)
+
+    assert iteration.metric_name == "final_x"
+    assert iteration.metric_value == pytest.approx(0.45)
+    analysis = workflow.store.load_analysis(iteration.task_id, "run_001", "analysis_001")
+    assert analysis.metrics["extractor_fingerprint"] == result.definition.analysis_plan.fingerprint
 
 
 def test_complete_workflow_generates_runs_analyzes_and_converges(

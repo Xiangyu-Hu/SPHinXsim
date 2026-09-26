@@ -675,36 +675,12 @@ class ConfigVisualizer:
         file per configured particle-generation body with the highest sequence
         number.
         """
-        if vtp_dir is None or not vtp_dir.is_dir():
+        from sphinxsim.results import ResultCatalog
+        if vtp_dir is None:
             return {}
-
-        body_names = self._particle_generation_body_names()
-        if not body_names:
-            return {}
-
-        latest: dict[str, tuple[int, Path]] = {}
-        for path in vtp_dir.glob("*.vtp"):
-            stem = path.stem
-
-            for body_name in body_names:
-                prefix = f"{body_name}_"
-                if not stem.startswith(prefix):
-                    continue
-
-                suffix = stem[len(prefix):]
-                if suffix.startswith("ite_"):
-                    suffix = suffix[len("ite_"):]
-                try:
-                    sequence = float(suffix)
-                except ValueError:
-                    continue
-
-                previous = latest.get(body_name)
-                if previous is None or sequence >= previous[0]:
-                    latest[body_name] = (sequence, path)
-                break
-
-        return {body_name: item[1] for body_name, item in latest.items()}
+        frames = ResultCatalog().latest(vtp_dir, self._particle_generation_body_names(),
+                                        include_generation=True)
+        return {body: frame.path for body, frame in frames.items()}
 
     def _populate_plotter(
         self,

@@ -4,15 +4,17 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
+import hashlib
 import json
 import math
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .analysis import AnalysisSpec
+from .analysis_plan import AnalysisPlan
 from .calibration import (
     BoundedSearchPolicy,
     CalibrationDecision,
@@ -27,6 +29,7 @@ from .calibration import (
 from .executor import StaticPlanExecutor
 from .models import utc_now
 from .presets import create_runout_analysis_column_collapse_task
+from .preview_review import PreviewDecision, PreviewReviewer
 from .store import AgentTaskStore, TaskNotFoundError
 from .tools import ToolRegistry, build_builtin_tool_registry
 from sphinxsim.services import CLICommandResult, CLIInvocationError
@@ -58,6 +61,26 @@ class CalibrationCommandAdapter(Protocol):
         timeout: float | None = None,
     ) -> CLICommandResult: ...
 
+    def update(
+        self,
+        config_path: str | Path,
+        instruction: str,
+        *,
+        output_path: str | Path | None = None,
+        timeout: float | None = None,
+        **kwargs: Any,
+    ) -> CLICommandResult: ...
+
+    def preview(
+        self,
+        config_path: str | Path,
+        *,
+        with_particles: bool = False,
+        off_screen: bool = False,
+        screenshot_path: str | Path | None = None,
+        timeout: float | None = None,
+    ) -> CLICommandResult: ...
+
     def run(
         self,
         config_path: str | Path,
@@ -80,7 +103,24 @@ class CalibrationWorkflowDefinition(BaseModel):
     )
     body_name: str = Field(..., min_length=1)
     calibration: CalibrationSpec
-    analysis: AnalysisSpec
+    analysis: AnalysisSpec | None = None
+    analysis_plan: AnalysisPlan | None = None
+
+    @model_validator(mode="after")
+    def validate_analysis_plan(self):
+        if self.analysis_plan is None:
+            if self.analysis is None:
+                raise ValueError("an analysis contract is required")
+            self.analysis_plan = AnalysisPlan(builtin=self.analysis,
+                metric_name=self.calibration.objective.metric_name)
+        plan = self.analysis_plan
+        if self.analysis is not None and (plan.kind != "builtin" or plan.builtin != self.analysis):
+            raise ValueError("legacy analysis and analysis_plan disagree")
+        if plan.body_name != self.body_name:
+            raise ValueError("analysis body must match workflow body")
+        if plan.metric_name != self.calibration.objective.metric_name or plan.unit != self.calibration.objective.unit:
+            raise ValueError("analysis metric is not supported or does not match the objective and unit")
+        return self
 
     def validate_tools(self, registry: ToolRegistry) -> None:
         self.calibration.validate_tools(registry)
@@ -176,12 +216,16 @@ class CalibrationWorkflowResult(BaseModel):
     status: CalibrationWorkflowStatus
     baseline_case_path: str
     case_prepared: bool = False
+    preview_status: str = "pending"
+    preview_fingerprint: str | None = None
+    preview_attempts: list[dict[str, Any]] = Field(default_factory=list)
     plan_approved: bool = False
     approved_at: datetime | None = None
     iterations: list[CalibrationIteration] = Field(default_factory=list)
     final_decision: CalibrationDecision | None = None
     error_message: str | None = None
     replan_history: list[dict[str, Any]] = Field(default_factory=list)
+    failure_kind: str | None = None
     started_at: datetime
     finished_at: datetime | None = None
 
@@ -202,6 +246,8 @@ class DeterministicCalibrationWorkflow:
         search_policy: BoundedSearchPolicy | None = None,
         tool_registry: ToolRegistry | None = None,
         command_timeout: float | None = None,
+        preview_reviewer: PreviewReviewer | None = None,
+        maximum_preview_attempts: int = 2,
     ) -> None:
         self.store = store
         self.planner = planner
@@ -209,6 +255,8 @@ class DeterministicCalibrationWorkflow:
         self.search_policy = search_policy or BoundedSearchPolicy()
         self.tool_registry = tool_registry or build_builtin_tool_registry()
         self.command_timeout = command_timeout
+        self.preview_reviewer = preview_reviewer
+        self.maximum_preview_attempts = maximum_preview_attempts
 
     def execute(
         self,
@@ -240,7 +288,10 @@ class DeterministicCalibrationWorkflow:
     ) -> CalibrationWorkflowResult:
         """Create, generate, and validate one workflow before any simulation."""
         result = self.draft_plan(user_prompt, workflow_id=workflow_id)
-        return self.prepare_case(result)
+        result = self.prepare_case(result)
+        if result.status == CalibrationWorkflowStatus.RUNNING:
+            result = self.preview_case(result)
+        return result
 
     def draft_plan(
         self,
@@ -340,6 +391,111 @@ class DeterministicCalibrationWorkflow:
         self._save(result)
         return result
 
+    def preview_case(
+        self,
+        result: CalibrationWorkflowResult,
+    ) -> CalibrationWorkflowResult:
+        """Render and visually review a baseline without involving the user."""
+        if result.status != CalibrationWorkflowStatus.RUNNING:
+            raise ValueError("visual preflight requires a running workflow")
+        if not result.case_prepared:
+            raise ValueError("visual preflight requires a prepared case")
+        if result.preview_status in {"accepted", "skipped"}:
+            return result
+        if self.preview_reviewer is None:
+            result.preview_status = "skipped"
+            result.preview_fingerprint = self._config_fingerprint(
+                result.baseline_case_path
+            )
+            self._save(result)
+            return result
+
+        preview_dir = self._result_path(result.workflow_id).parent / "previews"
+        preview_dir.mkdir(parents=True, exist_ok=True)
+        for attempt in range(len(result.preview_attempts) + 1, self.maximum_preview_attempts + 1):
+            screenshot = preview_dir / f"attempt_{attempt:03d}.png"
+            rendered = self.command_adapter.preview(
+                result.baseline_case_path,
+                with_particles=True,
+                off_screen=True,
+                screenshot_path=screenshot,
+                timeout=self.command_timeout,
+            )
+            self._save_command_logs(result.workflow_id, f"preview_{attempt:03d}", rendered)
+            if not rendered.succeeded or not screenshot.is_file():
+                result.failure_kind = "preview_render_error"
+                return self.fail(
+                    result,
+                    rendered.stderr.strip() or "Preview did not create a screenshot.",
+                )
+            try:
+                review = self.preview_reviewer.review(
+                    screenshot,
+                    result.baseline_case_path,
+                    attempt=attempt,
+                    request=(
+                        result.user_prompt
+                        + "\nGenerated case intent: "
+                        + result.definition.generation_description
+                    ),
+                )
+            except (OSError, ValueError) as exc:
+                result.failure_kind = "preview_model_error"
+                return self.fail(result, f"Visual preflight failed: {exc}")
+            result.preview_attempts.append(
+                {
+                    "attempt": attempt,
+                    "screenshot_path": str(screenshot),
+                    "review": review.model_dump(mode="json"),
+                }
+            )
+            self._save(result)
+            if review.decision == PreviewDecision.ACCEPT:
+                result.preview_status = "accepted"
+                result.preview_fingerprint = self._config_fingerprint(
+                    result.baseline_case_path
+                )
+                self._save(result)
+                return result
+            if review.decision == PreviewDecision.REJECT:
+                result.preview_status = "rejected"
+                result.failure_kind = "preview_rejected"
+                return self.fail(result, review.summary)
+            if attempt >= self.maximum_preview_attempts:
+                break
+            updated = self.command_adapter.update(
+                result.baseline_case_path,
+                review.revision_instruction or "",
+                output_path=result.baseline_case_path,
+                timeout=self.command_timeout,
+            )
+            self._save_command_logs(result.workflow_id, f"preview_update_{attempt:03d}", updated)
+            if not updated.succeeded:
+                result.failure_kind = "preview_revision_error"
+                return self.fail(
+                    result,
+                    updated.stderr.strip() or "Preview revision failed.",
+                )
+            validated = self.command_adapter.validate(
+                result.baseline_case_path,
+                timeout=self.command_timeout,
+            )
+            if not validated.succeeded:
+                result.failure_kind = "preview_revision_error"
+                return self.fail(
+                    result,
+                    validated.stderr.strip() or "Revised configuration is invalid.",
+                )
+        result.preview_status = "rejected"
+        result.failure_kind = "preview_attempts_exhausted"
+        return self.fail(result, "Visual preflight exhausted its revision attempts.")
+
+    @staticmethod
+    def _config_fingerprint(config_path: str | Path) -> str:
+        payload = json.loads(Path(config_path).read_text(encoding="utf-8"))
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
     def propose_next(self, result: CalibrationWorkflowResult) -> CalibrationDecision:
         """Derive the next deterministic decision from persisted observations."""
         if result.status != CalibrationWorkflowStatus.RUNNING:
@@ -412,12 +568,26 @@ class DeterministicCalibrationWorkflow:
                 config_path=workflow.baseline_case_path,
                 task_id=task_id,
             )
+            plan.steps[1].parameters["body_name"] = workflow.definition.body_name
+            registry, spec = workflow.definition.analysis_plan.registry_and_spec()
+            plan.steps[-1].parameters["analysis_spec"] = spec
+            plan.steps[-1].parameters["analysis_plan"] = workflow.definition.analysis_plan.model_dump(mode="json")
+            self.store.save_plan(task_id, plan)
+        registry, _ = workflow.definition.analysis_plan.registry_and_spec()
         execution = StaticPlanExecutor(
             self.store,
             self.command_adapter,
             command_timeout=self.command_timeout,
+            extractor_registry=registry,
         ).execute(task.task_id)
         if not execution.succeeded:
+            try:
+                run = self.store.load_run(task_id, "run_001")
+                workflow.failure_kind = run.failure_kind
+            except TaskNotFoundError:
+                workflow.failure_kind = "validation_error" if execution.failed_step_id == "validate_case" else "case_error"
+            if execution.failed_step_id == "analyze_result":
+                workflow.failure_kind = "missing_vtp" if "no state VTP" in execution.message else "analysis_error"
             raise ValueError(
                 f"calibration iteration {iteration} failed at "
                 f"{execution.failed_step_id}: {execution.message}"
@@ -427,7 +597,7 @@ class DeterministicCalibrationWorkflow:
         analysis_id = "analysis_001"
         analysis = self.store.load_analysis(task_id, run_id, analysis_id)
         metric_name = workflow.definition.calibration.objective.metric_name
-        metric_value = analysis.metrics.get(metric_name)
+        metric_value = analysis.metrics.get(metric_name, analysis.metrics.get("values", {}).get(metric_name))
         if isinstance(metric_value, bool) or not isinstance(metric_value, (int, float)):
             raise ValueError(
                 f"analysis did not produce numeric metric {metric_name!r}"
@@ -516,8 +686,21 @@ class DeterministicCalibrationWorkflow:
         return result
 
     def _save(self, result: CalibrationWorkflowResult) -> Path:
+        control = getattr(self.command_adapter, "control_dir", None)
+        if control and (control / "cancel.request").exists():
+            result.status = CalibrationWorkflowStatus.CANCELLED
+            result.error_message = "The user cancelled the workflow."
+            result.failure_kind = "cancelled"
+            result.finished_at = utc_now()
         path = self._result_path(result.workflow_id)
         self.store._atomic_write(path, result.model_dump_json(indent=2))
+        if control:
+            from types import SimpleNamespace
+            from .run_manager import RunManager
+            RunManager(SimpleNamespace(workspace=control.parent.parent)).event(
+                result.workflow_id, "workflow_state", status=result.status.value,
+                iterations=len(result.iterations), case_prepared=result.case_prepared,
+                plan_approved=result.plan_approved, failure_kind=result.failure_kind)
         return path
 
     def _save_command_logs(

@@ -262,6 +262,8 @@ class AgentRun(BaseModel):
     status: RunStatus = RunStatus.RUNNING
     returncode: int | None = None
     timed_out: bool = False
+    failure_kind: str | None = None
+    timeout_seconds: float | None = None
     error_message: str | None = None
     stdout_log: str | None = None
     stderr_log: str | None = None
@@ -321,7 +323,9 @@ class AgentRun(BaseModel):
                 "attempt": self.attempt_count,
                 "status": self.status.value,
                 "returncode": self.returncode,
-                "timed_out": self.timed_out,
+                  "timed_out": self.timed_out,
+                  "failure_kind": self.failure_kind,
+                  "timeout_seconds": self.timeout_seconds,
                 "error_message": self.error_message,
                 "stdout_log": self.stdout_log,
                 "stderr_log": self.stderr_log,
@@ -336,6 +340,8 @@ class AgentRun(BaseModel):
                 "status": RunStatus.RUNNING,
                 "returncode": None,
                 "timed_out": False,
+                "failure_kind": None,
+                "timeout_seconds": None,
                 "error_message": None,
                 "stdout_log": None,
                 "stderr_log": None,

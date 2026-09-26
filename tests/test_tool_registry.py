@@ -17,6 +17,7 @@ EXPECTED_TOOLS = {
     "validate_case",
     "run_case",
     "analyze_runout",
+    "analyze_result",
     "compare_sweep_results",
 }
 

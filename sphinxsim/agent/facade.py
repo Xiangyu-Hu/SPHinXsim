@@ -25,6 +25,7 @@ from .extractor_planner import (
     StructuredExtractorPlanner,
 )
 from .models import utc_now
+from .analysis_plan import AnalysisPlan
 from .runtime import AgentRuntime, AgentRuntimeSettings
 from .service import CalibrationPlanSummary, AgentServiceError, AgentServiceStatus
 from .store import AgentTaskStore
@@ -73,6 +74,12 @@ class AgentCAEReport(BaseModel):
     best_result: AgentCAEBestResult | None = None
     iterations: list[AgentCAEIterationReport] = Field(default_factory=list)
     replan_history: list[dict[str, Any]] = Field(default_factory=list)
+    analysis_plan: AnalysisPlan | None = None
+    execution_attempts: list[dict[str, Any]] = Field(default_factory=list)
+    failure_kind: str | None = None
+    preview_status: str
+    preview_fingerprint: str | None = None
+    preview_attempts: list[dict[str, Any]] = Field(default_factory=list)
     baseline_case_path: str
     error_message: str | None = None
     started_at: datetime
@@ -129,6 +136,11 @@ class AgentCAEReport(BaseModel):
                 for item in result.iterations
             ],
             replan_history=result.replan_history,
+            analysis_plan=result.definition.analysis_plan,
+            failure_kind=result.failure_kind,
+            preview_status=result.preview_status,
+            preview_fingerprint=result.preview_fingerprint,
+            preview_attempts=result.preview_attempts,
             baseline_case_path=result.baseline_case_path,
             error_message=result.error_message,
             started_at=result.started_at,
@@ -151,8 +163,10 @@ class AgentCAE:
         planner_provider: str | None = None,
         replanner_provider: str | None = None,
         generation_provider: str | None = None,
+        preview_provider: str | None = None,
         require_approval: bool = True,
         command_timeout: float = 300.0,
+        analysis_plan: AnalysisPlan | None = None,
     ) -> AgentServiceStatus:
         identifier = workflow_id or f"agent_{uuid4().hex[:12]}"
         configured_provider = normalize_llm_provider()
@@ -161,8 +175,10 @@ class AgentCAE:
             planner_provider=planner_provider or configured_provider,
             replanner_provider=replanner_provider or configured_provider,
             generation_provider=generation_provider or configured_provider,
+            preview_provider=preview_provider or configured_provider,
             require_approval=require_approval,
             command_timeout=command_timeout,
+            analysis_plan=analysis_plan,
         )
         self.runtime.save_settings(settings)
         return self.runtime.create_service(settings, starting=True).start(
@@ -180,7 +196,38 @@ class AgentCAE:
         return self._service(workflow_id, execution_enabled=True).resume(workflow_id)
 
     def cancel(self, workflow_id: str) -> AgentServiceStatus:
+        record = self.run_manager.cancel(workflow_id)
+        if record.get("state") == "cancelling":
+            status = self.status(workflow_id)
+            return status.model_copy(update={"phase": "cancelling"})
         return self._service(workflow_id, execution_enabled=False).cancel(workflow_id)
+
+    @property
+    def run_manager(self):
+        from .run_manager import RunManager
+        return RunManager(self.runtime)
+
+    def submit(self, workflow_id: str, *, action: str = "approve") -> dict:
+        return self.run_manager.submit(workflow_id, action=action)
+
+    def execution_status(self, workflow_id: str) -> dict:
+        return self.run_manager.status(workflow_id)
+
+    def events(self, workflow_id: str, *, after: int = 0) -> list[dict]:
+        return self.run_manager.events(workflow_id, after)
+
+    def live_results(self, workflow_id: str) -> list[dict]:
+        from sphinxsim.results import ResultCatalog
+        result = self.report(workflow_id, save=False)
+        catalog = getattr(self, "_result_catalog", None)
+        if catalog is None:
+            self._result_catalog = catalog = ResultCatalog()
+        runs = [r for r in self.run_manager.attempts(workflow_id) if r.get("operation") == "run" and r.get("output_dir")]
+        if not runs:
+            return []
+        frames = catalog.latest(runs[-1]["output_dir"], [result.plan_summary.body_name])
+        return [dict(body_name=f.body_name, path=str(f.path), time=f.time, version=f.version)
+                for f in frames.values()]
 
     def plan_extractor(
         self,
@@ -235,6 +282,7 @@ class AgentCAE:
         except (OSError, ValueError) as exc:
             raise AgentServiceError(f"workflow not found: {workflow_id}") from exc
         report = AgentCAEReport.from_workflow(result)
+        report.execution_attempts = self.run_manager.attempts(workflow_id)
         if save:
             destination = self.runtime.workspace / "reports" / f"{workflow_id}.json"
             AgentTaskStore._atomic_write(destination, report.model_dump_json(indent=2))

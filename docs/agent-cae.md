@@ -24,6 +24,9 @@ AgentCAE separates uncertain reasoning from deterministic execution:
    inspect or resume the same workflow without repeating a completed C++ run.
 5. SPHinXsim performs configuration generation, validation, and C++ simulation.
 6. Deterministic streaming readers extract approved metrics from final VTP files.
+7. Before the first solver run, an off-screen particle Preview is reviewed by a
+   multimodal model. This visual preflight can accept the case or request at most
+   one validated regeneration pass; it never measures numerical results.
 
 The LLM never executes the solver and does not directly edit files. Replanning is
 limited to allow-listed actions such as retrying a transient failure, revising
@@ -34,12 +37,13 @@ commands, and arbitrary file paths are forbidden by schema.
 ## Durable calibration lifecycle
 
 Select the LLM exactly as for the existing `generate` command. AgentCAE uses the
-same setting for planning, configuration generation, failure replanning, and
-extractor planning:
+same setting for planning, configuration generation, visual preflight, failure
+replanning, and extractor planning. For Ollama, select a model that can consume
+images because visual preflight sends a PNG screenshot:
 
 ```powershell
 $env:SPHINXSIM_LLM_PROVIDER = "mock"       # deterministic local evaluation
-# $env:SPHINXSIM_LLM_PROVIDER = "ollama"   # local Ollama
+# $env:SPHINXSIM_LLM_PROVIDER = "ollama"   # local Ollama + vision model
 # $env:SPHINXSIM_LLM_PROVIDER = "openai"   # OpenAI API
 # $env:SPHINXSIM_LLM_PROVIDER = "nvidia_nim" # NVIDIA NIM API
 ```
@@ -61,12 +65,16 @@ python -m sphinxsim agent --workspace .build-temp/agent approve column_020 --jso
 python -m sphinxsim agent --workspace .build-temp/agent resume column_020 --json
 python -m sphinxsim agent --workspace .build-temp/agent cancel column_020 --json
 python -m sphinxsim agent --workspace .build-temp/agent report column_020 --json
+python -m sphinxsim agent --workspace .build-temp/agent execution column_020
+python -m sphinxsim agent --workspace .build-temp/agent events column_020
+python -m sphinxsim agent --workspace .build-temp/agent results column_020
 ```
 
-Each approval advances at most one proposed solver candidate before the next
-approval. A report is generated from persisted workflow truth and contains the
-target, tolerance, all parameter/metric observations, best result, artifact IDs,
-replanning history, timing, and error state.
+Approval covers the complete bounded Plan. A durable worker then performs the
+visual preflight and all required generate/run/analyze/adjust iterations. A report
+is generated from persisted workflow truth and contains the target, tolerance,
+visual review evidence, analysis contract, all parameter/metric observations,
+best result, immutable attempt logs, replanning history, timing, and error state.
 
 ## Safe result extractors
 
@@ -105,6 +113,9 @@ The workspace contains:
 workspace/
   checkpoints.sqlite
   runtime/<workflow-id>.json
+  execution/events.sqlite
+  execution/<workflow-id>/worker.json
+  execution/<workflow-id>/attempts/<attempt-id>/
   store/workflows/<workflow-id>/workflow.json
   store/workflows/<workflow-id>/cases/
   store/tasks/<task-id>/
@@ -113,9 +124,9 @@ workspace/
 ```
 
 Do not delete or manually change these files while a workflow is active. Use a
-separate workspace for independent AgentCAE deployments. The current subprocess
-adapter serializes solver use in one workflow; production scheduling of concurrent
-GPU/C++ runs remains an infrastructure concern outside the workflow contract.
+separate workspace for independent AgentCAE deployments. The RunManager enforces
+one active solver worker per workspace, verifies process identity before stopping
+a process tree, and marks orphaned workers as interrupted for explicit resume.
 
 ## Acceptance tests
 

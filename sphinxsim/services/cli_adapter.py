@@ -14,6 +14,9 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import json
+from uuid import uuid4
+from datetime import datetime, timezone
 from typing import Mapping, Sequence
 
 
@@ -27,10 +30,12 @@ class CLICommandResult:
     stderr: str
     duration_seconds: float
     timed_out: bool = False
+    cancelled: bool = False
+    attempt_path: str | None = None
 
     @property
     def succeeded(self) -> bool:
-        return self.returncode == 0 and not self.timed_out
+        return self.returncode == 0 and not self.timed_out and not self.cancelled
 
     def require_success(self) -> "CLICommandResult":
         """Return this result or raise a structured command error."""
@@ -46,6 +51,8 @@ class CLICommandError(RuntimeError):
         self.result = result
         if result.timed_out:
             detail = "timed out"
+        elif result.cancelled:
+            detail = "was cancelled"
         else:
             detail = f"failed with exit code {result.returncode}"
         stderr = result.stderr.strip()
@@ -74,11 +81,13 @@ class SPHinXsimCLIAdapter:
         command_prefix: Sequence[str] | None = None,
         environment: Mapping[str, str] | None = None,
         default_timeout: float | None = None,
+        control_dir: str | Path | None = None,
     ) -> None:
         self.cwd = Path(cwd).resolve() if cwd is not None else Path.cwd().resolve()
         self.command_prefix = tuple(command_prefix or (sys.executable, "-m", "sphinxsim"))
         self.environment = dict(environment or {})
         self.default_timeout = default_timeout
+        self.control_dir = Path(control_dir) if control_dir is not None else None
 
     @staticmethod
     def _path(value: str | Path) -> str:
@@ -119,6 +128,8 @@ class SPHinXsimCLIAdapter:
         child_environment.setdefault("PYTHONIOENCODING", "utf-8")
         effective_timeout = self.default_timeout if timeout is None else timeout
         started = time.monotonic()
+        if self.control_dir is not None:
+            return self._managed_invoke(command, arguments, child_environment, effective_timeout)
 
         try:
             completed = subprocess.run(
@@ -153,6 +164,60 @@ class SPHinXsimCLIAdapter:
             stderr=completed.stderr,
             duration_seconds=time.monotonic() - started,
         )
+
+    def _managed_invoke(self, command, arguments, environment, timeout):
+        from .process_control import identity, terminate_tree
+        from sphinxsim.agent.store import AgentTaskStore
+        directory = self.control_dir / "attempts" / uuid4().hex
+        directory.mkdir(parents=True, exist_ok=False)
+        stdout_path, stderr_path = directory / "stdout.log", directory / "stderr.log"
+        record_path = directory / "attempt.json"
+        cancelled = self.control_dir / "cancel.request"
+        record = {"operation": str(arguments[0]), "command": list(command),
+                  "started_at": datetime.now(timezone.utc).isoformat(), "timeout_seconds": timeout,
+                  "status": "starting", "stdout_path": str(stdout_path), "stderr_path": str(stderr_path),
+                  "output_dir": str(arguments[arguments.index('--output-dir') + 1]) if '--output-dir' in arguments else None}
+        def save():
+            AgentTaskStore._atomic_write(record_path, json.dumps(record, indent=2))
+        save()
+        started = time.monotonic()
+        timed_out = False
+        was_cancelled = False
+        process = None
+        try:
+            with stdout_path.open("wb") as out, stderr_path.open("wb") as err:
+                if cancelled.exists():
+                    was_cancelled = True
+                else:
+                    process = subprocess.Popen(command, cwd=self.cwd, env=environment, stdout=out, stderr=err,
+                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+                    record.update(identity(process.pid), status="running")
+                    save()
+                    while process.poll() is None:
+                        was_cancelled = cancelled.exists()
+                        timed_out = timeout is not None and time.monotonic() - started >= timeout
+                        if was_cancelled or timed_out:
+                            terminate_tree(record)
+                            process.wait(timeout=5)
+                            break
+                        time.sleep(0.1)
+            code = process.returncode if process is not None else None
+            kind = "cancelled" if was_cancelled else "solver_timeout" if timed_out and arguments[0] == "run" else "command_timeout" if timed_out else None
+            if code != 0 and kind is None:
+                kind = {"run": "solver_process_error", "generate": "generation_error", "validate": "validation_error"}.get(arguments[0], "process_error")
+            record.update(status="completed" if code == 0 and not kind else "failed", failure_kind=kind, returncode=code)
+        except BaseException as exc:
+            if process is not None:
+                terminate_tree(record)
+            record.update(status="failed", failure_kind="process_start_error", error_message=str(exc))
+            raise
+        finally:
+            record.update(finished_at=datetime.now(timezone.utc).isoformat(), duration_seconds=time.monotonic() - started)
+            save()
+        return CLICommandResult(tuple(command), code,
+            stdout_path.read_text(encoding="utf-8", errors="replace"),
+            stderr_path.read_text(encoding="utf-8", errors="replace"),
+            time.monotonic() - started, timed_out, was_cancelled, str(record_path))
 
     def generate(
         self,

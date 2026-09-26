@@ -68,6 +68,7 @@ def test_runtime_uses_one_canonical_provider_for_all_llm_roles(
         "Calibrate runout extension to 0.2 m."
     ).model_dump(mode="json")
     created: list[RecordingBackend] = []
+    vision_client = object()
 
     def fake_backend(provider_name):
         backend = RecordingBackend(provider_name, expected)
@@ -75,12 +76,14 @@ def test_runtime_uses_one_canonical_provider_for_all_llm_roles(
         return backend
 
     monkeypatch.setattr(runtime_module, "create_structured_backend", fake_backend)
+    monkeypatch.setattr(runtime_module, "get_llm", lambda provider: vision_client)
     monkeypatch.setenv("SPHINXSIM_LLM_API_KEY", "test-key")
     settings = AgentRuntimeSettings(
         workflow_id=f"runtime_{canonical}",
         planner_provider=configured,
         replanner_provider=configured,
         generation_provider=configured,
+        preview_provider=configured,
     )
     runtime = AgentRuntime(
         PROJECT_ROOT,
@@ -95,9 +98,11 @@ def test_runtime_uses_one_canonical_provider_for_all_llm_roles(
     assert settings.planner_provider == canonical
     assert settings.replanner_provider == canonical
     assert settings.generation_provider == canonical
+    assert settings.preview_provider == canonical
     assert [item.provider_name for item in created] == [canonical, canonical]
     assert isinstance(service.workflow.planner.client, ProviderStructuredPlannerClient)
     assert isinstance(service.replanner.client, ProviderReplanningClient)
+    assert service.workflow.preview_reviewer.client is vision_client
     assert created[0].calls[0]["payload"]["planner_context"]["evidence"]
     assert definition.calibration.objective.target_value == pytest.approx(0.2)
     assert service.workflow.command_adapter.environment == {

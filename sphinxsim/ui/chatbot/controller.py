@@ -62,6 +62,33 @@ class AgentChatSession:
     def approve(self) -> str:
         return self._format_status(self._require_workflow("approve"), include_plan=False, action="approve")
 
+    def submit(self, action="approve"):
+        return self.agent.submit(self._require_id(), action=action)
+
+    def execution_status(self):
+        return self.agent.execution_status(self._require_id())
+
+    def attach(self, workflow_id):
+        status = self.agent.status(workflow_id.strip())
+        self.workflow_id = status.workflow_id
+        return self._format_status(status, include_plan=status.awaiting_approval)
+
+    def live_snapshot(self):
+        from sphinxsim.ui.chatbot.visuals import render_vtp_snapshot
+        frames = self.agent.live_results(self._require_id())
+        if not frames:
+            return None
+        frame = frames[0]
+        signature = (frame["path"], tuple(frame["version"]))
+        if signature == getattr(self, "_last_frame", None):
+            return None
+        destination = self.agent.runtime.workspace / "artifacts" / self.workflow_id / "live" / (Path(frame["path"]).stem + ".png")
+        image = render_vtp_snapshot(frame["path"], destination, title=f"Simulation time: {frame['time']:.6g} s")
+        if image is None:
+            return None
+        self._last_frame = signature
+        return (f"Live particle state — simulation time {frame['time']:.6g} s", image)
+
     def status(self) -> str:
         return self.format_status(self._require_workflow("status"), include_plan=False)
 
@@ -148,6 +175,11 @@ class AgentChatSession:
         """Handle an explicit ``agent`` command, or return ``None`` for chat."""
         cleaned = text.strip()
         lowered = cleaned.lower()
+        if lowered.startswith("agent attach "):
+            return self.attach(cleaned[len("agent attach "):])
+        if lowered == "agent resume":
+            self.submit("resume")
+            return "Workflow recovery started. Use agent status to inspect progress."
         if lowered in {"agent help", "/agent help"}:
             return (
                 "Agent commands:\n"
@@ -221,7 +253,7 @@ class AgentChatSession:
                     "🏁 **Plan approved — this execution cycle has completed.**",
                 )
         elif action == "cancel":
-            lines.insert(1, "🛑 **The Agent workflow was cancelled.**")
+            lines.insert(1, "🛑 **Cancellation requested; stopping the solver.**" if status.phase == "cancelling" else "🛑 **The Agent workflow was cancelled.**")
         if status.best_metric_value is not None:
             lines.extend([
                 "",

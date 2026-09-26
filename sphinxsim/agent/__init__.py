@@ -113,6 +113,13 @@ from .service import (
     CalibrationPlanSummary,
 )
 from .runtime import AgentRuntime, AgentRuntimeSettings
+from .analysis_plan import AnalysisPlan
+from .preview_review import (
+    MockPreviewReviewer,
+    PreviewDecision,
+    PreviewReview,
+    ProviderPreviewReviewer,
+)
 from .extractors import (
     AnalysisExtractor,
     ExtractorDefinition,
@@ -160,6 +167,7 @@ __all__ = [
     "AgentServiceStatus",
     "AgentRuntime",
     "AgentRuntimeSettings",
+    "AnalysisPlan",
     "AnalysisError",
     "AnalysisExtractor",
     "AnalysisMetric",
@@ -215,6 +223,10 @@ __all__ = [
     "PositionSummary",
     "PositionOutputSpec",
     "PositionReduction",
+    "PreviewDecision",
+    "PreviewReview",
+    "MockPreviewReviewer",
+    "ProviderPreviewReviewer",
     "RuleBasedIntentResolver",
     "RetrievedKnowledge",
     "ReplanAction",

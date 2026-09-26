@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import json
+import sys
 import subprocess
 from unittest.mock import patch
 
@@ -11,6 +13,46 @@ import pytest
 
 from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.services import CLICommandError, SPHinXsimCLIAdapter
+
+
+def test_managed_invocation_persists_timeout_attempt(tmp_path: Path) -> None:
+    control = tmp_path / "control"
+    adapter = SPHinXsimCLIAdapter(
+        cwd=tmp_path,
+        command_prefix=(
+            sys.executable,
+            "-c",
+            "import time; time.sleep(10)",
+        ),
+        control_dir=control,
+    )
+
+    result = adapter._invoke(("run",), timeout=0.1)
+
+    assert result.timed_out is True
+    assert result.succeeded is False
+    record = json.loads(Path(result.attempt_path).read_text(encoding="utf-8"))
+    assert record["failure_kind"] == "solver_timeout"
+    assert record["status"] == "failed"
+    assert record["returncode"] is not None
+
+
+def test_managed_invocation_honors_durable_cancel_marker(tmp_path: Path) -> None:
+    control = tmp_path / "control"
+    control.mkdir()
+    (control / "cancel.request").touch()
+    adapter = SPHinXsimCLIAdapter(
+        cwd=tmp_path,
+        command_prefix=(sys.executable, "-c", "raise SystemExit(99)"),
+        control_dir=control,
+    )
+
+    result = adapter._invoke(("run",), timeout=5)
+
+    assert result.cancelled is True
+    assert result.returncode is None
+    record = json.loads(Path(result.attempt_path).read_text(encoding="utf-8"))
+    assert record["failure_kind"] == "cancelled"
 
 
 def _completed(command: tuple[str, ...], returncode: int = 0) -> subprocess.CompletedProcess[str]:

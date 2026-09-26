@@ -40,6 +40,7 @@ def test_context_combines_allowlisted_tools_capabilities_and_evidence() -> None:
         "validate_case",
         "run_case",
         "analyze_runout",
+        "analyze_result",
         "compare_sweep_results",
     }
     assert context.parameters["friction_angle"]["input_units"] == ["degree"]

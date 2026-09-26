@@ -865,36 +865,30 @@ class _ShellPreviewRuntime:
         except ImportError:
             return
 
-        for vtp_path in self._live_output_dir.glob("*.vtp"):
-            for body_name in self._live_particle_body_names:
-                prefix = f"{body_name}_"
-                if not vtp_path.stem.startswith(prefix):
-                    continue
-                suffix = vtp_path.stem[len(prefix):]
-                if suffix.startswith("ite_"):
-                    suffix = suffix[len("ite_"):]
-                try:
-                    sequence = float(suffix)
-                except ValueError:
-                    break
-                previous_sequence = self._live_particle_versions.get(body_name, float("-inf"))
-                if sequence <= previous_sequence:
-                    break
-                try:
-                    mesh = pv.read(str(vtp_path))
-                except Exception:
-                    break
-                self.plotter.add_mesh(
-                    mesh,
-                    name=f"particle-preview-{body_name}",
-                    color=self._live_particle_colours.get(body_name),
-                    opacity=0.95,
-                    style="points",
-                    point_size=_PARTICLE_POINT_SIZE,
-                    label=f"Particles: {body_name}",
-                )
-                self._live_particle_versions[body_name] = sequence
-                break
+        from sphinxsim.results import ResultCatalog, read_particle_mesh
+        catalog = getattr(self, "_result_catalog", None)
+        if catalog is None:
+            self._result_catalog = catalog = ResultCatalog()
+        frames = catalog.latest(
+            self._live_output_dir,
+            self._live_particle_body_names,
+            include_generation=True,
+        )
+        for body_name, frame in frames.items():
+            version = (str(frame.path), frame.version)
+            if self._live_particle_versions.get(body_name) == version:
+                continue
+            try:
+                mesh = read_particle_mesh(frame.path)
+            except (OSError, ValueError, RuntimeError):
+                continue
+            self.plotter.add_mesh(
+                mesh, name=f"particle-preview-{body_name}",
+                color=self._live_particle_colours.get(body_name), opacity=0.95,
+                style="points", point_size=_PARTICLE_POINT_SIZE,
+                label=f"Particles: {body_name}",
+            )
+            self._live_particle_versions[body_name] = version
 
         thread = self._live_run_thread
         if thread is not None and not thread.is_alive():

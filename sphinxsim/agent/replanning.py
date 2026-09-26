@@ -42,6 +42,7 @@ class ReplanningContext(BaseModel):
     workflow_id: str
     failed_node: str
     error_message: str
+    failure_kind: str | None = None
     failed_candidate: float | None = None
     replan_attempt: int = Field(..., ge=1)
     maximum_replans: int = Field(..., ge=1)

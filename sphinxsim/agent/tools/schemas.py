@@ -66,6 +66,12 @@ class AnalyzeRunoutInput(ToolInput):
     analysis_spec: AnalysisSpec
 
 
+class AnalyzeResultInput(ToolInput):
+    config_path: str = Field(..., min_length=1)
+    output_dir: str = Field(..., min_length=1)
+    analysis_plan: dict[str, Any]
+
+
 class AnalyzeRunoutOutput(ToolOutput):
     analysis_id: str
     status: str

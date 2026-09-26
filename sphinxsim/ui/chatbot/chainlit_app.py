@@ -146,38 +146,47 @@ async def _send_agent_update(content: str, image_path=None) -> None:
     await cl.Message(**message_kwargs).send()
 
 
-async def _run_agent_execution(agent_session: AgentChatSession) -> None:
-    """Run the existing synchronous Agent service while streaming status updates."""
-    approval = asyncio.create_task(asyncio.to_thread(agent_session.approve))
-    last_signature: tuple[object, ...] | None = None
+async def _run_agent_execution(agent_session: AgentChatSession, action="approve") -> None:
+    """Submit a durable worker and observe it without owning its lifetime."""
+    try:
+        await asyncio.to_thread(agent_session.submit, action)
+    except Exception as exc:
+        await _send_agent_update(f"Agent execution could not start: {exc}")
+        return
+    last_signature = None
     last_iteration = 0
-    while not approval.done():
+    last_live = 0.0
+    import time
+    while True:
         try:
+            execution = await asyncio.to_thread(agent_session.execution_status)
             status = await asyncio.to_thread(agent_session.status_snapshot)
             signature = _progress_signature(status)
             if signature != last_signature:
                 await _send_agent_update(_progress_message(status))
                 last_signature = signature
             if status.iteration_count > last_iteration:
-                update, image_path = await asyncio.to_thread(
-                    agent_session.latest_iteration_update
-                )
+                update, image_path = await asyncio.to_thread(agent_session.latest_iteration_update)
                 await _send_agent_update(update, image_path)
                 last_iteration = status.iteration_count
+            if time.monotonic() - last_live >= 5:
+                live = await asyncio.to_thread(agent_session.live_snapshot)
+                if live is not None:
+                    await _send_agent_update(*live)
+                last_live = time.monotonic()
+            if execution.get("state") not in {"starting", "running", "cancelling"}:
+                if execution.get("state") == "interrupted":
+                    await _send_agent_update("Worker interrupted. Use `agent resume` to recover. " + execution.get("error_message", ""))
+                else:
+                    await _send_agent_update(await asyncio.to_thread(agent_session.report))
+                break
         except Exception as exc:
-            # The workflow may be between atomic persistence updates.  Keep the
-            # solver running and report only stable errors to the user.
-            await cl.Message(
-                content=f"⚠️ **Agent progress is temporarily unavailable:** {exc}",
-                author="SPHinXsim AgentCAE",
-            ).send()
+            await _send_agent_update(f"Progress temporarily unavailable: {exc}")
+            # A visualization failure must not hide a terminal worker forever.
+            execution = await asyncio.to_thread(agent_session.execution_status)
+            if execution.get("state") not in {"starting", "running", "cancelling"}:
+                break
         await asyncio.sleep(2.0)
-
-    try:
-        final_message = await approval
-    except Exception as exc:
-        final_message = f"❌ **AgentCAE execution failed:** {exc}"
-    await _send_agent_update(final_message)
 
 
 @cl.on_chat_start
@@ -236,7 +245,7 @@ async def on_message(message: cl.Message) -> None:
                 "🔍 Interpreting the request, retrieving capability context, and "
                 "validating a structured calibration Plan..."
             )
-        if _is_agent_approve(message.content):
+        if _is_agent_approve(message.content) or message.content.strip().lower() == "agent resume":
             active_task = cl.user_session.get(AGENT_TASK_KEY)
             if active_task is not None and not active_task.done():
                 await cl.Message(
@@ -247,7 +256,7 @@ async def on_message(message: cl.Message) -> None:
                     author="SPHinXsim AgentCAE",
                 ).send()
                 return
-            task = asyncio.create_task(_run_agent_execution(agent_session))
+            task = asyncio.create_task(_run_agent_execution(agent_session, "resume" if message.content.strip().lower() == "agent resume" else "approve"))
             cl.user_session.set(AGENT_TASK_KEY, task)
             await cl.Message(
                 content=(

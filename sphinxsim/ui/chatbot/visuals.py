@@ -32,7 +32,8 @@ def render_vtp_snapshot(
         return None
     destination.parent.mkdir(parents=True, exist_ok=True)
     try:
-        mesh = pv.read(str(source))
+        from sphinxsim.results import read_particle_mesh
+        mesh = read_particle_mesh(source)
         point_count = int(getattr(mesh, "n_points", 0))
         if not point_count:
             return None

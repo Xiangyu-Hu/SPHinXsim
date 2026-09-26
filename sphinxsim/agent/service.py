@@ -78,6 +78,7 @@ class AgentServiceStatus(BaseModel):
     plan_approved: bool
     approved_at: datetime | None = None
     case_prepared: bool
+    preview_status: str
     awaiting_approval: bool
     approval_request: dict[str, Any] | None = None
     next_nodes: list[str] = Field(default_factory=list)
@@ -108,6 +109,7 @@ class AgentCAEAgentService:
         replanner: StructuredReplanner | None = None,
         replanning_policy: BoundedReplanningPolicy | None = None,
         interrupt_after: list[str] | None = None,
+        preview_reviewer=None,
     ) -> None:
         self.store = store
         self.database_path = Path(database_path).resolve()
@@ -116,6 +118,7 @@ class AgentCAEAgentService:
             planner,
             command_adapter,
             command_timeout=command_timeout,
+            preview_reviewer=preview_reviewer,
         )
         self.require_approval = require_approval
         self.replanner = replanner
@@ -233,6 +236,7 @@ class AgentCAEAgentService:
             plan_approved=result.plan_approved,
             approved_at=result.approved_at,
             case_prepared=result.case_prepared,
+            preview_status=result.preview_status,
             awaiting_approval=approval_request is not None,
             approval_request=approval_request,
             next_nodes=next_nodes,

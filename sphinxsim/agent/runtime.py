@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sphinxsim.services import SPHinXsimCLIAdapter
 from sphinxsim.llm import (
     LLMProviderName,
+    get_llm,
     get_llm_settings,
     normalize_llm_provider,
 )
@@ -17,6 +18,8 @@ from sphinxsim.llm.structured_provider import create_structured_backend
 
 from .capabilities import build_capability_registry
 from .calibration_workflow import MockColumnCollapseCalibrationPlanner
+from .analysis_plan import AnalysisPlan
+from .preview_review import MockPreviewReviewer, ProviderPreviewReviewer
 from .knowledge import build_default_knowledge_base
 from .planner_context import PlannerContextBuilder
 from .replanning import (
@@ -45,10 +48,12 @@ class AgentRuntimeSettings(BaseModel):
         "none", "mock", "ollama", "openai", "nvidia_nim"
     ] = "mock"
     generation_provider: LLMProviderName = "mock"
+    preview_provider: LLMProviderName = "mock"
     require_approval: bool = True
     command_timeout: float = Field(default=300.0, gt=0.0)
+    analysis_plan: AnalysisPlan | None = None
 
-    @field_validator("planner_provider", "generation_provider", mode="before")
+    @field_validator("planner_provider", "generation_provider", "preview_provider", mode="before")
     @classmethod
     def normalize_provider(cls, value):
         return normalize_llm_provider(value)
@@ -126,6 +131,20 @@ class AgentRuntime:
         else:
             planner = MockColumnCollapseCalibrationPlanner()
 
+        if starting and settings.analysis_plan is not None:
+            base_planner = planner
+            selected = settings.analysis_plan
+            class ConfiguredAnalysisPlanner:
+                def plan(self, prompt):
+                    from .calibration_workflow import CalibrationWorkflowDefinition
+                    payload = base_planner.plan(prompt).model_dump(mode="json")
+                    payload["analysis"] = None
+                    payload["analysis_plan"] = selected.model_dump(mode="json")
+                    payload["calibration"]["objective"].update(
+                        tool_name="analyze_result", metric_name=selected.metric_name, unit=selected.unit)
+                    return CalibrationWorkflowDefinition.model_validate(payload)
+            planner = ConfiguredAnalysisPlanner()
+
         replanner = None
         if execution_enabled and settings.replanner_provider == "mock":
             replanner = StructuredReplanner(
@@ -158,7 +177,15 @@ class AgentRuntime:
             cwd=self.project_root,
             environment=environment,
             default_timeout=settings.command_timeout,
+            control_dir=self.workspace / "execution" / settings.workflow_id,
         )
+        preview_reviewer = None
+        if execution_enabled:
+            preview_reviewer = (
+                MockPreviewReviewer()
+                if settings.preview_provider == "mock"
+                else ProviderPreviewReviewer(get_llm(settings.preview_provider))
+            )
         return AgentCAEAgentService(
             self.store,
             self.database_path,
@@ -167,6 +194,7 @@ class AgentRuntime:
             command_timeout=settings.command_timeout,
             require_approval=settings.require_approval,
             replanner=replanner,
+            preview_reviewer=preview_reviewer,
         )
 
     def _settings_path(self, workflow_id: str) -> Path:

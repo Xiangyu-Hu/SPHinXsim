@@ -50,7 +50,16 @@ def configure_agent_parser(subparsers, project_root: Path) -> None:
         default=None,
         help=argparse.SUPPRESS,
     )
+    start.add_argument(
+        "--preview-provider",
+        default=None,
+        help=(
+            "Multimodal reviewer: mock, ollama, openai, or nvidia_nim. "
+            "Defaults to SPHINXSIM_LLM_PROVIDER."
+        ),
+    )
     start.add_argument("--timeout", type=float, default=300.0)
+    start.add_argument("--analysis-plan", help="JSON file defining a builtin or declarative AnalysisPlan.")
     start.add_argument("--no-approval", action="store_true")
     start.add_argument("--json", action="store_true")
     start.set_defaults(func=cmd_agent_start)
@@ -68,7 +77,15 @@ def configure_agent_parser(subparsers, project_root: Path) -> None:
         command = commands.add_parser(name, help=help_text)
         command.add_argument("workflow_id")
         command.add_argument("--json", action="store_true")
+        if name in {"approve", "resume"}:
+            command.add_argument("--background", action="store_true", help="Submit a durable worker and return immediately.")
         command.set_defaults(func=handler)
+
+    for name in ("events", "execution", "results"):
+        command = commands.add_parser(name, help="Inspect persisted execution events or live result frames.")
+        command.add_argument("workflow_id")
+        command.add_argument("--after", type=int, default=0)
+        command.set_defaults(func=cmd_agent_execution)
 
     report = commands.add_parser("report", help="Build an auditable workflow report.")
     report.add_argument("workflow_id")
@@ -129,8 +146,11 @@ def cmd_agent_start(args: argparse.Namespace) -> int:
             planner_provider=args.planner or configured_provider,
             replanner_provider=args.replanner or configured_provider,
             generation_provider=args.generation_provider or configured_provider,
+            preview_provider=args.preview_provider or configured_provider,
             require_approval=not args.no_approval,
             command_timeout=args.timeout,
+            analysis_plan=(json.loads(Path(args.analysis_plan).read_text(encoding="utf-8"))
+                           if getattr(args, "analysis_plan", None) else None),
         )
         runtime.save_settings(settings)
         status = runtime.create_service(settings, starting=True).start(
@@ -152,17 +172,61 @@ def cmd_agent_status(args: argparse.Namespace) -> int:
 
 
 def cmd_agent_approve(args: argparse.Namespace) -> int:
-    if not args.json:
-        return _run_approve_with_progress(args)
-    return _run_existing(args, "approve", execution_enabled=True)
+    return _run_managed(args, "approve")
 
 
 def cmd_agent_resume(args: argparse.Namespace) -> int:
-    return _run_existing(args, "resume", execution_enabled=True)
+    return _run_managed(args, "resume")
 
 
 def cmd_agent_cancel(args: argparse.Namespace) -> int:
-    return _run_existing(args, "cancel", execution_enabled=False)
+    try:
+        status = AgentCAE(args.agent_project_root, args.workspace).cancel(args.workflow_id)
+        _print_status(status, as_json=args.json)
+        return 0
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"Agent cancel failed: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_agent_execution(args):
+    facade = AgentCAE(args.agent_project_root, args.workspace)
+    try:
+        result = (facade.events(args.workflow_id, after=args.after) if args.agent_command == "events"
+                  else facade.live_results(args.workflow_id) if args.agent_command == "results"
+                  else facade.execution_status(args.workflow_id))
+        print(json.dumps(result, indent=2))
+        return 0
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"Agent inspection failed: {exc}", file=sys.stderr)
+        return 1
+
+
+def _run_managed(args, action):
+    facade = AgentCAE(args.agent_project_root, args.workspace)
+    try:
+        record = facade.submit(args.workflow_id, action=action)
+        if getattr(args, "background", False):
+            print(json.dumps(record, indent=2))
+            return 0
+        previous = None
+        while True:
+            execution = facade.execution_status(args.workflow_id)
+            status = facade.status(args.workflow_id)
+            if not args.json and _progress_key(status) != previous:
+                _print_progress(status)
+                previous = _progress_key(status)
+            if execution.get("state") not in {"starting", "running", "cancelling"}:
+                break
+            time.sleep(1)
+        _print_status(status, as_json=args.json)
+        if execution.get("state") == "interrupted":
+            print("Worker interrupted; use resume to recover. " + execution.get("error_message", ""), file=sys.stderr)
+            return 1
+        return _status_code(status.status.value)
+    except (OSError, ValueError, RuntimeError) as exc:
+        print(f"Agent {action} failed: {exc}", file=sys.stderr)
+        return 1
 
 
 def cmd_agent_report(args: argparse.Namespace) -> int:
@@ -335,6 +399,7 @@ def _print_progress(status) -> None:
     node = status.next_nodes[0] if status.next_nodes else "workflow_complete"
     activities = {
         "prepare_case": "preparing the isolated simulation case",
+        "preview_case": "rendering and reviewing the generated case",
         "decide": "selecting the next calibration candidate",
         "execute_candidate": "running SPHinXsim and analyzing the VTP result",
         "replan": "evaluating recovery after a failed candidate",

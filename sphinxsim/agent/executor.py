@@ -389,11 +389,24 @@ class StaticPlanExecutor:
             stdout=result.stdout,
             stderr=result.stderr,
         )
-        run.stdout_log = str(stdout_path)
-        run.stderr_log = str(stderr_path)
+        # Keep immutable logs for each attempt; retries must not overwrite evidence.
+        if result.attempt_path:
+            attempt_dir = Path(result.attempt_path).parent
+        else:
+            attempt_dir = expected_output_dir / "attempts" / f"{run.attempt_count:03d}"
+            attempt_dir.mkdir(parents=True, exist_ok=True)
+            (attempt_dir / "stdout.log").write_text(result.stdout, encoding="utf-8")
+            (attempt_dir / "stderr.log").write_text(result.stderr, encoding="utf-8")
+        run.stdout_log = str(attempt_dir / "stdout.log")
+        run.stderr_log = str(attempt_dir / "stderr.log")
+        run.timeout_seconds = self.command_timeout
+        run.failure_kind = "cancelled" if result.cancelled else "solver_timeout" if result.timed_out else "solver_process_error" if not result.succeeded else None
         if result.succeeded:
             status = RunStatus.COMPLETED
             error_message = None
+        elif result.cancelled:
+            status = RunStatus.FAILED
+            error_message = "The user cancelled the solver process."
         elif result.timed_out:
             status = RunStatus.TIMED_OUT
             error_message = "SPHinXsim command timed out."

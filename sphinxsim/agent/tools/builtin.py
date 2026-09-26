@@ -11,6 +11,7 @@ from .registry import (
 )
 from .schemas import (
     AnalyzeRunoutInput,
+    AnalyzeResultInput,
     AnalyzeRunoutOutput,
     CompareSweepResultsInput,
     CompareSweepResultsOutput,
@@ -29,6 +30,12 @@ def build_builtin_tool_registry() -> ToolRegistry:
     """Return contracts for every deterministic tool implemented so far."""
     registry = ToolRegistry()
     definitions = [
+        ToolDefinition(
+            name="analyze_result", description="Execute a validated builtin or declarative AnalysisPlan.",
+            action=PlanAction.ANALYZE_RESULT, input_model=AnalyzeResultInput,
+            output_model=AnalyzeRunoutOutput, cost=ToolCost.MEDIUM,
+            side_effect=ToolSideEffect.WRITES_ANALYSIS, tags=("analysis", "vtp"),
+        ),
         ToolDefinition(
             name="prepare_case",
             description="Copy an existing JSON configuration into an isolated task workspace.",

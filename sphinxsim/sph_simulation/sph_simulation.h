@@ -83,13 +83,6 @@ class SPHSimulation
     EntityManager &getConfigManager();
     StagePipeline<InitializationHookPoint> &getInitializationPipeline();
     StagePipeline<SimulationHookPoint> &getSimulationPipeline();
-    // Contact relations owned here for interactions that need the plain
-    // Contact<> type rather than the typed relation the system creates.
-    template <typename... Args>
-    Contact<> &addStructureContact(Args &&...args)
-    {
-        return *structure_contacts_keeper_.createPtr<Contact<>>(std::forward<Args>(args)...);
-    }
 
   private:
     std::filesystem::path config_path_;
@@ -98,7 +91,6 @@ class SPHSimulation
     StagePipeline<SimulationHookPoint> simulation_pipeline_;
     std::unique_ptr<SPHSystem> sph_system_ptr_;
     std::unique_ptr<SPHSolver> sph_solver_ptr_;
-    UniquePtrsKeeper<Contact<>> structure_contacts_keeper_;
     bool geometry_built_{false};
     bool particles_generated_{false};
     bool executable_simulation_state_ready_{false};

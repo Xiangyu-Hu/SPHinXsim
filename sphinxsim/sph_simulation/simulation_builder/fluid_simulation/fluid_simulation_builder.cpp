@@ -47,39 +47,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
 
     auto &fluid_linear_correction_matrix = FluidDynamicsBuilder::addLinearCorrectionMatrix(sim, main_methods);
 
-    auto &fluid_acoustic_step_1st_half = FluidDynamicsBuilder::addAcousticStep1stHalf(sim, main_methods);
-    auto &fluid_acoustic_step_2nd_half = FluidDynamicsBuilder::addAcousticStep2ndHalf(sim, main_methods);
-
-    // Coupling forces the fluid exerts on each composite structure. The
-    // structure-fluid contact is retrieved by name from the relations built
-    // by buildUpdateConfiguration.
-    for (const auto &solid_config : config.at("solid_bodies"))
-    {
-        if (solid_config.at("material").at("type").get<std::string>() != "composite_solid")
-            continue;
-        std::string body_name = solid_config.at("name").get<std::string>();
-        auto &fluid_body_local = *sph_system.collectBodies<FluidBody>().front();
-        auto &structure_contact = sph_system.getRelationByName<Contact<Relation<SolidBody, FluidBody>>>(
-            body_name + fluid_body_local.Name());
-
-        auto &viscous_force_on_structure =
-            main_methods.addInteractionDynamics<FSI::ViscousForceFromFluid<Contact<WithUpdate, Viscosity, NoKernelCorrectionCK, Relation<SolidBody, FluidBody>>>>(structure_contact);
-        auto &pressure_force_on_structure =
-            main_methods.addInteractionDynamics<FSI::PressureForceFromFluid<Contact<WithUpdate, AcousticRiemannSolverCK, NoKernelCorrectionCK, Relation<SolidBody, FluidBody>>>>(structure_contact);
-
-        sim.getInitializationPipeline().insert_hook(
-            InitializationHookPoint::InitialAfterLinearCorrectionMatrix, [&]()
-            { viscous_force_on_structure.exec(); });
-
-        sim.getSimulationPipeline().insert_hook(
-            SimulationHookPoint::BoundaryCondition, [&]()
-            { pressure_force_on_structure.exec(); });
-
-        sim.getSimulationPipeline().insert_hook(
-            SimulationHookPoint::AfterLinearCorrectionMatrix, [&]()
-            { viscous_force_on_structure.exec(); });
-    }
-
+    auto &fluid_acoustic_step_1st_half = FluidDynamicsBuilder::addAcousticHalfStep<AcousticStep1stHalf>(sim, main_methods);
+    auto &fluid_acoustic_step_2nd_half = FluidDynamicsBuilder::addAcousticHalfStep<AcousticStep2ndHalf>(sim, main_methods);
     auto &fluid_density_regularization = FluidDynamicsBuilder::addDensityRegularization(sim, main_methods);
 
     auto &fluid_advection_time_step = FluidDynamicsBuilder::addAdvectionTimeStep(sim, main_methods);

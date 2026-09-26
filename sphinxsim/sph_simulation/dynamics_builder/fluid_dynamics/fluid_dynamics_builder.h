@@ -127,7 +127,7 @@ class FluidDynamicsBuilder
     static BaseDynamics<void> &addDensityRegularizationForOneBody(
         MainMethods &main_methods, FluidBodyType &fluid_body, const std::string &surface_type);
 
-    template <class ViscosityType, class KernelCorrectionType, class ViscosityForceType>        
+    template <typename... Parameters, class ViscosityForceType>        
     static void addViscousForceOnSolidBodiesIfPresent(
         SPHSimulation &sim, ViscosityForceType &viscous_force, SPHBodyConfig *fb);
 };

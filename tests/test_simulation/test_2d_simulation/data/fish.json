@@ -157,7 +157,6 @@
       "acoustic_cfl": 0.6,
       "advection_cfl": 0.25,
       "surface_type": "free_stream",
-      "kernel_correction": "none",
       "particle_sort_frequency": 100
     }
   },

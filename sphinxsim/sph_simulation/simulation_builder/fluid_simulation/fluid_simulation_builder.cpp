@@ -47,8 +47,8 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
 
     auto &fluid_linear_correction_matrix = FluidDynamicsBuilder::addLinearCorrectionMatrix(sim, main_methods);
 
-    auto &fluid_acoustic_step_1st_half = FluidDynamicsBuilder::addAcousticStep1stHalf(sim, main_methods);
-    auto &fluid_acoustic_step_2nd_half = FluidDynamicsBuilder::addAcousticStep2ndHalf(sim, main_methods);
+    auto &fluid_acoustic_step_1st_half = FluidDynamicsBuilder::addAcousticHalfStep<AcousticStep1stHalf>(sim, main_methods);
+    auto &fluid_acoustic_step_2nd_half = FluidDynamicsBuilder::addAcousticHalfStep<AcousticStep2ndHalf>(sim, main_methods);
     auto &fluid_density_regularization = FluidDynamicsBuilder::addDensityRegularization(sim, main_methods);
 
     auto &fluid_advection_time_step = FluidDynamicsBuilder::addAdvectionTimeStep(sim, main_methods);

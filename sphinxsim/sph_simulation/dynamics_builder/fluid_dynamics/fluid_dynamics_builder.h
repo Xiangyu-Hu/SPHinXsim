@@ -127,9 +127,14 @@ class FluidDynamicsBuilder
     static BaseDynamics<void> &addDensityRegularizationForOneBody(
         MainMethods &main_methods, FluidBodyType &fluid_body, const std::string &surface_type);
 
-    template <typename... Parameters, class ViscosityForceType>        
+    template <typename... Parameters, class ViscosityForceType>
     static void addViscousForceOnSolidBodiesIfPresent(
         SPHSimulation &sim, ViscosityForceType &viscous_force, SPHBodyConfig *fb);
+
+    template <typename... Parameters, class Acoustic2ndHalfStepType, class FluidIdentifier>
+    static void addPressureForceOnSolidBodiesIfPresent(
+        SPHSimulation &sim, Acoustic2ndHalfStepType &acoustic_2nd_half_step,
+        FluidIdentifier &fluid_identifier);
 };
 } // namespace SPH
 #endif // FLUID_DYNAMICS_BUILDER_H

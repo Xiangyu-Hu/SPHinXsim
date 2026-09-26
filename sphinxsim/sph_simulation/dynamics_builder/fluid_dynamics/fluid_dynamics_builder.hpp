@@ -171,6 +171,8 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
 
             addInteractionWithSolidBodies<Wall, RiemannSolverType, NoKernelCorrectionCK>(
                 sim, complex_dynamics, fluid_body);
+            addPressureForceOnSolidBodiesIfPresent<RiemannSolverType, NoKernelCorrectionCK>(
+                sim, complex_dynamics, fluid_body);
 
             return complex_dynamics;
         }
@@ -181,6 +183,9 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
 
             addInteractionWithSolidBodies<Wall, RiemannSolverType, LinearCorrectionCK>(
                 sim, complex_dynamics, fluid_body);
+            addPressureForceOnSolidBodiesIfPresent<RiemannSolverType, LinearCorrectionCK>(
+                sim, complex_dynamics, fluid_body);
+
             return complex_dynamics;
         }
     }
@@ -194,6 +199,8 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
             AcousticHalfStepForOneBodyType, RiemannSolverType, LinearCorrectionCK>(inner_relation);
 
         addInteractionWithSolidBodies<Wall, RiemannSolverType, LinearCorrectionCK>(
+            sim, complex_dynamics, fluid_body);
+        addPressureForceOnSolidBodiesIfPresent<RiemannSolverType, LinearCorrectionCK>(
             sim, complex_dynamics, fluid_body);
 
         return complex_dynamics;
@@ -237,6 +244,31 @@ void FluidDynamicsBuilder::addViscousForceOnSolidBodiesIfPresent(
             viscous_force.template addGeneralPostInteraction<
                 FSI::ViscousForceFromFluid, WithUpdate, Parameters...>(
                 contact_relation);
+        }
+    }
+}
+//=================================================================================================//
+template <typename... Parameters, class Acoustic2ndHalfStepType, class FluidIdentifier>
+void FluidDynamicsBuilder::addPressureForceOnSolidBodiesIfPresent(
+    SPHSimulation &sim, Acoustic2ndHalfStepType &acoustic_2nd_half_step,
+    FluidIdentifier &fluid_identifier)
+{
+    if constexpr (std::is_base_of_v<AcousticStep2ndHalfTag, Acoustic2ndHalfStepType>)
+    {
+        auto &sph_system = sim.getSPHSystem();
+        auto &config_manager = sim.getConfigManager();
+        std::string fluid_body_name = fluid_identifier.Name();
+        auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
+        for (const auto &sb_tgt : solid_bodies_config)
+        {
+            if (sb_tgt->has_dynamics_)
+            {
+                std::string relation_name = sb_tgt->name_ + fluid_body_name;
+                auto &contact_relation = sph_system.getRelationByName<
+                    Contact<Relation<SolidBody, FluidBody>>>(relation_name);
+                acoustic_2nd_half_step.template addGeneralPostInteraction<
+                    FSI::PressureForceFromFluid, WithUpdate, Parameters...>(contact_relation);
+            }
         }
     }
 }

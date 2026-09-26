@@ -150,10 +150,12 @@ BaseDynamics<void> &FluidDynamicsBuilder::addDensityRegularizationForOneBody(
 }
 //=================================================================================================//
 template <template <typename...> class AcousticHalfStepType>
-BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStep(SPHSimulation &sim, MainMethods &main_methods)
+BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStep(
+    SPHSimulation &sim, MainMethods &main_methods)
 {
     auto &sph_system = sim.getSPHSystem();
     auto &config_manager = sim.getConfigManager();
+    auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
     auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
     auto &acoustic_half_step = main_methods.addParticleDynamicsGroup();
 
@@ -165,22 +167,44 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStep(SPHSimulation &sim
 
         if (fluid_body.template isMatterMaterial<WeaklyCompressibleFluid>())
         {
-            acoustic_half_step.add(&addAcousticHalfStepForOneBody<
-                                   AcousticHalfStepType, WeaklyCompressibleFluid>(
-                sim, inner_relation, main_methods));
+            if (fluid_solver_config.kernel_correction_ == "none")
+            {
+                acoustic_half_step.add(
+                    &addAcousticHalfStepForOneBody<
+                        AcousticHalfStepType, WeaklyCompressibleFluid, NoKernelCorrectionCK>(
+                        sim, inner_relation, main_methods));
+            }
+            else
+            {
+                acoustic_half_step.add(
+                    &addAcousticHalfStepForOneBody<
+                        AcousticHalfStepType, WeaklyCompressibleFluid, LinearCorrectionCK>(
+                        sim, inner_relation, main_methods));
+            }
         }
         else
         {
-            acoustic_half_step.add(&addAcousticHalfStepForOneBody<
-                                   AcousticHalfStepType, WeaklyCompressibleMixture>(
-                sim, inner_relation, main_methods));
+            if (fluid_solver_config.kernel_correction_ == "none")
+            {
+                acoustic_half_step.add(
+                    &addAcousticHalfStepForOneBody<
+                        AcousticHalfStepType, WeaklyCompressibleMixture, NoKernelCorrectionCK>(
+                        sim, inner_relation, main_methods));
+            }
+            else
+            {
+                acoustic_half_step.add(
+                    &addAcousticHalfStepForOneBody<
+                        AcousticHalfStepType, WeaklyCompressibleMixture, LinearCorrectionCK>(
+                        sim, inner_relation, main_methods));
+            }
         }
     }
     return acoustic_half_step;
 }
 //=================================================================================================//
-template <template <typename...> class AcousticHalfStepType,
-          class MatterMaterialType, class InnerRelationType>
+template <template <typename...> class AcousticHalfStepType, class MatterMaterialType,
+          class KernelCorrectionType, class InnerRelationType>
 BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
     SPHSimulation &sim, InnerRelationType &inner_relation, MainMethods &main_methods)
 {
@@ -194,11 +218,11 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
         if (!fluid_body.template collectMaterialProperties<Viscosity>().empty())
         {
             auto &complex_dynamics = main_methods.template addInteractionDynamicsOneLevel<
-                AcousticHalfStepType, NoRiemannSolverType, LinearCorrectionCK>(inner_relation);
+                AcousticHalfStepType, NoRiemannSolverType, KernelCorrectionType>(inner_relation);
 
-            addInteractionWithSolidBodies<Wall, NoRiemannSolverType, LinearCorrectionCK>(
+            addInteractionWithSolidBodies<Wall, NoRiemannSolverType, KernelCorrectionType>(
                 sim, complex_dynamics, fluid_body);
-            addPressureForceOnSolidBodiesIfPresent<NoRiemannSolverType, LinearCorrectionCK>(
+            addPressureForceOnSolidBodiesIfPresent<NoRiemannSolverType, KernelCorrectionType>(
                 sim, complex_dynamics, fluid_body);
 
             return complex_dynamics;
@@ -206,11 +230,11 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
         else
         {
             auto &complex_dynamics = main_methods.template addInteractionDynamicsOneLevel<
-                AcousticHalfStepType, RiemannSolverType, LinearCorrectionCK>(inner_relation);
+                AcousticHalfStepType, RiemannSolverType, KernelCorrectionType>(inner_relation);
 
-            addInteractionWithSolidBodies<Wall, RiemannSolverType, LinearCorrectionCK>(
+            addInteractionWithSolidBodies<Wall, RiemannSolverType, KernelCorrectionType>(
                 sim, complex_dynamics, fluid_body);
-            addPressureForceOnSolidBodiesIfPresent<RiemannSolverType, LinearCorrectionCK>(
+            addPressureForceOnSolidBodiesIfPresent<RiemannSolverType, KernelCorrectionType>(
                 sim, complex_dynamics, fluid_body);
 
             return complex_dynamics;
@@ -219,9 +243,9 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
     else
     {
         auto &complex_dynamics = main_methods.template addInteractionDynamicsOneLevel<
-            AcousticHalfStepType, RiemannSolverType, LinearCorrectionCK>(inner_relation);
+            AcousticHalfStepType, RiemannSolverType, KernelCorrectionType>(inner_relation);
 
-        addInteractionWithSolidBodies<Wall, RiemannSolverType, LinearCorrectionCK>(
+        addInteractionWithSolidBodies<Wall, RiemannSolverType, KernelCorrectionType>(
             sim, complex_dynamics, fluid_body);
 
         return complex_dynamics;

@@ -65,7 +65,7 @@ class FluidDynamicsBuilder
   public:
     static BaseDynamics<void> &addAdvectionStepSetup(SPHSimulation &sim, MainMethods &main_methods);
     static BaseDynamics<void> &addUpdateParticlePosition(SPHSimulation &sim, MainMethods &main_methods);
-    
+
     template <template <typename...> class AcousticHalfStepType>
     static BaseDynamics<void> &addAcousticHalfStep(SPHSimulation &sim, MainMethods &main_methods);
 
@@ -114,8 +114,8 @@ class FluidDynamicsBuilder
         DynamicsIdentifier &identifier, ParticleDynamicsGroup &particle_dynamics_group,
         EntityManager &config_manager, MainMethods &main_methods, const json &config);
 
-    template <template <typename...> class AcousticHalfStepType,
-              class MatterMaterialType, class InnerRelationType>
+    template <template <typename...> class AcousticHalfStepType, class MatterMaterialType,
+              class KernelCorrectionType, class InnerRelationType>
     static BaseDynamics<void> &addAcousticHalfStepForOneBody(
         SPHSimulation &sim, InnerRelationType &inner_relation, MainMethods &main_methods);
 

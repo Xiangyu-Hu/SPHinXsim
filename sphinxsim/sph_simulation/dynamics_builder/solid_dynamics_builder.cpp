@@ -35,22 +35,11 @@ void SolidDynamicsBuilder::buildSolidsDynamicsIfPresentInFluid(
                 &main_methods.addStateDynamics<
                     FSI::InitializeDisplacementCK>(solid_body));
 
-            update_average_velocity.add(
-                &main_methods.addStateDynamics<
-                    FSI::UpdateAverageVelocityAndAccelerationCK>(solid_body));
-
             auto &inner_relation = sph_system.getRelationByName<
                 Inner<Relation<SolidBody>>>(body_name);
             elastic_correction_matrix.add(
                 &main_methods.addInteractionDynamics<
                     LinearCorrectionMatrix, WithUpdate>(inner_relation));
-
-            elastic_normal_direction.add(
-                &main_methods.addStateDynamics<
-                    UpdateElasticNormalDirectionCK>(solid_body));
-
-            solid_time_step.add(
-                &main_methods.addReduceDynamics<AcousticTimeStepCK>(solid_body));
 
             if (config_manager.hasEntity<ActiveModelSolid>(solid_body.Name() + "ActiveModelSolid"))
             {
@@ -73,6 +62,17 @@ void SolidDynamicsBuilder::buildSolidsDynamicsIfPresentInFluid(
                     &main_methods.template addInteractionDynamicsOneLevel<
                         StructureIntegration2ndHalf>(inner_relation));
             }
+            
+            solid_time_step.add(
+                &main_methods.addReduceDynamics<AcousticTimeStepCK>(solid_body));
+
+            update_average_velocity.add(
+                &main_methods.addStateDynamics<
+                    FSI::UpdateAverageVelocityAndAccelerationCK>(solid_body));
+
+            elastic_normal_direction.add(
+                &main_methods.addStateDynamics<
+                    UpdateElasticNormalDirectionCK>(solid_body));
         }
     }
 

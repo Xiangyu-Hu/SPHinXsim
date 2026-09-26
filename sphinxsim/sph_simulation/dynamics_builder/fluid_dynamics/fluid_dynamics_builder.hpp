@@ -234,9 +234,8 @@ void FluidDynamicsBuilder::addViscousForceOnSolidBodiesIfPresent(
             std::string relation_name = sb_tgt->name_ + fb->name_;
             auto &contact_relation = sph_system.getRelationByName<
                 Contact<Relation<SolidBody, FluidBody>>>(relation_name);
-            viscous_force.template addGeneralPostDynamics<
-                InteractionDynamicsCK, 
-                FSI::ViscousForceFromFluid<Contact<WithUpdate, ViscosityType, KernelCorrectionType>>>(
+            viscous_force.template addGeneralPostInteraction<
+                FSI::ViscousForceFromFluid, WithUpdate, ViscosityType, KernelCorrectionType>(
                 contact_relation);
         }
     }

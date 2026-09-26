@@ -51,9 +51,9 @@ class SolidDynamicsBuilder
     // (e.g. imposing an active strain), matching the SYCL reference which
     // re-samples the active strain at each solid sub-step rather than once
     // per coupling interval.
-    template <class MaterialType, class InnerRelationType>
-    static auto &buildSolidRelaxation(
-        SPHSimulation &sim, ParticleDynamicsGroup &particle_dynamics_group,
+    template <class InnerRelationType>
+    static void buildSolidRelaxation1stHalf(
+        EntityManager &config_manager, ParticleDynamicsGroup &solid_relaxation_1st_half,
         MainMethods &main_methods, InnerRelationType &inner_relation);
 };
 } // namespace SPH

@@ -1,4 +1,4 @@
-#include "solid_dynamics_builder.h"
+#include "solid_dynamics_builder.hpp"
 
 #include "material_builder.h"
 #include "sph_simulation.h"
@@ -41,28 +41,13 @@ void SolidDynamicsBuilder::buildSolidsDynamicsIfPresentInFluid(
                 &main_methods.addInteractionDynamics<
                     LinearCorrectionMatrix, WithUpdate>(inner_relation));
 
-            if (config_manager.hasEntity<ActiveModelSolid>(solid_body.Name() + "ActiveModelSolid"))
-            {
-                const auto &active_strain_config = config_manager.getEntity<
-                    ActiveStrainConfig>(solid_body.Name() + "ActiveStrainConfig");
-                solid_relaxation_1st_half.add(&main_methods.addStateDynamics<TravelingWaveActiveStrain>(
-                    solid_body, active_strain_config));
-            }
+            buildSolidRelaxation1stHalf(
+                config_manager, solid_relaxation_1st_half, main_methods, inner_relation);
 
-            if (config_manager.hasEntity<CompositeSolidMaterial>(solid_body.Name() + "CompositeSolid"))
-            {
-                solid_relaxation_1st_half.add(
-                    &main_methods.template addInteractionDynamicsWithUpdate<
-                        StructureNumericalDamping, CompositeSolidMaterial>(inner_relation));
-                solid_relaxation_1st_half.add(
-                    &main_methods.template addInteractionDynamicsOneLevel<
-                        StructureIntegration1stHalfPK2, CompositeSolidMaterial>(inner_relation));
+            solid_relaxation_2nd_half.add(
+                &main_methods.template addInteractionDynamicsOneLevel<
+                    StructureIntegration2ndHalf>(inner_relation));
 
-                solid_relaxation_2nd_half.add(
-                    &main_methods.template addInteractionDynamicsOneLevel<
-                        StructureIntegration2ndHalf>(inner_relation));
-            }
-            
             solid_time_step.add(
                 &main_methods.addReduceDynamics<AcousticTimeStepCK>(solid_body));
 

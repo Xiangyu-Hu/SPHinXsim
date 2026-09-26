@@ -57,10 +57,6 @@ bool addExtraMaterial(EntityManager &config_manager, SPHBody &sph_body,
                 scaling_config.jsonToReal(wave_config.at("start_time"), "Time");
         }
 
-        auto &active_strain_property = sph_body.addMaterialProperty<ActiveModelSolid>(
-            density, youngs_active, poisson_ratio);
-        config_manager.addEntity(sph_body.Name() + "ActiveModelSolid", &active_strain_property);
-
         return true;
     }
     return false;

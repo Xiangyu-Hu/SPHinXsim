@@ -213,32 +213,15 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
 
     if constexpr (std::is_base_of_v<AcousticStep2ndHalfTag, AcousticHalfStepType<>>)
     {
-        using NoRiemannSolverType = RiemannSolver<NotUsed, MatterMaterialType, MatterMaterialType>;
+        auto &complex_dynamics = main_methods.template addInteractionDynamicsOneLevel<
+            AcousticHalfStepType, RiemannSolverType, KernelCorrectionType>(inner_relation);
 
-        if (!fluid_body.template collectMaterialProperties<Viscosity>().empty())
-        {
-            auto &complex_dynamics = main_methods.template addInteractionDynamicsOneLevel<
-                AcousticHalfStepType, NoRiemannSolverType, KernelCorrectionType>(inner_relation);
+        addInteractionWithSolidBodies<Wall, RiemannSolverType, KernelCorrectionType>(
+            sim, complex_dynamics, fluid_body);
+        addPressureForceOnSolidBodiesIfPresent<RiemannSolverType, KernelCorrectionType>(
+            sim, complex_dynamics, fluid_body);
 
-            addInteractionWithSolidBodies<Wall, NoRiemannSolverType, KernelCorrectionType>(
-                sim, complex_dynamics, fluid_body);
-            addPressureForceOnSolidBodiesIfPresent<NoRiemannSolverType, KernelCorrectionType>(
-                sim, complex_dynamics, fluid_body);
-
-            return complex_dynamics;
-        }
-        else
-        {
-            auto &complex_dynamics = main_methods.template addInteractionDynamicsOneLevel<
-                AcousticHalfStepType, RiemannSolverType, KernelCorrectionType>(inner_relation);
-
-            addInteractionWithSolidBodies<Wall, RiemannSolverType, KernelCorrectionType>(
-                sim, complex_dynamics, fluid_body);
-            addPressureForceOnSolidBodiesIfPresent<RiemannSolverType, KernelCorrectionType>(
-                sim, complex_dynamics, fluid_body);
-
-            return complex_dynamics;
-        }
+        return complex_dynamics;
     }
     else
     {

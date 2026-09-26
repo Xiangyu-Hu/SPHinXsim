@@ -295,8 +295,8 @@ void FluidDynamicsBuilder::buildViscousForceIfPresent(
                 sim, viscous_force, fluid_body);
             all_viscous_force.add(&viscous_force);
 
-            addViscousForceOnSolidBodiesIfPresent<Viscosity, NoKernelCorrectionCK>(
-                sim, all_viscous_force, main_methods, fb);
+            addViscousForceOnSolidBodiesIfPresent<
+                Viscosity, NoKernelCorrectionCK>(sim, viscous_force, fb);
         }
     }
 

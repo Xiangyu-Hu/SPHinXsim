@@ -220,10 +220,9 @@ void FluidDynamicsBuilder::addInteractionWithSolidBodies(
     }
 }
 //=================================================================================================//
-template <class ViscosityType, class KernelCorrectionType>
+template <class ViscosityType, class KernelCorrectionType, class ViscosityForceType>
 void FluidDynamicsBuilder::addViscousForceOnSolidBodiesIfPresent(
-    SPHSimulation &sim, ParticleDynamicsGroup &particle_dynamics_group,
-    MainMethods &main_methods, SPHBodyConfig *fb)
+    SPHSimulation &sim, ViscosityForceType &viscous_force, SPHBodyConfig *fb)
 {
     auto &sph_system = sim.getSPHSystem();
     auto &config_manager = sim.getConfigManager();
@@ -235,10 +234,10 @@ void FluidDynamicsBuilder::addViscousForceOnSolidBodiesIfPresent(
             std::string relation_name = sb_tgt->name_ + fb->name_;
             auto &contact_relation = sph_system.getRelationByName<
                 Contact<Relation<SolidBody, FluidBody>>>(relation_name);
-            particle_dynamics_group.add(
-                &main_methods.addInteractionDynamicsWithUpdate<
-                    FSI::ViscousForceFromFluid, ViscosityType, KernelCorrectionType>(
-                    contact_relation));
+            viscous_force.template addGeneralPostDynamics<
+                InteractionDynamicsCK, 
+                FSI::ViscousForceFromFluid<Contact<WithUpdate, ViscosityType, KernelCorrectionType>>>(
+                contact_relation);
         }
     }
 }

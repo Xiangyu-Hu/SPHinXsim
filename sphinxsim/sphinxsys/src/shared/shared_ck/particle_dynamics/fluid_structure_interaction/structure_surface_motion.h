@@ -15,6 +15,8 @@
 
 namespace SPH
 {
+namespace FSI
+{
 //----------------------------------------------------------------------
 //      Record the position before the structure sub loop.
 //----------------------------------------------------------------------
@@ -85,6 +87,7 @@ class UpdateAverageVelocityAndAccelerationCK : public LocalDynamics
   protected:
     DiscreteVariable<Vecd> *dv_pos_, *dv_pos_temp_, *dv_vel_ave_, *dv_acc_ave_;
 };
+} // namespace FSI
 } // namespace SPH
 
 #endif // STRUCTURE_SURFACE_MOTION_H

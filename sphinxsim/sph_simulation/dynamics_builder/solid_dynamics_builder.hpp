@@ -35,81 +35,11 @@
 #include "material_builder.h"
 #include "sph_simulation.h"
 
+#include "composite_solid.h"
+
 namespace SPH
 {
 //=================================================================================================//
-template <class MaterialType, class MethodContainerType, class InnerRelationType>
-auto &SolidDynamicsBuilder::buildSolidDynamics(
-    SPHSimulation &sim, MethodContainerType &method_container,
-    InnerRelationType &inner_relation,
-    std::function<void()> pre_substep_hook)
-{
-    auto &sph_system = sim.getSPHSystem();
-    auto &time_stepper = sim.getSPHSolver().getTimeStepper();
-
-    std::string body_name = inner_relation.getSPHBody().Name();
-    RealBody &real_body = sph_system.getBodyByName<RealBody>(body_name);
-
-    // Solid stress relaxation reads these kinematic variables; register them
-    // before the stress steps so they exist when the steps are constructed
-    BaseParticles &solid_particles = real_body.getBaseParticles();
-    solid_particles.registerStateVariable<Vecd>("Velocity");
-    solid_particles.registerStateVariable<Vecd>("Force");
-    solid_particles.registerStateVariable<Vecd>("ForcePrior");
-    solid_particles.addEvolvingVariable<Vecd>("Velocity");
-
-    auto &correction_matrix =
-    method_container.template addInteractionDynamics<LinearCorrectionMatrix, WithUpdate>(inner_relation);
-
-    // the solid picks its own step from the wave speed; this drives the sub-loop
-    auto &solid_time_step =
-        method_container.template addReduceDynamics<solid_dynamics::AcousticTimeStepCK>(real_body);
-
-    // stress relaxation runs as damping, then the two PK2 half steps, in this order
-    auto &numerical_damping =
-        method_container.template addInteractionDynamicsWithUpdate<
-            solid_dynamics::StructureNumericalDamping, MaterialType>(inner_relation);
-    auto &stress_first_half =
-        method_container.template addInteractionDynamicsOneLevel<
-            solid_dynamics::StructureIntegration1stHalfPK2, MaterialType>(inner_relation);
-    auto &stress_second_half =
-        method_container.template addInteractionDynamicsOneLevel<
-            solid_dynamics::StructureIntegration2ndHalf>(inner_relation);
-
-    auto &solid_relaxation = method_container.addParticleDynamicsGroup();
-    solid_relaxation.add(&numerical_damping).add(&stress_first_half).add(&stress_second_half);
-
-    // fill each coupling interval with as many solid sub-steps as it takes
-    auto &simulation_pipeline = sim.getSimulationPipeline();
-    simulation_pipeline.insert_hook(
-        SimulationHookPoint::CouplingSynchronization, [&, pre_substep_hook]()
-        {
-            Real dt = time_stepper.getGlobalTimeStepSize();
-            if (!(dt > 0.0))
-            {
-                throw std::runtime_error(
-                    "SolidDynamicsBuilder: coupling interval is not a positive number.");
-            }
-            Real solid_dt = solid_time_step.exec();
-            if (!(solid_dt > 0.0))
-            {
-                throw std::runtime_error(
-                    "SolidDynamicsBuilder: structure time step is not a positive number.");
-            }
-            // Matches SYCL: re-run the pre-substep hook (active strain) before
-            // every solid sub-step, not once for the whole coupling interval.
-            time_stepper.integrateMatchedTimeInterval(
-                dt, solid_time_step, [&](Real dt_s)
-                {
-                    if (pre_substep_hook)
-                    {
-                        pre_substep_hook();
-                    }
-                    solid_relaxation.exec(dt_s);
-                });
-        });
-    return correction_matrix;
-}
 //=================================================================================================//
 } // namespace SPH
 #endif // SOLID_DYNAMICS_BUILDER_HPP

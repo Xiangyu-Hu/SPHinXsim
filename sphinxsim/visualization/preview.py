@@ -35,10 +35,11 @@ from sphinxsim.bindings.loader import load_sphinxsys_core_nd
 # Keep this in data coordinates so the arrow follows the absolute model scale.
 GRAVITY_ARROW_LENGTH_RATIO = 1.0 / 5.0
 PREVIEW_MAIN_VIEWPORT_WIDTH = 0.76
-PREVIEW_SIDEBAR_BACKGROUND = (0.93, 0.93, 0.93)
-PREVIEW_TEXT_COLOUR = (0.12, 0.12, 0.12)
-PREVIEW_AXIS_COLOUR = (0.25, 0.25, 0.25)
-PREVIEW_GRAVITY_TEXT_COLOUR = (0.0, 0.35, 0.38)
+PREVIEW_MAIN_BACKGROUND = (0.09, 0.10, 0.12)
+PREVIEW_SIDEBAR_BACKGROUND = (0.12, 0.14, 0.17)
+PREVIEW_TEXT_COLOUR = (0.90, 0.92, 0.95)
+PREVIEW_AXIS_COLOUR = (0.55, 0.59, 0.64)
+PREVIEW_GRAVITY_TEXT_COLOUR = (0.30, 0.82, 0.85)
 
 if TYPE_CHECKING:
     from sphinxsim.config.schemas import (
@@ -112,7 +113,7 @@ def _legend_entries_for_config(
         elif any(body.name == body_name for body in config.continuum_bodies):
             label = "Continuum particles"
         elif any(body.name == body_name for body in config.solid_bodies):
-            label = "Rigid-boundary particles"
+            label = "Solid particles"
         else:
             label = f"Particles: {body_name}"
         key = (label, colour)
@@ -121,7 +122,7 @@ def _legend_entries_for_config(
             seen.add(key)
 
     if config.solid_bodies:
-        entries.append(("Rigid boundary", _SOLID_COLOUR))
+        entries.append(("Solid", _SOLID_COLOUR))
 
     return entries
 
@@ -229,6 +230,8 @@ class ConfigVisualizer:
         self._vtp_dir: Path | None = None
         self._shape_bounds_cache: dict[str, Any] | None = None
         self._annotation_label_actors: list[dict[str, Any]] = []
+        self._particle_simulation: Any | None = None
+        self._particle_runtime_config_path: Path | None = None
 
     def _spatial_dim(self) -> int:
         """Return the spatial dimension (2 or 3) inferred from the config.
@@ -289,6 +292,16 @@ class ConfigVisualizer:
     def annotation_label_actors(self) -> list[dict[str, Any]]:
         """Label actors created by the latest preview population pass."""
         return list(self._annotation_label_actors)
+
+    def take_particle_simulation(self) -> tuple[Any, Path] | None:
+        """Transfer a generated-particle simulation and its runtime config."""
+        simulation = self._particle_simulation
+        runtime_config_path = self._particle_runtime_config_path
+        self._particle_simulation = None
+        self._particle_runtime_config_path = None
+        if simulation is None or runtime_config_path is None:
+            return None
+        return simulation, runtime_config_path
 
     # ------------------------------------------------------------------
     # Public API
@@ -385,10 +398,10 @@ class ConfigVisualizer:
             if len(renderers) < 2:
                 return False
             try:
-                plotter.set_background("white")
+                plotter.set_background(PREVIEW_MAIN_BACKGROUND)
             except AttributeError:
                 pass
-            renderers[0].SetBackground((1.0, 1.0, 1.0))
+            renderers[0].SetBackground(PREVIEW_MAIN_BACKGROUND)
             renderers[1].SetBackground(PREVIEW_SIDEBAR_BACKGROUND)
             renderers[0].SetViewport(0.0, 0.0, PREVIEW_MAIN_VIEWPORT_WIDTH, 1.0)
             renderers[1].SetViewport(PREVIEW_MAIN_VIEWPORT_WIDTH, 0.0, 1.0, 1.0)
@@ -472,9 +485,9 @@ class ConfigVisualizer:
             lines.append("")
 
         if self.config.solid_bodies:
-            lines.extend(["Rigid boundaries", ""])
+            lines.extend(["Solid", ""])
             for body in self.config.solid_bodies:
-                append_wrapped(f"{body.name}  (Rigid boundary)", indent="  ")
+                append_wrapped(f"{body.name}  (Solid)", indent="  ")
             lines.append("")
 
         if not body_information and not self.config.solid_bodies:
@@ -562,7 +575,12 @@ class ConfigVisualizer:
         """
         if self.config_path is None:
             self._shape_bounds_cache = None
+            self._particle_simulation = None
+            self._particle_runtime_config_path = None
             return None
+
+        self._particle_simulation = None
+        self._particle_runtime_config_path = None
 
         try:
             sph = load_sphinxsys_core_nd(ndim)
@@ -617,11 +635,18 @@ class ConfigVisualizer:
                     self._shape_bounds_cache = sim.getShapeBounds()
                 except Exception:
                     self._shape_bounds_cache = None               
+                self._particle_simulation = sim
+                self._particle_runtime_config_path = runtime_config_path
         except Exception:
             self._shape_bounds_cache = None
+            self._particle_simulation = None
+            self._particle_runtime_config_path = None
             return None
         finally:
-            if runtime_config_path is not None:
+            if (
+                runtime_config_path is not None
+                and runtime_config_path != self._particle_runtime_config_path
+            ):
                 try:
                     runtime_config_path.unlink()
                 except OSError:
@@ -669,13 +694,14 @@ class ConfigVisualizer:
                 suffix = stem[len(prefix):]
                 if suffix.startswith("ite_"):
                     suffix = suffix[len("ite_"):]
-                if not suffix.isdigit():
+                try:
+                    sequence = float(suffix)
+                except ValueError:
                     continue
 
-                step = int(suffix)
                 previous = latest.get(body_name)
-                if previous is None or step >= previous[0]:
-                    latest[body_name] = (step, path)
+                if previous is None or sequence >= previous[0]:
+                    latest[body_name] = (sequence, path)
                 break
 
         return {body_name: item[1] for body_name, item in latest.items()}
@@ -852,7 +878,7 @@ class ConfigVisualizer:
         # --- Render each shape ---
         if not hide_shapes:
             for shape in config.geometries.shapes:
-                if shape.type.value == "complex_shape":
+                if shape.type.value == "extrude_shape" or shape.type.value == "complex_shape":
                     # Skip — rendered via sub-shapes
                     continue
 
@@ -894,6 +920,7 @@ class ConfigVisualizer:
 
             plotter.add_mesh(
                 particle_mesh,
+                name=f"particle-preview-{body_name}",
                 color=_body_colour(body_name, config),
                 opacity=0.95,
                 style="points",
@@ -1033,7 +1060,7 @@ class ConfigVisualizer:
                 [observer_short_label(observer_index)],
                 font_size=9,
                 text_color=(0.55, 0.0, 0.45),
-                background_color=(0.94, 0.94, 0.94),
+                background_color=PREVIEW_SIDEBAR_BACKGROUND,
                 background_opacity=0.96,
             )
 
@@ -1047,8 +1074,8 @@ class ConfigVisualizer:
             # A larger legend viewport gives the rectangular material swatches
             # enough visual weight beside their labels.
             size=(0.28, 0.10),
-            bcolor="white",
-            border=True,
+            bcolor=PREVIEW_SIDEBAR_BACKGROUND,
+            border=False,
             loc="upper left",
             background_opacity=0.88,
         )
@@ -1057,11 +1084,11 @@ class ConfigVisualizer:
                 text_property = legend.GetEntryTextProperty()
                 text_property.SetFontSize(5)
                 text_property.SetBold(False)
-                text_property.SetColor(0.1, 0.1, 0.1)
+                text_property.SetColor(PREVIEW_TEXT_COLOUR)
             except AttributeError:
                 pass
         try:
-            plotter.set_background("white")
+            plotter.set_background(PREVIEW_MAIN_BACKGROUND)
         except AttributeError:
             pass
 

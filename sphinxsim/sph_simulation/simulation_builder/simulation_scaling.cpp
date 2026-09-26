@@ -157,6 +157,12 @@ ScalingConfig::ScalingConfig(const json &config)
     bool user_scaling_provided = false;
     if (config.contains("characteristic_dimensions"))
     {
+        if (config.at("characteristic_dimensions").size() < 2)
+        {
+            throw std::runtime_error(
+                "ScalingConfig::ScalingConfig: At least two different characteristic dimensions must be provided.");
+        }
+
         bool has_length_unit = false;
         for (const auto &cd : config.at("characteristic_dimensions"))
         {
@@ -216,6 +222,8 @@ UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name, bool is_require
         return UnitMetrics{0, 1, 0, 0, 0, 0, 0};
     if (unit_name == "Time")
         return UnitMetrics{0, 0, 1, 0, 0, 0, 0};
+    if (unit_name == "Frequency")
+        return UnitMetrics{0, 0, -1, 0, 0, 0, 0};
     if (unit_name == "Temperature")
         return UnitMetrics{0, 0, 0, 1, 0, 0, 0};
     if (unit_name == "ElectricCurrent")
@@ -276,12 +284,24 @@ CharacteristicDimension ScalingConfig::parseCharacteristicDimension(
     else
     {
         character_dim.hint_ = config.at("hint").get<std::string>();
-        Real hint_value = resolve(root_config, character_dim.hint_);
-        if (!isSameOrderOfMagnitude(character_dim.value_, hint_value))
+        if (character_dim.hint_ == "externally_defined")
         {
-            throw std::runtime_error(
-                "ScalingConfig::parseCharacteristicDimension: value of '" + character_dim.name_ +
-                "' is not the same order of magnitude as its hint '" + character_dim.hint_ + "'.");
+            std::cout << "\n------------------------------------------------------------" << std::endl;
+            std::cout << "Warning: hint for '" << character_dim.name_ << "' is externally defined. " << std::endl;
+            std::cout << "Considering using a hint defined in the configuration file to avoid ambiguity." << std::endl;
+            std::cout << "------------------------------------------------------------" << std::endl;
+
+            return character_dim;
+        }
+        else
+        {
+            Real hint_value = resolve(root_config, character_dim.hint_);
+            if (!isSameOrderOfMagnitude(character_dim.value_, hint_value))
+            {
+                throw std::runtime_error(
+                    "ScalingConfig::parseCharacteristicDimension: value of '" + character_dim.name_ +
+                    "' is not the same order of magnitude as its hint '" + character_dim.hint_ + "'.");
+            }
         }
     }
     return character_dim;
@@ -347,6 +367,23 @@ Vecd ScalingConfig::jsonToVecd(const nlohmann::json &arr, const std::string &uni
     Vecd v = Vecd::Zero();
     Real scaling_ref = getScalingRef(unit_name);
     for (int i = 0; i < Vecd::RowsAtCompileTime; ++i)
+        v[i] = arr[i].get<Real>() / scaling_ref;
+    return v;
+}
+//=================================================================================================//
+Vec2d ScalingConfig::jsonToVec2d(const nlohmann::json &arr, const std::string &unit_name) const
+{
+    if (static_cast<int>(arr.size()) != 2)
+    {
+        std::cout << "\n------------------------------------------------------------" << std::endl;
+        std::cout << static_cast<int>(arr.size()) << std::endl;
+        throw std::runtime_error(
+            "ScalingConfig::jsonToVec2d: expected a numeric array with exactly 2 entries.");
+    }
+
+    Vec2d v = Vec2d::Zero();
+    Real scaling_ref = getScalingRef(unit_name);
+    for (int i = 0; i < 2; ++i)
         v[i] = arr[i].get<Real>() / scaling_ref;
     return v;
 }

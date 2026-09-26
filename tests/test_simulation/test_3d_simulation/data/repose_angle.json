@@ -1,4 +1,22 @@
 {
+  "characteristic_dimensions": [
+    {
+      "value": 0.1,
+      "name": "Length",
+      "hint": "geometries.shapes[name=GranularBody].radius"
+    },
+    {
+      "value": 9.8,
+      "name": "Gravity",
+      "hint": "gravity"
+    },
+    {
+      "value": 2600.0,
+      "name": "Density",
+      "hint": "continuum_bodies[name=GranularBody].material.density"
+    }
+  ],
+
   "simulation_type": "continuum_dynamics",
 
   "geometries": {

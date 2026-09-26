@@ -12,29 +12,15 @@
 
 #include "base_local_dynamics.h"
 #include "sph_system.h"
+#include "sphinxsim_project.h"
 
 namespace SPH
 {
+class ActiveStrainConfig;
 class TravelingWaveActiveStrain : public LocalDynamics
 {
   public:
-    TravelingWaveActiveStrain(SPHBody &sph_body, Vecd center, Real region_span,
-                              Real core_thickness, Real amplitude, Real frequency,
-                              Real wavelength_factor, Real start_time)
-        : LocalDynamics(sph_body),
-          sv_physical_time_(&sph_system_->svPhysicalTime()),
-          dv_material_id_(particles_->getVariableByName<int>("MaterialID")),
-          dv_pos0_(particles_->registerStateVariableFrom<Vecd>("InitialPosition", "Position")),
-          dv_active_strain_(particles_->getVariableByName<Matd>("ActiveStrain")),
-          center_(center), region_span_(region_span), core_thickness_(core_thickness),
-          amplitude_(amplitude), frequency_(frequency),
-          wavelength_factor_(wavelength_factor), start_time_(start_time)
-    {
-        // The reference position and the material id describe the undeformed
-        // state, so both are kept across a restart.
-        particles_->addEvolvingVariable<Vecd>("InitialPosition");
-        particles_->addEvolvingVariable<int>("MaterialID");
-    }
+    TravelingWaveActiveStrain(SPHBody &sph_body, const ActiveStrainConfig &config);
 
     struct UpdateKernel
     {

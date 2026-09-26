@@ -149,6 +149,8 @@ class SimulationBuilder
     virtual void parseSolverParameters(EntityManager &config_manager, const json &config);
     static void parseScheduledEvents(SPHSimulation &sim, const json &config, bool &on_flag);
     static RestartConfig parseRestartConfig(const json &config);
+    static void initializeAllBodyConfigs(EntityManager &config_manager);
+    static int parseLoglevel(const json &config);
 
   protected:
     void buildFluidBodies(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
@@ -157,6 +159,7 @@ class SimulationBuilder
     void buildUpdateConfiguration(SPHSimulation &sim, MainMethods &main_methods, const json &config);
 
     void buildExternalForceIfPresent(SPHSimulation &sim, MainMethods &main_methods, const json &config);
+    void buildStartupAccelerationIfPresent(SPHSimulation &sim, MainMethods &main_methods, const json &config);
     void buildInitialConditionIfPresent(SPHSimulation &sim, MainMethods &main_methods, const json &config);
     void buildRestartFromFileIfPresent(SPHSimulation &sim, MainMethods &main_methods, const json &config);
 

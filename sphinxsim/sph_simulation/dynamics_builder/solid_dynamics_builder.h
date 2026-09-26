@@ -42,17 +42,19 @@ class RealBody;
 class SolidDynamicsBuilder
 {
   public:
+    // Builds stress relaxation, active strain, corrected configuration and the
+    // surface-motion coupling for each composite_solid body.
+    static void buildSolidsDynamicsIfPresentInFluid(SPHSimulation &sim, MainMethods &main_methods);
+
+  private:
     // pre_substep_hook, if given, runs once before every solid sub-step
     // (e.g. imposing an active strain), matching the SYCL reference which
     // re-samples the active strain at each solid sub-step rather than once
     // per coupling interval.
-    template <class MaterialType, class MethodContainerType, class InnerRelationType>
-    static auto &buildSolidDynamics(
-        SPHSimulation &sim, MethodContainerType &method_container,
-        InnerRelationType &inner_relation,
-        std::function<void()> pre_substep_hook = nullptr);
-
-  private:
+    template <class MaterialType, class InnerRelationType>
+    static auto &buildSolidRelaxation(
+        SPHSimulation &sim, ParticleDynamicsGroup &particle_dynamics_group,
+        MainMethods &main_methods, InnerRelationType &inner_relation);
 };
 } // namespace SPH
 #endif // SOLID_DYNAMICS_BUILDER_H

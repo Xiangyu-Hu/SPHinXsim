@@ -42,42 +42,6 @@ class FluidSimulationBuilder : public SimulationBuilder
 
   private:
     FluidSolverConfig parseFluidSolverConfig(const ScalingConfig &scaling_config, const json &config);
-
-    template <class InnerRelationType, class ContactRelationType>
-    BaseDynamics<void> &addDensityRegularization(
-        SPHSimulation &sim, MainMethods &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
-
-    template <class InnerRelationType, class ContactRelationType>
-    void buildTransportVelocityFormulationIfNotFreeSurface(
-        SPHSimulation &sim, MainMethods &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
-
-    template <class InnerRelationType, class ContactRelationType>
-    BaseDynamics<void> &addLinearCorrectionMatrixWithScope(
-        EntityManager &config_manager, MainMethods &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
-
-    BaseDynamics<void> &addTransportVelocityCorrection(
-        MainMethods &main_methods, SPHBody &sph_body, FluidSolverConfig &fluid_solver_config);
-
-    template <class InnerRelationType, class ContactRelationType>
-    void buildViscousForceIfPresent(
-        SPHSimulation &sim, MainMethods &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
-
-    void buildParticleDeletionIfPresent(
-        SPHSimulation &sim, MainMethods &main_methods, RealBody &real_body);
-
-    BaseDynamics<void> *buildParticleSortIfPresent(
-        SPHSimulation &sim, MainMethods &main_methods, RealBody &real_body);
-
-    // Returns the surface-indication dynamics if built, nullptr otherwise,
-    // so callers can also re-run it during restart resync.
-    template <class InnerRelationType, class ContactRelationType>
-    BaseDynamics<void> *buildSurfaceIndicationIfOpenBoundary(
-        SPHSimulation &sim, MainMethods &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
 };
 } // namespace SPH
 #endif // FLUID_SIMULATION_BUILDER_H

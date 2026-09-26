@@ -56,68 +56,8 @@ void FluidDynamicsBuilder::addBoundaryCondition(
                 sim, config.at("on_schedule"), fluid_solver_config.emitter_on_);
         }
 
-        if (config_manager.hasEntity<WeaklyCompressibleMultiPhase>(
-                body_name + "WeaklyCompressibleMultiPhase"))
-        {
-            auto &mixture = config_manager.getEntity<WeaklyCompressibleMultiPhase>(
-                body_name + "WeaklyCompressibleMultiPhase");
-
-            if (config.contains("multi_species_phases"))
-            {
-                for (const auto &phase : config.at("multi_species_phases"))
-                {
-                    std::string phase_name = phase.at("phase_name").get<std::string>();
-                    auto &multi_species_phase = mixture.getMultiSpeciesPhaseByName(phase_name);
-                    StdVec<Real> mass_fractions = MaterialBuilder::parseMixtureFractions(
-                        scaling_config, phase.at("mass_fractions"));
-
-                    inflow_condition.add(
-                        &main_methods.template addStateDynamics<
-                            VariableAssignment,
-                            ConstantMixtureFraction<WeaklyCompressibleMultiSpecies>>(
-                            emitter, multi_species_phase, mass_fractions));
-                }
-            }
-
-            if (config.contains("volume_fractions"))
-            {
-                StdVec<Real> volume_fractions = MaterialBuilder::parseMixtureFractions(
-                    scaling_config, config.at("volume_fractions"));
-                inflow_condition.add(
-                    &main_methods.template addStateDynamics<
-                        VariableAssignment,
-                        ConstantMixtureFraction<WeaklyCompressibleMultiPhase>>(
-                        emitter, mixture, volume_fractions));
-                inflow_condition.add(
-                    &main_methods.template addStateDynamics<
-                        VariableAssignment,
-                        UpdateReferenceDensity<WeaklyCompressibleMultiPhase>>(
-                        emitter, mixture));
-            }
-        }
-
-        if (config_manager.hasEntity<WeaklyCompressibleMultiSpecies>(
-                body_name + "WeaklyCompressibleMultiSpecies"))
-        {
-            auto &mixture = config_manager.getEntity<WeaklyCompressibleMultiSpecies>(
-                body_name + "WeaklyCompressibleMultiSpecies");
-            if (config.contains("mass_fractions"))
-            {
-                StdVec<Real> mass_fractions = MaterialBuilder::parseMixtureFractions(
-                    scaling_config, config.at("mass_fractions"));
-                inflow_condition.add(
-                    &main_methods.template addStateDynamics<
-                        VariableAssignment,
-                        ConstantMixtureFraction<WeaklyCompressibleMultiSpecies>>(
-                        emitter, mixture, mass_fractions));
-
-                inflow_condition.add(
-                    &main_methods.template addStateDynamics<
-                        VariableAssignment,
-                        UpdateReferenceDensity<WeaklyCompressibleMultiSpecies>>(
-                        emitter, mixture));
-            }
-        }
+        assignSupplementaryConditions(
+            emitter, inflow_condition, config_manager, main_methods, config);
 
         initialization_pipeline.insert_hook(
             InitializationHookPoint::InitialCondition, [&]()
@@ -158,27 +98,10 @@ void FluidDynamicsBuilder::addBoundaryCondition(
             oriented_box_by_cell, config_manager, main_methods, config);
 
         auto &supplementary_conditions = main_methods.addParticleDynamicsGroup();
-        if (config_manager.hasEntity<WeaklyCompressibleMultiSpecies>(
-                body_name + "WeaklyCompressibleMultiSpecies"))
-        {
-            auto &mixture = config_manager.getEntity<WeaklyCompressibleMultiSpecies>(
-                body_name + "WeaklyCompressibleMultiSpecies");
-            if (config.contains("mass_fractions"))
-            {
-                StdVec<Real> mass_fractions = MaterialBuilder::parseMixtureFractions(
-                    scaling_config, config.at("mass_fractions"));
+        assignSupplementaryConditions(
+            oriented_box_by_cell, supplementary_conditions,
+            config_manager, main_methods, config);
 
-                supplementary_conditions.add(
-                    &main_methods.template addStateDynamics<
-                        SupplementaryCondition<ConstantMixtureFraction<WeaklyCompressibleMultiSpecies>>>(
-                        oriented_box_by_cell, mixture, mass_fractions));
-
-                supplementary_conditions.add(
-                    &main_methods.template addStateDynamics<
-                        SupplementaryCondition<UpdateReferenceDensity<WeaklyCompressibleMultiSpecies>>>(
-                        oriented_box_by_cell, mixture));
-            }
-        }
         // applied to initialization
         initialization_pipeline.insert_hook(
             InitializationHookPoint::AfterInitialCondition, [&]()
@@ -275,6 +198,12 @@ AbstractBidirectionalBoundary &FluidDynamicsBuilder::createBiDirectionBoundary(
     OrientedBoxByCell &oriented_box_by_cell, EntityManager &config_manager,
     MainMethods &main_methods, const json &config)
 {
+    if (config.contains("pressure") && config.contains("velocity"))
+    {
+        throw std::runtime_error(
+            "Specify either pressure or velocity for a bidirectional boundary.");
+    }
+
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     if (config.contains("pressure"))
     {
@@ -297,8 +226,118 @@ AbstractBidirectionalBoundary &FluidDynamicsBuilder::createBiDirectionBoundary(
         }
     }
 
+    if (config.contains("velocity"))
+    {
+        return createVelocityBiDirectionBoundary(
+            oriented_box_by_cell, config_manager, main_methods, config);
+    }
+
     throw std::runtime_error(
         "FluidDynamicsBuilder::createBiDirectionBoundary: unsupported boundary condition type");
+}
+//=================================================================================================//
+class ParabolicInflowVelocityPrescribed
+    : public VelocityPrescribed<WeaklyCompressibleFluid>
+{
+  public:
+    ParabolicInflowVelocityPrescribed(
+        Real channel_height, Real max_speed, Real startup_time, Real relaxation_rate)
+        : channel_height_(channel_height),
+          max_speed_(max_speed),
+          startup_time_(startup_time),
+          relaxation_rate_(relaxation_rate)
+    {
+    }
+
+    Real getAxisVelocity(
+        const Vecd &input_position,
+        const Real &input_axis_velocity,
+        Real time)
+    {
+        Real y = input_position[1];
+        Real eta = 2.0 * y / channel_height_;
+
+        Real steady_velocity = max_speed_ * (1.0 - eta * eta);
+        Real startup_factor =
+            1.0 - math::exp(-time / startup_time_);
+
+        Real target_velocity = steady_velocity * startup_factor;
+        if (relaxation_rate_ == 1.0)
+            return target_velocity;
+        return input_axis_velocity +
+               relaxation_rate_ * (target_velocity - input_axis_velocity);
+    }
+
+  private:
+    Real channel_height_;
+    Real max_speed_;
+    Real startup_time_;
+    Real relaxation_rate_;
+};
+//=================================================================================================//
+AbstractBidirectionalBoundary &
+FluidDynamicsBuilder::createVelocityBiDirectionBoundary(
+    OrientedBoxByCell &oriented_box_by_cell,
+    EntityManager &config_manager,
+    MainMethods &main_methods,
+    const json &config)
+{
+    auto &scaling_config =
+        config_manager.getEntity<ScalingConfig>("ScalingConfig");
+
+    SPHBody &sph_body = oriented_box_by_cell.getSPHBody();
+    const std::string body_name = sph_body.Name();
+
+    if (!config_manager.hasEntity<WeaklyCompressibleFluid>(
+            body_name + "WeaklyCompressibleFluid"))
+    {
+        throw std::runtime_error(
+            "Velocity boundary requires WeaklyCompressibleFluid.");
+    }
+
+    const auto &velocity = config.at("velocity");
+    Real relaxation_rate = velocity.value("relaxation_rate", Real(1.0));
+    if (!(relaxation_rate >= 0.0 && relaxation_rate <= 1.0))
+    {
+        throw std::runtime_error(
+            "Velocity boundary relaxation_rate must be in [0, 1].");
+    }
+
+    if (velocity.at("profile").get<std::string>() != "parabolic")
+    {
+        throw std::runtime_error(
+            "Velocity boundary currently supports only a parabolic profile.");
+    }
+
+    Real channel_height = scaling_config.jsonToReal(
+        velocity.at("channel_height"), "Length");
+    Real max_speed = scaling_config.jsonToReal(
+        velocity.at("max_speed"), "Speed");
+
+    const auto &startup = velocity.at("startup");
+
+    if (startup.at("type").get<std::string>() != "exponential")
+    {
+        throw std::runtime_error(
+            "Velocity boundary currently supports only exponential startup.");
+    }
+
+    Real startup_time = scaling_config.jsonToReal(
+        startup.at("time_constant"), "Time");
+
+    if (!(channel_height > 0.0) || !(startup_time > 0.0))
+    {
+        throw std::runtime_error(
+            "Channel height and startup time must be positive.");
+    }
+
+    auto &boundary = main_methods.template addGeneralDynamics<
+        BidirectionalBoundaryCK,
+        LinearCorrectionCK,
+        ParabolicInflowVelocityPrescribed>(
+        oriented_box_by_cell, channel_height, max_speed, startup_time, relaxation_rate);
+
+    return boundary;
 }
 //=================================================================================================//
 } // namespace SPH

@@ -6,7 +6,8 @@
 namespace SPH
 {
 //=================================================================================================//
-bool addExtraMaterial(EntityManager &config_manager, SPHBody &sph_body, const json &config, const std::string &type)
+bool addExtraMaterial(EntityManager &config_manager, SPHBody &sph_body,
+                      const json &config, const std::string &type)
 {
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
 
@@ -33,6 +34,33 @@ bool addExtraMaterial(EntityManager &config_manager, SPHBody &sph_body, const js
             density, youngs_active, youngs_1, youngs_2, poisson_ratio,
             region_shapes, region_ids, default_id);
         config_manager.addEntity(sph_body.Name() + "CompositeSolid", &material);
+
+        if (config.contains("active_strain"))
+        {
+            const json &wave_config = config.at("active_strain");
+            auto &active_strain_config = *config_manager.emplaceEntity<
+                ActiveStrainConfig>(sph_body.Name() + "ActiveStrainConfig");
+
+            active_strain_config.wave_center_ =
+                scaling_config.jsonToVecd(wave_config.at("center"), "Length");
+            active_strain_config.wave_span_ =
+                scaling_config.jsonToReal(wave_config.at("region_span"), "Length");
+            active_strain_config.wave_core_ =
+                scaling_config.jsonToReal(wave_config.at("core_thickness"), "Length");
+            active_strain_config.amplitude_ =
+                scaling_config.jsonToReal(wave_config.at("amplitude"), "Dimensionless");
+            active_strain_config.frequency_ =
+                scaling_config.jsonToReal(wave_config.at("frequency"), "Frequency");
+            active_strain_config.wavelength_factor_ =
+                scaling_config.jsonToReal(wave_config.at("wavelength_factor"), "Dimensionless");
+            active_strain_config.start_time_ =
+                scaling_config.jsonToReal(wave_config.at("start_time"), "Time");
+        }
+
+        auto &active_strain_property = sph_body.addMaterialProperty<ActiveModelSolid>(
+            density, youngs_active, poisson_ratio);
+        config_manager.addEntity(sph_body.Name() + "ActiveModelSolid", &active_strain_property);
+
         return true;
     }
     return false;

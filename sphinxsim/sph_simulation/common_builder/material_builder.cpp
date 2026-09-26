@@ -3,10 +3,6 @@
 #include "fluid_dynamics_builder.h"
 #include "sphinxsys.h"
 
-#ifdef SPHINXSIM_PROJECT
-#include "sphinxsim_project.h"
-#endif
-
 namespace SPH
 {
 //=================================================================================================//

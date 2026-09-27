@@ -1,110 +1,33 @@
-# Instructions for developing SPHinXsim Projects
+# Instructions for developing C++ SPHinXsim simulator
 
-This document explains the purpose of the repository, describes how to set up a project, and gives important guidance on branching, pull requests, and merges.
+All C++ development from the SPHinXsim contributor need to go through a two-step pattern.
 
-## Table of Contents
-- [What is a SPHinXsim Project?](#what-is-a-sphinxsim-project)
-- [How to setup a SPHinXsim Project](#how-to-setup-a-sphinxsim-project)
-- [Branching, Pull Requests, and Merging](#branching-pull-requests-and-merging)
-- [Contributing to a Project](#contributing-to-a-project)
-- [Contributing to SPHinXsim](#contributing-to-sphinxsim)
-- [Contributing to SPHinXsys](#contributing-to-sphinxsys)
+- First, the new feature is added through small project in `project/`.
+- Second, after a successful project the new new feature will be moved into `sphinxsim/sph_simulation/`.
 
+## How to setup a small SPHinXsim Project
 
-## What is a SPHinXsim Project?
-
-A **SPHinXsim Project** is a long‑term effort to simulate a complex, multi‑physics problem using SPHinXsim as the simulation environment.
-
-### Ambitious, long‑term goal
-
-A defining feature of such a project is that the ultimate objective is so challenging that there is always something meaningful left to add – more realistic physics, higher accuracy, or additional phenomena. The problem must therefore be an open scientific question (typically multi‑physics) that is under active investigation and will likely remain unsolved for the foreseeable future.
-
-### Co-development with SPHinXsys and SPHinXsim
-
-Another defining characteristic is that the project evolves together with two other projects:
-
-- **SPHinXsys** – provides the numerical solvers as a C++ library.
-- **SPHinXsim** – the software framework that lets you assemble and run complex simulations.
-
-Development flows in both directions:
-
-- **Bottom‑up**: new solvers and simulator features enable more physics to be included in the simulation.
-- **Top‑down**: the need for new physics drives the creation of new solvers or simulator functionality.
-
-## How to setup a SPHinXsim Project
-
-Each project lives in its own branch, and the branch name must be the project name. All project‑specific files are stored in a directory called `project/` at the repository root. That directory has a fixed internal structure:
+Each C++ development project lives in its own branch. All project‑specific files are stored in a directory called `project/` at the repository root. That directory has a fixed internal structure:
 
 1. `extra_src/` – C++ source code that is needed to build the simulation but is not part of the core libraries.
-   An umbrella header `sphinxsim_project.h` must be provided; it should include all extra classes and functions.
+   An umbrella header `sphinxsim_project.h` (or `sphinxsim_project.hpp` for template functions) must be provided; it should include all extra classes and functions.
 
-2. `simulation/` – contains all simulation cases. Each case resides in a sub‑folder named after the case. A case folder includes the JSON configuration file and any assets (e.g., geometry files, initial conditions).
+2. `simulation/` – contains all (2d and 3d) simulation cases. Each case resides in a sub‑folder named after the case. A case folder includes the JSON configuration file and any assets (e.g., geometry files, initial conditions).
 
 3. `docs/` – documentation for the project and auxiliary files (for example, “skills” definitions that enhance AI‑assisted development).
 
-The repository includes a `project-template` branch that demonstrates the required layout. 
-It is based on a real project (`fish-swimming`) but stripped down to serve as 
-a starting point for new projects.
+4. Interface to `sphinxsim/sph_simulation/` - In all cases, only small interface patch is allowed to add to the origin files. Generally two types with `SPHINXSIM_PROJECT` macro. One including the `sphinxsim_project.h` or `sphinxsim_project.hpp` header. Another is the call to a function defined in the header.
 
-## Branching, Pull Requests, and Merging
+5. Exception - One need contact the maintainer if anything above can not be followed.
 
-Although this repository is a fork of SPHinXsim, we maintain it independently.
-Project branches are never pushed back to the upstream SPHinXsim repository.
+## Two-step pull requests
 
-To keep the main history clean and to control how upstream changes enter the projects, we use two special branches:
+According the two-step approach, a pull request ready for review should be in small project form. 
 
-- `main` – tracks the upstream SPHinXsim. No direct contributions from project branches are allowed.
-- `project-template` – an intermediate, safeguarded branch. 
-It is the only branch that is allowed to receive updates from upstream (by merging `main` into it).
-Changes to the template structure are made only by maintainers through a dedicated process, not via project branches.
+- The pull request will be reviewed and changes are request until the project itself is OK.
 
-All project branches must follow these rules:
+- Then, the contribution will be requested to be moved into `sphinxsim/sph_simulation/` and clean `project/` so that only empty functions left in `sphinxsim_project.h` or `sphinxsim_project.hpp` header are kept. So the other project can be started from blank.
 
-- Create project branches exclusively from `project-template`.
-- The only allowed merge from a shared branch is merging `project-template` into your project branch (to pick up template updates).
-- Never merge a project branch directly into `main` or into `project-template`.
-- Never merge one project branch into another project branch.
+- The tests for the project will be moved to `tests/` in their proper sub-directories.
 
-This workflow ensures that:
-
-- Project branches remain isolated from each other and from the upstream history.
-- Upstream changes flow only through `project-template`, where they can be reviewed and adapted before reaching the projects.
-
-## Contributing to a Project
-
-There are two ways to contribute to a project:
-
-1. **Directly in the project branch** – if you are a core developer or a collaborator of the project, you can commit directly to the project branch. This is the simplest way to contribute. If you are not a core developer, you can request write access to the project branch from the project maintainers.
-2. **Pull requests** – if you are not a core developer, you can fork the repository, 
-create a branch from the project branch, and submit a pull request 
-to the corresponding project branch main project repository. 
-The project maintainers will review your changes and merge them into the project branch if they are accepted.
-
-## Contributing to SPHinXsim
-
-If you find that source code in `extra_src` is useful for other projects and 
-you are considering contributing it to the main SPHinXsim repository. 
-
-If you are a core developer or a collaborator of the SPHinXsim, 
-you can commit directly a feature branch to SPHinXsim  in the main SPHinXsim repository and push your changes there
-without forking SPHinXsim repository. 
-For this, you set the main SPHinXsim repository as a remote and push your changes to it. 
-
-Please note that, in this case, you you need to work on branches created from `main` 
-and follow the SPHinXsim contribution guidelines.
-Therefore, the contribution needs to be moved from the `project/extra_src` folder to 
-a proper subfolder of `sphinxsim` folder and
-equipped with its own tests and documentation other than those in the project.
-
-### Contributing to SPHinXsys
-
-Again, if you are a core developer or a collaborator of SPHinXsys,
-you can commit directly to SPHinXsys.
-For this, you set the main SPHinXsys repository as a remote (different from the one for SPHinXsim).
-The SPHinXsys code is embedded inside SPHinXsim at `sphinxsim/sphinxsys`.
-You can use `git subtree split` to extract only the changes made in that subdirectory and 
-push them to the SPHinXsys repository.”
-
-Also in this case, the contribution or change needs to be restricted to 
-the `sphinxsim/sphinxsys` folder and be equipped with its own tests and documentation 
-other than those in the project or SPHinXsim. 
+- Bug fix and other local enhancement will still follow the usual one-step approach.

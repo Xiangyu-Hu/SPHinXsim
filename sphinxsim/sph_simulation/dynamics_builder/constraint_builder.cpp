@@ -25,6 +25,7 @@ void ConstraintBuilder::buildConstraintsIfPresent(
 void ConstraintBuilder::addConstraint(
     SPHSimulation &sim, MainMethods &main_methods, RealBody &real_body, const json &config)
 {
+    auto &sph_system = sim.getSPHSystem();
     EntityManager &config_manager = sim.getConfigManager();
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
@@ -60,22 +61,18 @@ void ConstraintBuilder::addConstraint(
 
     if (type == "simbody")
     {
-        SimTK::MultibodySystem &MBsystem = *config_manager.emplaceEntity<
-            SimTK::MultibodySystem>("SimbodyMultibodySystem");
-        config_manager.emplaceEntity<SimTK::SimbodyMatterSubsystem>("SimbodyMatterSubsystem", MBsystem);
+        auto &simbody_system = sph_system.getSimbodySystem();
+        SimTK::MultibodySystem &MBsystem = simbody_system.getMultibodySystem();
         Shape &shape = config_manager.getEntity<Shape>(real_body.Name());
         SolidBodyPartForSimbody &body_part = real_body.addBodyPart<SolidBodyPartForSimbody>(shape);
 
-        SimTK::State state = parseSimbodyMobilizedBody(config_manager, body_part, config);
-        SimTK::RungeKuttaMersonIntegrator &integ =
-            *config_manager.emplaceEntity<SimTK::RungeKuttaMersonIntegrator>(
-                "SimbodyIntegrator", MBsystem);
+        SimTK::State state = parseSimbodyMobilizedBody(config_manager, simbody_system, body_part, config);
+        SimTK::RungeKuttaMersonIntegrator &integ = simbody_system.getSimbodyIntegrator();
 
         if (config_manager.hasEntity<RestartConfig>("RestartConfig"))
         {
             auto &restart_config = config_manager.getEntity<RestartConfig>("RestartConfig");
-            SimbodyStateEngine &state_engine = *config_manager.emplaceEntity<
-                SimbodyStateEngine>("SimbodyStateEngine", MBsystem);
+            SimbodyStateEngine &state_engine = simbody_system.getSimbodyStateEngine();
 
             simulation_pipeline.insert_hook(
                 SimulationHookPoint::ExtraOutput, [&]()
@@ -94,9 +91,9 @@ void ConstraintBuilder::addConstraint(
 
         MBsystem.realize(state);
         integ.initialize(state);
-        checkSimbodyState(sim);
+        checkSimbodyState(simbody_system, body_part);
 
-        auto &mobilized_body = config_manager.getEntity<SimTK::MobilizedBody>("SimbodyMobilizedBody");
+        auto &mobilized_body = simbody_system.getMobilizedBody<SimTK::MobilizedBody>(body_part.Name());
         auto &constraint = main_methods.template addStateDynamics<
             solid_dynamics::ConstraintBodyPartBySimBodyCK>(body_part, MBsystem, mobilized_body, integ);
         simulation_pipeline.insert_hook(
@@ -119,23 +116,23 @@ void ConstraintBuilder::addConstraint(
 }
 //=================================================================================================//
 SimTK::State ConstraintBuilder::parseSimbodyMobilizedBody(
-    EntityManager &config_manager, SolidBodyPartForSimbody &body_part, const json &config)
+    EntityManager &config_manager, SimbodySystem &simbody_system,
+    SolidBodyPartForSimbody &body_part, const json &config)
 {
     const std::string &mobilized_body_type = config.at("mobilized_body").get<std::string>();
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
-    auto &MBsystem = config_manager.getEntity<SimTK::MultibodySystem>("SimbodyMultibodySystem");
-    auto &matter = config_manager.getEntity<SimTK::SimbodyMatterSubsystem>("SimbodyMatterSubsystem");
+    auto &MBsystem = simbody_system.getMultibodySystem();
+    auto &matter = simbody_system.getSimbodyMatterSubsystem();
 
-    SimTK::Body::Rigid &simbody_body = *config_manager.emplaceEntity<
-        SimTK::Body::Rigid>("RigidBody", body_part.getSimTKMassProperties());
+    SimTK::Body::Rigid &simbody_body = simbody_system.createRigidBody(
+        body_part.Name(), body_part.getSimTKMassProperties());
 
     if (mobilized_body_type == "planar")
     {
-        SimTK::MobilizedBody::Planar &mobilized_body_planar =
-            *config_manager.emplaceEntity<SimTK::MobilizedBody::Planar>(
-                "SimbodyMobilizedBodyPlanar",
-                matter.Ground(), body_part.getSimTKMassCenter(), simbody_body, body_part.getSimTKTransform());
-        config_manager.addEntity<SimTK::MobilizedBody>("SimbodyMobilizedBody", &mobilized_body_planar);
+        auto &mobilized_body_planar =
+            simbody_system.createMobilizedBody<SimTK::MobilizedBody::Planar>(
+                body_part.Name(), matter.Ground(), body_part.getSimTKMassCenter(),
+                simbody_body, body_part.getSimTKTransform());
 
         SimTK::State state = MBsystem.realizeTopology();
         // set the initial velocity of the mobilized body
@@ -149,10 +146,9 @@ SimTK::State ConstraintBuilder::parseSimbodyMobilizedBody(
     if (mobilized_body_type == "pin")
     {
         SimTK::MobilizedBody::Pin &mobilized_body_pin =
-            *config_manager.emplaceEntity<SimTK::MobilizedBody::Pin>(
-                "SimbodyMobilizedBodyPin",
-                matter.Ground(), body_part.getSimTKMassCenter(), simbody_body, body_part.getSimTKTransform());
-        config_manager.addEntity<SimTK::MobilizedBody>("SimbodyMobilizedBody", &mobilized_body_pin);
+            simbody_system.createMobilizedBody<SimTK::MobilizedBody::Pin>(
+                body_part.Name(), matter.Ground(), body_part.getSimTKMassCenter(),
+                simbody_body, body_part.getSimTKTransform());
 
         SimTK::State state = MBsystem.realizeTopology();
         // set the initial velocity of the mobilized body
@@ -165,15 +161,12 @@ SimTK::State ConstraintBuilder::parseSimbodyMobilizedBody(
         "ConstraintBuilder::addConstraint:simbody unsupported mobilized body type: " + mobilized_body_type);
 }
 //=================================================================================================//
-void ConstraintBuilder::checkSimbodyState(SPHSimulation &sim)
+void ConstraintBuilder::checkSimbodyState(
+    SimbodySystem &simbody_system, SolidBodyPartForSimbody &body_part)
 {
-    EntityManager &config_manager = sim.getConfigManager();
-    if (!config_manager.hasEntity<SimTK::MultibodySystem>("SimbodyMultibodySystem"))
-        return;
-
-    auto &MBsystem = config_manager.getEntity<SimTK::MultibodySystem>("SimbodyMultibodySystem");
-    auto &mobilized_body = config_manager.getEntity<SimTK::MobilizedBody>("SimbodyMobilizedBody");
-    auto &simbody_body = config_manager.getEntity<SimTK::Body::Rigid>("RigidBody");
+    auto &MBsystem = simbody_system.getMultibodySystem();
+    auto &mobilized_body = simbody_system.getMobilizedBody<SimTK::MobilizedBody>(body_part.Name());
+    auto &simbody_body = simbody_system.getRigidBody(body_part.Name());
     auto &mass_properties = simbody_body.getDefaultRigidBodyMassProperties();
     std::cout << "\n------------------------------------------------------------" << std::endl;
     std::cout << "Simbody constraint information: " << std::endl;
@@ -182,7 +175,7 @@ void ConstraintBuilder::checkSimbodyState(SPHSimulation &sim)
     std::cout << "UnitInertia Products: " << mass_properties.getUnitInertia().getProducts() << std::endl;
     std::cout << "------------------------------------------------------------" << std::endl;
 
-    auto &integ = config_manager.getEntity<SimTK::RungeKuttaMersonIntegrator>("SimbodyIntegrator");
+    auto &integ = simbody_system.getSimbodyIntegrator();
     SimTK::State state = integ.getState(); // copy to allow cache invalidation
     MBsystem.realize(state);
     SimbodyState test_simbody_state(mobilized_body.getBodyOriginLocation(state), mobilized_body, state);

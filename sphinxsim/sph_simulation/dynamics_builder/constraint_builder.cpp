@@ -74,8 +74,8 @@ void ConstraintBuilder::addConstraint(
         if (config_manager.hasEntity<RestartConfig>("RestartConfig"))
         {
             auto &restart_config = config_manager.getEntity<RestartConfig>("RestartConfig");
-            SPH::SimbodyStateEngine &state_engine = *config_manager.emplaceEntity<
-                SPH::SimbodyStateEngine>("SimbodyStateEngine", MBsystem);
+            SimbodyStateEngine &state_engine = *config_manager.emplaceEntity<
+                SimbodyStateEngine>("SimbodyStateEngine", MBsystem);
 
             simulation_pipeline.insert_hook(
                 SimulationHookPoint::ExtraOutput, [&]()

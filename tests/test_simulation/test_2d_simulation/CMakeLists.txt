@@ -16,7 +16,9 @@ file(MAKE_DIRECTORY ${BUILD_INPUT_PATH})
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/ DESTINATION ${BUILD_INPUT_PATH})
 
 if(SPHINXSIM_BUILD_PROJECT)
-    file(COPY ${CMAKE_SOURCE_DIR}/project/simulation/2d_cases/ DESTINATION ${BUILD_INPUT_PATH})
+    if(EXISTS "${CMAKE_SOURCE_DIR}/project/simulation/2d_cases")    
+        file(COPY ${CMAKE_SOURCE_DIR}/project/simulation/2d_cases/ DESTINATION ${BUILD_INPUT_PATH})
+    endif()
 endif()
 
 aux_source_directory(. DIR_SRCS)

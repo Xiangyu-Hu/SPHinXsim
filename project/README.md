@@ -24,10 +24,10 @@ Each C++ development project lives in its own branch. All project‑specific fil
 
 According the two-step approach, a pull request ready for review should be in small project form. 
 
-- The pull request will be reviewed and changes are request until the project itself is OK.
+- The pull request will be reviewed and changes are request until the project itself is OK. Possible new JSON entries and new features will be discussed and reviewed. The project will be tested with GitHub CI and verified by the maintainer.
 
 - Then, the contribution will be requested to be moved into `sphinxsim/sph_simulation/` and clean `project/` so that only empty functions left in `sphinxsim_project.h` or `sphinxsim_project.hpp` header are kept. So the other project can be started from blank.
 
-- The tests for the project will be moved to `tests/` in their proper sub-directories.
+- The tests for the project will be moved to `tests/` in their proper sub-directories. Again the project will be tested with GitHub CI and verified by the maintainer.
 
 - Bug fix and other local enhancement will still follow the usual one-step approach.

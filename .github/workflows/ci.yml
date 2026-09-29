@@ -270,7 +270,7 @@ jobs:
       - name: Install macOS system dependencies
         run: |
           brew update
-          brew install ninja autoconf automake autoconf-archive pkg-config
+          brew install ninja autoconf automake autoconf-archive libtool pkg-config
 
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2

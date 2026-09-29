@@ -272,11 +272,6 @@ jobs:
           brew update
           brew install ninja autoconf automake autoconf-archive pkg-config
 
-      - name: Set up ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ github.job }}
-
       - name: Set up vcpkg
         uses: friendlyanon/setup-vcpkg@v1
         with:

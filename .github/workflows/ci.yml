@@ -243,11 +243,11 @@ jobs:
 
   build-and-test-macos:
     name: build-and-test (macos)
-    runs-on: macos-15-intel
+    runs-on: macos-15
     permissions:
       contents: read
     env:
-      VCPKG_DEFAULT_TRIPLET: x64-osx
+      VCPKG_DEFAULT_TRIPLET: arm64-osx
       SPHINXSIM_LLM_PROVIDER: mock
       PYTHONDONTWRITEBYTECODE: "1"
 

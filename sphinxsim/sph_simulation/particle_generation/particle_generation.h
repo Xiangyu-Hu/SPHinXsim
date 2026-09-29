@@ -85,7 +85,9 @@ class ParticleGeneration
     ParticleGeneration();
     ~ParticleGeneration();
     void buildParticleGeneration(SPHSimulation &sim, const json &config);
-    void runRelaxation();
+    // skip_relaxation: on restart-resume, reuse existing Reload.xml as-is
+    // rather than re-relaxing, since relaxation is non-deterministic.
+    void runRelaxation(bool skip_relaxation = false);
 
   private:
     AllBodiesConfig bodies_config_;

@@ -103,8 +103,18 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
         });
 }
 //=================================================================================================//
-void ParticleGeneration::runRelaxation()
+void ParticleGeneration::runRelaxation(bool skip_relaxation)
 {
+    if (skip_relaxation)
+    {
+        std::cout << "\n---------------------------------------" << std::endl;
+        std::cout << "Restart resume detected: reusing existing particle reload "
+                     "files, skipping (non-deterministic) particle relaxation."
+                  << std::endl;
+        std::cout << "---------------------------------------" << std::endl;
+        return;
+    }
+
     if (!bodies_config_.relaxation_bodies_.empty())
     {
         for (auto &step : relaxation_pipeline_.main_steps)

@@ -243,11 +243,11 @@ jobs:
 
   build-and-test-macos:
     name: build-and-test (macos)
-    runs-on: macos-15-intel
+    runs-on: macos-15
     permissions:
       contents: read
     env:
-      VCPKG_DEFAULT_TRIPLET: x64-osx
+      VCPKG_DEFAULT_TRIPLET: arm64-osx
       SPHINXSIM_LLM_PROVIDER: mock
       PYTHONDONTWRITEBYTECODE: "1"
 
@@ -270,7 +270,7 @@ jobs:
       - name: Install macOS system dependencies
         run: |
           brew update
-          brew install ninja autoconf automake autoconf-archive pkg-config
+          brew install ninja autoconf automake autoconf-archive libtool pkg-config
 
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2

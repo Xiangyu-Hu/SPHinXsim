@@ -10,9 +10,9 @@
  *                                                                           *
  * SPHinXsys is partially funded by German Research Foundation               *
  * (Deutsche Forschungsgemeinschaft) DFG HU1527/6-1, HU1527/10-1,            *
- *  HU1527/12-1 and HU1527/12-4.                                             *
+ *  HU1527/12-1 and HU1527/12-4                                              *
  *                                                                           *
- * Portions copyright (c) 2017-2025 Technical University of Munich and       *
+ * Portions copyright (c) 2017-2022 Technical University of Munich and       *
  * the authors' affiliations.                                                *
  *                                                                           *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may   *
@@ -21,38 +21,40 @@
  *                                                                           *
  * ------------------------------------------------------------------------- */
 /**
- * @file    constraint_builder.h
- * @brief   TBD.
- * @author  Xiangyu Hu
+ * @file 	simbody_system.h
+ * @brief 	tbd.
+ * @author	Xiangyu Hu
  */
+#ifndef SIMBODY_SYSTEM_H
+#define SIMBODY_SYSTEM_H
 
-#ifndef CONSTRAINT_BUILDER_H
-#define CONSTRAINT_BUILDER_H
-
-#include "base_simulation_builder.h"
-#include "sph_solver.h"
+#include "base_data_type.h"
+#include "ownership.h"
+#include "vector_functions.h"
 
 namespace SPH
 {
 class RealBody;
-class SolidBodyPartForSimbody;
-class SimbodySystem;
+class Shape;
 
-class ConstraintBuilder
+class SimbodySystem
 {
   public:
-    static void buildConstraintsIfPresent(SPHSimulation &sim, MainMethods &method_container, const json &config);
-    static void checkSimbodyState(SimbodySystem &simbody_system, SolidBodyPartForSimbody &body_part);
+    SimbodySystem();
+    virtual ~SimbodySystem();
+    void writeStateToXml(UnsignedInt iteration_step);
+    void readStateFromXml(UnsignedInt iteration_step);
+    std::string createRigidBody(RealBody &real_body, Shape &shape);
+    std::string createFirstMobilizedPlanar(const std::string &body_name);
+    void setUForMobilizedPlanar(
+        const std::string &body_name, const Vec2d &velocity, Real angular_velocity);
+    void realizeState();
+    void initializeStateForIntegrator();
+    void checkSimbodyState(const std::string &body_name);
 
-  private:
-    static void addConstraint(SPHSimulation &sim, MainMethods &method_container, RealBody &real_body, const json &config);
-
-    static void parseSimbodyMobilizedBody(
-        EntityManager &config_manager, SimbodySystem &simbody_system,
-        RealBody &real_body, Shape &shape, const json &config);
-
-    static void addConstraintWithSimbody(
-        SPHSimulation &sim, MainMethods &method_container, RealBody &real_body, const json &config);
+  protected:
+    class Impl;
+    std::unique_ptr<Impl> impl_;
 };
 } // namespace SPH
-#endif // CONSTRAINT_BUILDER_H
+#endif // SIMBODY_SYSTEM_H

@@ -111,7 +111,7 @@ if(SPHINXSYS_2D)
     target_compile_definitions(sph_simulation_2d PUBLIC SPHINXSYS_2D)
         endif()
 
-    target_link_libraries(sph_simulation_2d PRIVATE nlohmann_json::nlohmann_json)
+    target_link_libraries(sph_simulation_2d PRIVATE simbody_system_2d nlohmann_json::nlohmann_json)
     target_link_libraries(sph_simulation_2d PUBLIC sphinxsys_2d)
     target_compile_definitions(sph_simulation_2d PUBLIC VERSION_INFO="0.1.0")
     
@@ -145,7 +145,7 @@ if(SPHINXSYS_3D)
     target_compile_definitions(sph_simulation_3d PUBLIC SPHINXSYS_3D)
         endif()    
 
-    target_link_libraries(sph_simulation_3d PRIVATE nlohmann_json::nlohmann_json)
+    target_link_libraries(sph_simulation_3d PRIVATE simbody_system_3d nlohmann_json::nlohmann_json)
     target_link_libraries(sph_simulation_3d PUBLIC sphinxsys_3d)
     target_compile_definitions(sph_simulation_3d PUBLIC VERSION_INFO="0.1.0")
 

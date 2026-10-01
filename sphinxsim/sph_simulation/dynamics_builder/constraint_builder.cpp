@@ -62,12 +62,81 @@ void ConstraintBuilder::addConstraint(
 
     if (type == "simbody")
     {
-        addConstraintWithSimbody(sim, main_methods, real_body, config);
+        auto &simbody_system = sph_system.getSimbodySystem();
+        Shape &shape = config_manager.getEntity<Shape>(real_body.Name());
+        SolidBodyPartForSimbody &body_part = real_body.addBodyPart<SolidBodyPartForSimbody>(shape);
+        parseSimbodyMobilizedBody(config_manager, simbody_system, body_part, config);
+
+        if (config_manager.hasEntity<RestartConfig>("RestartConfig"))
+        {
+            auto &restart_config = config_manager.getEntity<RestartConfig>("RestartConfig");
+
+            simulation_pipeline.insert_hook(
+                SimulationHookPoint::ExtraOutput, [&]()
+                { 
+                        UnsignedInt iteration_step = time_stepper.getIterationStep();
+                        if (iteration_step % restart_config.save_interval_ == 0)
+                        {
+                            simbody_system.writeStateToXml(iteration_step);
+                        } });
+
+            if (restart_config.restore_step_ != 0)
+            {
+                simbody_system.readStateFromXml(restart_config.restore_step_);
+            }
+        }
+
+        simbody_system.realizeState();
+        simbody_system.initializeStateForIntegrator();
+        simbody_system.checkSimbodyState(shape.Name());
+
+        auto &constraint = main_methods.template addStateDynamics<
+            solid_dynamics::ConstraintBodyPartBySimBodyCK>(body_part, simbody_system);
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::PositionConstraint, [&]()
+            {
+                // (A) move the mobilized body to the target state at the current physical time
+                Real t_target = time_stepper.getPhysicalTime();
+                if (t_target > simbody_system.getSimbodySystemTime())
+                {
+                    simbody_system.stepSimbodySystemTo(t_target);
+                }
+                // (B) carry out the constraint
+                constraint.exec(); });
         return;
     }
 
     throw std::runtime_error(
         "ConstraintBuilder::ConstraintBuilder: unsupported: " + type);
+}
+//=================================================================================================//
+void ConstraintBuilder::parseSimbodyMobilizedBody(
+    EntityManager &config_manager, SimbodySystem &simbody_system,
+    SolidBodyPartForSimbody &body_part, const json &config)
+{
+    const std::string &mobilized_body_type = config.at("mobilized_body").get<std::string>();
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
+    std::string simbody_name = simbody_system.createRigidBody(real_body, shape);
+
+    if (mobilized_body_type == "planar")
+    {
+        std::string mobilized_planar = simbody_system.createFirstMobilizedPlanar(body_part);
+        Real omega_z = 2.0 * Pi * scaling_config.jsonToReal(config.at("angular_velocity"), "AngularVelocity");
+        Vec2d velocity = scaling_config.jsonToVecd(config.at("velocity"), "Velocity");
+        simbody_system.setUForMobilizedPlanar(body_part.Name(), velocity, omega_z);
+        return;
+    }
+
+    if (mobilized_body_type == "pin")
+    {
+        std::string mobilized_pin = simbody_system.createFirstMobilizedPin(body_part);
+        Real omega_z = 2.0 * Pi * scaling_config.jsonToReal(config.at("angular_velocity"), "AngularVelocity");
+        simbody_system.setUForMobilizedPin(omega_z);
+        return;
+    }
+
+    throw std::runtime_error(
+        "ConstraintBuilder::addConstraint:simbody unsupported mobilized body type: " + mobilized_body_type);
 }
 //=================================================================================================//
 } // namespace SPH

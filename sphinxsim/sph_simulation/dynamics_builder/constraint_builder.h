@@ -49,7 +49,7 @@ class ConstraintBuilder
 
     static void parseSimbodyMobilizedBody(
         EntityManager &config_manager, SimbodySystem &simbody_system,
-        RealBody &real_body, Shape &shape, const json &config);
+        SolidBodyPartForSimbody &body_part, const json &config);
 
     static void addConstraintWithSimbody(
         SPHSimulation &sim, MainMethods &method_container, RealBody &real_body, const json &config);

@@ -116,22 +116,22 @@ void ConstraintBuilder::parseSimbodyMobilizedBody(
 {
     const std::string &mobilized_body_type = config.at("mobilized_body").get<std::string>();
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
-    std::string simbody_name = simbody_system.createRigidBody(real_body, shape);
+    std::string simbody_name = simbody_system.createRigidBody(body_part);
 
     if (mobilized_body_type == "planar")
     {
-        std::string mobilized_planar = simbody_system.createFirstMobilizedPlanar(body_part);
+        std::string mobilized_planar = simbody_system.createFirstMobilizedPlanar(simbody_name);
         Real omega_z = 2.0 * Pi * scaling_config.jsonToReal(config.at("angular_velocity"), "AngularVelocity");
-        Vec2d velocity = scaling_config.jsonToVecd(config.at("velocity"), "Velocity");
-        simbody_system.setUForMobilizedPlanar(body_part.Name(), velocity, omega_z);
+        Vec2d velocity = scaling_config.jsonToVec2d(config.at("velocity"), "Velocity");
+        simbody_system.setUForMobilizedPlanar(mobilized_planar, velocity, omega_z);
         return;
     }
 
     if (mobilized_body_type == "pin")
     {
-        std::string mobilized_pin = simbody_system.createFirstMobilizedPin(body_part);
+        std::string mobilized_pin = simbody_system.createFirstMobilizedPin(simbody_name);
         Real omega_z = 2.0 * Pi * scaling_config.jsonToReal(config.at("angular_velocity"), "AngularVelocity");
-        simbody_system.setUForMobilizedPin(omega_z);
+        simbody_system.setUForMobilizedPin(mobilized_pin, omega_z);
         return;
     }
 

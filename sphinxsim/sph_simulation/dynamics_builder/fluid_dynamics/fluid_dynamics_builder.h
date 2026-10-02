@@ -39,6 +39,9 @@ class OrientedBoxByParticle;
 class OrientedBoxByCell;
 class RealBody;
 class FluidBody;
+class WeaklyCompressibleMultiSpecies;
+class WeaklyCompressibleMultiPhase;
+
 namespace fluid_dynamics
 {
 class AbstractBidirectionalBoundary;
@@ -62,13 +65,17 @@ class FluidDynamicsBuilder
   public:
     static BaseDynamics<void> &addAdvectionStepSetup(SPHSimulation &sim, MainMethods &main_methods);
     static BaseDynamics<void> &addUpdateParticlePosition(SPHSimulation &sim, MainMethods &main_methods);
-    static BaseDynamics<void> &addAcousticStep1stHalf(SPHSimulation &sim, MainMethods &main_methods);
-    static BaseDynamics<void> &addAcousticStep2ndHalf(SPHSimulation &sim, MainMethods &main_methods);
 
-    template <class FluidType, class InnerRelationType, class ContactRelationType>
-    static BaseDynamics<void> &buildDensityRegularization(
-        SPHSimulation &sim, MainMethods &main_methods, InnerRelationType &inner_relation,
-        ContactRelationType &contact_relation, const std::string &surface_type);
+    template <template <typename...> class AcousticHalfStepType>
+    static BaseDynamics<void> &addAcousticHalfStep(SPHSimulation &sim, MainMethods &main_methods);
+
+    static BaseDynamics<void> &addLinearCorrectionMatrix(SPHSimulation &sim, MainMethods &main_methods);
+    static BaseDynamics<void> &addDensityRegularization(SPHSimulation &sim, MainMethods &main_methods);
+    static void buildViscousForceIfPresent(SPHSimulation &sim, MainMethods &main_methods);
+    static void buildSurfaceIndicationIfOpenBoundary(SPHSimulation &sim, MainMethods &main_methods);
+    static void buildTransportVelocityFormulationIfNotFreeSurface(SPHSimulation &sim, MainMethods &main_methods);
+    static void buildParticleDeletionIfPresent(SPHSimulation &sim, MainMethods &main_methods);
+    static void buildParticleSortIfPresent(SPHSimulation &sim, MainMethods &main_methods);
 
     static void buildBoundaryConditionsIfPresent(
         SPHSimulation &sim, MainMethods &main_methods, const json &config);
@@ -76,6 +83,9 @@ class FluidDynamicsBuilder
     static BaseDynamics<Real> &addAcousticTimeStep(SPHSimulation &sim, MainMethods &main_methods);
 
   private:
+    static BaseDynamics<void> &addTransportVelocityCorrection(
+        MainMethods &main_methods, SPHBody &sph_body, FluidSolverConfig &fluid_solver_config);
+
     static void addBoundaryCondition(
         SPHSimulation &sim, MainMethods &main_methods, const json &config);
 
@@ -83,16 +93,51 @@ class FluidDynamicsBuilder
         OrientedBoxByCell &oriented_box_by_cell, EntityManager &config_manager,
         MainMethods &main_methods, const json &config);
 
-    template <template <typename...> class AcousticHalfStepForOneBody, class InnerRelationType>
+    static fluid_dynamics::AbstractBidirectionalBoundary &createVelocityBiDirectionBoundary(
+        OrientedBoxByCell &oriented_box_by_cell, EntityManager &config_manager,
+        MainMethods &main_methods, const json &config);
+
+    template <class DynamicsIdentifier>
+    static void assignWeaklyCompressibleMultiSpecies(
+        ParticleDynamicsGroup &particle_dynamics_group, DynamicsIdentifier &identifier,
+        WeaklyCompressibleMultiSpecies &mixture, ScalingConfig &scaling_config,
+        MainMethods &main_methods, const json &config);
+
+    template <class DynamicsIdentifier>
+    static void assignWeaklyCompressibleMultiPhase(
+        ParticleDynamicsGroup &particle_dynamics_group, DynamicsIdentifier &identifier,
+        WeaklyCompressibleMultiPhase &mixture, ScalingConfig &scaling_config,
+        MainMethods &main_methods, const json &config);
+
+    template <class DynamicsIdentifier>
+    static void assignSupplementaryConditions(
+        DynamicsIdentifier &identifier, ParticleDynamicsGroup &particle_dynamics_group,
+        EntityManager &config_manager, MainMethods &main_methods, const json &config);
+
+    template <template <typename...> class AcousticHalfStepType, class MatterMaterialType,
+              class KernelCorrectionType, class InnerRelationType>
     static BaseDynamics<void> &addAcousticHalfStepForOneBody(
         SPHSimulation &sim, InnerRelationType &inner_relation, MainMethods &main_methods);
 
-    template <class RiemannSolverType, class KernelCorrectionType, class AcousticHalfStepType>
-    static void addAcousticHalfStepWithSolidBodies(
-        SPHSimulation &sim, AcousticHalfStepType &interaction, std::string body_name);
-
     static BaseDynamics<Real> &addAcousticTimeStepForOneBody(
         SPHSimulation &sim, FluidBody &fluid_body, MainMethods &main_methods);
+
+    template <typename... Parameters, class MainInteractionType, class FluidIdentifier>
+    static void addInteractionWithSolidBodies(
+        SPHSimulation &sim, MainInteractionType &main_interaction, FluidIdentifier &fluid_identifier);
+
+    template <class FluidType, class FluidBodyType>
+    static BaseDynamics<void> &addDensityRegularizationForOneBody(
+        MainMethods &main_methods, FluidBodyType &fluid_body, const std::string &surface_type);
+
+    template <typename... Parameters, class ViscosityForceType>
+    static void addViscousForceOnSolidBodiesIfPresent(
+        SPHSimulation &sim, ViscosityForceType &viscous_force, SPHBodyConfig *fb);
+
+    template <typename... Parameters, class Acoustic2ndHalfStepType, class FluidIdentifier>
+    static void addPressureForceOnSolidBodiesIfPresent(
+        SPHSimulation &sim, Acoustic2ndHalfStepType &acoustic_2nd_half_step,
+        FluidIdentifier &fluid_identifier);
 };
 } // namespace SPH
 #endif // FLUID_DYNAMICS_BUILDER_H

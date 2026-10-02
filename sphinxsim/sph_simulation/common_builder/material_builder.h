@@ -31,6 +31,10 @@
 
 #include "base_simulation_builder.h"
 
+#ifdef SPHINXSIM_PROJECT
+#include "sphinxsim_project.h"
+#endif
+
 namespace SPH
 {
 class EntityManager;

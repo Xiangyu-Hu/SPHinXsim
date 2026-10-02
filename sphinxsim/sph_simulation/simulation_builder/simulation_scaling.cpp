@@ -222,6 +222,8 @@ UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name, bool is_require
         return UnitMetrics{0, 1, 0, 0, 0, 0, 0};
     if (unit_name == "Time")
         return UnitMetrics{0, 0, 1, 0, 0, 0, 0};
+    if (unit_name == "Frequency")
+        return UnitMetrics{0, 0, -1, 0, 0, 0, 0};
     if (unit_name == "Temperature")
         return UnitMetrics{0, 0, 0, 1, 0, 0, 0};
     if (unit_name == "ElectricCurrent")
@@ -365,6 +367,23 @@ Vecd ScalingConfig::jsonToVecd(const nlohmann::json &arr, const std::string &uni
     Vecd v = Vecd::Zero();
     Real scaling_ref = getScalingRef(unit_name);
     for (int i = 0; i < Vecd::RowsAtCompileTime; ++i)
+        v[i] = arr[i].get<Real>() / scaling_ref;
+    return v;
+}
+//=================================================================================================//
+Vec2d ScalingConfig::jsonToVec2d(const nlohmann::json &arr, const std::string &unit_name) const
+{
+    if (static_cast<int>(arr.size()) != 2)
+    {
+        std::cout << "\n------------------------------------------------------------" << std::endl;
+        std::cout << static_cast<int>(arr.size()) << std::endl;
+        throw std::runtime_error(
+            "ScalingConfig::jsonToVec2d: expected a numeric array with exactly 2 entries.");
+    }
+
+    Vec2d v = Vec2d::Zero();
+    Real scaling_ref = getScalingRef(unit_name);
+    for (int i = 0; i < 2; ++i)
         v[i] = arr[i].get<Real>() / scaling_ref;
     return v;
 }

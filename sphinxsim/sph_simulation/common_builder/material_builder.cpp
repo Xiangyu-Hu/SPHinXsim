@@ -1,6 +1,5 @@
 #include "material_builder.h"
 
-#include "composite_solid.h"
 #include "fluid_dynamics_builder.h"
 #include "sphinxsys.h"
 
@@ -165,19 +164,12 @@ void MaterialBuilder::addMatterMaterial(
         config_manager.addEntity(sph_body.Name() + "PlasticContinuum", &material);
         return;
     }
-
-    if (type == "composite_solid")
+#ifdef SPHINXSIM_PROJECT
+    if (addExtraMaterial(config_manager, sph_body, config, type))
     {
-        Real density = scaling_config.jsonToReal(config.at("density"), "Density");
-        Real poisson_ratio = scaling_config.jsonToReal(config.at("poisson_ratio"), "Dimensionless");
-        Real youngs_active = scaling_config.jsonToReal(config.at("youngs_modulus_active"), "Stress");
-        Real youngs_1 = scaling_config.jsonToReal(config.at("youngs_modulus_1"), "Stress");
-        Real youngs_2 = scaling_config.jsonToReal(config.at("youngs_modulus_2"), "Stress");
-        auto &material = sph_body.defineMatterMaterial<CompositeSolidMaterial>(
-            density, youngs_active, youngs_1, youngs_2, poisson_ratio);
-        config_manager.addEntity(sph_body.Name() + "CompositeSolid", &material);
         return;
     }
+#endif
 
     throw std::runtime_error("MaterialBuilder::addMatterMaterial: unsupported material: " + type);
 }

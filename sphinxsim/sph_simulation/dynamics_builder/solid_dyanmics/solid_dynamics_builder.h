@@ -21,47 +21,40 @@
  *                                                                           *
  * ------------------------------------------------------------------------- */
 /**
- * @file    body_part_for_simbody.h
- * @brief 	This is the class for bodies used for solid BCs or Elastic structure.
- * @author	Xiangyu Hu
+ * @file    solid_dynamics_builder.h
+ * @brief   Assembles the elastic-solid stress relaxation loop for the
+ *          simulator, driving the solid sub-stepping through the time
+ *          stepper's matched-interval integrator.
+ * @author  Pruthvik Arasikere Mallikarjuna and Xiangyu Hu
  */
 
-#ifndef BODY_PART_FOR_SIMBODY_H
-#define BODY_PART_FOR_SIMBODY_H
+#ifndef SOLID_DYNAMICS_BUILDER_H
+#define SOLID_DYNAMICS_BUILDER_H
 
-#include "base_body_part.h"
-#include "simtk_wrapper.h"
+#include "base_simulation_builder.h"
+
+#include <functional>
+
 namespace SPH
 {
-/**
- * @class SolidBodyPartForSimbody
- * @brief A SolidBodyPart for coupling with Simbody.
- * The mass, origin, and unit inertial matrix are computed.
- * Note: In Simbody, all spatial vectors are three dimensional.
- */
-class SolidBodyPartForSimbody : public BodyRegionByParticle
+class RealBody;
+
+class SolidDynamicsBuilder
 {
-  protected:
-    UniquePtrKeeper<SimTK::MassProperties> mass_properties_keeper_;
-
   public:
-    SimTK::MassProperties &getSimTKMassProperties() const;
-    SimTK::Vec3 getSimTKMassCenter() const;
-    SimTK::Transform getSimTKTransform() const { return SimTKVec3(0.0); }
-
-    SolidBodyPartForSimbody(SPHBody &body, Shape &body_part_shape);
-    SolidBodyPartForSimbody(SPHBody &body, SharedPtr<Shape> shape_ptr);
-    virtual ~SolidBodyPartForSimbody() {};
-
-  protected:
-    Vecd initial_mass_center_;
-    SimTK::MassProperties *body_part_mass_properties_;
-    Real rho0_;
-    Real *Vol_;
-    Vecd *pos_;
+    // Builds stress relaxation, active strain, corrected configuration and the
+    // surface-motion coupling for each composite_solid body.
+    static void buildSolidsDynamicsIfPresentInFluid(SPHSimulation &sim, MainMethods &main_methods);
 
   private:
-    void initialize();
+    // pre_substep_hook, if given, runs once before every solid sub-step
+    // (e.g. imposing an active strain), matching the SYCL reference which
+    // re-samples the active strain at each solid sub-step rather than once
+    // per coupling interval.
+    template <class InnerRelationType>
+    static void buildSolidRelaxation1stHalf(
+        EntityManager &config_manager, ParticleDynamicsGroup &solid_relaxation_1st_half,
+        MainMethods &main_methods, InnerRelationType &inner_relation);
 };
 } // namespace SPH
-#endif // BODY_PART_FOR_SIMBODY_H
+#endif // SOLID_DYNAMICS_BUILDER_H

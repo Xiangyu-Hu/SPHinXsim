@@ -15,6 +15,8 @@
 
 namespace SPH
 {
+namespace FSI
+{
 //----------------------------------------------------------------------
 //      Record the position before the structure sub loop.
 //----------------------------------------------------------------------
@@ -53,7 +55,14 @@ class UpdateAverageVelocityAndAccelerationCK : public LocalDynamics
           dv_pos_(particles_->getVariableByName<Vecd>("Position")),
           dv_pos_temp_(particles_->getVariableByName<Vecd>("TemporaryPosition")),
           dv_vel_ave_(particles_->registerStateVariable<Vecd>("AverageVelocity")),
-          dv_acc_ave_(particles_->registerStateVariable<Vecd>("AverageAcceleration")) {}
+          dv_acc_ave_(particles_->registerStateVariable<Vecd>("AverageAcceleration"))
+    {
+        // These drive the fluid-side FSI force directly, so restoring the
+        // exact restart values is required; not persisting them would leave
+        // the coupling at zero right after resume.
+        particles_->addEvolvingVariable<Vecd>("AverageVelocity");
+        particles_->addEvolvingVariable<Vecd>("AverageAcceleration");
+    }
 
     struct UpdateKernel
     {
@@ -78,6 +87,7 @@ class UpdateAverageVelocityAndAccelerationCK : public LocalDynamics
   protected:
     DiscreteVariable<Vecd> *dv_pos_, *dv_pos_temp_, *dv_vel_ave_, *dv_acc_ave_;
 };
+} // namespace FSI
 } // namespace SPH
 
 #endif // STRUCTURE_SURFACE_MOTION_H

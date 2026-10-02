@@ -38,16 +38,14 @@ class RealBody;
 class ThermalDynamicsBuilder
 {
   public:
-    template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
-    static void buildThermalDynamicsIfPresent(
-        SPHSimulation &sim, MethodContainerType &main_methods,
-        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
+    // currently only support isotropic diffusion between fluid and solid bodies
+    static void buildThermalDynamicsIfPresent(SPHSimulation &sim, MainMethods &main_methods);
 
   private:
-    template <class MethodContainerType, class InnerRelationType, class ContactRelationType>
-    static void buildThermalDynamics(
-        SPHSimulation &sim, MethodContainerType &method_container,
-        InnerRelationType &inner_relation, ContactRelationType &contact_relation);
+    template <class DiffusionDynamicsType, class DiffusionType, class ContactRelationType>
+    static void buildThermalBoundaryCondition(
+        const std::string &boundary_type, DiffusionDynamicsType &diffusion_dynamics, 
+        DiffusionType &diffusion, ContactRelationType &contact_relation);
 };
 } // namespace SPH
 #endif // THERMAL_DYNAMICS_BUILDER_H

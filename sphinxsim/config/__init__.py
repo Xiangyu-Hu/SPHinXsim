@@ -6,13 +6,17 @@ from sphinxsim.config.schemas import (
     FluidBodyConfig,
     FluidBoundaryConditionConfig,
     GeometriesConfig,
+    LogLevel,
     MaterialConfig,
     ObserverConfig,
     ParticleGenerationConfig,
+    ParabolicVelocityConfig,
     ShapeConfig,
     SimulationConfig,
     SimulationType,
     SolverParametersConfig,
+    StartupAccelerationConfig,
+    VelocityStartupConfig,
 )
 
 __all__ = [
@@ -21,11 +25,15 @@ __all__ = [
     "FluidBodyConfig",
     "FluidBoundaryConditionConfig",
     "GeometriesConfig",
+    "LogLevel",
     "MaterialConfig",
     "ObserverConfig",
     "ParticleGenerationConfig",
+    "ParabolicVelocityConfig",
     "ShapeConfig",
     "SimulationConfig",
     "SimulationType",
     "SolverParametersConfig",
+    "StartupAccelerationConfig",
+    "VelocityStartupConfig",
 ]

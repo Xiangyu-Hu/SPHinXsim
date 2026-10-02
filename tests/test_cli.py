@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 
 import sphinxsim
-from sphinxsim.cli import _config_spatial_dim, _load_config, main
+from sphinxsim.cli import _config_spatial_dim, _load_config, _new_json_editor_list_item, main
 from sphinxsim.cli import _build_parser
 from sphinxsim.llm.common import LLMRepairWarning
 
@@ -208,6 +208,25 @@ class TestSpatialDimension:
     def test_infers_3d_from_domain(self):
         config = sphinxsim.SimulationConfig.model_validate(_valid_3d_data())
         assert _config_spatial_dim(config) == 3
+
+
+class TestJsonEditorListItems:
+    def test_empty_shapes_list_gets_an_editable_shape(self):
+        item = _new_json_editor_list_item(("geometries", "shapes"), spatial_dim=2)
+
+        assert item == {
+            "name": "New shape",
+            "type": "bounding_box",
+            "lower_bound": [0.0, 0.0],
+            "upper_bound": [1.0, 1.0],
+        }
+
+    def test_empty_nested_list_uses_a_schema_aware_object(self):
+        item = _new_json_editor_list_item(
+            ("initial_conditions", 0, "assignments"), spatial_dim=3
+        )
+
+        assert item == {"variable": {"real_type": "Pressure"}, "value": 0.0}
 
 
 class TestCLIGenerate:

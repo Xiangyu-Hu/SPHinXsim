@@ -48,7 +48,7 @@ PYBIND11_MODULE(MODULE_NAME, m)
              "Build simulation (relations, dynamics, etc.) from JSON configuration")
         .def("initializeSimulation", &SPHSimulation::initializeSimulation,
              "Initialize executable simulation state after build and before run")
-        .def("run", &SPHSimulation::run,
+        .def("run", &SPHSimulation::run, py::call_guard<py::gil_scoped_release>(),
              "Run simulation until solver_parameters.end_time (requires initializeSimulation first)")
         .def("stepTo", &SPHSimulation::stepTo, py::arg("target_time"),
              "Advance simulation to target physical time")

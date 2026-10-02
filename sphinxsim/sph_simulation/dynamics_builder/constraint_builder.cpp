@@ -2,6 +2,7 @@
 
 #include "geometry_builder.h"
 #include "recording_builder.h"
+#include "simbody_system.h"
 #include "sph_simulation.h"
 
 namespace SPH
@@ -25,8 +26,8 @@ void ConstraintBuilder::buildConstraintsIfPresent(
 void ConstraintBuilder::addConstraint(
     SPHSimulation &sim, MainMethods &main_methods, RealBody &real_body, const json &config)
 {
+    auto &sph_system = sim.getSPHSystem();
     EntityManager &config_manager = sim.getConfigManager();
-    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
     TimeStepper &time_stepper = sim.getSPHSolver().getTimeStepper();
     StagePipeline<SimulationHookPoint> &simulation_pipeline = sim.getSimulationPipeline();
 
@@ -61,107 +62,81 @@ void ConstraintBuilder::addConstraint(
 
     if (type == "simbody")
     {
-        SimTK::MultibodySystem &MBsystem = *config_manager.emplaceEntity<
-            SimTK::MultibodySystem>("SimbodyMultibodySystem");
-        SimTK::SimbodyMatterSubsystem &matter = *config_manager.emplaceEntity<
-            SimTK::SimbodyMatterSubsystem>("SimbodyMatterSubsystem", MBsystem);
+        auto &simbody_system = sph_system.getSimbodySystem();
         Shape &shape = config_manager.getEntity<Shape>(real_body.Name());
         SolidBodyPartForSimbody &body_part = real_body.addBodyPart<SolidBodyPartForSimbody>(shape);
-        SimTK::Body::Rigid &simbody_body = *config_manager.emplaceEntity<
-            SimTK::Body::Rigid>("RigidBody", body_part.getSimTKMassProperties());
+        parseSimbodyMobilizedBody(config_manager, simbody_system, body_part, config);
 
-        const std::string mobilized_body_type = config.at("mobilized_body").get<std::string>();
-        if (mobilized_body_type == "planar")
+        if (config_manager.hasEntity<RestartConfig>("RestartConfig"))
         {
-            SimTK::MobilizedBody::Planar &mobilized_body =
-                *config_manager.emplaceEntity<SimTK::MobilizedBody::Planar>(
-                    "SimbodyMobilizedBody",
-                    matter.Ground(), body_part.getSimTKMassCenter(),
-                    simbody_body, body_part.getSimTKTransform());
-            SimTK::RungeKuttaMersonIntegrator &integ =
-                *config_manager.emplaceEntity<SimTK::RungeKuttaMersonIntegrator>(
-                    "SimbodyIntegrator", MBsystem);
-            MBsystem.realizeTopology();
+            auto &restart_config = config_manager.getEntity<RestartConfig>("RestartConfig");
 
-            SimTK::State state = MBsystem.getDefaultState();
-            // set the initial velocity of the mobilized body
-            Real omega_z = 2.0 * Pi * scaling_config.jsonToReal(config.at("angular_velocity"), "AngularVelocity");
-            Vec3d velocity = upgradeToVec3d(scaling_config.jsonToVecd(config.at("velocity"), "Velocity"));
-            SimTK::Vec3 u_cmd = SimTK::Vec3(omega_z, velocity[0], velocity[1]);
-            mobilized_body.setU(state, u_cmd); // set the initial velocity of the mobilized body
-
-            if (config_manager.hasEntity<RestartConfig>("RestartConfig"))
-            {
-                auto &restart_config = config_manager.getEntity<RestartConfig>("RestartConfig");
-                SPH::SimbodyStateEngine &state_engine = *config_manager.emplaceEntity<
-                    SPH::SimbodyStateEngine>("SimbodyStateEngine", MBsystem);
-
-                simulation_pipeline.insert_hook(
-                    SimulationHookPoint::ExtraOutput, [&]()
-                    { 
+            simulation_pipeline.insert_hook(
+                SimulationHookPoint::ExtraOutput, [&]()
+                { 
                         UnsignedInt iteration_step = time_stepper.getIterationStep();
                         if (iteration_step % restart_config.save_interval_ == 0)
                         {
-                            state_engine.writeStateToXml(iteration_step, integ);
+                            simbody_system.writeStateToXml(iteration_step);
                         } });
 
-                if (restart_config.restore_step_ != 0)
-                {
-                    state_engine.readStateFromXml(restart_config.restore_step_, state);
-                }
+            if (restart_config.restore_step_ != 0)
+            {
+                simbody_system.readStateFromXml(restart_config.restore_step_);
             }
+        }
 
-            MBsystem.realize(state);
-            integ.initialize(state);
-            checkSimbodyState(sim);
+        simbody_system.realizeState();
+        simbody_system.initializeStateForIntegrator();
+        simbody_system.checkInitialSimbodyState(shape.Name());
 
-            auto &constraint = main_methods.template addStateDynamics<
-                solid_dynamics::ConstraintBodyPartBySimBodyCK>(body_part, MBsystem, mobilized_body, integ);
-            simulation_pipeline.insert_hook(
-                SimulationHookPoint::PositionConstraint, [&]()
-                {
+        auto &constraint = main_methods.template addStateDynamics<
+            solid_dynamics::ConstraintBodyPartBySimBodyCK>(body_part, simbody_system);
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::PositionConstraint, [&]()
+            {
                 // (A) move the mobilized body to the target state at the current physical time
                 Real t_target = time_stepper.getPhysicalTime();
-                if (t_target > integ.getState().getTime())
+                if (t_target > simbody_system.getSimbodySystemTime())
                 {
-                    integ.stepTo(t_target);
+                    simbody_system.stepSimbodySystemTo(t_target);
                 }
                 // (B) carry out the constraint
                 constraint.exec(); });
-
-            return;
-        }
-        throw std::runtime_error(
-            "ConstraintBuilder::addConstraint:simbody unsupported mobilized body type: " + mobilized_body_type);
+        return;
     }
 
     throw std::runtime_error(
         "ConstraintBuilder::ConstraintBuilder: unsupported: " + type);
 }
 //=================================================================================================//
-void ConstraintBuilder::checkSimbodyState(SPHSimulation &sim)
+void ConstraintBuilder::parseSimbodyMobilizedBody(
+    EntityManager &config_manager, SimbodySystem &simbody_system,
+    SolidBodyPartForSimbody &body_part, const json &config)
 {
-    EntityManager &config_manager = sim.getConfigManager();
-    if (!config_manager.hasEntity<SimTK::MultibodySystem>("SimbodyMultibodySystem"))
+    const std::string &mobilized_body_type = config.at("mobilized_body").get<std::string>();
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
+    std::string simbody_name = simbody_system.createRigidBody(body_part);
+
+    if (mobilized_body_type == "planar")
+    {
+        std::string mobilized_planar = simbody_system.createFirstMobilizedPlanar(simbody_name);
+        Real omega_z = 2.0 * Pi * scaling_config.jsonToReal(config.at("angular_velocity"), "AngularVelocity");
+        Vec2d velocity = scaling_config.jsonToVec2d(config.at("velocity"), "Velocity");
+        simbody_system.setUForMobilizedPlanar(mobilized_planar, velocity, omega_z);
         return;
+    }
 
-    auto &MBsystem = config_manager.getEntity<SimTK::MultibodySystem>("SimbodyMultibodySystem");
-    auto &mobilized_body = config_manager.getEntity<SimTK::MobilizedBody::Planar>("SimbodyMobilizedBody");
-    auto &simbody_body = config_manager.getEntity<SimTK::Body::Rigid>("RigidBody");
-    auto &mass_properties = simbody_body.getDefaultRigidBodyMassProperties();
-    std::cout << "\n------------------------------------------------------------" << std::endl;
-    std::cout << "Simbody constraint information: " << std::endl;
-    std::cout << "Mass: " << mass_properties.getMass() << std::endl;
-    std::cout << "UnitInertia Moments: " << mass_properties.getUnitInertia().getMoments() << std::endl;
-    std::cout << "UnitInertia Products: " << mass_properties.getUnitInertia().getProducts() << std::endl;
-    std::cout << "------------------------------------------------------------" << std::endl;
+    if (mobilized_body_type == "pin")
+    {
+        std::string mobilized_pin = simbody_system.createFirstMobilizedPin(simbody_name);
+        Real omega_z = 2.0 * Pi * scaling_config.jsonToReal(config.at("angular_velocity"), "AngularVelocity");
+        simbody_system.setUForMobilizedPin(mobilized_pin, omega_z);
+        return;
+    }
 
-    auto &integ = config_manager.getEntity<SimTK::RungeKuttaMersonIntegrator>("SimbodyIntegrator");
-    SimTK::State state = integ.getState(); // copy to allow cache invalidation
-    state.invalidateAllCacheAtOrAbove(SimTK::Stage::Dynamics);
-    MBsystem.realize(state);
-    SimbodyState test_simbody_state(mobilized_body.getBodyOriginLocation(state), mobilized_body, state);
-    test_simbody_state.printSimbodyState();
+    throw std::runtime_error(
+        "ConstraintBuilder::addConstraint:simbody unsupported mobilized body type: " + mobilized_body_type);
 }
 //=================================================================================================//
 } // namespace SPH

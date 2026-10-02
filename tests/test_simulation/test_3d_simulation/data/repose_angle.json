@@ -1,5 +1,5 @@
 {
-    "characteristic_dimensions": [
+  "characteristic_dimensions": [
     {
       "value": 0.1,
       "name": "Length",
@@ -16,7 +16,7 @@
       "hint": "continuum_bodies[name=GranularBody].material.density"
     }
   ],
-  
+
   "simulation_type": "continuum_dynamics",
 
   "geometries": {

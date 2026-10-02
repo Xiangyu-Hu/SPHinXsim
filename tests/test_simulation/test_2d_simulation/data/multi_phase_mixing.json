@@ -127,7 +127,11 @@
               }
             ]
           }
-        ]
+        ],
+        "thermal_properties": {
+          "thermal_conductivity": 1.0e-2,
+          "volumetric_heat_capacity": 1.0
+        }
       },
       "particle_reserve_factor": 2.0
     }
@@ -136,7 +140,10 @@
     {
       "name": "WallBoundary",
       "material": {
-        "type": "rigid_body"
+        "type": "rigid_body",
+        "thermal_properties": {
+          "thermal_boundary": "Dirichlet"
+        }
       }
     }
   ],
@@ -147,16 +154,42 @@
       "type": "emitter",
       "inflow_speed": 0.5,
       "multi_species_phases": [{ "phase_name": "MultiSpeciesPhase", "mass_fractions": [0.4, 0.6] }],
-      "volume_fractions": [0.5, 0.3, 0.2]
+      "volume_fractions": [0.5, 0.3, 0.2],
+      "temperature": 20.0
     }
   ],
 
   "gravity": [0.0, -1.0],
 
+  "initial_conditions": [
+    {
+      "body_name": "WallBoundary",
+      "assignments": [
+        {
+          "variable": { "real_type": "Temperature" },
+          "value": 40.0
+        }
+      ]
+    },
+    {
+      "body_name": "MultiPhaseBody",
+      "assignments": [
+        {
+          "variable": { "real_type": "Temperature" },
+          "value": 60.0
+        }
+      ]
+    }
+  ],
+
   "extra_state_recording": [
     {
       "name": "MultiPhaseBody",
-      "variables": [{ "real_type": ["Density", "Compression"] }]
+      "variables": [{ "real_type": ["Density", "Compression", "Temperature"] }]
+    },
+    {
+      "name": "MultiPhaseBody",
+      "variables": [{ "real_type": ["Temperature"] }]
     }
   ],
 

@@ -156,7 +156,7 @@ void ContinuumDynamicsBuilder::buildShearForceIntegrationIfPresent(
 }
 //=================================================================================================//
 void ContinuumDynamicsBuilder::buildContactRepulsionIfPresent(
-    SPHSimulation &sim, MainMethods &main_methods, const json &config)
+    SPHSimulation &sim, MainMethods &main_methods)
 {
     auto &sph_system = sim.getSPHSystem();
     auto &config_manager = sim.getConfigManager();

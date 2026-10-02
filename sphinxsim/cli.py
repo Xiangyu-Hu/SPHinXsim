@@ -91,9 +91,40 @@ def _load_config(path: Path) -> Tuple[SimulationConfig | None, int]:
         return None, 1
 
 
-def _write_validated_config(path: Path, config: SimulationConfig) -> str:
-    """Atomically replace *path* with the canonical validated JSON payload."""
-    content = dump_simulation_config_json(config, indent=2)
+def _apply_payload_diff(raw: Any, base: Any, edited: Any) -> Any:
+    """Return *raw* with only the differences between *base* and *edited* applied."""
+    if base == edited:
+        return raw
+    if isinstance(raw, dict) and isinstance(base, dict) and isinstance(edited, dict):
+        result = dict(raw)
+        for key, value in edited.items():
+            if key not in base:
+                result[key] = value
+            elif key not in raw:
+                if value != base[key]:
+                    result[key] = value
+            else:
+                result[key] = _apply_payload_diff(raw[key], base[key], value)
+        for key in base:
+            if key not in edited:
+                result.pop(key, None)
+        return result
+    if (
+        isinstance(raw, list)
+        and isinstance(base, list)
+        and isinstance(edited, list)
+        and len(raw) == len(base) == len(edited)
+    ):
+        return [_apply_payload_diff(r, b, e) for r, b, e in zip(raw, base, edited)]
+    return edited
+
+
+def _write_validated_config(
+    path: Path, config: SimulationConfig, content: str | None = None
+) -> str:
+    """Atomically replace *path* with *content* (default: canonical validated JSON)."""
+    if content is None:
+        content = dump_simulation_config_json(config, indent=2)
     temporary_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(
@@ -1244,6 +1275,7 @@ class _ShellPreviewRuntime:
             "with_particles": with_particles,
             "fields": [],
             "original_json": "",
+            "baseline_payload": {},
             "undo_stack": [],
             "dirty": False,
             "expanded_paths": set(),
@@ -1375,6 +1407,7 @@ class _ShellPreviewRuntime:
             editor_state["list_paths"] = set()
             if reset_history:
                 editor_state["original_json"] = text
+                editor_state["baseline_payload"] = copy.deepcopy(payload)
                 editor_state["undo_stack"] = []
             editor_state["dirty"] = False
             revert_button.setEnabled(bool(editor_state["undo_stack"]))
@@ -1629,8 +1662,25 @@ class _ShellPreviewRuntime:
                 status.setText(f"Configuration validation failed at {location}: {first_error.get('msg')}")
                 return
 
+            # Patch only the edited entries into the on-disk JSON so defaults
+            # (empty lists, null-like entries) are not added to the file.
+            canonical_json = dump_simulation_config_json(updated_config, indent=2)
+            file_content: str | None = None
             try:
-                canonical_json = _write_validated_config(active_config_path, updated_config)
+                raw_payload = json.loads(active_config_path.read_text(encoding="utf-8"))
+                patched_payload = _apply_payload_diff(
+                    raw_payload, editor_state["baseline_payload"], payload
+                )
+                patched_config = SimulationConfig(**patched_payload)
+                if patched_config.model_dump(exclude_none=True) == updated_config.model_dump(
+                    exclude_none=True
+                ):
+                    file_content = json.dumps(patched_payload, indent=2, ensure_ascii=False)
+            except (OSError, ValidationError, json.JSONDecodeError, TypeError, KeyError):
+                file_content = None
+
+            try:
+                _write_validated_config(active_config_path, updated_config, file_content)
             except OSError as exc:
                 status.setText(f"Could not save {active_config_path.name}: {exc}")
                 return
@@ -1638,6 +1688,7 @@ class _ShellPreviewRuntime:
             editor_state["undo_stack"].append(before_edit)
             populate_editor(canonical_json)
             editor_state["original_json"] = canonical_json
+            editor_state["baseline_payload"] = json.loads(canonical_json)
             status.setText("Saved and rebuilding preview geometry…")
             result = self.show_or_update(
                 updated_config,

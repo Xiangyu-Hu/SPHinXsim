@@ -51,6 +51,12 @@ from pydantic import ValidationError
 from sphinxsim.bindings.loader import load_sphinxsys_core_nd
 from sphinxsim.config.schemas import PhysicalCorrectionWarning, SimulationConfig
 from sphinxsim.config.update_patch import UpdatePatch, apply_update_patch
+from sphinxsim.json_format import (
+    find_prettier_options,
+    format_json,
+    load_json_preserving_floats,
+    object_layout,
+)
 from sphinxsim.llm import get_llm
 from sphinxsim.llm.common import LLMRepairWarning, dump_simulation_config_json
 
@@ -130,6 +136,7 @@ def _write_validated_config(
         with tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
+            newline="",
             suffix=".json",
             prefix=f".{path.stem}.",
             dir=path.parent,
@@ -1667,7 +1674,10 @@ class _ShellPreviewRuntime:
             canonical_json = dump_simulation_config_json(updated_config, indent=2)
             file_content: str | None = None
             try:
-                raw_payload = json.loads(active_config_path.read_text(encoding="utf-8"))
+                raw_text = active_config_path.read_bytes().decode("utf-8")
+                line_ending = "\r\n" if "\r\n" in raw_text else "\n"
+                raw_text = raw_text.replace("\r\n", "\n")
+                raw_payload = load_json_preserving_floats(raw_text)
                 patched_payload = _apply_payload_diff(
                     raw_payload, editor_state["baseline_payload"], payload
                 )
@@ -1675,7 +1685,17 @@ class _ShellPreviewRuntime:
                 if patched_config.model_dump(exclude_none=True) == updated_config.model_dump(
                     exclude_none=True
                 ):
-                    file_content = json.dumps(patched_payload, indent=2, ensure_ascii=False)
+                    prettier = find_prettier_options(active_config_path)
+                    if prettier is None:
+                        file_content = json.dumps(patched_payload, indent=2, ensure_ascii=False)
+                    else:
+                        file_content = format_json(
+                            patched_payload,
+                            layout=object_layout(raw_text),
+                            print_width=int(prettier.get("printWidth", 80)),
+                            tab_width=int(prettier.get("tabWidth", 2)),
+                        ) + ("\n" if raw_text.endswith("\n") else "")
+                    file_content = file_content.replace("\n", line_ending)
             except (OSError, ValidationError, json.JSONDecodeError, TypeError, KeyError):
                 file_content = None
 

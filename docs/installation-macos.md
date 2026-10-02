@@ -57,6 +57,20 @@ cmake --preset integrated-build-release \
 cmake --build --preset integrated-build-release --parallel "$(sysctl -n hw.logicalcpu)"
 ```
 
+To avoid issue of insufficient memory,
+you need to pick the number of `"$(sysctl -n hw.logicalcpu)"` based on your RAM.
+Rough rule: ~1.5–2 GB RAM per job for C++ projects. For example you can build with
+
+```bash
+cmake --build --preset integrated-build-release --parallel 4
+```
+
+or using percentage 
+
+```bash
+cmake --build --preset integrated-build-release --parallel 50%
+```
+
 Install compiled C++ extension modules into the active Python environment:
 
 ```bash

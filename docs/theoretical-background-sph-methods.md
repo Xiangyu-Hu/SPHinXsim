@@ -84,6 +84,8 @@ This form is often referred to as a symmetric or non-conservative
 form.
 Similarly, the second approximation in Eq. $\eqref{SPHgradientapproximations}$
 can be also approximated as
+
+\begin{equation}
 	\nabla\psi_{i} = -\sum_{j}
 	\left(\psi_{i}+\psi_{j}\right) \nabla W_{ij}V_{j}.
 \label{weak}
@@ -122,6 +124,7 @@ can be employed, so that one has
 \end{equation}
 
 With the KGC, Eq. $\eqref{strong}$ is modified as
+
 \begin{equation}
 	\nabla\psi_{i} = \sum_{j}
 	\psi_{ij} \mathbf{B}_{i}\nabla W_{ij}V_{j}.

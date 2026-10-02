@@ -88,7 +88,7 @@ void ConstraintBuilder::addConstraint(
 
         simbody_system.realizeState();
         simbody_system.initializeStateForIntegrator();
-        simbody_system.checkSimbodyState(shape.Name());
+        simbody_system.checkInitialSimbodyState(shape.Name());
 
         auto &constraint = main_methods.template addStateDynamics<
             solid_dynamics::ConstraintBodyPartBySimBodyCK>(body_part, simbody_system);

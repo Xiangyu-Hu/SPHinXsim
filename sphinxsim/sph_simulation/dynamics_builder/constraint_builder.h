@@ -42,7 +42,7 @@ class ConstraintBuilder
 {
   public:
     static void buildConstraintsIfPresent(SPHSimulation &sim, MainMethods &method_container, const json &config);
-    static void checkSimbodyState(SimbodySystem &simbody_system, SolidBodyPartForSimbody &body_part);
+    static void checkInitialSimbodyState(SimbodySystem &simbody_system, SolidBodyPartForSimbody &body_part);
 
   private:
     static void addConstraint(SPHSimulation &sim, MainMethods &method_container, RealBody &real_body, const json &config);

@@ -1,7 +1,6 @@
 #include "continuum_dynamics_builder.h"
 
 #include "all_continuum_dynamics_ck.h"
-#include "constraint_builder.h"
 #include "density_regularization.h"
 #include "recording_builder.h"
 #include "sph_simulation.h"

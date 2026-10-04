@@ -158,7 +158,16 @@ void FluidDynamicsBuilder::addBoundaryCondition(
 
         auto &emitter = fluid_body.addBodyPart<OrientedBoxByParticle>(oriented_box);
         auto &buffer = fluid_body.addBodyPart<OrientedBoxByCell>(buffer_box);
-        auto &disposer = fluid_body.addBodyPart<OrientedBoxByCell>(disposer_box);
+        // WithinDisposerIndication deletes inside the box; shift it one box width
+        // downstream so deletion starts at the outlet, as in the SYCL fish case.
+        OrientedBox shifted_disposer_box = disposer_box;
+        int disposer_axis = shifted_disposer_box.ReferenceAxis();
+        Vecd disposer_shift = Vecd::Zero();
+        disposer_shift[disposer_axis] = 2.0 * shifted_disposer_box.HalfSize()[disposer_axis];
+        Transform &disposer_transform = shifted_disposer_box.getTransform();
+        disposer_transform = Transform(disposer_transform.getRotation(),
+                                       disposer_transform.shiftFrameStationToBase(disposer_shift));
+        auto &disposer = fluid_body.addBodyPart<OrientedBoxByCell>(shifted_disposer_box);
 
         Real target_speed = scaling_config.jsonToReal(config.at("target_speed"), "Speed");
         Real t_ref = scaling_config.jsonToReal(config.at("t_ref"), "Time");

@@ -35,21 +35,21 @@
 namespace SPH
 {
 class RealBody;
-class SolidBodyPartForSimbody;
+class SolidBodyPartForSimbodyCK;
 class SimbodySystem;
 
 class ConstraintBuilder
 {
   public:
     static void buildConstraintsIfPresent(SPHSimulation &sim, MainMethods &method_container, const json &config);
-    static void checkInitialSimbodyState(SimbodySystem &simbody_system, SolidBodyPartForSimbody &body_part);
+    static void checkInitialSimbodyState(SimbodySystem &simbody_system, SolidBodyPartForSimbodyCK &body_part);
 
   private:
     static void addConstraint(SPHSimulation &sim, MainMethods &method_container, RealBody &real_body, const json &config);
 
     static void parseSimbodyMobilizedBody(
         EntityManager &config_manager, SimbodySystem &simbody_system,
-        SolidBodyPartForSimbody &body_part, const json &config);
+        SolidBodyPartForSimbodyCK &body_part, const json &config);
 
     static void addConstraintWithSimbody(
         SPHSimulation &sim, MainMethods &method_container, RealBody &real_body, const json &config);

@@ -64,8 +64,10 @@ void ConstraintBuilder::addConstraint(
     {
         auto &simbody_system = sph_system.getSimbodySystem();
         Shape &shape = config_manager.getEntity<Shape>(real_body.Name());
-        SolidBodyPartForSimbody &body_part = real_body.addBodyPart<SolidBodyPartForSimbody>(shape);
+        SolidBodyPartForSimbodyCK &body_part = real_body.addBodyPart<SolidBodyPartForSimbodyCK>(shape);
         parseSimbodyMobilizedBody(config_manager, simbody_system, body_part, config);
+        simbody_system.initializeStateForIntegrator();
+        simbody_system.checkInitialSimbodyState(shape.Name());
 
         if (config_manager.hasEntity<RestartConfig>("RestartConfig"))
         {
@@ -85,10 +87,6 @@ void ConstraintBuilder::addConstraint(
                 simbody_system.readStateFromXml(restart_config.restore_step_);
             }
         }
-
-        simbody_system.realizeState();
-        simbody_system.initializeStateForIntegrator();
-        simbody_system.checkInitialSimbodyState(shape.Name());
 
         auto &constraint = main_methods.template addStateDynamics<
             solid_dynamics::ConstraintBodyPartBySimBodyCK>(body_part, simbody_system);
@@ -112,7 +110,7 @@ void ConstraintBuilder::addConstraint(
 //=================================================================================================//
 void ConstraintBuilder::parseSimbodyMobilizedBody(
     EntityManager &config_manager, SimbodySystem &simbody_system,
-    SolidBodyPartForSimbody &body_part, const json &config)
+    SolidBodyPartForSimbodyCK &body_part, const json &config)
 {
     const std::string &mobilized_body_type = config.at("mobilized_body").get<std::string>();
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
@@ -120,18 +118,18 @@ void ConstraintBuilder::parseSimbodyMobilizedBody(
 
     if (mobilized_body_type == "planar")
     {
-        std::string mobilized_planar = simbody_system.createFirstMobilizedPlanar(simbody_name);
+        simbody_system.createMobilizedBody(simbody_name, "Ground", "Planar");
         Real omega_z = 2.0 * Pi * scaling_config.jsonToReal(config.at("angular_velocity"), "AngularVelocity");
         Vec2d velocity = scaling_config.jsonToVec2d(config.at("velocity"), "Velocity");
-        simbody_system.setUForMobilizedPlanar(mobilized_planar, velocity, omega_z);
+        simbody_system.setUForMobilizedPlanar(simbody_name, velocity, omega_z);
         return;
     }
 
     if (mobilized_body_type == "pin")
     {
-        std::string mobilized_pin = simbody_system.createFirstMobilizedPin(simbody_name);
+        simbody_system.createMobilizedBody(simbody_name, "Ground", "Pin");
         Real omega_z = 2.0 * Pi * scaling_config.jsonToReal(config.at("angular_velocity"), "AngularVelocity");
-        simbody_system.setUForMobilizedPin(mobilized_pin, omega_z);
+        simbody_system.setUForMobilizedPin(simbody_name, omega_z);
         return;
     }
 

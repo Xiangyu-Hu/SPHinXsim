@@ -455,8 +455,8 @@ jobs:
             vcpkg_triplet: x64-linux
           - os: windows-2022
             vcpkg_triplet: x64-windows
-          - os: macos-15-intel
-            vcpkg_triplet: x64-osx
+          - os: macos-15
+            vcpkg_triplet: arm64-osx
     env:
       VCPKG_DEFAULT_TRIPLET: ${{ matrix.vcpkg_triplet }}
       SPHINXSIM_LLM_PROVIDER: mock
@@ -498,7 +498,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install ninja autoconf automake autoconf-archive pkg-config
+          brew install ninja autoconf automake autoconf-archive libtool pkg-config
 
       - name: Install Windows build tools
         if: runner.os == 'Windows'

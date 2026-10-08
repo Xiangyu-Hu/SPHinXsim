@@ -19,7 +19,6 @@ BodyPart::BodyPart(SPHBody &sph_body)
       part_id_(base_particles_.getNewBodyPartID()),
       part_id_name_(sph_body.Name() + "Part" + std::to_string(part_id_)),
       sph_adaptation_(sph_body.getSPHAdaptation()),
-      sv_range_size_(nullptr),
       pos_(base_particles_.getVariableDataByName<Vecd>("Position")) {}
 //=================================================================================================//
 BodyPart::~BodyPart() = default;
@@ -32,13 +31,11 @@ BaseCellLinkedList &BodyPart::getCellLinkedList()
 //=================================================================================================//
 SPHSystem &BodyPart::getSPHSystem() { return sph_body_.getSPHSystem(); }
 //=================================================================================================//
-BodyPartByID::BodyPartByID(SPHBody &sph_body) : BodyPart(sph_body)
-{
-    sv_range_size_ = base_particles_.svTotalRealParticles();
-}
+BodyPartByID::BodyPartByID(SPHBody &sph_body) : BodyPart(sph_body){}
 //=================================================================================================//
 BodyPartByParticle::BodyPartByParticle(SPHBody &sph_body)
-    : BodyPart(sph_body)
+    : BodyPart(sph_body), group_manager_(base_particles_.getParticleGroupManager()),
+      part_mask_(group_manager_.registerGroup(part_id_name_))
 {
     base_particles_.addBodyPartByParticle(this);
 }
@@ -47,53 +44,21 @@ BodyRegionByParticle::~BodyRegionByParticle() = default;
 //=================================================================================================//
 void BodyPartByParticle::tagParticles(TaggingParticleMethod &tagging_particle_method)
 {
-    GroupManager &group_manager = getParticleGroupManager();
-    auto part_mask = group_manager.createHostMaskKernel(part_id_name_);
-
+    auto mask_kernel = GroupManager::MaskKernel(seq, group_manager_, part_mask_);
     for (size_t i = 0; i != base_particles_.TotalRealParticles(); ++i)
     {
         if (tagging_particle_method(i))
         {
             body_part_particles_.push_back(i);
-            part_mask.add(i);
+            mask_kernel.add(i);
         }
-    }
-
-    dv_particle_list_ = unique_variable_ptrs_.createPtr<DiscreteVariable<UnsignedInt>>(
-        part_id_name_, body_part_particles_.size(), [&](size_t i)
-        { return body_part_particles_[i]; });
-    sv_range_size_ = unique_variable_ptrs_.createPtr<SingleVariable<UnsignedInt>>(
-        part_id_name_ + "_Size", body_part_particles_.size());
-}
-//=================================================================================================//
-void BodyPartByParticle::rebuildFromParticleGroups()
-{
-    GroupManager &group_manager = getParticleGroupManager();
-    auto part_mask = group_manager.createHostMaskKernel(part_id_name_);
-
-    body_part_particles_.clear();
-    UnsignedInt *particle_list = dv_particle_list_->Data();
-    UnsignedInt list_size = 0;
-    for (size_t i = 0; i != base_particles_.TotalRealParticles(); ++i)
-    {
-        if (part_mask.check(i))
-        {
-            body_part_particles_.push_back(i);
-            particle_list[list_size++] = i;
-        }
-    }
-
-    if (list_size != sv_range_size_->getValue())
-    {
-        std::cout << "\n Error: rebuild BodyPartByParticle should be the same size as before. \n";
-        std::cout << __FILE__ << ':' << __LINE__ << std::endl;
-        exit(1);
     }
 }
 //=================================================================================================//
 BodyPartByCell::BodyPartByCell(RealBody &real_body)
     : BodyPart(real_body), cell_linked_list_(real_body.getCellLinkedList()),
-      dv_cell_list_(nullptr),
+      cell_group_manager_(cell_linked_list_.getCellGroupManager()),
+      part_mask_(cell_group_manager_.registerGroup(part_id_name_)),
       dv_particle_index_(cell_linked_list_.dvParticleIndex()),
       dv_cell_offset_(cell_linked_list_.dvCellOffset()) {}
 //=============================================================================================//
@@ -112,11 +77,11 @@ void BodyPartByCell::tagCells(TaggingCellMethod &tagging_cell_method)
     ConcurrentIndexVector cell_indexes;
     cell_linked_list_.tagBodyPartByCell(body_part_cells_, cell_indexes, tagging_cell_method);
 
-    dv_cell_list_ = unique_variable_ptrs_.createPtr<DiscreteVariable<UnsignedInt>>(
-        part_id_name_, cell_indexes.size(), [&](size_t i)
-        { return cell_indexes[i]; });
-    sv_range_size_ = unique_variable_ptrs_.createPtr<SingleVariable<UnsignedInt>>(
-        part_id_name_ + "_Size", cell_indexes.size());
+    auto mask_kernel = GroupManager::MaskKernel(seq, cell_group_manager_, part_mask_);
+    for (size_t i = 0; i != cell_indexes.size(); ++i)
+    {
+        mask_kernel.add(cell_indexes[i]);
+    }
 }
 //=================================================================================================//
 BodyRegionByParticle::

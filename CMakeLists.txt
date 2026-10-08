@@ -6,6 +6,7 @@ project(sphinxsim_python_binding)
 include(CTest)
 option(SPHINXSIM_BUILD_SIMULATION_TESTS "Build and register simulation class C++ tests" ON)
 option(SPHINXSIM_COPY_BINDINGS_AFTER_BUILD "Copy Python bindings to a stable folder after build" OFF)
+option(SPHINXSIM_BUILD_PROJECT "Build with extra SPHinXsim Project" ON)
 set(SPHINXSIM_BINDINGS_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/sphinxsim/bindings/native"
     CACHE PATH "Stable output directory for copied Python binding modules")
 
@@ -61,10 +62,6 @@ set(SPHINXSYS_DEVELOPER_MODE OFF CACHE BOOL "Disable developer mode")
 set(SPHINXSYS_USE_SYCL OFF CACHE BOOL "Disable SYCL")
 set(SPHINXSYS_2D ON CACHE BOOL "Build 2D library")
 set(SPHINXSYS_3D ON CACHE BOOL "Build 3D library")
-    
-# Include headers and sources for sph simulation library
-file(GLOB_RECURSE SPH_SIMULATION_INCLUDE CONFIGURE_DEPENDS sphinxsim/sph_simulation/*.h sphinxsim/sph_simulation/*.hpp)
-file(GLOB_RECURSE SPH_SIMULATION_SOURCES CONFIGURE_DEPENDS sphinxsim/sph_simulation/*.cpp)
 
 function(get_all_include_dirs result dir)
     file(GLOB_RECURSE children LIST_DIRECTORIES true "${dir}/*")
@@ -79,10 +76,23 @@ function(get_all_include_dirs result dir)
     list(REMOVE_DUPLICATES dirs)
     set(${result} "${dirs}" PARENT_SCOPE)
 endfunction()
+
+# Include headers and sources for sph simulation library
+file(GLOB_RECURSE SPH_SIMULATION_INCLUDE CONFIGURE_DEPENDS sphinxsim/sph_simulation/*.h sphinxsim/sph_simulation/*.hpp)
+file(GLOB_RECURSE SPH_SIMULATION_SOURCES CONFIGURE_DEPENDS sphinxsim/sph_simulation/*.cpp)
 get_all_include_dirs(SPH_SIMULATION_INCLUDE "sphinxsim/sph_simulation")
 
 # Include SPHinXsys as subdirectory - this will build the sphinxsys libraries
 add_subdirectory(sphinxsim/sphinxsys)
+
+if(SPHINXSIM_BUILD_PROJECT) # Include extra headers and sources for SPHinXsim project
+    file(GLOB_RECURSE EXTRA_PROJECT_INCLUDE CONFIGURE_DEPENDS project/extra_src/*.h project/extra_src/*.hpp)
+    file(GLOB_RECURSE EXTRA_PROJECT_SOURCES CONFIGURE_DEPENDS project/extra_src/*.cpp)
+    get_all_include_dirs(EXTRA_PROJECT_INCLUDE "project/extra_src")
+    set(SPHINXSIM_PROJECT ON CACHE BOOL "Build with extra SPHinXsim Project")
+else()
+    set(SPHINXSIM_PROJECT OFF CACHE BOOL "Don't build with extra SPHinXsim Project")
+endif()
 
 # Define the source file
 set(BIND_SOURCE_FILES sphinxsim/bindings/sphinxsys_python.cpp)
@@ -90,11 +100,20 @@ set(BIND_SOURCE_FILES sphinxsim/bindings/sphinxsys_python.cpp)
 if(SPHINXSYS_2D)
     add_library(sph_simulation_2d)
     set_target_properties(sph_simulation_2d PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    target_include_directories(sph_simulation_2d PUBLIC ${SPH_SIMULATION_INCLUDE})
-    target_sources(sph_simulation_2d PRIVATE ${SPH_SIMULATION_SOURCES})
+    
+    if(SPHINXSIM_BUILD_PROJECT)
+        target_include_directories(sph_simulation_2d PUBLIC ${SPH_SIMULATION_INCLUDE} ${EXTRA_PROJECT_INCLUDE})
+        target_sources(sph_simulation_2d PRIVATE ${SPH_SIMULATION_SOURCES} ${EXTRA_PROJECT_SOURCES})
+        target_compile_definitions(sph_simulation_2d PUBLIC SPHINXSYS_2D SPHINXSIM_PROJECT)
+    else()
+        target_include_directories(sph_simulation_2d PUBLIC ${SPH_SIMULATION_INCLUDE} ${EXTRA_PROJECT_INCLUDE})
+        target_sources(sph_simulation_2d PRIVATE ${SPH_SIMULATION_SOURCES} ${EXTRA_PROJECT_SOURCES})
+    target_compile_definitions(sph_simulation_2d PUBLIC SPHINXSYS_2D)
+        endif()
+
     target_link_libraries(sph_simulation_2d PRIVATE nlohmann_json::nlohmann_json)
     target_link_libraries(sph_simulation_2d PUBLIC sphinxsys_2d)
-    target_compile_definitions(sph_simulation_2d PUBLIC SPHINXSYS_2D VERSION_INFO="0.1.0")
+    target_compile_definitions(sph_simulation_2d PUBLIC VERSION_INFO="0.1.0")
     
     pybind11_add_module(_sphinxsys_core_2d ${BIND_SOURCE_FILES})
     target_link_libraries(_sphinxsys_core_2d PRIVATE sph_simulation_2d)
@@ -115,11 +134,20 @@ endif()
 if(SPHINXSYS_3D)
     add_library(sph_simulation_3d)
     set_target_properties(sph_simulation_3d PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    target_include_directories(sph_simulation_3d PUBLIC ${SPH_SIMULATION_INCLUDE})
-    target_sources(sph_simulation_3d PRIVATE ${SPH_SIMULATION_SOURCES})
+
+    if(SPHINXSIM_BUILD_PROJECT)
+        target_include_directories(sph_simulation_3d PUBLIC ${SPH_SIMULATION_INCLUDE} ${EXTRA_PROJECT_INCLUDE})
+        target_sources(sph_simulation_3d PRIVATE ${SPH_SIMULATION_SOURCES} ${EXTRA_PROJECT_SOURCES})
+        target_compile_definitions(sph_simulation_3d PUBLIC SPHINXSYS_3D SPHINXSIM_PROJECT)
+    else()
+        target_include_directories(sph_simulation_3d PUBLIC ${SPH_SIMULATION_INCLUDE} ${EXTRA_PROJECT_INCLUDE})
+        target_sources(sph_simulation_3d PRIVATE ${SPH_SIMULATION_SOURCES} ${EXTRA_PROJECT_SOURCES})
+    target_compile_definitions(sph_simulation_3d PUBLIC SPHINXSYS_3D)
+        endif()    
+
     target_link_libraries(sph_simulation_3d PRIVATE nlohmann_json::nlohmann_json)
     target_link_libraries(sph_simulation_3d PUBLIC sphinxsys_3d)
-    target_compile_definitions(sph_simulation_3d PUBLIC SPHINXSYS_3D VERSION_INFO="0.1.0")
+    target_compile_definitions(sph_simulation_3d PUBLIC VERSION_INFO="0.1.0")
 
     pybind11_add_module(_sphinxsys_core_3d ${BIND_SOURCE_FILES})
     target_link_libraries(_sphinxsys_core_3d PRIVATE sph_simulation_3d)

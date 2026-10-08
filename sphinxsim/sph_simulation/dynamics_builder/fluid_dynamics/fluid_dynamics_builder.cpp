@@ -127,42 +127,6 @@ BaseDynamics<Real> &FluidDynamicsBuilder::addAcousticTimeStepForOneBody(
         "FluidDynamicsBuilder::addAcousticTimeStepForOneBody: no supported material type found!");
 }
 //=================================================================================================//
-BaseDynamics<void> &FluidDynamicsBuilder::addAcousticStep1stHalf(
-    SPHSimulation &sim, MainMethods &main_methods)
-{
-    auto &sph_system = sim.getSPHSystem();
-    auto &config_manager = sim.getConfigManager();
-    auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
-    auto &acoustic_step_1st_half = main_methods.addParticleDynamicsGroup();
-
-    for (const auto &fb : fluid_bodies_config)
-    {
-        std::string body_name = fb->name_;
-        auto &inner_relation = sph_system.getRelationByName<Inner<Relation<FluidBody>>>(body_name);
-        acoustic_step_1st_half.add(&addAcousticHalfStepForOneBody<AcousticStep1stHalf>(
-            sim, inner_relation, main_methods));
-    }
-    return acoustic_step_1st_half;
-}
-//=================================================================================================//
-BaseDynamics<void> &FluidDynamicsBuilder::addAcousticStep2ndHalf(
-    SPHSimulation &sim, MainMethods &main_methods)
-{
-    auto &sph_system = sim.getSPHSystem();
-    auto &config_manager = sim.getConfigManager();
-    auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
-    auto &acoustic_step_2nd_half = main_methods.addParticleDynamicsGroup();
-
-    for (const auto &fb : fluid_bodies_config)
-    {
-        std::string body_name = fb->name_;
-        auto &inner_relation = sph_system.getRelationByName<Inner<Relation<FluidBody>>>(body_name);
-        acoustic_step_2nd_half.add(&addAcousticHalfStepForOneBody<AcousticStep2ndHalf>(
-            sim, inner_relation, main_methods));
-    }
-    return acoustic_step_2nd_half;
-}
-//=================================================================================================//
 BaseDynamics<void> &FluidDynamicsBuilder::addLinearCorrectionMatrix(
     SPHSimulation &sim, MainMethods &main_methods)
 {
@@ -293,6 +257,9 @@ void FluidDynamicsBuilder::buildViscousForceIfPresent(
             addInteractionWithSolidBodies<Wall, Viscosity, NoKernelCorrectionCK>(
                 sim, viscous_force, fluid_body);
             all_viscous_force.add(&viscous_force);
+
+            addViscousForceOnSolidBodiesIfPresent<
+                Viscosity, NoKernelCorrectionCK>(sim, viscous_force, fb);
         }
     }
 

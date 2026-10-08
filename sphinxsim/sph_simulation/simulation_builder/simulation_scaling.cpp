@@ -222,6 +222,8 @@ UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name, bool is_require
         return UnitMetrics{0, 1, 0, 0, 0, 0, 0};
     if (unit_name == "Time")
         return UnitMetrics{0, 0, 1, 0, 0, 0, 0};
+    if (unit_name == "Frequency")
+        return UnitMetrics{0, 0, -1, 0, 0, 0, 0};
     if (unit_name == "Temperature")
         return UnitMetrics{0, 0, 0, 1, 0, 0, 0};
     if (unit_name == "ElectricCurrent")

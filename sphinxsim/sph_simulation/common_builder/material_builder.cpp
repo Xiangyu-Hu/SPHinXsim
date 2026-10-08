@@ -1,6 +1,5 @@
 #include "material_builder.h"
 
-#include "composite_solid.h"
 #include "fluid_dynamics_builder.h"
 #include "sphinxsys.h"
 
@@ -109,8 +108,36 @@ void MaterialBuilder::addMatterMaterial(
         Real poisson_ratio = scaling_config.jsonToReal(config.at("poisson_ratio"), "Dimensionless");
         Real yield_stress = scaling_config.jsonToReal(config.at("yield_stress"), "Stress");
         Real hardening_modulus = scaling_config.jsonToReal(config.at("hardening_modulus"), "Stress");
+        
+        DuctileDamageParameters damage_parameters;
+        if (config.contains("ductile_damage"))
+        {
+            const auto &damage_config = config.at("ductile_damage");
+            
+            if (damage_config.contains("enabled"))
+                damage_parameters.enabled_ =
+                    damage_config.at("enabled").get<bool>();
+
+            if (damage_config.contains("threshold_equivalent_plastic_strain"))
+                damage_parameters.threshold_equivalent_plastic_strain_ =
+                    scaling_config.jsonToReal(
+                        damage_config.at("threshold_equivalent_plastic_strain"),
+                        "Dimensionless");
+
+            if (damage_config.contains("critical_equivalent_plastic_strain"))
+                damage_parameters.critical_equivalent_plastic_strain_ =
+                    scaling_config.jsonToReal(
+                        damage_config.at("critical_equivalent_plastic_strain"),
+                        "Dimensionless");
+
+            if (damage_config.contains("critical_damage"))
+                damage_parameters.critical_damage_ =
+                    scaling_config.jsonToReal(
+                        damage_config.at("critical_damage"),
+                        "Dimensionless");
+        }
         auto &material = sph_body.defineMatterMaterial<J2Plasticity>(
-            density, sound_speed, youngs_modulus, poisson_ratio, yield_stress, hardening_modulus);
+            density, sound_speed, youngs_modulus, poisson_ratio, yield_stress, hardening_modulus, damage_parameters);
         config_manager.addEntity(sph_body.Name() + "J2Plasticity", &material);
         return;
     }
@@ -137,19 +164,12 @@ void MaterialBuilder::addMatterMaterial(
         config_manager.addEntity(sph_body.Name() + "PlasticContinuum", &material);
         return;
     }
-
-    if (type == "composite_solid")
+#ifdef SPHINXSIM_PROJECT
+    if (addExtraMaterial(config_manager, sph_body, config, type))
     {
-        Real density = scaling_config.jsonToReal(config.at("density"), "Density");
-        Real poisson_ratio = scaling_config.jsonToReal(config.at("poisson_ratio"), "Dimensionless");
-        Real youngs_active = scaling_config.jsonToReal(config.at("youngs_modulus_active"), "Stress");
-        Real youngs_1 = scaling_config.jsonToReal(config.at("youngs_modulus_1"), "Stress");
-        Real youngs_2 = scaling_config.jsonToReal(config.at("youngs_modulus_2"), "Stress");
-        auto &material = sph_body.defineMatterMaterial<CompositeSolidMaterial>(
-            density, youngs_active, youngs_1, youngs_2, poisson_ratio);
-        config_manager.addEntity(sph_body.Name() + "CompositeSolid", &material);
         return;
     }
+#endif
 
     throw std::runtime_error("MaterialBuilder::addMatterMaterial: unsupported material: " + type);
 }

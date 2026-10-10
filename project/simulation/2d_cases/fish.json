@@ -5,7 +5,7 @@
   ],
   "simulation_type": "fluid_dynamics",
   "geometries": {
-    "system_domain": { "lower_bound": [-0.05, 0.0], "upper_bound": [0.8, 0.4] },
+    "system_domain": { "lower_bound": [-0.05, -0.01], "upper_bound": [0.8, 0.41] },
     "global_resolution": { "particle_spacing": 0.0025 },
     "shapes": [
       {
@@ -40,26 +40,30 @@
         "name": "Bone",
         "type": "multipolygon",
         "polygons": [{ "operation": "union", "type": "data_file", "file_name": "bone.dat" }]
+      },
+      {
+        "name": "WallBoundary",
+        "type": "multipolygon",
+        "polygons": [
+          { "operation": "union", "type": "bounding_box", "lower_bound": [-0.05, -0.01], "upper_bound": [0.8, 0.0] },
+          { "operation": "union", "type": "bounding_box", "lower_bound": [-0.05, 0.4], "upper_bound": [0.8, 0.41] }
+        ]
       }
     ],
     "oriented_boxes": [
       {
-        "name": "Emitter",
-        "type": "region",
-        "half_size": [0.005, 0.2],
-        "transform": { "translation": [-0.045, 0.2], "rotation_angle": 0.0 }
+        "name": "Inlet",
+        "type": "boundary",
+        "center": [-0.05, 0.2],
+        "normal": [1.0, 0.0],
+        "radius": 0.2
       },
       {
-        "name": "Buffer",
-        "type": "region",
-        "half_size": [0.025, 0.2],
-        "transform": { "translation": [-0.025, 0.2], "rotation_angle": 0.0 }
-      },
-      {
-        "name": "Disposer",
-        "type": "region",
-        "half_size": [0.005, 0.3],
-        "transform": { "translation": [0.795, 0.2], "rotation_angle": 0.0 }
+        "name": "Outlet",
+        "type": "boundary",
+        "center": [0.8, 0.2],
+        "normal": [-1.0, 0.0],
+        "radius": 0.2
       }
     ]
   },
@@ -75,6 +79,10 @@
           "name": "FishBody",
           "solid_body": {},
           "relaxation": { "dependent_bodies": ["WaterBody"] }
+        },
+        {
+          "name": "WallBoundary",
+          "solid_body": {}
         }
       ],
       "relaxation_parameters": { "total_iterations": 1000 }
@@ -115,17 +123,24 @@
           "core_thickness": 0.003
         }
       }
+    },
+    {
+      "name": "WallBoundary",
+      "material": { "type": "rigid_body" }
     }
   ],
   "fluid_boundary_conditions": [
     {
       "body_name": "WaterBody",
-      "oriented_box": "Emitter",
-      "buffer_box": "Buffer",
-      "disposer_box": "Disposer",
-      "type": "free_stream",
-      "target_speed": 0.0,
-      "t_ref": 2.0
+      "oriented_box": "Inlet",
+      "type": "bi_directional",
+      "pressure": 0.0
+    },
+    {
+      "body_name": "WaterBody",
+      "oriented_box": "Outlet",
+      "type": "bi_directional",
+      "pressure": 0.0
     }
   ],
   "extra_state_recording": [
@@ -156,7 +171,7 @@
     "fluid_dynamics": {
       "acoustic_cfl": 0.6,
       "advection_cfl": 0.25,
-      "surface_type": "free_stream",
+      "surface_type": "open_boundary",
       "kernel_correction": "none",
       "particle_sort_frequency": 100
     }

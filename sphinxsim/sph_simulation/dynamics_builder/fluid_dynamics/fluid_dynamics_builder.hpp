@@ -199,6 +199,7 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStep(
                         sim, inner_relation, main_methods));
             }
         }
+        fluid_body.getBaseParticles().addEvolvingVariable<Vecd>("Force"); // restart: read by time step
     }
     return acoustic_half_step;
 }

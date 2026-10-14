@@ -217,7 +217,7 @@ BaseDynamics<void> &FluidDynamicsBuilder::addDensityRegularization(
                 config_manager.getEntity<RestartConfig>("RestartConfig").restore_step_ > 0 &&
                 (config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig").surface_type_ == "free_stream" ||
                  config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig").surface_type_ == "open_boundary"))
-                return; 
+                return;
             auto lower_limit = minimum_compression.exec();
             auto upper_limit = maximum_compression.exec();
             if (lower_limit.first < 0.95 || upper_limit.first > 1.05 ||

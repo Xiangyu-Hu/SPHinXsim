@@ -85,6 +85,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
 
             initialization_pipeline.run_hooks(InitializationHookPoint::RestartFromFile);
             initialization_pipeline.run_hooks(InitializationHookPoint::UpdateConfigurationAfterRestart);
+            initialization_pipeline.run_hooks(InitializationHookPoint::UpdateStateAfterRestart);
 
             continuum_advection_step_setup.exec();
             continuum_linear_correction_matrix.exec();

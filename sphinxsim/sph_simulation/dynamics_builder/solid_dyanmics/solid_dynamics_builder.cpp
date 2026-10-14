@@ -96,7 +96,7 @@ void SolidDynamicsBuilder::buildSolidsDynamicsIfPresentInFluid(
             config_manager.getEntity<RestartConfig>("RestartConfig").restore_step_ != 0)
         {
             initialization_pipeline.insert_hook(
-                InitializationHookPoint::UpdateConfigurationAfterRestart, [&]()
+                InitializationHookPoint::UpdateStateAfterRestart, [&]()
                 { elastic_normal_direction.exec(); });
         }
     }

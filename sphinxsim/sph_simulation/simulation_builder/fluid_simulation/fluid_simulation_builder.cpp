@@ -99,6 +99,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
 
             initialization_pipeline.run_hooks(InitializationHookPoint::RestartFromFile);
             initialization_pipeline.run_hooks(InitializationHookPoint::UpdateConfigurationAfterRestart);
+            initialization_pipeline.run_hooks(InitializationHookPoint::UpdateStateAfterRestart);
 
             fluid_density_regularization.exec();
             fluid_advection_step_setup.exec();

@@ -61,6 +61,7 @@ enum class InitializationHookPoint
     InitialUpdateConfiguration,
     RestartFromFile,
     UpdateConfigurationAfterRestart,
+    UpdateStateAfterRestart,
     InitialObservation,
     InitialAfterLinearCorrectionMatrix,
     InitialAfterKernelGradientIntegral,

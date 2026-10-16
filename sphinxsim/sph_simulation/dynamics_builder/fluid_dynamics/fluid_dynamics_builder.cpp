@@ -188,7 +188,7 @@ BaseDynamics<void> &FluidDynamicsBuilder::addDensityRegularization(
         auto &average_compression = main_methods.template addReduceDynamics<AverageCompression>(fluid_body);
         auto &initialization_pipeline = sim.getInitializationPipeline();
         initialization_pipeline.insert_hook(
-            InitializationHookPoint::InitialCondition, [&]()
+            InitializationHookPoint::AfterInitialCondition, [&]()
             { 
             density_regularization.exec();
             Real average_compression_value = average_compression.exec();
@@ -301,7 +301,7 @@ void FluidDynamicsBuilder::buildSurfaceIndicationIfOpenBoundary(
     {
         auto &initialization_pipeline = sim.getInitializationPipeline();
         initialization_pipeline.insert_hook(
-            InitializationHookPoint::AfterInitialCondition, [&]()
+            InitializationHookPoint::InitialCondition, [&]()
             { all_surface_indication.exec(); });
         auto &simulation_pipeline = sim.getSimulationPipeline();
         simulation_pipeline.insert_hook(

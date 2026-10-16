@@ -104,7 +104,7 @@ void FluidDynamicsBuilder::addBoundaryCondition(
 
         // applied to initialization
         initialization_pipeline.insert_hook(
-            InitializationHookPoint::AfterInitialCondition, [&]()
+            InitializationHookPoint::InitialCondition, [&]()
             { bi_directional_bd.tagBufferParticles(); });
 
         initialization_pipeline.insert_hook(

@@ -82,9 +82,11 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
 
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialCondition);
             initialization_pipeline.run_hooks(InitializationHookPoint::AfterInitialCondition);
+            initialization_pipeline.run_hooks(InitializationHookPoint::PreSimulationSanityCheck);
 
             initialization_pipeline.run_hooks(InitializationHookPoint::RestartFromFile);
             initialization_pipeline.run_hooks(InitializationHookPoint::UpdateConfigurationAfterRestart);
+            initialization_pipeline.run_hooks(InitializationHookPoint::UpdateStateAfterRestart);
 
             continuum_advection_step_setup.exec();
             continuum_linear_correction_matrix.exec();
@@ -92,8 +94,6 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
 
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialObservation);
             body_state_recorder.writeToFile();
-
-            initialization_pipeline.run_hooks(InitializationHookPoint::PreSimulationSanityCheck);
         });
     //----------------------------------------------------------------------
     //	Define time-integration method.

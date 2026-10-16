@@ -43,6 +43,7 @@ void SolidDynamicsBuilder::buildSolidsDynamicsIfPresentInFluid(
 
             buildSolidRelaxation1stHalf(
                 config_manager, solid_relaxation_1st_half, main_methods, inner_relation);
+            solid_body.getBaseParticles().addEvolvingVariable<Vecd>("Force"); // restart: read by time step
 
             solid_relaxation_2nd_half.add(
                 &main_methods.template addInteractionDynamicsOneLevel<
@@ -89,6 +90,13 @@ void SolidDynamicsBuilder::buildSolidsDynamicsIfPresentInFluid(
         simulation_pipeline.insert_hook(
             SimulationHookPoint::AfterLinearCorrectionMatrix, [&]()
             { elastic_normal_direction.exec(); });
+
+        if (config_manager.getEntity<RestartConfig>("RestartConfig").restore_step_ != 0)
+        {
+            initialization_pipeline.insert_hook(
+                InitializationHookPoint::UpdateStateAfterRestart, [&]()
+                { elastic_normal_direction.exec(); });
+        }
     }
 }
 //=================================================================================================//

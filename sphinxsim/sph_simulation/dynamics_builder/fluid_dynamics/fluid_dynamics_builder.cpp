@@ -187,16 +187,13 @@ BaseDynamics<void> &FluidDynamicsBuilder::addDensityRegularization(
                       << "' is " << average_compression_value << std::endl; 
             std::cout << "------------------------------------------------------------" << std::endl; });
 
-        if (fluid_body.isMatterMaterial<WeaklyCompressibleFluid>())
-        {
-            density_regularization.add(&addDensityRegularizationForOneBody<WeaklyCompressibleFluid>(
-                main_methods, fluid_body, fluid_solver_config.surface_type_));
-        }
-        else
-        {
-            density_regularization.add(&addDensityRegularizationForOneBody<WeaklyCompressibleMixture>(
-                main_methods, fluid_body, fluid_solver_config.surface_type_));
-        }
+        auto &body_regularization =
+            fluid_body.isMatterMaterial<WeaklyCompressibleFluid>()
+                ? addDensityRegularizationForOneBody<WeaklyCompressibleFluid>(
+                      main_methods, fluid_body, fluid_solver_config.surface_type_)
+                : addDensityRegularizationForOneBody<WeaklyCompressibleMixture>(
+                      main_methods, fluid_body, fluid_solver_config.surface_type_);
+        density_regularization.add(&body_regularization);
 
         auto &minimum_compression =
             main_methods.template addReduceDynamics<
@@ -210,14 +207,10 @@ BaseDynamics<void> &FluidDynamicsBuilder::addDensityRegularization(
         initialization_pipeline.insert_hook(
             InitializationHookPoint::PreSimulationSanityCheck, [&]()
             {
-            // This bound is calibrated for freshly relaxed particles. A developed free-stream
-            // or open boundary flow legitimately carries values outside it near the open boundary or bodies, so a restored
-            // state would fail a check the continuous run at the same step would also fail. See issue #170.
-            if (config_manager.hasEntity<RestartConfig>("RestartConfig") &&
-                config_manager.getEntity<RestartConfig>("RestartConfig").restore_step_ > 0 &&
-                (config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig").surface_type_ == "free_stream" ||
-                 config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig").surface_type_ == "open_boundary"))
-                return;
+            // Compression is only written by the regularization, which the main
+            // initialization step runs later, so compute it here on the initial particles.
+            density_summation.exec();
+            body_regularization.exec();
             auto lower_limit = minimum_compression.exec();
             auto upper_limit = maximum_compression.exec();
             if (lower_limit.first < 0.95 || upper_limit.first > 1.05 ||

@@ -96,6 +96,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
 
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialCondition);
             initialization_pipeline.run_hooks(InitializationHookPoint::AfterInitialCondition);
+            initialization_pipeline.run_hooks(InitializationHookPoint::PreSimulationSanityCheck);
 
             initialization_pipeline.run_hooks(InitializationHookPoint::RestartFromFile);
             initialization_pipeline.run_hooks(InitializationHookPoint::UpdateConfigurationAfterRestart);
@@ -108,8 +109,6 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
 
             initialization_pipeline.run_hooks(InitializationHookPoint::InitialObservation);
             body_state_recorder.writeToFile();
-
-            initialization_pipeline.run_hooks(InitializationHookPoint::PreSimulationSanityCheck);
         });
     //----------------------------------------------------------------------
     // Define the time integration method (dual acoustic/advection stepping).

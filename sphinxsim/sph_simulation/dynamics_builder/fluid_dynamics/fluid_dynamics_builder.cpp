@@ -174,26 +174,29 @@ BaseDynamics<void> &FluidDynamicsBuilder::addDensityRegularization(
         addInteractionWithSolidBodies(sim, density_summation, fluid_body);
         density_regularization.add(&density_summation);
 
+        if (fluid_body.isMatterMaterial<WeaklyCompressibleFluid>())
+        {
+            density_regularization.add(&addDensityRegularizationForOneBody<WeaklyCompressibleFluid>(
+                main_methods, fluid_body, fluid_solver_config.surface_type_));
+        }
+        else
+        {
+            density_regularization.add(&addDensityRegularizationForOneBody<WeaklyCompressibleMixture>(
+                main_methods, fluid_body, fluid_solver_config.surface_type_));
+        }
+
         auto &average_compression = main_methods.template addReduceDynamics<AverageCompression>(fluid_body);
         auto &initialization_pipeline = sim.getInitializationPipeline();
         initialization_pipeline.insert_hook(
             InitializationHookPoint::InitialCondition, [&]()
             { 
-            density_summation.exec();
+            density_regularization.exec();
             Real average_compression_value = average_compression.exec();
             std::cout << "\n------------------------------------------------------------" << std::endl;
             std::cout << "FluidDynamicsBuilder::addDensityRegularization : " 
                       << "Initial average compression of FluidBody '" << fluid_body.Name() 
                       << "' is " << average_compression_value << std::endl; 
             std::cout << "------------------------------------------------------------" << std::endl; });
-
-        auto &body_regularization =
-            fluid_body.isMatterMaterial<WeaklyCompressibleFluid>()
-                ? addDensityRegularizationForOneBody<WeaklyCompressibleFluid>(
-                      main_methods, fluid_body, fluid_solver_config.surface_type_)
-                : addDensityRegularizationForOneBody<WeaklyCompressibleMixture>(
-                      main_methods, fluid_body, fluid_solver_config.surface_type_);
-        density_regularization.add(&body_regularization);
 
         auto &minimum_compression =
             main_methods.template addReduceDynamics<
@@ -209,8 +212,6 @@ BaseDynamics<void> &FluidDynamicsBuilder::addDensityRegularization(
             {
             // Compression is only written by the regularization, which the main
             // initialization step runs later, so compute it here on the initial particles.
-            density_summation.exec();
-            body_regularization.exec();
             auto lower_limit = minimum_compression.exec();
             auto upper_limit = maximum_compression.exec();
             if (lower_limit.first < 0.95 || upper_limit.first > 1.05 ||

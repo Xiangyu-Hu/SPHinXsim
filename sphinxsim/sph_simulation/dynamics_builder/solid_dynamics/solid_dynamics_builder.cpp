@@ -91,9 +91,7 @@ void SolidDynamicsBuilder::buildSolidsDynamicsIfPresentInFluid(
             SimulationHookPoint::AfterLinearCorrectionMatrix, [&]()
             { elastic_normal_direction.exec(); });
 
-        // NormalDirection and SignedDistance are not checkpointed, so update them from the restored state.
-        if (config_manager.hasEntity<RestartConfig>("RestartConfig") &&
-            config_manager.getEntity<RestartConfig>("RestartConfig").restore_step_ != 0)
+        if (config_manager.getEntity<RestartConfig>("RestartConfig").restore_step_ != 0)
         {
             initialization_pipeline.insert_hook(
                 InitializationHookPoint::UpdateStateAfterRestart, [&]()

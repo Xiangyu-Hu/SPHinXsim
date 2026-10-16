@@ -308,9 +308,7 @@ void FluidDynamicsBuilder::buildSurfaceIndicationIfOpenBoundary(
             SimulationHookPoint::AfterUpdateConfiguration, [&]()
             { all_surface_indication.exec(); });
 
-        // Indicator is not checkpointed, so recompute it on the restored particles.
-        if (config_manager.hasEntity<RestartConfig>("RestartConfig") &&
-            config_manager.getEntity<RestartConfig>("RestartConfig").restore_step_ != 0)
+        if (config_manager.getEntity<RestartConfig>("RestartConfig").restore_step_ != 0)
         {
             initialization_pipeline.insert_hook(
                 InitializationHookPoint::UpdateStateAfterRestart, [&]()

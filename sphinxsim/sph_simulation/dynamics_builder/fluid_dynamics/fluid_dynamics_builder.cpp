@@ -47,7 +47,6 @@ BaseDynamics<Real> &FluidDynamicsBuilder::addAdvectionTimeStep(
     auto &config_manager = sim.getConfigManager();
     auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
     auto &advection_time_step = main_methods.addReduceDynamicsGroup<ReduceMin<Real>>();
-    auto &viscosity_time_step = main_methods.addReduceDynamicsGroup<ReduceMin<Real>>();
     auto &fluid_solver_parameters = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
 
     for (const auto &fb : fluid_bodies_config)

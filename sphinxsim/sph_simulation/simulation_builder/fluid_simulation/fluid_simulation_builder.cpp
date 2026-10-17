@@ -119,6 +119,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
         [&]()
         {
             Real dt = time_stepper.incrementPhysicalTime(fluid_acoustic_time_step);
+            simulation_pipeline.run_hooks(SimulationHookPoint::BeforeMainPhysicalTimeStep);
             fluid_acoustic_step_1st_half.exec(dt);
             simulation_pipeline.run_hooks(SimulationHookPoint::BoundaryCondition);
             fluid_acoustic_step_2nd_half.exec(dt);

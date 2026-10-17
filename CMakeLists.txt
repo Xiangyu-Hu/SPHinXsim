@@ -58,7 +58,7 @@ endif()
 
 # Set SPHinXsys options to minimal for Python binding
 set(SPHINXSYS_BUILD_TESTS OFF CACHE BOOL "Don't build tests")
-set(SPHINXSYS_DEVELOPER_MODE OFF CACHE BOOL "Disable developer mode") 
+set(SPHINXSYS_DEVELOPER_MODE ON CACHE BOOL "Disable developer mode") 
 set(SPHINXSYS_USE_SYCL OFF CACHE BOOL "Disable SYCL")
 set(SPHINXSYS_2D ON CACHE BOOL "Build 2D library")
 set(SPHINXSYS_3D ON CACHE BOOL "Build 3D library")

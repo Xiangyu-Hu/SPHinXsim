@@ -191,11 +191,11 @@ BaseDynamics<void> &FluidDynamicsBuilder::addDensityRegularization(
             InitializationHookPoint::AfterInitialCondition, [&]()
             { 
             density_regularization.exec();
-            Real average_compression_value = average_compression.exec();
+            Real average_value = average_compression.exec();
             std::cout << "\n------------------------------------------------------------" << std::endl;
             std::cout << "FluidDynamicsBuilder::addDensityRegularization : " 
                       << "Initial average compression of FluidBody '" << fluid_body.Name() 
-                      << "' is " << average_compression_value << std::endl; 
+                      << "' is " << average_value << std::endl; 
             std::cout << "------------------------------------------------------------" << std::endl; });
 
         auto &minimum_compression =
@@ -212,15 +212,18 @@ BaseDynamics<void> &FluidDynamicsBuilder::addDensityRegularization(
             {
             // Compression is only written by the regularization, which the main
             // initialization step runs later, so compute it here on the initial particles.
+            Real average_value = average_compression.exec();
             auto lower_limit = minimum_compression.exec();
             auto upper_limit = maximum_compression.exec();
-            if (lower_limit.first < 0.95 || upper_limit.first > 1.05 ||
+            Real lower_limit_value = lower_limit.first/ average_value;
+            Real upper_limit_value = upper_limit.first / average_value;
+            if (lower_limit_value  < 0.95 || upper_limit_value > 1.05 ||
                 std::isnan(lower_limit.first) || std::isnan(upper_limit.first))
             {
                 std::cout << "\n------------------------------------------------------------" << std::endl;
                 std::cout << "Error: Compression is out of range!" << std::endl;
-                std::cout << "Lower limit: " << lower_limit.first << " at particle " << lower_limit.second << std::endl;
-                std::cout << "Upper limit: " << upper_limit.first << " at particle " << upper_limit.second << std::endl;
+                std::cout << "Lower limit: " << lower_limit_value << " at particle " << lower_limit.second << std::endl;
+                std::cout << "Upper limit: " << upper_limit_value << " at particle " << upper_limit.second << std::endl;
                 std::cout << "The possible issues are the following:" << std::endl;
                 std::cout << "- Too large: overlapped bodies" << std::endl;
                 std::cout << "- Too small: insufficient resolution due to thin layer" << std::endl;

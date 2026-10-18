@@ -5,7 +5,7 @@
   ],
   "simulation_type": "fluid_dynamics",
   "geometries": {
-    "system_domain": { "lower_bound": [-0.05, -0.01], "upper_bound": [0.8, 0.41] },
+    "system_domain": { "lower_bound": [-0.05, 0.0], "upper_bound": [0.8, 0.4] },
     "global_resolution": { "particle_spacing": 0.0025 },
     "shapes": [
       {
@@ -40,14 +40,6 @@
         "name": "Bone",
         "type": "multipolygon",
         "polygons": [{ "operation": "union", "type": "data_file", "file_name": "bone.dat" }]
-      },
-      {
-        "name": "WallBoundary",
-        "type": "multipolygon",
-        "polygons": [
-          { "operation": "union", "type": "bounding_box", "lower_bound": [-0.05, -0.01], "upper_bound": [0.8, 0.0] },
-          { "operation": "union", "type": "bounding_box", "lower_bound": [-0.05, 0.4], "upper_bound": [0.8, 0.41] }
-        ]
       }
     ],
     "oriented_boxes": [
@@ -56,14 +48,28 @@
         "type": "boundary",
         "center": [-0.05, 0.2],
         "normal": [1.0, 0.0],
-        "radius": 0.2
+        "radius": 0.19
       },
       {
         "name": "Outlet",
         "type": "boundary",
         "center": [0.8, 0.2],
         "normal": [-1.0, 0.0],
-        "radius": 0.2
+        "radius": 0.19
+      },
+      {
+        "name": "Bottom",
+        "type": "boundary",
+        "center": [0.375, 0.0],
+        "normal": [0.0, 1.0],
+        "radius": 0.405
+      },
+      {
+        "name": "Top",
+        "type": "boundary",
+        "center": [0.375, 0.4],
+        "normal": [0.0, -1.0],
+        "radius": 0.405
       }
     ]
   },
@@ -79,10 +85,6 @@
           "name": "FishBody",
           "solid_body": {},
           "relaxation": { "dependent_bodies": ["WaterBody"] }
-        },
-        {
-          "name": "WallBoundary",
-          "solid_body": {}
         }
       ],
       "relaxation_parameters": { "total_iterations": 1000 }
@@ -123,10 +125,6 @@
           "core_thickness": 0.003
         }
       }
-    },
-    {
-      "name": "WallBoundary",
-      "material": { "type": "rigid_body" }
     }
   ],
   "fluid_boundary_conditions": [
@@ -139,6 +137,18 @@
     {
       "body_name": "WaterBody",
       "oriented_box": "Outlet",
+      "type": "bi_directional",
+      "pressure": 0.0
+    },
+    {
+      "body_name": "WaterBody",
+      "oriented_box": "Bottom",
+      "type": "bi_directional",
+      "pressure": 0.0
+    },
+    {
+      "body_name": "WaterBody",
+      "oriented_box": "Top",
       "type": "bi_directional",
       "pressure": 0.0
     }

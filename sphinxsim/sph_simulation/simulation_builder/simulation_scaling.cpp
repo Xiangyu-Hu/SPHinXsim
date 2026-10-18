@@ -216,7 +216,7 @@ UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name, bool is_require
 {
     if (unit_name == "Dimensionless" || unit_name == "NormalDirection")
         return UnitMetrics{0, 0, 0, 0, 0, 0, 0};
-    if (unit_name == "Length")
+    if (unit_name == "Length" || unit_name == "Position")
         return UnitMetrics{1, 0, 0, 0, 0, 0, 0};
     if (unit_name == "Mass")
         return UnitMetrics{0, 1, 0, 0, 0, 0, 0};

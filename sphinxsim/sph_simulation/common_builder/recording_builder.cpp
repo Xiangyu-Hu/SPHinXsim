@@ -116,7 +116,6 @@ void RecordingBuilder::finalizeBodyStatesRecording(
     for (auto &body : state_recorder.getBodiesForRecording())
     {
         auto &base_particles = body->getBaseParticles();
-        base_particles.dvParticlePosition()->setScalingRef(scaling_config.getScalingRef("Length"));
         auto &variables_to_write = base_particles.VariablesToWrite();
         // For now, set scaling reference for variables to write, if any, according to their unit type.
         // Variables without registered scaling references will not be scaled,

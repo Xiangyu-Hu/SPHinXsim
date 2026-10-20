@@ -1,0 +1,1273 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../images/logo-16x16.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Simulating dambreak flows with SPHinXsim - SPHinXsim</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#simulating-dambreak-flows-with-sphinxsim" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="SPHinXsim" class="md-header__button md-logo" aria-label="SPHinXsim" data-md-component="logo">
+      
+  <img src="../../images/logo-white.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            SPHinXsim
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Simulating dambreak flows with SPHinXsim
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../installation/" class="md-tabs__link">
+          
+  
+  
+  Installation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../cli-usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  CLI Usage
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../visualization/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Visualization
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../llm-testing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  LLM Testing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../theoretical-background/" class="md-tabs__link">
+          
+  
+  
+  Theoretical Backgrounds
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="SPHinXsim" class="md-nav__button md-logo" aria-label="SPHinXsim" data-md-component="logo">
+      
+  <img src="../../images/logo-white.png" alt="logo">
+
+    </a>
+    SPHinXsim
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation-linux/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation-windows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Windows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation-macos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    macOS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli-usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../llm-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Theoretical Backgrounds
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Theoretical Backgrounds
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../theoretical-background/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../theoretical-background-physical-models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Physical Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../theoretical-background-sph-methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SPH Methods
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#2d-dambreak-simulation-setting-json-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2d dambreak simulation setting JSON file
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#explanation-of-the-json-entries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Explanation of the JSON entries
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Explanation of the JSON entries">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-characteristic_dimensions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Characteristic_dimensions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-simulation-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Simulation type
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-geometries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Geometries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-particle-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Particle generation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-fluid-bodies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Fluid bodies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-solid-bodies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Solid bodies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-gravity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Gravity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-observers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Observers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#9-extra-state-recording" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Extra state recording
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#10-solver-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Solver parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes-on-3d-dambreak-simulation-setting-json-file" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notes on 3d dambreak simulation setting JSON file
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#try-to-modify-the-json-file-for-your-own-simulation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Try to modify the JSON file for your own simulation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#feedback-and-suggestions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Feedback and suggestions
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="simulating-dambreak-flows-with-sphinxsim">Simulating dambreak flows with SPHinXsim</h1>
+<p>The 2d and 3d dambreak examples demonstrate the basic usage of SPHinXsim for simulating free-surface flows. The examples are located in the <code>tests/test_simulation/test_2d_simulation/dambreak.json</code> for the 2d case and <code>tests/test_simulation/test_3d_simulation/dambreak.json</code> for the 3d case.</p>
+<p>Here, I show (2d) simulation setting json file to illustrate the basic usage.</p>
+<h2 id="2d-dambreak-simulation-setting-json-file">2d dambreak simulation setting JSON file</h2>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"characteristic_dimensions"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Length"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"hint"</span><span class="p">:</span><span class="w"> </span><span class="s2">"geometries.shapes[name=WaterBody].upper_bound"</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Gravity"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"hint"</span><span class="p">:</span><span class="w"> </span><span class="s2">"gravity"</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="mf">1.0</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Density"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"hint"</span><span class="p">:</span><span class="w"> </span><span class="s2">"fluid_bodies[name=WaterBody].material.density"</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"simulation_type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"fluid_dynamics"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"geometries"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"global_resolution"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"particle_spacing"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.025</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">"shapes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"WaterBody"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"bounding_box"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"lower_bound"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">],</span>
+<span class="w">        </span><span class="nt">"upper_bound"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mf">2.0</span><span class="p">,</span><span class="w"> </span><span class="mf">2.0</span><span class="p">]</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"WallBoundary"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"multipolygon"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"polygons"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">          </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">"operation"</span><span class="p">:</span><span class="w"> </span><span class="s2">"union"</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"container_box"</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">"inner_lower_bound"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">],</span>
+<span class="w">            </span><span class="nt">"inner_upper_bound"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mf">5.366</span><span class="p">,</span><span class="w"> </span><span class="mf">5.366</span><span class="p">],</span>
+<span class="w">            </span><span class="nt">"thickness"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.1</span>
+<span class="w">          </span><span class="p">}</span>
+<span class="w">        </span><span class="p">]</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">]</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"particle_generation"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"build_and_run"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"settings"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"bodies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"WaterBody"</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"WallBoundary"</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">"solid_body"</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">],</span>
+<span class="w">      </span><span class="nt">"relaxation_parameters"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"total_iterations"</span><span class="p">:</span><span class="w"> </span><span class="mi">1000</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"fluid_bodies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"WaterBody"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"material"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"weakly_compressible_fluid"</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">"density"</span><span class="p">:</span><span class="w"> </span><span class="mf">1.0</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"solid_bodies"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"WallBoundary"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"material"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"rigid_body"</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"gravity"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mf">0.0</span><span class="p">,</span><span class="w"> </span><span class="mf">-1.0</span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"observers"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"FluidObserver"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"observed_body"</span><span class="p">:</span><span class="w"> </span><span class="s2">"WaterBody"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"variable"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"real_type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Pressure"</span>
+<span class="w">      </span><span class="p">},</span>
+<span class="w">      </span><span class="nt">"positions"</span><span class="p">:</span><span class="w"> </span><span class="p">[[</span><span class="mf">5.366</span><span class="p">,</span><span class="w"> </span><span class="mf">0.2</span><span class="p">]]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"extra_state_recording"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"WaterBody"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"variables"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">"real_type"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Pressure"</span><span class="p">]</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">]</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"WallBoundary"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"variables"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">"vector_type"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"NormalDirection"</span><span class="p">]</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"solver_parameters"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"end_time"</span><span class="p">:</span><span class="w"> </span><span class="mf">20.0</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"output_interval"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.1</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"screen_interval"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"fluid_dynamics"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"acoustic_cfl"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.6</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"advection_cfl"</span><span class="p">:</span><span class="w"> </span><span class="mf">0.25</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"surface_type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"free_surface"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"particle_sort_frequency"</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<h2 id="explanation-of-the-json-entries">Explanation of the JSON entries</h2>
+<h3 id="1-characteristic_dimensions">1. Characteristic_dimensions</h3>
+<p>The <code>characteristic_dimensions</code> section defines the characteristic length, gravity, and density for the simulation. 
+These values are used to non-dimensionalize the governing equations and set the scale of the simulation.
+If the <code>characteristic_dimensions</code> section is not provided, the unity scaling reference is set.
+If this section is provided, the <code>Length</code> reference is set as the first characteristic dimension in the list,
+and one must provide at least two characteristic dimensions. 
+In the dambreak case, three scaling reference, i.e.  <code>Length</code> and <code>Gravity</code> and <code>Density</code> are provided.</p>
+<p>Note that the <code>hint</code> field, pointing to a specific JSON entry of the setting,
+is obligated and is used to provide additional information about the characteristic dimension.</p>
+<h3 id="2-simulation-type">2. Simulation type</h3>
+<p>The <code>simulation_type</code> field specifies the type of simulation being performed. 
+In this case, it is set to <code>"fluid_dynamics"</code>, indicating that the simulation is characterized by fluid flow,
+or the dynamics of the simulation is centered around the behavior of fluids. 
+Other dynamics, such as solid dynamics, are considered as secondary dynamics in the simulation
+where the fluid-structure interaction is involved.</p>
+<h3 id="3-geometries">3. Geometries</h3>
+<p>This section defines the all geometries used in the simulation.
+Each geometry is defined by its type, name, and relevant parameters.
+The name of the geometry is used to reference it in other parts of the simulation settings,
+such as in the <code>fluid_bodies</code>, <code>solid_bodies</code>, and <code>observers</code>.</p>
+<p>We first define the <code>global_resolution</code> for the simulation, 
+which specifies the particle spacing used to discretize the geometries.</p>
+<p>Then we define the main geometric components of the simulation, which include the <code>shapes</code> and the <code>oriented_boxes</code>.
+In dambreak case, we only define the <code>shapes</code> for the simulation, which include the <code>WaterBody</code> and the <code>WallBoundary</code>.
+We will learn more about the <code>oriented_boxes</code> in other cases.</p>
+<p>As this is a 2d simulation, the <code>WaterBody</code> is defined as a bounding box with lower and upper bounds,
+while the <code>WallBoundary</code> is defined as a multipolygon. 
+For multipolygon, the components are added one-by-one with a polygon and a binary operation.
+In this case, we define the <code>WallBoundary</code> as a union of a container box with inner lower and upper bounds and a thickness.</p>
+<p>Note that for 3d simulations, the definition of the <code>WaterBody</code> and <code>WallBoundary</code> will be similar, 
+but using 3d geometrical building blocks.</p>
+<h3 id="4-particle-generation">4. Particle generation</h3>
+<p>This section defines the particle generation settings for the simulation.
+The <code>build_and_run</code> field is set to <code>true</code>, indicating that the particle generation process should
+be executed before the simulation starts. 
+It can be set to <code>false</code> if the particle generation is already done and the generated particles are saved in a particle reload file.
+A typical case for the latter is when the simulation is restarted from a previous simulation.</p>
+<p>The <code>settings</code> field contains the parameters for particle generation,
+including the bodies to be generated and the relaxation parameters.
+Note that the <code>bodies</code> field references the geometries defined in the <code>geometries</code> section,
+and the <code>relaxation_parameters</code> field specifies the number of iterations for particle relaxation.
+Also, if the body is a solid body, the <code>solid_body</code> field 
+should be provided to indicate that the body is a solid.</p>
+<h3 id="5-fluid-bodies">5. Fluid bodies</h3>
+<p>Here, we define the fluid bodies in the simulation.
+In this case, we have one fluid body named <code>WaterBody</code>, 
+which is associated with a material of type <code>weakly_compressible_fluid</code> and a density of 1.0.
+Note that <code>weakly_compressible_fluid</code> is the default fluid type in SPHinXsim, 
+and it is used to simulate incompressible fluids with a small compressibility.</p>
+<h3 id="6-solid-bodies">6. Solid bodies</h3>
+<p>Similarly, we define the solid bodies in the simulation.
+In this case, we have one solid body named <code>WallBoundary</code>,
+which is associated with a material of type <code>rigid_body</code>,
+which indicates that the body takes the role of wall boundary conditions.</p>
+<h3 id="7-gravity">7. Gravity</h3>
+<p>Here, we define the gravity vector for the simulation.
+In this case, the gravity is set to an constant value of [0.0, -1.0].</p>
+<h3 id="8-observers">8. Observers</h3>
+<p>Observers are used to monitor specific variables at certain positions in the simulation domain.
+In this case, we have one observer named <code>FluidObserver</code>,
+which observes the <code>WaterBody</code> and records the <code>Pressure</code> variable at the position [5.366, 0.2].
+The observer's data can be used for analysis and visualization of the simulation results.</p>
+<h3 id="9-extra-state-recording">9. Extra state recording</h3>
+<p>Besides the observers, SPHinXsim also records state variables for all bodies.
+The <code>extra_state_recording</code> section specifies, beyond default variables setting, 
+the extra variables to be recorded for each body.
+In this case, we record the <code>Pressure</code> variable for the <code>WaterBody</code> 
+and the <code>NormalDirection</code> variable for the <code>WallBoundary</code>.
+Note that we need to specify the <code>real_type</code> 
+or <code>vector_type</code> for the variables to be recorded.</p>
+<h3 id="10-solver-parameters">10. Solver parameters</h3>
+<p>Here, we define the solver parameters for the simulation.
+The <code>end_time</code> field specifies the total simulation time,
+the <code>output_interval</code> field specifies the time interval for outputting simulation results,
+and the <code>screen_interval</code> field specifies the number of time steps between screen outputs.
+The <code>fluid_dynamics</code> field contains parameters specific to the fluid dynamics solver,
+including the <code>acoustic_cfl</code>, <code>advection_cfl</code>, <code>surface_type</code>, and <code>particle_sort_frequency</code>.
+The <code>acoustic_cfl</code> and <code>advection_cfl</code> fields specify the CFL conditions for the acoustic and advection time steps, respectively.
+The <code>surface_type</code> field specifies the type of free surface treatment used in the simulation, 
+and the <code>particle_sort_frequency</code> field specifies how often the particles are sorted to improve computational efficiency.</p>
+<p>Note except for the <code>end_time</code> and <code>output_interval</code> have physical units
+and scaled by the characteristic dimensions defined in the <code>characteristic_dimensions</code> section,
+the other parameters are dimensionless.</p>
+<h2 id="notes-on-3d-dambreak-simulation-setting-json-file">Notes on 3d dambreak simulation setting JSON file</h2>
+<p>The 3d dambreak simulation setting JSON file is similar to the 2d case,
+with the main difference being the definition of the geometries and the particle spacing.
+In the 3d case, the <code>WaterBody</code> is defined as a bounding box with lower and upper bounds in 3d space, 
+and the <code>WallBoundary</code> is defined as a multipolygon with 3d boxes.
+The particle spacing is also adjusted to account for the additional dimension, and the simulation parameters are scaled accordingly.</p>
+<p>One more things in the 3d case, we have included an cylindrical emitter in the <code>geometries</code> section, 
+which is used to generate particles for the fluid body.
+To make emitter work, we define an oriented box in the <code>oriented_boxes</code> section, 
+which specifies the position and orientation of the emitting behavior.
+The <code>oriented_boxes</code> is defined so that its size can cover the emitter and its <code>x</code> 
+direction is aligned with axis direction of the cylinder and facing the fluid domain.</p>
+<p>Note that we need generate the particles for the emitter too.
+The emitter is defined as an entry in <code>cylinder_shape_inserts</code> in the settings of the fluid body.</p>
+<p>Still, one need define a fluid boundary condition for the emitter, which is done by defining 
+the <code>fluid_boundary_condition</code> section.
+Here, we define a <code>fluid_boundary_condition</code> 
+for the <code>WaterBody</code> with a <code>Emitter</code> that references the name of the oriented box.
+In the boundary condition, we specify the <code>inflow_velocity</code> for the emitter 
+and scheduled emitting with <code>switch_on_time</code> at 1.0 and  <code>duration</code> of 5.</p>
+<h2 id="try-to-modify-the-json-file-for-your-own-simulation">Try to modify the JSON file for your own simulation</h2>
+<p>There are many parameters in the simulation setting JSON file that can be modified to create different simulation scenarios.
+For example, you can change the <code>particle_spacing</code> in the <code>global_resolution</code> section to adjust the resolution of the simulation, 
+or modify the <code>end_time</code> and <code>output_interval</code> in the <code>solver_parameters</code> section to change the duration and frequency of the simulation output.
+You can also add or remove observers in the <code>observers</code> section to monitor different variables or positions in the simulation domain.</p>
+<p>Another example is to modify the <code>WaterBody</code> geometry to change the initial shape of the fluid body,
+or adjust the <code>WallBoundary</code> geometry to create different boundary conditions for the simulation.
+You can also add solid bodies to the simulation by defining them in the <code>solid_bodies</code> section.</p>
+<p>For 3d simulations, you can modify the <code>geometries</code> section 
+to change the position and orientation of the emitter.</p>
+<h2 id="feedback-and-suggestions">Feedback and suggestions</h2>
+<p>Please feel free to provide feedback and suggestions (in Issue of the SPHinXsim repository )
+to improve the simulation setting JSON file and the documentation.
+Especially, if you feel something which may be confusing or unclear, 
+please let us know so that we can make the necessary improvements.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "content.code.copy", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

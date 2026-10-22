@@ -69,23 +69,20 @@ void ConstraintBuilder::addConstraint(
         simbody_system.initializeStateForIntegrator();
         simbody_system.checkInitialSimbodyState(shape.Name());
 
-        if (config_manager.hasEntity<RestartConfig>("RestartConfig"))
-        {
-            auto &restart_config = config_manager.getEntity<RestartConfig>("RestartConfig");
-
-            simulation_pipeline.insert_hook(
-                SimulationHookPoint::ExtraOutput, [&]()
-                { 
+        auto &restart_config = config_manager.getEntity<RestartConfig>("RestartConfig");
+        
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::ExtraOutput, [&]()
+            { 
                         UnsignedInt iteration_step = time_stepper.getIterationStep();
                         if (iteration_step % restart_config.save_interval_ == 0)
                         {
                             simbody_system.writeStateToXml(iteration_step);
                         } });
 
-            if (restart_config.restore_step_ != 0)
-            {
-                simbody_system.readStateFromXml(restart_config.restore_step_);
-            }
+        if (restart_config.restore_step_ != 0)
+        {
+            simbody_system.readStateFromXml(restart_config.restore_step_);
         }
 
         auto &constraint = main_methods.template addStateDynamics<

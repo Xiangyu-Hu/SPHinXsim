@@ -246,11 +246,7 @@ void SimulationBuilder::addUpdateConfigurationDynamicsToPipeline(
         SimulationHookPoint::UpdateConfiguration, [&]()
         { configuration_dynamics.exec(); });
 
-    if (!config_manager.hasEntity<RestartConfig>("RestartConfig"))
-        return;
-
-    RestartConfig &restart_config = config_manager.getEntity<RestartConfig>("RestartConfig");
-    if (restart_config.restore_step_ != 0)
+    if (config_manager.getEntity<RestartConfig>("RestartConfig").restore_step_ != 0)
     {
         initialization_pipeline.insert_hook(
             InitializationHookPoint::UpdateConfigurationAfterRestart, [&]()

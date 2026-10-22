@@ -50,6 +50,8 @@ For a pip-first workflow, install directly from source (this builds C++ extensio
 $env:CMAKE_ARGS='-D CMAKE_TOOLCHAIN_FILE="' + "$pwd\..\vcpkg\scripts\buildsystems\vcpkg.cmake" + '" -D CMAKE_C_COMPILER=cl -D CMAKE_CXX_COMPILER=cl'
 python -m pip install -e ".[dev,visualization]"
 ```
+You may face the long-path issue in Windows System. If it is the case, you can follow the direction: 
+https://learn.microsoft.com/en-us/answers/questions/6011933/how-to-fix-long-path-long-file-names-in-windows-11.
 
 Optional manual CMake workflow:
 

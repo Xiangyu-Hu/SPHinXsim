@@ -55,10 +55,12 @@ std::map<std::string, std::pair<std::vector<double>, std::vector<double>>> Geome
 std::map<std::string, std::pair<std::vector<double>, std::vector<double>>>
 GeometryBuilder::getShapeBoundsFromConfigManager(EntityManager &config_manager)
 {
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
+    Real scaling_factor = scaling_config.getScalingRef("Length");
     std::map<std::string, std::pair<std::vector<double>, std::vector<double>>> result;
     for (Shape *shape : config_manager.entitiesWith<Shape>())
     {
-        BoundingBoxd bounds = shape->getBounds();
+        BoundingBoxd bounds = shape->getBounds().scale(scaling_factor);
         std::vector<double> lower(bounds.lower_.data(), bounds.lower_.data() + bounds.lower_.size());
         std::vector<double> upper(bounds.upper_.data(), bounds.upper_.data() + bounds.upper_.size());
         result[shape->Name()] = {lower, upper};

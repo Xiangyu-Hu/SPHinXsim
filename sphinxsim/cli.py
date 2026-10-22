@@ -896,37 +896,16 @@ class _ShellPreviewRuntime:
         if self.plotter is None or self._live_output_dir is None:
             return
 
-        from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE
-
-        try:
-            import pyvista as pv
-        except ImportError:
-            return
-
-        from sphinxsim.results import ResultCatalog, read_particle_mesh
+        from sphinxsim.results import ResultCatalog
+        from sphinxsim.visualization.live_particles import refresh_particle_actors
         catalog = getattr(self, "_result_catalog", None)
         if catalog is None:
             self._result_catalog = catalog = ResultCatalog()
-        frames = catalog.latest(
-            self._live_output_dir,
-            self._live_particle_body_names,
-            include_generation=True,
+        refresh_particle_actors(
+            self.plotter, self._live_output_dir,
+            {body: self._live_particle_colours.get(body) for body in self._live_particle_body_names},
+            self._live_particle_versions, catalog,
         )
-        for body_name, frame in frames.items():
-            version = (str(frame.path), frame.version)
-            if self._live_particle_versions.get(body_name) == version:
-                continue
-            try:
-                mesh = read_particle_mesh(frame.path)
-            except (OSError, ValueError, RuntimeError):
-                continue
-            self.plotter.add_mesh(
-                mesh, name=f"particle-preview-{body_name}",
-                color=self._live_particle_colours.get(body_name), opacity=0.95,
-                style="points", point_size=_PARTICLE_POINT_SIZE,
-                label=f"Particles: {body_name}",
-            )
-            self._live_particle_versions[body_name] = version
 
         thread = self._live_run_thread
         if thread is not None and not thread.is_alive():

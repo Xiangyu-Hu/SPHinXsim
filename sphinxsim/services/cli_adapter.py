@@ -174,6 +174,7 @@ class SPHinXsimCLIAdapter:
         record_path = directory / "attempt.json"
         cancelled = self.control_dir / "cancel.request"
         record = {"operation": str(arguments[0]), "command": list(command),
+                  "config_path": str(arguments[1]) if arguments[0] == "run" and len(arguments) > 1 else None,
                   "started_at": datetime.now(timezone.utc).isoformat(), "timeout_seconds": timeout,
                   "status": "starting", "stdout_path": str(stdout_path), "stderr_path": str(stderr_path),
                   "output_dir": str(arguments[arguments.index('--output-dir') + 1]) if '--output-dir' in arguments else None}

@@ -49,6 +49,31 @@ def _fake_chainlit() -> ModuleType:
     return module
 
 
+def test_preview_failure_does_not_stop_agent_progress(monkeypatch):
+    fake = _fake_chainlit()
+    monkeypatch.setitem(sys.modules, "chainlit", fake)
+    sys.modules.pop("sphinxsim.ui.chatbot.chainlit_app", None)
+    app = importlib.import_module("sphinxsim.ui.chatbot.chainlit_app")
+    monkeypatch.setattr(app, "_progress_signature", lambda status: "done")
+    monkeypatch.setattr(app, "_progress_message", lambda status: "converged")
+    calls = []
+    def submit(action):
+        calls.append(("submit", action))
+    def open_preview():
+        calls.append(("preview", None))
+        raise RuntimeError("display unavailable")
+    session = SimpleNamespace(
+        submit=submit, open_preview=open_preview,
+        execution_status=lambda: {"state": "converged"},
+        status_snapshot=lambda: SimpleNamespace(iteration_count=0),
+        report=lambda: "final report",
+    )
+    asyncio.run(app._run_agent_execution(session))
+    assert calls == [("submit", "approve"), ("preview", None)]
+    assert "solver execution continues" in fake.sent_messages[0].content
+    assert fake.sent_messages[-1].content == "final report"
+
+
 def test_chainlit_callbacks_keep_a_multi_turn_mock_conversation(
     monkeypatch,
 ) -> None:

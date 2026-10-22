@@ -68,6 +68,11 @@ class AgentChatSession:
     def execution_status(self):
         return self.agent.execution_status(self._require_id())
 
+    def open_preview(self):
+        from sphinxsim.visualization.agent_preview import launch_agent_preview
+        return launch_agent_preview(self.agent.runtime.project_root,
+                                    self.agent.runtime.workspace, self._require_id())
+
     def attach(self, workflow_id):
         status = self.agent.status(workflow_id.strip())
         self.workflow_id = status.workflow_id
@@ -175,6 +180,9 @@ class AgentChatSession:
         """Handle an explicit ``agent`` command, or return ``None`` for chat."""
         cleaned = text.strip()
         lowered = cleaned.lower()
+        if lowered == "agent preview":
+            self.open_preview()
+            return "Preview window opened on the Agent computer. It follows the current run."
         if lowered.startswith("agent attach "):
             return self.attach(cleaned[len("agent attach "):])
         if lowered == "agent resume":
@@ -186,6 +194,9 @@ class AgentChatSession:
                 "agent start <simulation request>\n"
                 "agent approve\n"
                 "agent status\n"
+                "agent preview\n"
+                "agent attach <workflow_id>\n"
+                "agent resume\n"
                 "agent report\n"
                 "agent cancel"
             )

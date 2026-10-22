@@ -389,6 +389,21 @@ class ConfigVisualizer:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def populate_existing_run(self, plotter: Any, output_dir: Path) -> None:
+        """Draw an existing Run using Preview's layout without invoking C++."""
+        root = Path(output_dir)
+        vtp_dir = root / "output" if (root / "output").is_dir() else root
+        self._vtp_dir = vtp_dir
+        plotter.clear()
+        self._configure_layout(plotter)
+        self._draw_preview_sidebar(plotter)
+        self._populate_plotter(plotter, vtp_dir, {})
+        self._configure_layout(plotter)
+        self._configure_default_view(plotter, self._spatial_dim())
+        plotter.add_axes()
+        plotter.show_grid(font_size=10, color=PREVIEW_AXIS_COLOUR, bold=False)
+        self._configure_layout(plotter)
+
     def _configure_layout(self, plotter: Any) -> bool:
         """Configure the existing two-renderer preview layout, if available."""
         renderers = getattr(plotter, "renderers", None)
@@ -869,6 +884,7 @@ class ConfigVisualizer:
 
                 plotter.add_mesh(
                     mesh,
+                    name=f"preview-shape-{shape.name}",
                     color=colour,
                     opacity=opacity,
                     style=style,

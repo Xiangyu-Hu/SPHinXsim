@@ -78,6 +78,35 @@ best result, immutable attempt logs, replanning history, timing, and error state
 
 ## Safe result extractors
 
+### Parallel Chatbot and Preview windows
+
+When `agent approve` or `agent resume` is sent in Chatbot, the solver runs in its
+durable worker and a separate desktop Preview window observes its output. The
+window reuses Preview's geometry, model information, gravity, observers, colours,
+and particle rendering. It never generates particles or starts a second solver.
+The same particle updater is used by the shell's `continue-to-run` display.
+
+The window follows new candidate runs automatically and preserves the camera.
+Its **Agent results** menu can switch between the current run, the best completed
+candidate, and individual completed candidates. The final frame remains visible
+after convergence or cancellation. Closing the window does not cancel the worker.
+Send `agent preview` to reopen it. After reopening Chatbot, send
+`agent attach <workflow-id>` followed by `agent preview` to observe an existing run.
+
+Preview opens on the computer running Chatbot; a remote browser does not receive
+the desktop window. It requires `pyvistaqt` and `PySide6` in that Python environment.
+Window process diagnostics are written to
+`execution/<workflow-id>/preview.log`. The chat retains progress, iteration results,
+and reports instead of appending a live PNG every five seconds. Opening this window
+does not change when an LLM receives images: visual preflight still occurs before
+the first solve, and live frames remain for user observation.
+
+Run the observer regression and actual Qt window smoke test with:
+
+```powershell
+python -m pytest tests/test_agent_preview.py -q
+```
+
 For deterministic evaluation, prepare a JSON response that matches the
 `DeclarativeExtractorSpec` schema and use the mock structured-planner boundary:
 

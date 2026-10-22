@@ -153,10 +153,14 @@ async def _run_agent_execution(agent_session: AgentChatSession, action="approve"
     except Exception as exc:
         await _send_agent_update(f"Agent execution could not start: {exc}")
         return
+    try:
+        await asyncio.to_thread(agent_session.open_preview)
+        await _send_agent_update("Preview window opened alongside the chat on the Agent computer. "
+                                 "Use `agent preview` to reopen it after closing.")
+    except Exception as exc:
+        await _send_agent_update(f"Preview could not open; solver execution continues: {exc}")
     last_signature = None
     last_iteration = 0
-    last_live = 0.0
-    import time
     while True:
         try:
             execution = await asyncio.to_thread(agent_session.execution_status)
@@ -169,11 +173,6 @@ async def _run_agent_execution(agent_session: AgentChatSession, action="approve"
                 update, image_path = await asyncio.to_thread(agent_session.latest_iteration_update)
                 await _send_agent_update(update, image_path)
                 last_iteration = status.iteration_count
-            if time.monotonic() - last_live >= 5:
-                live = await asyncio.to_thread(agent_session.live_snapshot)
-                if live is not None:
-                    await _send_agent_update(*live)
-                last_live = time.monotonic()
             if execution.get("state") not in {"starting", "running", "cancelling"}:
                 if execution.get("state") == "interrupted":
                     await _send_agent_update("Worker interrupted. Use `agent resume` to recover. " + execution.get("error_message", ""))
@@ -262,7 +261,8 @@ async def on_message(message: cl.Message) -> None:
                 content=(
                     "## ✅ Plan approved\n\n"
                     "🚀 Agent execution is running in the background. Progress "
-                    "updates and result snapshots will appear here automatically.\n\n"
+                    "updates and completed results will appear here automatically. "
+                    "A separate Preview window will follow the simulation.\n\n"
                     "> You can also use `agent status` at any time."
                 ),
                 author="SPHinXsim AgentCAE",

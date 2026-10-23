@@ -68,7 +68,8 @@ class CompositeSolidMaterial : public CompositeSolid
             : material_id_(encloser.dv_material_id_->DelegatedData(ex_policy)),
               active_kernel_(ex_policy, static_cast<ActiveModelSolid &>(*encloser.composite_materials_[0])),
               svk1_kernel_(ex_policy, static_cast<SaintVenantKirchhoffSolid &>(*encloser.composite_materials_[1])),
-              svk2_kernel_(ex_policy, static_cast<SaintVenantKirchhoffSolid &>(*encloser.composite_materials_[2])) {}
+              svk2_kernel_(ex_policy, static_cast<SaintVenantKirchhoffSolid &>(*encloser.composite_materials_[2])),
+              rho0_(encloser.ReferenceDensity()), c0_(encloser.ReferenceSoundSpeed()) {}
 
         inline Matd StressPK1(const Matd &F, size_t index_i)
         {
@@ -84,7 +85,7 @@ class CompositeSolidMaterial : public CompositeSolid
 
         inline Real PairNumericalDamping(Real dE_dt_ij, Real smoothing_length)
         {
-            return active_kernel_.PairNumericalDamping(dE_dt_ij, smoothing_length);
+            return 0.5 * rho0_ * c0_ * dE_dt_ij * smoothing_length;
         }
 
       protected:
@@ -92,6 +93,7 @@ class CompositeSolidMaterial : public CompositeSolid
         ActiveModelSolid::ConstituteKernel active_kernel_;
         SaintVenantKirchhoffSolid::ConstituteKernel svk1_kernel_;
         SaintVenantKirchhoffSolid::ConstituteKernel svk2_kernel_;
+        Real rho0_, c0_;
     };
 
   protected:

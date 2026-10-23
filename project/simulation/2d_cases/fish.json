@@ -44,22 +44,32 @@
     ],
     "oriented_boxes": [
       {
-        "name": "Emitter",
-        "type": "region",
-        "half_size": [0.005, 0.2],
-        "transform": { "translation": [-0.045, 0.2], "rotation_angle": 0.0 }
+        "name": "Inlet",
+        "type": "boundary",
+        "center": [-0.05, 0.2],
+        "normal": [1.0, 0.0],
+        "radius": 0.19
       },
       {
-        "name": "Buffer",
-        "type": "region",
-        "half_size": [0.025, 0.2],
-        "transform": { "translation": [-0.025, 0.2], "rotation_angle": 0.0 }
+        "name": "Outlet",
+        "type": "boundary",
+        "center": [0.8, 0.2],
+        "normal": [-1.0, 0.0],
+        "radius": 0.19
       },
       {
-        "name": "Disposer",
-        "type": "region",
-        "half_size": [0.005, 0.3],
-        "transform": { "translation": [0.795, 0.2], "rotation_angle": 0.0 }
+        "name": "Bottom",
+        "type": "boundary",
+        "center": [0.375, 0.0],
+        "normal": [0.0, 1.0],
+        "radius": 0.405
+      },
+      {
+        "name": "Top",
+        "type": "boundary",
+        "center": [0.375, 0.4],
+        "normal": [0.0, -1.0],
+        "radius": 0.405
       }
     ]
   },
@@ -120,12 +130,27 @@
   "fluid_boundary_conditions": [
     {
       "body_name": "WaterBody",
-      "oriented_box": "Emitter",
-      "buffer_box": "Buffer",
-      "disposer_box": "Disposer",
-      "type": "free_stream",
-      "target_speed": 0.0,
-      "t_ref": 2.0
+      "oriented_box": "Inlet",
+      "type": "bi_directional",
+      "pressure": 0.0
+    },
+    {
+      "body_name": "WaterBody",
+      "oriented_box": "Outlet",
+      "type": "bi_directional",
+      "pressure": 0.0
+    },
+    {
+      "body_name": "WaterBody",
+      "oriented_box": "Bottom",
+      "type": "bi_directional",
+      "pressure": 0.0
+    },
+    {
+      "body_name": "WaterBody",
+      "oriented_box": "Top",
+      "type": "bi_directional",
+      "pressure": 0.0
     }
   ],
   "extra_state_recording": [
@@ -156,7 +181,7 @@
     "fluid_dynamics": {
       "acoustic_cfl": 0.6,
       "advection_cfl": 0.25,
-      "surface_type": "free_stream",
+      "surface_type": "open_boundary",
       "kernel_correction": "none",
       "particle_sort_frequency": 100
     }

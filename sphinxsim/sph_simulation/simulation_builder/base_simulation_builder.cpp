@@ -128,6 +128,11 @@ void SimulationBuilder::buildSolidBodies(
 
         Shape &solid_shape = config_manager.getEntity<Shape>(name);
         auto &solid_body = sph_system.addBody<SolidBody>(solid_shape, name);
+        if (sb.contains("adaptation_ratios"))
+        {
+            auto ratios = sb.at("adaptation_ratios");
+            solid_body.defineAdaptationRatios(ratios[0].get<Real>(), ratios[1].get<Real>());
+        }
         material_builder_ptr_->addMaterial(config_manager, solid_body, sb.at("material"));
         if (!config_manager.hasEntity<Solid>(name + "RigidBody"))
             body_config.setDeformable();

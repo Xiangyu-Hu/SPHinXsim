@@ -161,19 +161,34 @@ RelaxationParameters ParticleGeneration::parseRelaxationParameters(const json &c
 void ParticleGeneration ::addAllBodies(
     RelaxationSystem &relaxation_system, EntityManager &config_manager, const json &config)
 {
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
+
     for (const auto &bd : config)
     {
         std::string body_name = bd.at("name").get<std::string>();
 
+        SPHBodyConfig &sph_body_config = *config_manager.emplaceEntity<SPHBodyConfig>(body_name);
         GenerationBodyConfig generation_body_config;
         generation_body_config.name_ = body_name;
         Shape &shape = config_manager.getEntity<Shape>(body_name);
         auto &real_body = relaxation_system.addBody<RealBody>(shape, body_name);
-        if (bd.contains("adaptation_ratios"))
+
+        if (bd.contains("solid_body"))
         {
-            auto ratios = bd.at("adaptation_ratios");
-            real_body.defineAdaptationRatios(ratios[0].get<Real>(), ratios[1].get<Real>());
+            sph_body_config.is_solid_body_ = true;
+            sph_body_config.h_spacing_ratio_ = 1.15;
+            generation_body_config.is_solid_body_ = true;
+
+            auto sb_config = bd.at("solid_body");
+            if (sb_config.contains("refinement_to_global"))
+            {
+                Real ratio = scaling_config.jsonToReal(sb_config.at("refinement_to_global"), "Dimensionless");
+                sph_body_config.refinement_to_global_ = ratio;
+            }
         }
+
+        real_body.defineAdaptationRatios(
+            sph_body_config.h_spacing_ratio_, sph_body_config.refinement_to_global_);
 
         if (bd.contains("relaxation"))
         {
@@ -196,10 +211,6 @@ void ParticleGeneration ::addAllBodies(
             bodies_config_.relaxation_bodies_.push_back(relax_body_config);
         }
 
-        if (bd.contains("solid_body"))
-        {
-            generation_body_config.is_solid_body_ = true;
-        }
         bodies_config_.all_bodies_.push_back(generation_body_config);
 
         StdVec<OrientedBox *> &blockers = *config_manager.emplaceEntity<

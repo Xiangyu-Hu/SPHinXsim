@@ -47,7 +47,7 @@ void SimulationBuilder::buildFluidBodies(
     for (const auto &fb : config)
     {
         const std::string name = fb.at("name").get<std::string>();
-        SPHBodyConfig &body_config = *config_manager.emplaceEntity<SPHBodyConfig>(name);
+        SPHBodyConfig &body_config = config_manager.getEntity<SPHBodyConfig>(name);
         fluid_bodies_config.push_back(&body_config);
         body_config.name_ = name;
 
@@ -75,7 +75,7 @@ void SimulationBuilder::buildContinuumBodies(
     for (const auto &cb : config)
     {
         const std::string name = cb.at("name").get<std::string>();
-        SPHBodyConfig &body_config = *config_manager.emplaceEntity<SPHBodyConfig>(name);
+        SPHBodyConfig &body_config = config_manager.getEntity<SPHBodyConfig>(name);
         continuum_bodies_config.push_back(&body_config);
         body_config.name_ = name;
 
@@ -114,7 +114,7 @@ void SimulationBuilder::buildSolidBodies(
     for (const auto &sb : config)
     {
         const std::string name = sb.at("name").get<std::string>();
-        auto &body_config = *config_manager.emplaceEntity<SPHBodyConfig>(name);
+        auto &body_config = config_manager.getEntity<SPHBodyConfig>(name);
         solid_bodies_config.push_back(&body_config);
         body_config.name_ = name;
         body_config.setStatic();

@@ -54,6 +54,7 @@ struct RelaxationBodyConfig
 {
     std::string name_;
     bool with_level_set_ = false;
+    std::string level_set_shape_; // empty: level set from the body shape
     std::vector<std::string> dependent_bodies_;
 };
 

@@ -407,6 +407,7 @@ class ParticleGenerationBodyConfig(BaseModel):
     cylinder_shape_inserts: List[str] = Field(default_factory=list)
     solid_body: Optional[dict] = None
     relaxation: Optional[RelaxationBodyConfig] = None
+    adaptation_ratios: Optional[List[float]] = Field(default=None, min_length=2, max_length=2)
 
     @model_validator(mode="after")
     def _warn_unknown_fields(self) -> "ParticleGenerationBodyConfig":
@@ -784,6 +785,7 @@ class SolidBodyConfig(BaseModel):
     name: str = Field(..., min_length=1)
     material: MaterialConfig
     is_moving: bool = False
+    adaptation_ratios: Optional[List[float]] = Field(default=None, min_length=2, max_length=2)
 
     @model_validator(mode="after")
     def _material_type(self) -> "SolidBodyConfig":
@@ -1159,6 +1161,12 @@ class SimulationConfig(BaseModel):
                 if body.name not in shape_names:
                     raise ValueError(
                         f"particle_generation body '{body.name}' must match a shape name in geometries.shapes"
+                    )
+                level_set = body.relaxation.level_set if body.relaxation is not None else None
+                if level_set and level_set.get("shape") is not None and level_set["shape"] not in shape_names:
+                    raise ValueError(
+                        f"particle_generation body '{body.name}' relaxation level_set shape "
+                        f"'{level_set['shape']}' must match a shape name in geometries.shapes"
                     )
                 for blocker_name in body.blockers:
                     if blocker_name not in oriented_box_names:

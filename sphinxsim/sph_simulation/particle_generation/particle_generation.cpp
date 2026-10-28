@@ -169,16 +169,29 @@ void ParticleGeneration ::addAllBodies(
         generation_body_config.name_ = body_name;
         Shape &shape = config_manager.getEntity<Shape>(body_name);
         auto &real_body = relaxation_system.addBody<RealBody>(shape, body_name);
+        if (bd.contains("adaptation_ratios"))
+        {
+            auto ratios = bd.at("adaptation_ratios");
+            real_body.defineAdaptationRatios(ratios[0].get<Real>(), ratios[1].get<Real>());
+        }
 
         if (bd.contains("relaxation"))
         {
             generation_body_config.is_relaxation_body_ = true;
             RelaxationBodyConfig relax_body_config = parseRelaxationBodyConfig(body_name, bd.at("relaxation"));
-            if (relax_body_config.with_level_set_)
+            if (relax_body_config.with_level_set_ && relax_body_config.level_set_shape_.empty())
             {
                 LevelSetShape &level_set_shape =
                     real_body.defineBodyLevelSetShape(par_ck, 2.0).writeLevelSet();
                 config_manager.addEntity(body_name, &level_set_shape);
+            }
+            else if (relax_body_config.with_level_set_)
+            {
+                // Particles are still generated from the body shape; only the relaxation uses this level set.
+                config_manager.emplaceEntity<LevelSetShape>(
+                                  body_name, par_ck, relaxation_system, real_body.getSPHAdaptation(),
+                                  config_manager.getEntity<Shape>(relax_body_config.level_set_shape_), 2.0)
+                    ->writeLevelSet();
             }
             bodies_config_.relaxation_bodies_.push_back(relax_body_config);
         }
@@ -232,6 +245,8 @@ RelaxationBodyConfig ParticleGeneration::parseRelaxationBodyConfig(std::string b
     if (config.contains("level_set"))
     {
         relax_body_config.with_level_set_ = true;
+        if (config.at("level_set").contains("shape"))
+            relax_body_config.level_set_shape_ = config.at("level_set").at("shape").get<std::string>();
     }
 
     if (config.contains("dependent_bodies"))
@@ -369,7 +384,9 @@ ParticleDynamicsGroup &ParticleGeneration::addRelaxationPositionUpdate(
         position_update.add(&main_methods.template addStateDynamics<PositionRelaxationCK>(real_body));
         if (body_config.with_level_set_)
         {
-            auto *near_body_surface = config_manager.emplaceEntity<NearShapeSurface>(real_body.Name(), real_body);
+            LevelSetShape &level_set_shape = config_manager.getEntity<LevelSetShape>(body_config.name_);
+            auto *near_body_surface =
+                config_manager.emplaceEntity<NearShapeSurface>(real_body.Name(), real_body, level_set_shape);
             position_update.add(&main_methods.template addStateDynamics<LevelsetBounding>(*near_body_surface));
         }
     }

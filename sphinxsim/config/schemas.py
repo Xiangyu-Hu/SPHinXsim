@@ -435,7 +435,6 @@ class RelaxationConstraintConfig(BaseModel):
 class ParticleGenerationSettingsConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    bodies: List[ParticleGenerationBodyConfig] = Field(..., min_length=1)
     relaxation_constraints: List[RelaxationConstraintConfig] = Field(default_factory=list)
     relaxation_parameters: RelaxationParametersConfig = Field(default_factory=RelaxationParametersConfig)
 

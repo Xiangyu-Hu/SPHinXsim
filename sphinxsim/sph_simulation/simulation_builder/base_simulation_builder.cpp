@@ -49,7 +49,6 @@ void SimulationBuilder::buildFluidBodies(
         const std::string name = fb.at("name").get<std::string>();
         SPHBodyConfig &body_config = config_manager.getEntity<SPHBodyConfig>(name);
         fluid_bodies_config.push_back(&body_config);
-        body_config.name_ = name;
 
         Shape &fluid_shape = config_manager.getEntity<Shape>(name);
         auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
@@ -77,7 +76,6 @@ void SimulationBuilder::buildContinuumBodies(
         const std::string name = cb.at("name").get<std::string>();
         SPHBodyConfig &body_config = config_manager.getEntity<SPHBodyConfig>(name);
         continuum_bodies_config.push_back(&body_config);
-        body_config.name_ = name;
 
         Shape &shape = config_manager.getEntity<Shape>(name);
         auto &continuum_body = sph_system.addBody<RealBody>(shape, name);
@@ -116,7 +114,6 @@ void SimulationBuilder::buildSolidBodies(
         const std::string name = sb.at("name").get<std::string>();
         auto &body_config = config_manager.getEntity<SPHBodyConfig>(name);
         solid_bodies_config.push_back(&body_config);
-        body_config.name_ = name;
         body_config.setStatic();
 
         if (sb.contains("is_moving"))

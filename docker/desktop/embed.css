@@ -1,0 +1,8 @@
+html.sphinxsim-embedded, .sphinxsim-embedded body { margin: 0; background: #111; overflow: hidden; }
+.sphinxsim-embedded #noVNC_control_bar_anchor,
+.sphinxsim-embedded #noVNC_transition,
+.sphinxsim-embedded #noVNC_status,
+.sphinxsim-embedded #noVNC_connect_dlg,
+.sphinxsim-embedded #noVNC_logo,
+.sphinxsim-embedded #noVNC_connection { display: none !important; }
+.sphinxsim-embedded #noVNC_container { position: relative; background-image: none !important; background-color: transparent; }

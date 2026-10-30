@@ -1763,6 +1763,9 @@ class _ShellPreviewRuntime:
             "shortcut": shortcut,
             "undo_shortcut": undo_shortcut,
             "refresh": refresh_editor,
+            # Optional embedding hooks; default CLI behavior is unchanged.
+            "is_dirty": lambda: bool(editor_state["dirty"]),
+            "discard": lambda: populate_editor(editor_state["original_json"], reset_history=True),
         }
         return True
 

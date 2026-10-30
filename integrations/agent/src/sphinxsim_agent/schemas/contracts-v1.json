@@ -1,0 +1,296 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:sphinxsim:agent:contracts:1",
+  "title": "SPHinXsim agent domain contracts v1 (not a physics industry standard)",
+  "$defs": {
+    "file": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-][A-Za-z0-9_./-]{0,179}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 536870912
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "path",
+        "bytes",
+        "sha256"
+      ],
+      "additionalProperties": true
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "entryFile": {
+          "type": "string"
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/$defs/file"
+          }
+        }
+      },
+      "required": [
+        "entryFile",
+        "files"
+      ],
+      "additionalProperties": true
+    },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "project": {
+          "$ref": "#/$defs/project"
+        },
+        "kind": {
+          "enum": [
+            "geometry",
+            "particles",
+            "run"
+          ]
+        },
+        "attempt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "previewLeaseSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "refreshIntervalSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "solverDefaults": {
+          "type": "object",
+          "properties": {
+            "end_time": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "output_interval": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "project"
+      ],
+      "additionalProperties": false
+    },
+    "effectiveConfigurationIdentity": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "scope": {
+          "const": "effective-native-configuration"
+        },
+        "encoding": {
+          "const": "python-json-sorted-ascii-compact-v1"
+        },
+        "algorithm": {
+          "const": "sha256"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "version",
+        "scope",
+        "encoding",
+        "algorithm",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "quality": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": "1"
+        },
+        "state": {
+          "enum": [
+            "warning",
+            "checked",
+            "checking",
+            "not_evaluated"
+          ]
+        },
+        "checkedFrames": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "findings": {
+          "type": "array"
+        },
+        "notEvaluated": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "effectiveConfigurationIdentity": {
+          "$ref": "#/$defs/effectiveConfigurationIdentity"
+        }
+      },
+      "required": [
+        "version",
+        "state",
+        "checkedFrames",
+        "findings",
+        "notEvaluated"
+      ],
+      "additionalProperties": true
+    },
+    "job": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "enum": [
+            "geometry",
+            "particles",
+            "run",
+            "cad"
+          ]
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "preparing",
+            "generating_particles",
+            "waiting",
+            "running",
+            "postprocessing",
+            "succeeded",
+            "failed",
+            "canceled",
+            "preview_ready",
+            "preview_expired",
+            "interrupted"
+          ]
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "kind",
+        "state"
+      ],
+      "additionalProperties": true
+    },
+    "cadRecipe": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "unit": {
+          "enum": [
+            "m",
+            "cm",
+            "mm"
+          ]
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 256,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+              },
+              "op": {
+                "enum": [
+                  "box",
+                  "cylinder",
+                  "sphere",
+                  "cone",
+                  "extrude",
+                  "revolve",
+                  "loft",
+                  "sweep",
+                  "union",
+                  "subtract",
+                  "intersect",
+                  "translate",
+                  "rotate",
+                  "scale",
+                  "fillet",
+                  "chamfer"
+                ]
+              },
+              "args": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "id",
+              "op",
+              "args"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "output": {
+          "type": "string"
+        },
+        "tolerance": {
+          "type": "number",
+          "minimum": 1e-06
+        },
+        "angularTolerance": {
+          "type": "number",
+          "minimum": 0.01,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "version",
+        "operations",
+        "output"
+      ],
+      "additionalProperties": false,
+      "description": "Parameter and topology semantics are enforced by the bounded native CAD interpreter; see capabilities.modeling."
+    }
+  }
+}

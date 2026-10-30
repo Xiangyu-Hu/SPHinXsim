@@ -1,0 +1,13 @@
+# Dockerfile-specific policy for a repository-root build context.
+*
+!integrations/
+!integrations/agent/
+!integrations/agent/**
+integrations/agent/tests/
+integrations/agent/work/
+integrations/agent/results/
+**/__pycache__/
+**/*.pyc
+**/*.egg-info/
+**/build/
+**/dist/

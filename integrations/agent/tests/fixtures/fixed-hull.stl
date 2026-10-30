@@ -1,0 +1,184 @@
+solid fixed_hull
+facet normal -0.18960194905537578 -0.563060333558389 0.8043719050834125
+ outer loop
+  vertex 2.5 0.8 1.5
+  vertex 2.85 0.95 1.6875
+  vertex 2.5 0.95 1.605
+ endloop
+endfacet
+facet normal -0.16896381511084582 -0.59137335288796 0.7884978038506133
+ outer loop
+  vertex 2.5 0.8 1.5
+  vertex 2.85 0.7 1.5
+  vertex 2.85 0.95 1.6875
+ endloop
+endfacet
+facet normal -0.2971876902024368 -0.13238360745381347 0.9455971960986639
+ outer loop
+  vertex 2.5 0.95 1.605
+  vertex 2.85 1.2 1.75
+  vertex 2.5 1.2 1.6400000000000001
+ endloop
+endfacet
+facet normal -0.22292209261884938 -0.23643252247453717 0.9457300898981489
+ outer loop
+  vertex 2.5 0.95 1.605
+  vertex 2.85 0.95 1.6875
+  vertex 2.85 1.2 1.75
+ endloop
+endfacet
+facet normal 0.0 1.0 0.0
+ outer loop
+  vertex 2.5 1.2 1.6400000000000001
+  vertex 2.85 1.2 1.25
+  vertex 2.5 1.2 1.3599999999999999
+ endloop
+endfacet
+facet normal -0.0 1.0 0.0
+ outer loop
+  vertex 2.5 1.2 1.6400000000000001
+  vertex 2.85 1.2 1.75
+  vertex 2.85 1.2 1.25
+ endloop
+endfacet
+facet normal -0.22732599862395833 -0.13501786584938186 -0.9644133274955807
+ outer loop
+  vertex 2.5 1.2 1.3599999999999999
+  vertex 2.85 0.95 1.3125
+  vertex 2.5 0.95 1.395
+ endloop
+endfacet
+facet normal -0.2916466599551476 -0.23199166132795862 -0.9279666453118345
+ outer loop
+  vertex 2.5 1.2 1.3599999999999999
+  vertex 2.85 1.2 1.25
+  vertex 2.85 0.95 1.3125
+ endloop
+endfacet
+facet normal -0.16169041669088877 -0.5659164584181104 -0.8084520834544431
+ outer loop
+  vertex 2.5 0.95 1.395
+  vertex 2.85 0.7 1.5
+  vertex 2.5 0.8 1.5
+ endloop
+endfacet
+facet normal -0.18530555088964612 -0.5896085710125104 -0.7861447613500139
+ outer loop
+  vertex 2.5 0.95 1.395
+  vertex 2.85 0.95 1.3125
+  vertex 2.85 0.7 1.5
+ endloop
+endfacet
+facet normal 0.21199268704487428 -0.5863627514007159 0.7818170018676213
+ outer loop
+  vertex 2.85 0.7 1.5
+  vertex 3.5 0.95 1.51125
+  vertex 2.85 0.95 1.6875
+ endloop
+endfacet
+facet normal 0.11801134323412742 -0.34866987773719443 0.929786340632517
+ outer loop
+  vertex 2.85 0.7 1.5
+  vertex 3.5 0.92 1.5
+  vertex 3.5 0.95 1.51125
+ endloop
+endfacet
+facet normal 0.3309756567853753 -0.22886614564946156 0.9154645825978462
+ outer loop
+  vertex 2.85 0.95 1.6875
+  vertex 3.5 1.2 1.515
+  vertex 2.85 1.2 1.75
+ endloop
+endfacet
+facet normal 0.2616762456866331 -0.014475707208196449 0.9650471472131148
+ outer loop
+  vertex 2.85 0.95 1.6875
+  vertex 3.5 0.95 1.51125
+  vertex 3.5 1.2 1.515
+ endloop
+endfacet
+facet normal 0.0 1.0 0.0
+ outer loop
+  vertex 2.85 1.2 1.75
+  vertex 3.5 1.2 1.485
+  vertex 2.85 1.2 1.25
+ endloop
+endfacet
+facet normal 0.0 1.0 0.0
+ outer loop
+  vertex 2.85 1.2 1.75
+  vertex 3.5 1.2 1.515
+  vertex 3.5 1.2 1.485
+ endloop
+endfacet
+facet normal 0.25440282975833717 -0.23455580048641012 -0.9382232019456405
+ outer loop
+  vertex 2.85 1.2 1.25
+  vertex 3.5 0.95 1.48875
+  vertex 2.85 0.95 1.3125
+ endloop
+endfacet
+facet normal 0.33996614596688945 -0.01410497839649817 -0.9403318930999065
+ outer loop
+  vertex 2.85 1.2 1.25
+  vertex 3.5 1.2 1.485
+  vertex 3.5 0.95 1.48875
+ endloop
+endfacet
+facet normal 0.19901467579467272 -0.5879979057569873 -0.783997207675983
+ outer loop
+  vertex 2.85 0.95 1.3125
+  vertex 3.5 0.92 1.5
+  vertex 2.85 0.7 1.5
+ endloop
+endfacet
+facet normal 0.24608191780688604 -0.3403260565414384 -0.907536150777168
+ outer loop
+  vertex 2.85 0.95 1.3125
+  vertex 3.5 0.95 1.48875
+  vertex 3.5 0.92 1.5
+ endloop
+endfacet
+facet normal -1.0 0.0 0.0
+ outer loop
+  vertex 2.5 1.2 1.6400000000000001
+  vertex 2.5 0.8 1.5
+  vertex 2.5 0.95 1.605
+ endloop
+endfacet
+facet normal -1.0 0.0 0.0
+ outer loop
+  vertex 2.5 1.2 1.3599999999999999
+  vertex 2.5 0.8 1.5
+  vertex 2.5 1.2 1.6400000000000001
+ endloop
+endfacet
+facet normal -1.0 0.0 0.0
+ outer loop
+  vertex 2.5 0.95 1.395
+  vertex 2.5 0.8 1.5
+  vertex 2.5 1.2 1.3599999999999999
+ endloop
+endfacet
+facet normal 1.0 0.0 0.0
+ outer loop
+  vertex 3.5 0.92 1.5
+  vertex 3.5 1.2 1.515
+  vertex 3.5 0.95 1.51125
+ endloop
+endfacet
+facet normal 1.0 -0.0 0.0
+ outer loop
+  vertex 3.5 0.92 1.5
+  vertex 3.5 1.2 1.485
+  vertex 3.5 1.2 1.515
+ endloop
+endfacet
+facet normal 1.0 0.0 0.0
+ outer loop
+  vertex 3.5 0.92 1.5
+  vertex 3.5 0.95 1.48875
+  vertex 3.5 1.2 1.485
+ endloop
+endfacet
+endsolid fixed_hull

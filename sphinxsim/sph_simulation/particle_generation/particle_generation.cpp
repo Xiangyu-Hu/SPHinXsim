@@ -30,7 +30,7 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     auto &randomize_particle_position = randomizeParticlePositions(relaxation_system, config_manager, host_methods);
 
     auto &main_methods = sph_solver.getMainMethodContainer();
-    RecordingBuilder::createBodyStatesRecording(relaxation_system, config_manager, main_methods);
+    RecordingBuilder::createBodyStatesRecording(relaxation_system, main_methods);
     auto &body_update_configuration = addConfigurationDynamics(relaxation_system, config_manager, main_methods);
     auto &relaxation_residual = addRelaxationResidue(relaxation_system, config_manager, main_methods);
     auto &relaxation_scaling = addRelaxationScaling(relaxation_system, config_manager, main_methods);
@@ -41,7 +41,7 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     RecordingBuilder::finalizeBodyStatesRecording(relaxation_system, config_manager, config);
     auto &write_particle_reload_files = main_methods.addIODynamics<ReloadParticleIOCK>(relaxation_system);
-    auto &body_state_recorder = RecordingBuilder::getBodyStatesRecording(config_manager);
+    auto &body_state_recorder = RecordingBuilder::getBodyStatesRecording(relaxation_system);
     //----------------------------------------------------------------------
     //	Out initial particle distribution after setting up.
     //----------------------------------------------------------------------

@@ -57,9 +57,9 @@ class RecordingBuilder
     // Reduced-quantity recording (e.g. total mechanical energy) driven from a
     // JSON "energy_recording" list, generic over body and quantity type.
     static void buildEnergyRecordingIfPresent(SPHSimulation &sim, MainMethods &main_methods, const json &config);
-    static void createBodyStatesRecording(SPHSystem &sph_system, EntityManager &config_manager, MainMethods &main_methods);
+    static void createBodyStatesRecording(SPHSystem &sph_system, MainMethods &main_methods);
     static void finalizeBodyStatesRecording(SPHSystem &sph_system, EntityManager &config_manager, const json &config);
-    static MainBodyStatesRecording &getBodyStatesRecording(EntityManager &config_manager);
+    static MainBodyStatesRecording &getBodyStatesRecording(SPHSystem &sph_system);
 
   private:
     static std::string getObserverRelationName(const ObserverConfig &observer_config);

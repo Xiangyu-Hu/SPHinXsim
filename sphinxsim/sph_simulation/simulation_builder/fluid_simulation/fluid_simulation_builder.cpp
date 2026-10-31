@@ -28,7 +28,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     // Define the main numerical methods used in the simulation.
     //----------------------------------------------------------------------
     auto &main_methods = sph_solver.getMainMethodContainer();
-    RecordingBuilder::createBodyStatesRecording(sph_system, config_manager, main_methods);
+    RecordingBuilder::createBodyStatesRecording(sph_system, main_methods);
     // Relations (inner + contacts, fluid and solid) are built by the shared
     // update-configuration step and registered for per-step updates, then
     // retrieved by name where needed below.
@@ -75,7 +75,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     RecordingBuilder::finalizeBodyStatesRecording(sph_system, config_manager, config);
     RecordingBuilder::buildObservationIfPresent(sim, main_methods, config);
     RecordingBuilder::buildEnergyRecordingIfPresent(sim, main_methods, config);
-    auto &body_state_recorder = RecordingBuilder::getBodyStatesRecording(config_manager);
+    auto &body_state_recorder = RecordingBuilder::getBodyStatesRecording(sph_system);
     //----------------------------------------------------------------------
     //	Define time integration method, screen output and observation sample rate.
     //----------------------------------------------------------------------

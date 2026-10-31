@@ -27,7 +27,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     // update body relations, are defined first.
     //----------------------------------------------------------------------
     auto &main_methods = sph_solver.getMainMethodContainer();
-    RecordingBuilder::createBodyStatesRecording(sph_system, config_manager, main_methods);
+    RecordingBuilder::createBodyStatesRecording(sph_system, main_methods);
     buildUpdateConfiguration(sim, main_methods, config);
 
     auto &continuum_advection_step_setup = ContinuumDynamicsBuilder::addAdvectionStepSetup(sim, main_methods);
@@ -60,7 +60,7 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     // including extra state variables and applying scaling
     //----------------------------------------------------------------------
     RecordingBuilder::finalizeBodyStatesRecording(sph_system, config_manager, config);
-    auto &body_state_recorder = RecordingBuilder::getBodyStatesRecording(config_manager);
+    auto &body_state_recorder = RecordingBuilder::getBodyStatesRecording(sph_system);
     //----------------------------------------------------------------------
     //	Define time-integration method, screen out uput and observation sample rate.
     //----------------------------------------------------------------------

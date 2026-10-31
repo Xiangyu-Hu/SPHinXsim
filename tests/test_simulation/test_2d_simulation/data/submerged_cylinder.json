@@ -114,7 +114,6 @@
   "solid_bodies": [
     {
       "name": "Cylinder",
-      "adaptation_ratios": [1.15, 2.0],
       "material": {
         "type": "rigid_body"
       }

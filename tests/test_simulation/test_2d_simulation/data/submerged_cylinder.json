@@ -81,12 +81,16 @@
       "bodies": [
         {
           "name": "WaterBody",
-          "relaxation": { "level_set": { "shape": "WaterDomain" }, "dependent_bodies": ["Cylinder"] }
+          "relaxation": {
+            "level_set": { "shape": "WaterDomain" },
+            "dependent_bodies": ["Cylinder"]
+          }
         },
         {
           "name": "Cylinder",
-          "solid_body": {},
-          "adaptation_ratios": [1.15, 2.0]
+          "solid_body": {
+            "refinement_to_global": 2.0
+          }
         },
         {
           "name": "WallBoundary",
@@ -110,7 +114,6 @@
   "solid_bodies": [
     {
       "name": "Cylinder",
-      "adaptation_ratios": [1.15, 2.0],
       "material": {
         "type": "rigid_body"
       }

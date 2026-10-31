@@ -47,9 +47,8 @@ void SimulationBuilder::buildFluidBodies(
     for (const auto &fb : config)
     {
         const std::string name = fb.at("name").get<std::string>();
-        SPHBodyConfig &body_config = *config_manager.emplaceEntity<SPHBodyConfig>(name);
+        SPHBodyConfig &body_config = config_manager.getEntity<SPHBodyConfig>(name);
         fluid_bodies_config.push_back(&body_config);
-        body_config.name_ = name;
 
         Shape &fluid_shape = config_manager.getEntity<Shape>(name);
         auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
@@ -75,9 +74,8 @@ void SimulationBuilder::buildContinuumBodies(
     for (const auto &cb : config)
     {
         const std::string name = cb.at("name").get<std::string>();
-        SPHBodyConfig &body_config = *config_manager.emplaceEntity<SPHBodyConfig>(name);
+        SPHBodyConfig &body_config = config_manager.getEntity<SPHBodyConfig>(name);
         continuum_bodies_config.push_back(&body_config);
-        body_config.name_ = name;
 
         Shape &shape = config_manager.getEntity<Shape>(name);
         auto &continuum_body = sph_system.addBody<RealBody>(shape, name);
@@ -114,9 +112,8 @@ void SimulationBuilder::buildSolidBodies(
     for (const auto &sb : config)
     {
         const std::string name = sb.at("name").get<std::string>();
-        auto &body_config = *config_manager.emplaceEntity<SPHBodyConfig>(name);
+        auto &body_config = config_manager.getEntity<SPHBodyConfig>(name);
         solid_bodies_config.push_back(&body_config);
-        body_config.name_ = name;
         body_config.setStatic();
 
         if (sb.contains("is_moving"))
@@ -128,11 +125,7 @@ void SimulationBuilder::buildSolidBodies(
 
         Shape &solid_shape = config_manager.getEntity<Shape>(name);
         auto &solid_body = sph_system.addBody<SolidBody>(solid_shape, name);
-        if (sb.contains("adaptation_ratios"))
-        {
-            auto ratios = sb.at("adaptation_ratios");
-            solid_body.defineAdaptationRatios(ratios[0].get<Real>(), ratios[1].get<Real>());
-        }
+        solid_body.defineAdaptationRatios(body_config.h_spacing_ratio_, body_config.refinement_to_global_);
         material_builder_ptr_->addMaterial(config_manager, solid_body, sb.at("material"));
         if (!config_manager.hasEntity<Solid>(name + "RigidBody"))
             body_config.setDeformable();

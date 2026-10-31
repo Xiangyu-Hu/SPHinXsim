@@ -278,7 +278,7 @@ void ContinuumDynamicsBuilder::buildStressDiffusionIfPresent(
                     continuum_dynamics::StressDiffusionCK>(inner_relation));
 
             auto &continuum_body = sph_system.getBodyByName<RealBody>(body_name);
-            auto &body_state_recorder = RecordingBuilder::getBodyStatesRecording(config_manager);
+            auto &body_state_recorder = RecordingBuilder::getBodyStatesRecording(sph_system);
             body_state_recorder.template addDerivedVariableToWrite<
                 continuum_dynamics::VerticalStressCK>(continuum_body);
             body_state_recorder.template addDerivedVariableToWrite<

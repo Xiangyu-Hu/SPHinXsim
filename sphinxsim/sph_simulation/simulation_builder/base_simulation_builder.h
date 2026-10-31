@@ -104,6 +104,9 @@ struct SPHBodyConfig
 {
     std::string name_;
     std::string adaptation_;
+    Real h_spacing_ratio_ = 1.3;
+    Real refinement_to_global_ = 1.0;
+    bool is_solid_body_ = false;
     int is_moving_ = true;
     bool has_dynamics_ = true;
     bool is_interactive_ = true;

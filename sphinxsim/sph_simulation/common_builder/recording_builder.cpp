@@ -85,20 +85,16 @@ void RecordingBuilder::addVariableToStateRecorder(
     }
 }
 //=================================================================================================//
-void RecordingBuilder::createBodyStatesRecording(
-    SPHSystem &sph_system, EntityManager &config_manager, MainMethods &main_methods)
+void RecordingBuilder::createBodyStatesRecording(SPHSystem &sph_system, MainMethods &main_methods)
 {
-    auto &state_recorder = main_methods.template addBodyStateRecorder<
-        BodyStatesRecordingToVtpCK>(sph_system);
-    config_manager.removeEntity<MainBodyStatesRecording>("BodyStatesRecording");
-    config_manager.addEntity<MainBodyStatesRecording>("BodyStatesRecording", &state_recorder);
+    sph_system.setBodyStatesRecording(main_methods);
 }
 //=================================================================================================//
 void RecordingBuilder::finalizeBodyStatesRecording(
     SPHSystem &sph_system, EntityManager &config_manager, const json &config)
 {
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
-    auto &state_recorder = getBodyStatesRecording(config_manager);
+    auto &state_recorder = getBodyStatesRecording(sph_system);
 
     if (config.contains("extra_state_recording"))
     {
@@ -140,9 +136,9 @@ void RecordingBuilder::finalizeBodyStatesRecording(
     }
 }
 //=================================================================================================//
-MainBodyStatesRecording &RecordingBuilder::getBodyStatesRecording(EntityManager &config_manager)
+MainBodyStatesRecording &RecordingBuilder::getBodyStatesRecording(SPHSystem &sph_system)
 {
-    return config_manager.getEntity<MainBodyStatesRecording>("BodyStatesRecording");
+    return sph_system.getBodyStatesRecording<MainBodyStatesRecording>();
 }
 //=================================================================================================//
 void RecordingBuilder::buildObservationIfPresent(

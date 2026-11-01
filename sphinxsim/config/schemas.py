@@ -765,6 +765,7 @@ class MaterialConfig(BaseModel):
 class FluidBodyConfig(BaseModel):
     name: str = Field(..., min_length=1)
     material: MaterialConfig
+    surface_type: Literal["free_surface", "confined", "open_boundary", "free_stream"] = "free_surface"
     particle_reserve_factor: Optional[float] = Field(default=None, gt=0)
 
     @model_validator(mode="after")
@@ -938,7 +939,6 @@ class FluidDynamicsSolverConfig(BaseModel):
     acoustic_cfl: float = Field(default=0.6, gt=0)
     advection_cfl: float = Field(default=0.25, gt=0)
     max_velocity_factor: float = Field(default=1.0, gt=0)
-    surface_type: Literal["free_surface", "confined", "open_boundary", "free_stream"] = "free_surface"
     kernel_correction: Literal["linear", "none"] = "linear"
     particle_sort_frequency: Optional[int] = Field(default=None, gt=0)
 
@@ -954,7 +954,6 @@ class ContinuumDynamicsSolverConfig(BaseModel):
     shear_stress_damping: Optional[float] = 0.0
     hourglass_factor: Optional[float] = 2.0
     plastic_riemann_dissipation_factor: Optional[float] = Field(default=None, gt=0)
-    surface_type: Literal["free_surface", "confined", "open_boundary"] = "free_surface"
 
 
 class SolverParametersConfig(BaseModel):

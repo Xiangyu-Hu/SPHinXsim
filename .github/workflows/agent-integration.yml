@@ -1,0 +1,25 @@
+name: Agent integration
+on:
+  pull_request:
+    paths: ['docker/nvidia/build/**', 'docker/agent/**', 'docker/desktop/**', 'integrations/agent/**', 'sphinxsim/config/**', 'sphinxsim/cli.py', '.github/workflows/agent-integration.yml']
+  push:
+    branches: [main, master]
+    paths: ['docker/nvidia/build/**', 'docker/agent/**', 'docker/desktop/**', 'integrations/agent/**', 'sphinxsim/config/**', 'sphinxsim/cli.py', '.github/workflows/agent-integration.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  protocol-and-domain:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install './integrations/agent[mcp,export,cad]'
+      # Native schema is imported from this checkout. This job intentionally
+      # does not claim C++/GPU/Qt acceptance; native CI owns the binding build.
+      - run: python -m unittest discover -s integrations/agent/tests -p 'test_*.py'
+        env:
+          PYTHONPATH: .
+      - run: python -m unittest discover -s docker/nvidia/build/tests -v

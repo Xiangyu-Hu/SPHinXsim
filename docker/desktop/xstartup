@@ -1,0 +1,7 @@
+#!/bin/bash
+set -euo pipefail
+unset SESSION_MANAGER DBUS_SESSION_BUS_ADDRESS
+export GTK_MODULES=gail:atk-bridge
+export QT_ACCESSIBILITY=1
+export NO_AT_BRIDGE=0
+exec dbus-run-session -- /opt/sphinxsim-desktop/session.sh

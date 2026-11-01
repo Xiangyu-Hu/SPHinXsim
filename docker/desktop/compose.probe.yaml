@@ -1,0 +1,36 @@
+# Standalone H20 probe only; platform authentication/control is not connected yet.
+name: sphinxsim-desktop-probe
+services:
+  desktop:
+    image: "${DESKTOP_IMAGE:?Set the native desktop image}"
+    pull_policy: never
+    platform: linux/amd64
+    # Required for NVIDIA EGL vendor injection, beyond Docker's GPU device hook.
+    runtime: nvidia
+    ports:
+      - "127.0.0.1:16901:6901"
+    environment:
+      NVIDIA_VISIBLE_DEVICES: "${GPU_UUID:?Select an idle GPU UUID before starting the probe}"
+      SPHINXSIM_DESKTOP_RENDERER: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${GPU_UUID}"]
+              capabilities: [gpu]
+    mem_limit: 64g
+    cpus: 8
+    shm_size: 2g
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - project:/work/project
+    secrets:
+      - desktop_password
+secrets:
+  desktop_password:
+    file: .secrets/desktop_password
+volumes:
+  project:

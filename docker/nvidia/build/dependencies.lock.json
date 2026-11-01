@@ -1,0 +1,35 @@
+{
+  "boost_1_85_0.tar.bz2": {
+    "sha256": "7009fe1faa1697476bdc7027703a2badb84e849b7b0baad5086b087b971f8617",
+    "bytes": 124015250,
+    "variants": [
+      "cuda12",
+      "cuda13"
+    ],
+    "url": "https://archives.boost.io/release/1.85.0/source/boost_1_85_0.tar.bz2"
+  },
+  "intel-oneapi-base-toolkit-2025.2.0.592_offline.sh": {
+    "sha256": "5cf60b1538edb74dbf8a1c6f0f3886982639dab709bb75763f17a5acefbac530",
+    "bytes": 2462580605,
+    "variants": [
+      "cuda12"
+    ],
+    "url": "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/bd1d0273-a931-4f7e-ab76-6a2a67d646c7/intel-oneapi-base-toolkit-2025.2.0.592_offline.sh"
+  },
+  "oneapi-for-nvidia-gpus-2025.2.0-linux.sh": {
+    "sha256": "84c0225131da6d066144a56ab3bd6213314a894ef4346d400140185b2f97bdc7",
+    "bytes": 318643,
+    "variants": [
+      "cuda12"
+    ],
+    "url": null
+  },
+  "sycl-v7.1.0-linux.tar.gz": {
+    "sha256": "992de12d5c68ba8fd630446b1a97487361b38807b33140769e4c818795f0fcab",
+    "bytes": 217981850,
+    "variants": [
+      "cuda13"
+    ],
+    "url": "https://github.com/intel/llvm/releases/download/v7.1.0/sycl_linux.tar.gz"
+  }
+}

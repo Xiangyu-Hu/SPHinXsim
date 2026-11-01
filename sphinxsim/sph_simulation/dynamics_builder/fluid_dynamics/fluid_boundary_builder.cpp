@@ -84,10 +84,11 @@ void FluidDynamicsBuilder::addBoundaryCondition(
 
     if (type == "bi_directional")
     {
-        if (fluid_solver_config.surface_type_ != "open_boundary")
+        if (fluid_body.getSurfaceType() != "open_boundary")
         {
             std::cout << "\n------------------------------------------------------------" << std::endl;
             std::cout << "FluidDynamicsBuilder::buildBoundaryConditionsIfPresent:" << std::endl;
+            std::cout << "surface_type: " << fluid_body.getSurfaceType() << std::endl;
             std::cout << "Error: bi_directional condition at OrientBox '" << oriented_box_name
                       << "' only works for open boundary flow!" << std::endl;
             std::cout << "------------------------------------------------------------" << std::endl;

@@ -84,7 +84,6 @@ def _make_minimal_fluid_config(**overrides) -> SimulationConfig:
             "fluid_dynamics": {
                 "acoustic_cfl": 0.6,
                 "advection_cfl": 0.25,
-                "surface_type": "free_surface",
                 "particle_sort_frequency": 100,
             },
         },
@@ -259,7 +258,6 @@ class TestSimulationConfig:
                     "fluid_dynamics": {
                         "acoustic_cfl": 0.6,
                         "advection_cfl": 0.25,
-                        "surface_type": "free_surface",
                         "unsupported_key": "x",
                     },
                 }
@@ -1397,7 +1395,6 @@ class TestSimulationConfig:
                     "acoustic_cfl": 0.6,
                     "advection_cfl": 0.25,
                     "max_velocity_factor": 2.0,
-                    "surface_type": "free_surface",
                     "particle_sort_frequency": 100,
                 },
             }

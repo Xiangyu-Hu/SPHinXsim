@@ -29,7 +29,7 @@ VariableConfig parseVariableConfig(const json &config)
 //=================================================================================================//
 SimulationBuilder::SimulationBuilder() : material_builder_ptr_(std::make_unique<MaterialBuilder>()) {}
 //=================================================================================================//
-SimulationBuilder ::~SimulationBuilder() = default;
+SimulationBuilder::~SimulationBuilder() = default;
 //=================================================================================================//
 void SimulationBuilder::initializeAllBodyConfigs(EntityManager &config_manager)
 {
@@ -53,6 +53,12 @@ void SimulationBuilder::buildFluidBodies(
         Shape &fluid_shape = config_manager.getEntity<Shape>(name);
         auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
         material_builder_ptr_->addMaterial(config_manager, fluid_body, fb.at("material"));
+
+        if (fb.contains("surface_type"))
+        {
+            fluid_body.setSurfaceType(fb.at("surface_type").get<std::string>());
+        }
+
         if (fb.contains("particle_reserve_factor"))
         {
             ParticleBuffer<ReserveSizeFactor> inlet_buffer(

@@ -48,7 +48,6 @@ struct ContinuumSolverParameters
     Real shear_stress_damping_{0.0};
     Real hourglass_factor_{2.0};
     Real plastic_riemann_dissipation_factor_{20.0 * (Real)Dimensions};
-    std::string surface_type_ = "free_surface";
 };
 
 class ContinuumDynamicsBuilder

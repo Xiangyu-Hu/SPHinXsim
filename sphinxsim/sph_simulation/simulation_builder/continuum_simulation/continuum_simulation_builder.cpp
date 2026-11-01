@@ -186,8 +186,6 @@ ContinuumSolverParameters ContinuumSimulationBuilder::parseContinuumSolverParame
     if (config.contains("plastic_riemann_dissipation_factor"))
         parameters.plastic_riemann_dissipation_factor_ = scaling_config.jsonToReal(
             config.at("plastic_riemann_dissipation_factor"), "Dimensionless");
-    if (config.contains("surface_type"))
-        parameters.surface_type_ = config.at("surface_type").get<std::string>();
 
     return parameters;
 }

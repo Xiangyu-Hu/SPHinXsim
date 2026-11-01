@@ -109,7 +109,6 @@
       "acoustic_cfl": 0.6,
       "advection_cfl": 0.25,
       "max_velocity_factor": 1.0,
-      "surface_type": "free_surface",
       "particle_sort_frequency": 100
     }
   }

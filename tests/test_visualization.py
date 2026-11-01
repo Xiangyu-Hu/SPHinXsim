@@ -95,7 +95,6 @@ def _minimal_fluid_config() -> dict:
             "fluid_dynamics": {
                 "acoustic_cfl": 0.6,
                 "advection_cfl": 0.25,
-                "surface_type": "free_surface",
             },
         },
     }

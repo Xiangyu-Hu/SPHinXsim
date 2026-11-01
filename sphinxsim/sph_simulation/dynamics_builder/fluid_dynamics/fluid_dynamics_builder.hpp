@@ -119,8 +119,10 @@ void FluidDynamicsBuilder::assignSupplementaryConditions(
 //=================================================================================================//
 template <class FluidType, class FluidBodyType>
 BaseDynamics<void> &FluidDynamicsBuilder::addDensityRegularizationForOneBody(
-    MainMethods &main_methods, FluidBodyType &fluid_body, const std::string &surface_type)
+    MainMethods &main_methods, FluidBodyType &fluid_body)
 {
+    const std::string &surface_type = fluid_body.getSurfaceType();
+    
     if (surface_type == "confined")
     {
         return main_methods.template addStateDynamics<

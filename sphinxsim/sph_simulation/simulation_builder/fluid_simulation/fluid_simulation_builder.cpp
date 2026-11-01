@@ -199,8 +199,6 @@ FluidSolverConfig FluidSimulationBuilder::parseFluidSolverConfig(
     if (config.contains("max_velocity_factor"))
         params.max_velocity_factor_ = scaling_config.jsonToReal(
             config.at("max_velocity_factor"), "Dimensionless");
-    if (config.contains("surface_type"))
-        params.surface_type_ = config.at("surface_type").get<std::string>();
     if (config.contains("kernel_correction"))
         params.kernel_correction_ = config.at("kernel_correction").get<std::string>();
     if (config.contains("particle_sort_frequency"))

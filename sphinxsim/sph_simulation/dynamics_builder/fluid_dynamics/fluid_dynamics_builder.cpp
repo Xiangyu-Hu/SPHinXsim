@@ -119,7 +119,7 @@ BaseDynamics<void> &FluidDynamicsBuilder::addLinearCorrectionMatrix(
         all_linear_correction_matrix.add(&linear_correction_matrix);
 
         auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
-        if (fluid_solver_config.surface_type_ == "open_boundary")
+        if (fluid_body.getSurfaceType() == "open_boundary")
         {
             all_linear_correction_matrix.add(
                 &main_methods.addStateDynamics<LinearCorrectionMatrixScope, BulkParticles>(fluid_body));
@@ -150,12 +150,12 @@ BaseDynamics<void> &FluidDynamicsBuilder::addDensityRegularization(
         if (fluid_body.isMatterMaterial<WeaklyCompressibleFluid>())
         {
             density_regularization.add(&addDensityRegularizationForOneBody<WeaklyCompressibleFluid>(
-                main_methods, fluid_body, fluid_solver_config.surface_type_));
+                main_methods, fluid_body));
         }
         else
         {
             density_regularization.add(&addDensityRegularizationForOneBody<WeaklyCompressibleMixture>(
-                main_methods, fluid_body, fluid_solver_config.surface_type_));
+                main_methods, fluid_body));
         }
 
         auto &average_compression = main_methods.template addReduceDynamics<AverageCompression>(fluid_body);
@@ -274,21 +274,21 @@ void FluidDynamicsBuilder::buildSurfaceIndicationIfOpenBoundary(
     auto &config_manager = sim.getConfigManager();
     auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
     auto &all_surface_indication = main_methods.addParticleDynamicsGroup();
-
     auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
-    if (fluid_solver_config.surface_type_ != "open_boundary" &&
-        fluid_solver_config.surface_type_ != "free_stream")
-    {
-        return;
-    }
 
     for (const auto &fb : fluid_bodies_config)
     {
         std::string body_name = fb->name_;
+        auto &fluid_body = sph_system.getBodyByName<FluidBody>(body_name);
+        std::string surface_type = fluid_body.getSurfaceType();
+        if (surface_type != "open_boundary" && surface_type != "free_stream")
+        {
+            return;
+        }
+
         auto &inner_relation = sph_system.getRelationByName<Inner<Relation<FluidBody>>>(body_name);
         auto &fluid_surface_indication = main_methods.addInteractionDynamicsWithUpdate<
             FreeSurfaceIndicationCK>(inner_relation);
-        auto &fluid_body = sph_system.getBodyByName<FluidBody>(body_name);
         addInteractionWithSolidBodies(sim, fluid_surface_indication, fluid_body);
         all_surface_indication.add(&fluid_surface_indication);
     }
@@ -314,19 +314,21 @@ void FluidDynamicsBuilder::buildSurfaceIndicationIfOpenBoundary(
 }
 //=================================================================================================//
 BaseDynamics<void> &FluidDynamicsBuilder::addTransportVelocityCorrection(
-    MainMethods &main_methods, SPHBody &sph_body, FluidSolverConfig &fluid_solver_config)
+    MainMethods &main_methods, FluidBody &fluid_body)
 {
-    if (fluid_solver_config.surface_type_ == "confined")
+    std::string surface_type = fluid_body.getSurfaceType();
+
+    if (surface_type == "confined")
     {
-        return main_methods.addStateDynamics<TransportVelocityCorrectionCK, TruncatedLinear>(sph_body);
+        return main_methods.addStateDynamics<TransportVelocityCorrectionCK, TruncatedLinear>(fluid_body);
     }
-    if (fluid_solver_config.surface_type_ == "open_boundary")
+    if (surface_type == "open_boundary")
     {
-        return main_methods.addStateDynamics<TransportVelocityCorrectionCK, TruncatedLinear, BulkParticles>(sph_body);
+        return main_methods.addStateDynamics<TransportVelocityCorrectionCK, TruncatedLinear, BulkParticles>(fluid_body);
     }
-    if (fluid_solver_config.surface_type_ == "free_stream")
+    if (surface_type == "free_stream")
     {
-        return main_methods.addStateDynamics<TransportVelocityCorrectionCK, NoLimiter, BulkParticles>(sph_body);
+        return main_methods.addStateDynamics<TransportVelocityCorrectionCK, NoLimiter, BulkParticles>(fluid_body);
     }
     throw std::runtime_error(
         "FluidDynamicsBuilder::addTransportVelocityCorrection: no supported flow type found!");
@@ -340,25 +342,26 @@ void FluidDynamicsBuilder::buildTransportVelocityFormulationIfNotFreeSurface(
     auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
     auto &all_kernel_gradient_integral = main_methods.addParticleDynamicsGroup();
     auto &all_transport_velocity_correction = main_methods.addParticleDynamicsGroup();
-
     auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
-    if (fluid_solver_config.surface_type_ == "free_surface")
-    {
-        return;
-    }
+
     for (const auto &fb : fluid_bodies_config)
     {
         std::string body_name = fb->name_;
+        auto &fluid_body = sph_system.getBodyByName<FluidBody>(body_name);
+        if (fluid_body.getSurfaceType() == "free_surface")
+        {
+            return;
+        }
+
         auto &inner_relation = sph_system.getRelationByName<Inner<Relation<FluidBody>>>(body_name);
         auto &kernel_gradient_integral = main_methods.addInteractionDynamics<
             KernelGradientIntegral, LinearCorrectionCK>(inner_relation);
-        auto &fluid_body = sph_system.getBodyByName<FluidBody>(body_name);
         addInteractionWithSolidBodies<Boundary, LinearCorrectionCK>(
             sim, kernel_gradient_integral, fluid_body);
         all_kernel_gradient_integral.add(&kernel_gradient_integral);
 
         all_transport_velocity_correction.add(
-            &addTransportVelocityCorrection(main_methods, fluid_body, fluid_solver_config));
+            &addTransportVelocityCorrection(main_methods, fluid_body));
     }
 
     if (all_kernel_gradient_integral.hasDynamics())

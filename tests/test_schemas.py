@@ -220,7 +220,7 @@ class TestSimulationConfig:
         assert cfg.log_level is LogLevel.INFO
         assert len(cfg.fluid_bodies) == 1
         assert cfg.solver_parameters.fluid_dynamics is not None
-        assert cfg.solver_parameters.fluid_dynamics.surface_type == "free_surface"
+        assert cfg.fluid_bodies[0].surface_type == "free_surface"
 
     def test_log_level_accepts_cpp_parser_values(self):
         for log_level in ("trace", "debug", "info", "warning", "error", "critical", "off"):
@@ -231,22 +231,51 @@ class TestSimulationConfig:
         with pytest.raises(ValidationError, match="log_level"):
             _make_minimal_fluid_config(log_level="verbose")
 
-    def test_fluid_solver_accepts_surface_type(self):
+    def test_fluid_body_accepts_surface_type(self):
         cfg = _make_minimal_fluid_config(
-            solver_parameters={
-                "end_time": 1.0,
-                "output_interval": 0.01,
-                "screen_interval": 100,
-                "fluid_dynamics": {
-                    "acoustic_cfl": 0.6,
-                    "advection_cfl": 0.25,
+            fluid_bodies=[
+                {
+                    "name": "WaterBody",
+                    "material": {
+                        "type": "weakly_compressible_fluid",
+                        "density": 1000.0,
+                    },
                     "surface_type": "open_boundary",
-                    "particle_sort_frequency": 100,
-                },
-            }
+                }
+            ]
         )
-        assert cfg.solver_parameters.fluid_dynamics is not None
-        assert cfg.solver_parameters.fluid_dynamics.surface_type == "open_boundary"
+        assert cfg.fluid_bodies[0].surface_type == "open_boundary"
+
+    def test_fluid_solver_rejects_surface_type(self):
+        with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+            _make_minimal_fluid_config(
+                solver_parameters={
+                    "end_time": 1.0,
+                    "output_interval": 0.01,
+                    "screen_interval": 100,
+                    "fluid_dynamics": {
+                        "acoustic_cfl": 0.6,
+                        "advection_cfl": 0.25,
+                        "surface_type": "open_boundary",
+                        "particle_sort_frequency": 100,
+                    },
+                }
+            )
+
+    def test_fluid_body_rejects_invalid_surface_type(self):
+        with pytest.raises(ValidationError):
+            _make_minimal_fluid_config(
+                fluid_bodies=[
+                    {
+                        "name": "WaterBody",
+                        "material": {
+                            "type": "weakly_compressible_fluid",
+                            "density": 1000.0,
+                        },
+                        "surface_type": "invalid_surface",
+                    }
+                ]
+            )
 
     def test_fluid_solver_rejects_unknown_key(self):
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
@@ -1247,35 +1276,6 @@ class TestSimulationConfig:
                         },
                     }
                 ]
-            )
-
-    def test_continuum_solver_accepts_surface_type(self):
-        cfg = _make_minimal_continuum_config(
-            solver_parameters={
-                "end_time": 1.0,
-                "output_interval": 0.01,
-                "continuum_dynamics": {
-                    "acoustic_cfl": 0.4,
-                    "advection_cfl": 0.2,
-                    "surface_type": "open_boundary",
-                },
-            }
-        )
-        assert cfg.solver_parameters.continuum_dynamics is not None
-        assert cfg.solver_parameters.continuum_dynamics.surface_type == "open_boundary"
-
-    def test_continuum_solver_rejects_invalid_surface_type(self):
-        with pytest.raises(ValidationError):
-            _make_minimal_continuum_config(
-                solver_parameters={
-                    "end_time": 1.0,
-                    "output_interval": 0.01,
-                    "continuum_dynamics": {
-                        "acoustic_cfl": 0.4,
-                        "advection_cfl": 0.2,
-                        "surface_type": "invalid_surface",
-                    },
-                }
             )
 
     def test_continuum_solver_accepts_plastic_riemann_dissipation_factor(self):

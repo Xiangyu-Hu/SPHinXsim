@@ -3,7 +3,7 @@
     {
       "value": 1.0,
       "name": "Length",
-      "hint": "geometries.shapes[name=WaterBody].upper_bound"
+      "hint": "geometries.primitives[name=WaterBox].upper_bound"
     },
     {
       "value": 1.0,

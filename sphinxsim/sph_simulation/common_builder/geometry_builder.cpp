@@ -365,7 +365,8 @@ Shape *GeometryBuilder::addShape(
 
     if (type == "bounding_box")
     {
-        BoundingBoxd bounding_box = parseBoundingBox(scaling_config, config);
+        BoundingBoxd bounding_box = fetch_or_parseBoundingBox(
+            scaling_config, config_manager, config);
         config_manager.emplaceEntity<BoundingBoxd>(name, bounding_box);
         GeometricShapeBox *shape = config_manager.emplaceEntity<GeometricShapeBox>(name, bounding_box, name);
         shape->writeGeometricShapeBoxToVtp(scaling_factor);

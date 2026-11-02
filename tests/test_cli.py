@@ -229,6 +229,47 @@ class TestJsonEditorListItems:
 
         assert item == {"variable": {"real_type": "Pressure"}, "value": 0.0}
 
+    def test_saving_preserves_collapsed_tree_state(self, tmp_path, monkeypatch):
+        qtpy = pytest.importorskip("qtpy")
+        from qtpy import QtWidgets
+
+        from sphinxsim import cli as cli_mod
+
+        monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+        app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+        config = sphinxsim.SimulationConfig.model_validate(_valid_data())
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps(_valid_data()), encoding="utf-8")
+        window = QtWidgets.QMainWindow()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = type("FakePlotter", (), {"app_window": window})()
+        runtime.show_or_update = lambda *args, **kwargs: 0
+
+        assert runtime._install_json_editor(
+            config,
+            config_path=config_path,
+            with_particles=False,
+        )
+        editor = runtime._json_editor
+        tree = editor["tree"]
+        tree.collapseAll()
+
+        editor["shortcut"].activated.emit()
+        app.processEvents()
+
+        assert not any(
+            tree.topLevelItem(index).isExpanded()
+            for index in range(tree.topLevelItemCount())
+        )
+        assert editor["refresh"](config, config_path, False)
+        assert not any(
+            tree.topLevelItem(index).isExpanded()
+            for index in range(tree.topLevelItemCount())
+        )
+
+        runtime.close()
+        window.close()
+
 
 class TestCLIGenerate:
     def test_generate_stdout(self, capsys):

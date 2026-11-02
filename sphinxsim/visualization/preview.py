@@ -56,6 +56,14 @@ if TYPE_CHECKING:
 
 # Colours assigned per body category so users instantly see what is what.
 _FLUID_COLOUR = (0.20, 0.53, 0.85)       # blue
+_FLUID_COLOURS = (
+    _FLUID_COLOUR,
+    (0.90, 0.42, 0.20),  # orange
+    (0.20, 0.68, 0.45),  # green
+    (0.62, 0.38, 0.78),  # purple
+    (0.88, 0.72, 0.18),  # gold
+    (0.18, 0.67, 0.73),  # teal
+)
 _SOLID_COLOUR = (0.48, 0.48, 0.48)       # grey
 _CONTINUUM_COLOUR = (0.78, 0.42, 0.05)   # amber
 _UNKNOWN_COLOUR = (0.60, 0.80, 0.40)     # green (shapes not in any body list)
@@ -68,9 +76,9 @@ _PARTICLE_POINT_SIZE = 5
 
 
 def _body_colour(body_name: str, config: "SimulationConfig") -> tuple[float, float, float]:
-    for b in config.fluid_bodies:
+    for index, b in enumerate(config.fluid_bodies):
         if b.name == body_name:
-            return _FLUID_COLOUR
+            return _FLUID_COLOURS[index % len(_FLUID_COLOURS)]
     for b in config.solid_bodies:
         if b.name == body_name:
             return _SOLID_COLOUR
@@ -98,8 +106,13 @@ def _legend_entries_for_config(
     for info in collect_preview_body_information(config):
         body_type = str(info.get("body_type", ""))
         material_model = str(info.get("material_model") or "Material")
-        colour = _FLUID_COLOUR if body_type == "Fluid body" else _CONTINUUM_COLOUR
-        key = (material_model, colour)
+        if body_type == "Fluid body" and len(config.fluid_bodies) > 1:
+            label = str(info["name"])
+            colour = _body_colour(label, config)
+        else:
+            label = material_model
+            colour = _FLUID_COLOUR if body_type == "Fluid body" else _CONTINUUM_COLOUR
+        key = (label, colour)
         if key not in seen:
             entries.append(key)
             seen.add(key)

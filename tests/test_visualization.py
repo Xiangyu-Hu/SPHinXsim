@@ -290,6 +290,59 @@ class TestPreviewLegend:
         assert "Granular material" not in labels
         assert "Solid" in labels
 
+    def test_multiple_fluid_bodies_have_distinct_render_and_legend_colours(
+        self, fluid_config, tmp_path
+    ):
+        from sphinxsim.visualization.preview import (
+            ConfigVisualizer,
+            _body_colour,
+            _legend_entries_for_config,
+        )
+
+        data = copy.deepcopy(fluid_config.model_dump(exclude_none=True))
+        second_body = copy.deepcopy(data["fluid_bodies"][0])
+        second_body["name"] = "AirBody"
+        second_body["material"]["density"] = 1.0
+        data["fluid_bodies"].append(second_body)
+        data["geometries"]["shapes"].append(
+            {
+                "name": "AirBody",
+                "type": "bounding_box",
+                "lower_bound": [0.5, 0.1],
+                "upper_bound": [0.9, 0.4],
+            }
+        )
+        data["particle_generation"]["settings"]["bodies"].append({"name": "AirBody"})
+        config = SimulationConfig.model_validate(data)
+
+        water_colour = _body_colour("WaterBody", config)
+        air_colour = _body_colour("AirBody", config)
+        assert water_colour != air_colour
+
+        entries = _legend_entries_for_config(config)
+        assert ("WaterBody", water_colour) in entries
+        assert ("AirBody", air_colour) in entries
+
+        visualizer = ConfigVisualizer(config, tmp_path, off_screen=True)
+        visualizer._shape_bounds_cache = {
+            "WaterBody": ([0.0, 0.0], [0.4, 0.2]),
+            "AirBody": ([0.5, 0.1], [0.9, 0.4]),
+            "WallBoundary": ([-0.05, -0.05], [1.05, 1.05]),
+        }
+        fake_plotter = _FakePlotter()
+        with patch.dict(sys.modules, {"pyvista": _FakePyVista}):
+            visualizer._populate_plotter(fake_plotter, vtp_dir=None)
+
+        body_meshes = {
+            call["label"]: call["color"]
+            for call in fake_plotter.mesh_calls
+            if call.get("label") in {"WaterBody", "AirBody"}
+        }
+        assert body_meshes == {
+            "WaterBody": water_colour,
+            "AirBody": air_colour,
+        }
+
 
 class TestOrientedBoxLabel:
     def test_label_includes_name_and_type(self, fluid_config):

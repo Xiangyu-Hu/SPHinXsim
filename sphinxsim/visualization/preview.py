@@ -76,6 +76,10 @@ _GRAVITY_COLOUR = (0.00, 0.48, 0.50)        # dark cyan — gravity direction ar
 _PARTICLE_POINT_SIZE = 5
 
 
+def _particle_label(body_name: str) -> str:
+    return f"{body_name} Particles"
+
+
 def _body_colour(body_name: str, config: "SimulationConfig") -> tuple[float, float, float]:
     for index, b in enumerate(config.fluid_bodies):
         if b.name == body_name:
@@ -107,38 +111,29 @@ def _legend_entries_for_config(
     entries: list[tuple[str, tuple[float, float, float]]] = []
     seen: set[tuple[str, tuple[float, float, float]]] = set()
 
-    for info in collect_preview_body_information(config):
-        body_type = str(info.get("body_type", ""))
-        material_model = str(info.get("material_model") or "Material")
-        if body_type == "Fluid body" and len(config.fluid_bodies) > 1:
-            label = str(info["name"])
-            colour = _body_colour(label, config)
-        else:
-            label = material_model
-            colour = _FLUID_COLOUR if body_type == "Fluid body" else _CONTINUUM_COLOUR
-        key = (label, colour)
-        if key not in seen:
-            entries.append(key)
-            seen.add(key)
+    if not particle_body_names:
+        for info in collect_preview_body_information(config):
+            body_type = str(info.get("body_type", ""))
+            material_model = str(info.get("material_model") or "Material")
+            if body_type == "Fluid body" and len(config.fluid_bodies) > 1:
+                label = str(info["name"])
+                colour = _body_colour(label, config)
+            else:
+                label = material_model
+                colour = _FLUID_COLOUR if body_type == "Fluid body" else _CONTINUUM_COLOUR
+            key = (label, colour)
+            if key not in seen:
+                entries.append(key)
+                seen.add(key)
 
-    # Particle overlays can be displayed without a corresponding material
-    # entry. Name these from the actual body instead of calling them granular.
     for body_name in sorted(particle_body_names or set()):
         colour = _body_colour(body_name, config)
-        if any(body.name == body_name for body in config.fluid_bodies):
-            label = "Fluid particles"
-        elif any(body.name == body_name for body in config.continuum_bodies):
-            label = "Continuum particles"
-        elif any(body.name == body_name for body in config.solid_bodies):
-            label = "Solid particles"
-        else:
-            label = f"Particles: {body_name}"
-        key = (label, colour)
+        key = (_particle_label(body_name), colour)
         if key not in seen:
             entries.append(key)
             seen.add(key)
 
-    if config.solid_bodies:
+    if not particle_body_names and config.solid_bodies:
         entries.append(("Solid", _SOLID_COLOUR))
 
     return entries
@@ -893,7 +888,7 @@ class ConfigVisualizer:
                 opacity=0.95,
                 style="points",
                 point_size=_PARTICLE_POINT_SIZE,
-                label=f"Particles: {body_name}",
+                label=_particle_label(body_name),
             )
 
             _update_scene_bounds(particle_mesh)

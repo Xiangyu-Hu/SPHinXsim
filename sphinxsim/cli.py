@@ -892,7 +892,7 @@ class _ShellPreviewRuntime:
         if self.plotter is None or self._live_output_dir is None:
             return
 
-        from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE
+        from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE, _particle_label
 
         try:
             import pyvista as pv
@@ -925,7 +925,7 @@ class _ShellPreviewRuntime:
                     opacity=0.95,
                     style="points",
                     point_size=_PARTICLE_POINT_SIZE,
-                    label=f"Particles: {body_name}",
+                    label=_particle_label(body_name),
                 )
                 self._live_particle_versions[body_name] = sequence
                 break

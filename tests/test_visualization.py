@@ -322,6 +322,13 @@ class TestPreviewLegend:
         entries = _legend_entries_for_config(config)
         assert ("WaterBody", water_colour) in entries
         assert ("AirBody", air_colour) in entries
+        particle_entries = _legend_entries_for_config(
+            config, {"WaterBody", "AirBody"}
+        )
+        assert particle_entries == [
+            ("AirBody Particles", air_colour),
+            ("WaterBody Particles", water_colour),
+        ]
 
         visualizer = ConfigVisualizer(config, tmp_path, off_screen=True)
         visualizer._shape_bounds_cache = {
@@ -725,16 +732,23 @@ class TestPreviewGeneratedParticles:
             viz._populate_plotter(fake_plotter, vtp_dir=None, latest_particle_vtps=fake_latest)
 
         particle_mesh_calls = [
-            call for call in fake_plotter.mesh_calls if str(call.get("label", "")).startswith("Particles: ")
+            call for call in fake_plotter.mesh_calls
+            if call.get("label") in {"WaterBody Particles", "WallBoundary Particles"}
         ]
         assert len(particle_mesh_calls) == 2
+        assert {call["label"] for call in particle_mesh_calls} == {
+            "WaterBody Particles",
+            "WallBoundary Particles",
+        }
         assert all(call.get("style") == "points" for call in particle_mesh_calls)
         assert all(call.get("point_size") == 5 for call in particle_mesh_calls)
 
         particle_label_calls = [
             call
             for call in fake_plotter.point_label_calls
-            if call["labels"] and str(call["labels"][0]).startswith("Particles: ")
+            if call["labels"]
+            and str(call["labels"][0])
+            in {"WaterBody Particles", "WallBoundary Particles"}
         ]
         assert particle_label_calls == []
 
@@ -795,7 +809,8 @@ class TestPreviewGeneratedParticles:
                 viz._populate_plotter(fake_plotter, vtp_dir=None, latest_particle_vtps=fake_latest)
 
         particle_mesh_calls = [
-            call for call in fake_plotter.mesh_calls if str(call.get("label", "")).startswith("Particles: ")
+            call for call in fake_plotter.mesh_calls
+            if call.get("label") == "WaterBody Particles"
         ]
         assert len(particle_mesh_calls) == 1
 

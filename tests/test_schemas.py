@@ -381,6 +381,15 @@ class TestSimulationConfig:
                             "type": "clockwise_points",
                             "points": [[0.6, 0.6], [0.8, 0.6], [0.8, 0.8], [0.6, 0.6]],
                         },
+                        {
+                            "operation": "union",
+                            "type": "container_box",
+                            "inner_box": {
+                                "lower_bound": [0.0, 0.0],
+                                "upper_bound": [0.9, 0.9],
+                            },
+                            "thickness": 0.01,
+                        },
                     ],
                 },
                 {
@@ -407,7 +416,69 @@ class TestSimulationConfig:
             "circle",
             "triangle",
             "clockwise_points",
+            "container_box",
         ]
+        assert multipolygon.polygons[3].inner_box.lower_bound == [0.0, 0.0]
+
+    def test_multipolygon_container_box_accepts_bounding_box_primitive(self):
+        geometries = {
+            "system_domain": {"lower_bound": [0.0, 0.0], "upper_bound": [1.0, 1.0]},
+            "global_resolution": {"particle_spacing": 0.05},
+            "primitives": [
+                {
+                    "name": "WaterBounds",
+                    "type": "bounding_box",
+                    "lower_bound": [0.1, 0.1],
+                    "upper_bound": [0.5, 0.5],
+                },
+                {
+                    "name": "ContainerBounds",
+                    "type": "bounding_box",
+                    "lower_bound": [0.0, 0.0],
+                    "upper_bound": [1.0, 1.0],
+                }
+            ],
+            "shapes": [
+                {
+                    "name": "WaterBody",
+                    "type": "bounding_box",
+                    "primitive": "WaterBounds",
+                },
+                {
+                    "name": "WallBoundary",
+                    "type": "multipolygon",
+                    "polygons": [
+                        {
+                            "operation": "union",
+                            "type": "bounding_box",
+                            "primitive": "ContainerBounds",
+                        },
+                        {
+                            "operation": "union",
+                            "type": "container_box",
+                            "inner_box": {"primitive": "ContainerBounds"},
+                            "thickness": 0.01,
+                        }
+                    ],
+                },
+            ],
+            "oriented_boxes": [
+                {
+                    "name": "Inlet",
+                    "type": "region",
+                    "half_size": [0.1, 0.05],
+                    "transform": {"translation": [0.05, 0.2], "rotation_angle": 0.0},
+                }
+            ],
+        }
+
+        cfg = _make_minimal_fluid_config(geometries=geometries)
+        assert cfg.geometries.shapes[0].primitive == "WaterBounds"
+        polygons = cfg.geometries.shapes[1].polygons
+        assert polygons[0].type.value == "bounding_box"
+        assert polygons[0].primitive == "ContainerBounds"
+        inner_box = polygons[1].inner_box
+        assert inner_box.primitive == "ContainerBounds"
 
     def test_multipolygon_data_file_uses_file_name(self):
         geometries = {
@@ -928,7 +999,7 @@ class TestSimulationConfig:
         assert schedule.switch_on_time == pytest.approx(0.0)
         assert schedule.duration is None
 
-    def test_fluid_dynamics_rejects_multiple_fluid_bodies(self):
+    def test_fluid_dynamics_accepts_multiple_fluid_bodies(self):
         data = _make_minimal_fluid_config().model_dump(mode="json", exclude_none=True)
         extra_body = json.loads(json.dumps(data["fluid_bodies"][0]))
         extra_body["name"] = "WaterBody2"
@@ -943,8 +1014,8 @@ class TestSimulationConfig:
         data["particle_generation"]["settings"]["bodies"].append({"name": "WaterBody2"})
         data["fluid_bodies"].append(extra_body)
 
-        with pytest.raises(ValidationError, match="exactly one fluid body"):
-            SimulationConfig.model_validate(data)
+        config = SimulationConfig.model_validate(data)
+        assert [body.name for body in config.fluid_bodies] == ["WaterBody", "WaterBody2"]
 
     def test_continuum_dynamics_rejects_multiple_continuum_bodies(self):
         data = _make_minimal_continuum_config().model_dump(mode="json", exclude_none=True)

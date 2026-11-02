@@ -343,8 +343,10 @@ class TestSTLGeometryOverrides:
                             {
                                 "operation": "union",
                                 "type": "container_box",
-                                "inner_lower_bound": [0.0, 0.0],
-                                "inner_upper_bound": [1.0, 0.5],
+                                "inner_box": {
+                                    "lower_bound": [0.0, 0.0],
+                                    "upper_bound": [1.0, 0.5],
+                                },
                                 "thickness": 0.01,
                             }
                         ],
@@ -394,7 +396,7 @@ class TestSTLGeometryOverrides:
             if shape.get("type") == "multipolygon"
         )
         polygon = wall["polygons"][0]
-        assert polygon["inner_upper_bound"] == pytest.approx([0.4, 0.15])
+        assert polygon["inner_box"]["upper_bound"] == pytest.approx([0.4, 0.15])
         assert polygon["thickness"] == pytest.approx(0.008)
         assert updated["geometries"]["system_domain"]["lower_bound"] == pytest.approx(
             [-0.008, -0.008]

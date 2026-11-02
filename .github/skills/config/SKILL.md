@@ -105,7 +105,7 @@ Current parser-aligned constraint:
 `SimulationConfig._cross_validate` (using `@model_validator(mode="after")`) checks:
 1. `characteristic_dimensions` must include a `Length` entry if provided
 2. Simulation type requirements: `fluid_dynamics` needs `fluid_bodies` + `solver_parameters.fluid_dynamics`; `continuum_dynamics` needs `continuum_bodies` + `solver_parameters.continuum_dynamics`
-3. Current builder limitations are enforced: fluid dynamics supports exactly one fluid body; continuum dynamics supports exactly one continuum body
+3. Current builder limitations are enforced: continuum dynamics supports exactly one continuum body
 4. At least one `solid_body` is required unless a `FREE_STREAM` boundary condition is configured
 5. All body names (fluid/continuum/solid) must match shape names in `geometries.shapes`
 6. `particle_generation` body names and relaxation constraint references must exist as shapes/oriented boxes
@@ -287,4 +287,4 @@ python3 -m pytest tests/test_schemas.py tests/test_update_patch.py -v
 5. **Dimensional mismatch**: `gravity` and `observer.positions` must match `system_domain` dimensionality (2D vs 3D).
 6. **Patch path errors**: `append_item` requires the path to resolve to a list; applying it to a scalar will fail (strict mode) or warn (non-strict).
 7. **mass_fractions constraints**: Only valid for `BI_DIRECTIONAL` boundary conditions on `WEAKLY_COMPRESSIBLE_MULTI_SPECIES` fluid bodies, must sum to 1.0, and length must match material species count.
-8. **Single-body builder assumptions**: Current C++ builders assume one fluid body for fluid dynamics and one continuum body for continuum dynamics.
+8. **Single-body builder assumptions**: Current C++ builders assume one continuum body for continuum dynamics.

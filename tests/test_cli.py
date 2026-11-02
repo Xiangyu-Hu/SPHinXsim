@@ -44,8 +44,10 @@ def _valid_data() -> dict:
                         {
                             "operation": "union",
                             "type": "container_box",
-                            "inner_lower_bound": [0.0, 0.0],
-                            "inner_upper_bound": [1.0, 1.0],
+                            "inner_box": {
+                                "lower_bound": [0.0, 0.0],
+                                "upper_bound": [1.0, 1.0],
+                            },
                             "thickness": 0.1
                         }
                     ]

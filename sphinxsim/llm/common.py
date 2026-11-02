@@ -422,8 +422,17 @@ def apply_explicit_instruction_overrides(cfg: Dict[str, Any], description: str) 
                 continue
             for polygon in shape.get("polygons", []):
                 if isinstance(polygon, dict) and polygon.get("type") == "container_box":
-                    inner_lower = polygon.get("inner_lower_bound")
-                    inner_upper = polygon.get("inner_upper_bound")
+                    inner_box = polygon.get("inner_box")
+                    inner_lower = (
+                        inner_box.get("lower_bound")
+                        if isinstance(inner_box, dict)
+                        else None
+                    )
+                    inner_upper = (
+                        inner_box.get("upper_bound")
+                        if isinstance(inner_box, dict)
+                        else None
+                    )
                     if (
                         isinstance(inner_lower, list)
                         and isinstance(inner_upper, list)

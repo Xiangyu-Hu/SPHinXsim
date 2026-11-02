@@ -85,6 +85,8 @@ class GeometryBuilder
     json loadConfig();
 
     static void addPrimitive(const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config);
+    static BoundingBoxd fetch_or_parseBoundingBox(
+        const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config);
     static TransformGeometryBox fetch_or_parseBox(
         const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config);
 

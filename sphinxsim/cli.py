@@ -1432,7 +1432,7 @@ class _ShellPreviewRuntime:
                     editor_state["item_paths"][id(item)] = path
                     item.setExpanded(
                         path_key in editor_state["expanded_paths"]
-                        or (expand_defaults and depth < 2)
+                        or (expand_defaults and depth < 1)
                     )
                     font = item.font(0)
                     font.setBold(True)
@@ -1447,7 +1447,7 @@ class _ShellPreviewRuntime:
                     editor_state["list_paths"].add(path)
                     item.setExpanded(
                         path_key in editor_state["expanded_paths"]
-                        or (expand_defaults and depth < 2)
+                        or (expand_defaults and depth < 1)
                     )
                     font = item.font(0)
                     font.setBold(True)

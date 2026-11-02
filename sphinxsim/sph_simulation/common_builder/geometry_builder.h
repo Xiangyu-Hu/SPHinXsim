@@ -46,11 +46,7 @@ struct SystemDomainConfig
     void updateSystemDomain(const BoundingBoxd &shape_bounds);
 };
 
-#ifdef SPHINXSYS_2D
 Rotation getRotationFromXAxis(const Vecd &direction);
-#else
-Rotation getRotationFromXAxis(const Vecd &direction);
-#endif
 
 class GeometryBuilder
 {

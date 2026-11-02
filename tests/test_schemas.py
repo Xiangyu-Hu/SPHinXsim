@@ -1017,6 +1017,25 @@ class TestSimulationConfig:
         config = SimulationConfig.model_validate(data)
         assert [body.name for body in config.fluid_bodies] == ["WaterBody", "WaterBody2"]
 
+    def test_primitive_dimension_must_match_system_domain(self):
+        data = _make_minimal_fluid_config().model_dump(mode="json", exclude_none=True)
+        data["geometries"]["primitives"] = [
+            {
+                "name": "WaterBounds",
+                "type": "bounding_box",
+                "lower_bound": [0.0, 0.0, 0.0],
+                "upper_bound": [0.4, 0.2, 0.1],
+            }
+        ]
+        data["geometries"]["shapes"][0] = {
+            "name": "WaterBody",
+            "type": "bounding_box",
+            "primitive": "WaterBounds",
+        }
+
+        with pytest.raises(ValidationError, match="dimensionality must be consistent"):
+            SimulationConfig.model_validate(data)
+
     def test_continuum_dynamics_rejects_multiple_continuum_bodies(self):
         data = _make_minimal_continuum_config().model_dump(mode="json", exclude_none=True)
         extra_body = json.loads(json.dumps(data["continuum_bodies"][0]))

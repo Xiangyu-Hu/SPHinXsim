@@ -1078,9 +1078,10 @@ class SimulationConfig(BaseModel):
             dim = len(self.geometries.system_domain.lower_bound)
             if self.startup_acceleration is not None and len(self.startup_acceleration.target_velocity) != dim:
                 raise ValueError("startup_acceleration target_velocity dimensionality must match geometries.system_domain")
-            return dim
 
         dims: set[int] = set()
+        if self.geometries.system_domain is not None:
+            dims.add(len(self.geometries.system_domain.lower_bound))
         if self.startup_acceleration is not None:
             dims.add(len(self.startup_acceleration.target_velocity))
         if self.gravity is not None:

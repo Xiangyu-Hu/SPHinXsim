@@ -229,6 +229,63 @@ class TestJsonEditorListItems:
 
         assert item == {"variable": {"real_type": "Pressure"}, "value": 0.0}
 
+    def test_editor_preserves_sparse_dambreak_json_and_hides_nulls(
+        self, tmp_path, monkeypatch
+    ):
+        pytest.importorskip("qtpy")
+        from qtpy import QtCore, QtWidgets
+
+        from sphinxsim import cli as cli_mod
+
+        monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+        app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+        source_path = (
+            Path(__file__).parent
+            / "test_simulation"
+            / "test_2d_simulation"
+            / "data"
+            / "dambreak.json"
+        )
+        raw_payload = json.loads(source_path.read_text(encoding="utf-8"))
+        raw_payload["startup_acceleration"] = None
+        config_path = tmp_path / "dambreak.json"
+        config_path.write_text(json.dumps(raw_payload), encoding="utf-8")
+        config = sphinxsim.SimulationConfig.model_validate(raw_payload)
+        window = QtWidgets.QMainWindow()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = type("FakePlotter", (), {"app_window": window})()
+
+        assert runtime._install_json_editor(
+            config,
+            config_path=config_path,
+            with_particles=False,
+        )
+        editor = runtime._json_editor
+        tree = editor["tree"]
+
+        def find_displayed_paths(item):
+            path = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+            paths = {path} if path is not None else set()
+            for index in range(item.childCount()):
+                paths.update(find_displayed_paths(item.child(index)))
+            return paths
+
+        displayed_paths = set()
+        for index in range(tree.topLevelItemCount()):
+            displayed_paths.update(find_displayed_paths(tree.topLevelItem(index)))
+
+        source_payload = json.loads(source_path.read_text(encoding="utf-8"))
+        assert "continuum_bodies" not in source_payload
+        assert "body_constraints" not in source_payload
+        assert "continuum_bodies" not in displayed_paths
+        assert "body_constraints" not in displayed_paths
+        assert "geometries.system_domain" not in displayed_paths
+        assert "startup_acceleration" not in displayed_paths
+
+        runtime.close()
+        window.close()
+        app.processEvents()
+
     def test_saving_edit_preserves_sparse_json_and_collapsed_tree_state(
         self, tmp_path, monkeypatch
     ):

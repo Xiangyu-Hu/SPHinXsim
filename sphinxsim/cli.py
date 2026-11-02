@@ -1425,6 +1425,9 @@ class _ShellPreviewRuntime:
             tree.clear()
 
             def add_value(parent: Any | None, label: str, value: Any, path: tuple[Any, ...], depth: int) -> None:
+                if value is None:
+                    return
+
                 path_key = ".".join(str(part) for part in path)
                 if isinstance(value, dict) and value:
                     item = _new_tree_item(parent, _display_label(label), f"Object · {len(value)}")
@@ -1746,7 +1749,6 @@ class _ShellPreviewRuntime:
             current_with_particles: bool,
         ) -> bool:
             """Replace the editor session when shell ``preview`` changes files."""
-            current_json = dump_simulation_config_json(current_config, indent=2)
             try:
                 editor_config = SimulationConfig(**editor_state["payload"])
             except ValidationError:
@@ -1767,6 +1769,14 @@ class _ShellPreviewRuntime:
             ):
                 status.setText("Preview canceled. Your unapplied changes are preserved.")
                 return False
+
+            try:
+                current_json = current_config_path.read_text(encoding="utf-8")
+                json.loads(current_json)
+            except (OSError, json.JSONDecodeError) as exc:
+                status.setText(f"Could not load editor config {current_config_path.name}: {exc}")
+                return False
+
             editor_state["config_path"] = current_config_path
             editor_state["with_particles"] = current_with_particles
             editor_state["expanded_paths"] = set()

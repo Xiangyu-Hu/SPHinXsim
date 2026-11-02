@@ -423,16 +423,20 @@ def apply_explicit_instruction_overrides(cfg: Dict[str, Any], description: str) 
             for polygon in shape.get("polygons", []):
                 if isinstance(polygon, dict) and polygon.get("type") == "container_box":
                     inner_box = polygon.get("inner_box")
-                    inner_lower = (
-                        inner_box.get("lower_bound")
-                        if isinstance(inner_box, dict)
-                        else None
-                    )
-                    inner_upper = (
-                        inner_box.get("upper_bound")
-                        if isinstance(inner_box, dict)
-                        else None
-                    )
+                    bounds = inner_box if isinstance(inner_box, dict) else None
+                    if bounds is not None and isinstance(bounds.get("primitive"), str):
+                        primitive_name = bounds["primitive"]
+                        bounds = next(
+                            (
+                                primitive
+                                for primitive in updated.get("geometries", {}).get("primitives", [])
+                                if isinstance(primitive, dict)
+                                and primitive.get("name") == primitive_name
+                            ),
+                            None,
+                        )
+                    inner_lower = bounds.get("lower_bound") if bounds is not None else None
+                    inner_upper = bounds.get("upper_bound") if bounds is not None else None
                     if (
                         isinstance(inner_lower, list)
                         and isinstance(inner_upper, list)

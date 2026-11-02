@@ -23,6 +23,7 @@ a clear install hint.
 
 from __future__ import annotations
 
+import colorsys
 import json
 import tempfile
 from pathlib import Path
@@ -78,7 +79,10 @@ _PARTICLE_POINT_SIZE = 5
 def _body_colour(body_name: str, config: "SimulationConfig") -> tuple[float, float, float]:
     for index, b in enumerate(config.fluid_bodies):
         if b.name == body_name:
-            return _FLUID_COLOURS[index % len(_FLUID_COLOURS)]
+            if index < len(_FLUID_COLOURS):
+                return _FLUID_COLOURS[index]
+            hue = (index * 0.618033988749895) % 1.0
+            return colorsys.hsv_to_rgb(hue, 0.68, 0.92)
     for b in config.solid_bodies:
         if b.name == body_name:
             return _SOLID_COLOUR
@@ -154,55 +158,6 @@ def _bounds_to_box(lower: list[float], upper: list[float]) -> Any:
             bounds=(lower[0], upper[0], lower[1], upper[1], -0.01, 0.01)
         )
     return pv.Box(bounds=(lower[0], upper[0], lower[1], upper[1], lower[2], upper[2]))
-
-
-def _label_anchor_point(mesh: Any) -> tuple[float, float, float]:
-    """Choose a label position inside *mesh* when possible.
-
-    For concave shapes the geometric center can lie outside. We sample a few
-    points inside the axis-aligned bounds and keep the first point confirmed as
-    enclosed by the surface. If enclosure checks are unavailable, we fall back
-    to the mesh center.
-    """
-    try:
-        import pyvista as pv  # type: ignore[import]
-    except Exception:
-        return tuple(float(v) for v in mesh.center)
-
-    bounds = mesh.bounds
-    x0, x1, y0, y1, z0, z1 = (float(v) for v in bounds)
-    center = tuple(float(v) for v in mesh.center)
-
-    # Probe from center outward; using interior fractions avoids boundary points.
-    fractions = (0.5, 0.35, 0.65, 0.2, 0.8)
-    candidates = []
-    for fx in fractions:
-        x = x0 + (x1 - x0) * fx
-        for fy in fractions:
-            y = y0 + (y1 - y0) * fy
-            for fz in fractions:
-                z = z0 + (z1 - z0) * fz
-                candidates.append((x, y, z))
-
-    # Ensure the geometric center is always tested first.
-    candidates.insert(0, center)
-
-    try:
-        points = pv.PolyData(candidates)
-        selected = points.select_interior_points(
-            mesh,
-            tolerance=1e-6,
-            check_surface=False,
-        )
-        mask = selected["SelectedPoints"]
-        for idx, value in enumerate(mask):
-            if int(value) == 1:
-                point = candidates[idx]
-                return (float(point[0]), float(point[1]), float(point[2]))
-    except Exception:
-        pass
-
-    return center
 
 
 # ---------------------------------------------------------------------------

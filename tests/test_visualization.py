@@ -343,6 +343,31 @@ class TestPreviewLegend:
             "AirBody": air_colour,
         }
 
+    def test_fluid_body_palette_does_not_repeat_after_six_bodies(self, fluid_config):
+        from sphinxsim.visualization.preview import _body_colour
+
+        data = copy.deepcopy(fluid_config.model_dump(exclude_none=True))
+        template_body = copy.deepcopy(data["fluid_bodies"][0])
+        for index in range(1, 8):
+            name = f"FluidBody{index}"
+            body = copy.deepcopy(template_body)
+            body["name"] = name
+            data["fluid_bodies"].append(body)
+            data["geometries"]["shapes"].append(
+                {
+                    "name": name,
+                    "type": "bounding_box",
+                    "lower_bound": [float(index), 0.0],
+                    "upper_bound": [float(index) + 0.5, 0.5],
+                }
+            )
+            data["particle_generation"]["settings"]["bodies"].append({"name": name})
+
+        config = SimulationConfig.model_validate(data)
+        colours = [_body_colour(body.name, config) for body in config.fluid_bodies]
+
+        assert len(set(colours)) == len(colours)
+
 
 class TestOrientedBoxLabel:
     def test_label_includes_name_and_type(self, fluid_config):
@@ -2152,6 +2177,8 @@ class TestPreviewGravityArrow:
                 "upper_bound": [1.05, 1.05, 1.05],
             },
         ]
+        data["geometries"]["oriented_boxes"][0]["center"] = [0.0, 0.1, 0.0]
+        data["geometries"]["oriented_boxes"][0]["normal"] = [1.0, 0.0, 0.0]
         data["gravity"] = [0.0, 0.0, -9.81]
         cfg = SimulationConfig(**data)
         viz = ConfigVisualizer(cfg, tmp_path, off_screen=True)

@@ -1710,9 +1710,10 @@ class _ShellPreviewRuntime:
                 return
 
             editor_state["undo_stack"].append(before_edit)
-            populate_editor(canonical_json, expand_defaults=False)
-            editor_state["original_json"] = canonical_json
-            editor_state["baseline_payload"] = json.loads(canonical_json)
+            editor_json = file_content if file_content is not None else canonical_json
+            populate_editor(editor_json, expand_defaults=False)
+            editor_state["original_json"] = editor_json
+            editor_state["baseline_payload"] = copy.deepcopy(editor_state["payload"])
             status.setText("Saved and rebuilding preview geometry…")
             result = self.show_or_update(
                 updated_config,
@@ -1746,11 +1747,17 @@ class _ShellPreviewRuntime:
         ) -> bool:
             """Replace the editor session when shell ``preview`` changes files."""
             current_json = dump_simulation_config_json(current_config, indent=2)
-            same_config = (
-                current_config_path.resolve() == editor_state["config_path"].resolve()
-                and json.loads(current_json) == editor_state["payload"]
-                and not editor_state["dirty"]
-            )
+            try:
+                editor_config = SimulationConfig(**editor_state["payload"])
+            except ValidationError:
+                same_config = False
+            else:
+                same_config = (
+                    current_config_path.resolve() == editor_state["config_path"].resolve()
+                    and editor_config.model_dump(exclude_none=True)
+                    == current_config.model_dump(exclude_none=True)
+                    and not editor_state["dirty"]
+                )
             if same_config:
                 editor_state["with_particles"] = current_with_particles
                 return True

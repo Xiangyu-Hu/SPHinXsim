@@ -229,9 +229,11 @@ class TestJsonEditorListItems:
 
         assert item == {"variable": {"real_type": "Pressure"}, "value": 0.0}
 
-    def test_saving_preserves_collapsed_tree_state(self, tmp_path, monkeypatch):
-        qtpy = pytest.importorskip("qtpy")
-        from qtpy import QtWidgets
+    def test_saving_edit_preserves_sparse_json_and_collapsed_tree_state(
+        self, tmp_path, monkeypatch
+    ):
+        pytest.importorskip("qtpy")
+        from qtpy import QtCore, QtWidgets
 
         from sphinxsim import cli as cli_mod
 
@@ -243,7 +245,6 @@ class TestJsonEditorListItems:
         window = QtWidgets.QMainWindow()
         runtime = cli_mod._ShellPreviewRuntime()
         runtime.plotter = type("FakePlotter", (), {"app_window": window})()
-        runtime.show_or_update = lambda *args, **kwargs: 0
 
         assert runtime._install_json_editor(
             config,
@@ -254,14 +255,47 @@ class TestJsonEditorListItems:
         tree = editor["tree"]
         tree.collapseAll()
 
+        iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+        end_time = None
+        while iterator.value() is not None:
+            item = iterator.value()
+            if (
+                item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+                == "solver_parameters.end_time"
+            ):
+                end_time = tree.itemWidget(item, 1)
+                break
+            iterator += 1
+        assert end_time is not None
+        end_time.setText("2.0")
+
+        def refresh_after_save(updated_config, *, resolved_config_path, with_particles, force):
+            assert force is True
+            assert editor["refresh"](
+                updated_config, resolved_config_path, with_particles
+            )
+            return 0
+
+        runtime.show_or_update = refresh_after_save
         editor["shortcut"].activated.emit()
         app.processEvents()
 
-        assert not any(
-            tree.topLevelItem(index).isExpanded()
+        saved_payload = json.loads(config_path.read_text(encoding="utf-8"))
+        assert "body_constraints" not in saved_payload
+        assert "continuum_bodies" not in saved_payload
+        assert "primitives" not in saved_payload["geometries"]
+        assert saved_payload["solver_parameters"]["end_time"] == pytest.approx(2.0)
+        top_level_labels = {
+            tree.topLevelItem(index).text(0)
             for index in range(tree.topLevelItemCount())
-        )
-        assert editor["refresh"](config, config_path, False)
+        }
+        assert "Body constraints" not in top_level_labels
+        assert "Continuum bodies" not in top_level_labels
+        assert "Primitives" not in {
+            tree.topLevelItem(index).child(child_index).text(0)
+            for index in range(tree.topLevelItemCount())
+            for child_index in range(tree.topLevelItem(index).childCount())
+        }
         assert not any(
             tree.topLevelItem(index).isExpanded()
             for index in range(tree.topLevelItemCount())

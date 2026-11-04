@@ -121,6 +121,10 @@ class FluidDynamicsBuilder
         SPHSimulation &sim, FluidBody &fluid_body, MainMethods &main_methods);
 
     template <typename... Parameters, class MainInteractionType, class FluidIdentifier>
+    static void addInteractionWithFluidBodies(
+        SPHSimulation &sim, MainInteractionType &main_interaction, FluidIdentifier &fluid_identifier);
+
+    template <typename... Parameters, class MainInteractionType, class FluidIdentifier>
     static void addInteractionWithSolidBodies(
         SPHSimulation &sim, MainInteractionType &main_interaction, FluidIdentifier &fluid_identifier);
 

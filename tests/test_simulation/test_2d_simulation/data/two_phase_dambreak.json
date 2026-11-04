@@ -103,6 +103,7 @@
     },
     {
       "name": "AirBody",
+      "surface_type": "confined",
       "material": {
         "type": "weakly_compressible_fluid",
         "density": 0.001
@@ -115,6 +116,12 @@
       "material": {
         "type": "rigid_body"
       }
+    }
+  ],
+  "fluid_boundary_conditions": [
+    {
+      "body_name": "AirBody",
+      "type": "wall_bounding"
     }
   ],
   "gravity": [0.0, -1.0],

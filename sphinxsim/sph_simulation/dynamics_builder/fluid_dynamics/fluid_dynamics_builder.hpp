@@ -218,6 +218,8 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
         auto &complex_dynamics = main_methods.template addInteractionDynamicsOneLevel<
             AcousticHalfStepType, RiemannSolverType, KernelCorrectionType>(inner_relation);
 
+        addInteractionWithFluidBodies<RiemannSolverType, KernelCorrectionType>(
+            sim, complex_dynamics, fluid_body);
         addInteractionWithSolidBodies<Wall, RiemannSolverType, KernelCorrectionType>(
             sim, complex_dynamics, fluid_body);
         addPressureForceOnSolidBodiesIfPresent<RiemannSolverType, KernelCorrectionType>(
@@ -230,6 +232,8 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
         auto &complex_dynamics = main_methods.template addInteractionDynamicsOneLevel<
             AcousticHalfStepType, RiemannSolverType, KernelCorrectionType>(inner_relation);
 
+        addInteractionWithFluidBodies<RiemannSolverType, KernelCorrectionType>(
+            sim, complex_dynamics, fluid_body);
         addInteractionWithSolidBodies<Wall, RiemannSolverType, KernelCorrectionType>(
             sim, complex_dynamics, fluid_body);
 

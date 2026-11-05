@@ -119,7 +119,6 @@ BaseDynamics<void> &FluidDynamicsBuilder::addLinearCorrectionMatrix(
         addInteractionWithSolidBodies(sim, linear_correction_matrix, fluid_body);
         all_linear_correction_matrix.add(&linear_correction_matrix);
 
-        auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
         if (fluid_body.getSurfaceType() == "open_boundary")
         {
             all_linear_correction_matrix.add(
@@ -135,7 +134,6 @@ BaseDynamics<void> &FluidDynamicsBuilder::addDensityRegularization(
     auto &sph_system = sim.getSPHSystem();
     auto &config_manager = sim.getConfigManager();
     auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
-    auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
     auto &density_regularization = main_methods.addParticleDynamicsGroup();
 
     for (const auto &fb : fluid_bodies_config)
@@ -280,7 +278,6 @@ void FluidDynamicsBuilder::buildSurfaceIndicationIfOpenBoundary(
     auto &config_manager = sim.getConfigManager();
     auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
     auto &all_surface_indication = main_methods.addParticleDynamicsGroup();
-    auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
 
     for (const auto &fb : fluid_bodies_config)
     {
@@ -345,7 +342,6 @@ void FluidDynamicsBuilder::buildTransportVelocityFormulationIfNotFreeSurface(
     auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
     auto &all_kernel_gradient_integral = main_methods.addParticleDynamicsGroup();
     auto &all_transport_velocity_correction = main_methods.addParticleDynamicsGroup();
-    auto &fluid_solver_config = config_manager.getEntity<FluidSolverConfig>("FluidSolverConfig");
 
     for (const auto &fb : fluid_bodies_config)
     {

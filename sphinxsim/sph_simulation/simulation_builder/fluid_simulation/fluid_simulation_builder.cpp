@@ -124,6 +124,18 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             simulation_pipeline.run_hooks(SimulationHookPoint::BoundaryCondition);
             fluid_acoustic_step_2nd_half.exec(dt);
             simulation_pipeline.run_hooks(SimulationHookPoint::CouplingSynchronization);
+
+            if (time_stepper.isFirstComputingStep() || time_stepper.isScreeningStep())
+            {
+                std::cout << std::fixed << std::setprecision(9)
+                          << "N=" << time_stepper.getIterationStep()
+                          << "  Time = " << time_stepper.getPhysicalTimeWithScalingRef()
+                          << "  advection_dt = " << advection_step.getIntervalWithScalingRef()
+                          << "(scaled: " << advection_step.getInterval() << "),"
+                          << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSizeWithScalingRef()
+                          << "(scaled: " << time_stepper.getGlobalTimeStepSize() << ")"
+                          << "\n";
+            }
         });
 
     simulation_pipeline.main_steps.push_back( // advection or particle configuration step
@@ -134,18 +146,6 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                 fluid_particle_position.exec();
                 simulation_pipeline.run_hooks(SimulationHookPoint::PositionConstraint);
                 time_stepper.incrementIterationStep();
-
-                if (time_stepper.isFirstComputingStep() || time_stepper.isScreeningStep())
-                {
-                    std::cout << std::fixed << std::setprecision(9)
-                              << "N=" << time_stepper.getIterationStep()
-                              << "  Time = " << time_stepper.getPhysicalTimeWithScalingRef()
-                              << "  advection_dt = " << advection_step.getIntervalWithScalingRef()
-                              << "(scaled: " << advection_step.getInterval() << "),"
-                              << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSizeWithScalingRef()
-                              << "(scaled: " << time_stepper.getGlobalTimeStepSize() << ")"
-                              << "\n";
-                }
 
                 if (time_stepper.isObservationStep())
                 {

@@ -51,12 +51,14 @@ void FluidDynamicsBuilder::addBoundaryCondition(
                                     BoundingFromWallCK>(contact_relation));
             }
 
-            if(wall_boundings.hasDynamics())
+            if (!wall_boundings.hasDynamics())
             {
-                initialization_pipeline.insert_hook(
-                    InitializationHookPoint::InitialCondition, [&]()
-                    { wall_boundings.exec(); });
+                return;
             }
+
+            simulation_pipeline.insert_hook(
+                SimulationHookPoint::PositionConstraint, [&]()
+                { wall_boundings.exec(); });
 
             return;
         }

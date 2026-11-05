@@ -32,7 +32,7 @@
         "name": "ContainerBox",
         "type": "bounding_box",
         "lower_bound": [0.0, 0.0],
-        "upper_bound": [5.366, 5.366]
+        "upper_bound": [5.366, 2.0]
       }
     ],
     "shapes": [

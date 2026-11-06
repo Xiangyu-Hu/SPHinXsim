@@ -52,7 +52,6 @@ struct FluidSolverConfig
     Real acoustic_cfl_{0.6};
     Real advection_cfl_{0.25};
     Real max_velocity_factor_{1.0};
-    std::string surface_type_ = "free_surface";
     std::string kernel_correction_{"linear"};
     bool particle_deletion_{false};
     bool particle_sorting_{false};
@@ -72,6 +71,7 @@ class FluidDynamicsBuilder
     static BaseDynamics<void> &addLinearCorrectionMatrix(SPHSimulation &sim, MainMethods &main_methods);
     static BaseDynamics<void> &addDensityRegularization(SPHSimulation &sim, MainMethods &main_methods);
     static void buildViscousForceIfPresent(SPHSimulation &sim, MainMethods &main_methods);
+    static void addSubscaleBuoyancyIfPresent(SPHSimulation &sim, MainMethods &main_methods);
     static void buildSurfaceIndicationIfOpenBoundary(SPHSimulation &sim, MainMethods &main_methods);
     static void buildTransportVelocityFormulationIfNotFreeSurface(SPHSimulation &sim, MainMethods &main_methods);
     static void buildParticleDeletionIfPresent(SPHSimulation &sim, MainMethods &main_methods);
@@ -83,8 +83,7 @@ class FluidDynamicsBuilder
     static BaseDynamics<Real> &addAcousticTimeStep(SPHSimulation &sim, MainMethods &main_methods);
 
   private:
-    static BaseDynamics<void> &addTransportVelocityCorrection(
-        MainMethods &main_methods, SPHBody &sph_body, FluidSolverConfig &fluid_solver_config);
+    static BaseDynamics<void> &addTransportVelocityCorrection(MainMethods &main_methods, FluidBody &fluid_body);
 
     static void addBoundaryCondition(
         SPHSimulation &sim, MainMethods &main_methods, const json &config);
@@ -123,12 +122,16 @@ class FluidDynamicsBuilder
         SPHSimulation &sim, FluidBody &fluid_body, MainMethods &main_methods);
 
     template <typename... Parameters, class MainInteractionType, class FluidIdentifier>
+    static void addInteractionWithFluidBodies(
+        SPHSimulation &sim, MainInteractionType &main_interaction, FluidIdentifier &fluid_identifier);
+
+    template <typename... Parameters, class MainInteractionType, class FluidIdentifier>
     static void addInteractionWithSolidBodies(
         SPHSimulation &sim, MainInteractionType &main_interaction, FluidIdentifier &fluid_identifier);
 
     template <class FluidType, class FluidBodyType>
     static BaseDynamics<void> &addDensityRegularizationForOneBody(
-        MainMethods &main_methods, FluidBodyType &fluid_body, const std::string &surface_type);
+        MainMethods &main_methods, FluidBodyType &fluid_body);
 
     template <typename... Parameters, class ViscosityForceType>
     static void addViscousForceOnSolidBodiesIfPresent(

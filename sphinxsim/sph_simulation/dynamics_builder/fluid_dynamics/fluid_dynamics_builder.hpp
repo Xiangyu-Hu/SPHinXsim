@@ -119,8 +119,10 @@ void FluidDynamicsBuilder::assignSupplementaryConditions(
 //=================================================================================================//
 template <class FluidType, class FluidBodyType>
 BaseDynamics<void> &FluidDynamicsBuilder::addDensityRegularizationForOneBody(
-    MainMethods &main_methods, FluidBodyType &fluid_body, const std::string &surface_type)
+    MainMethods &main_methods, FluidBodyType &fluid_body)
 {
+    const std::string &surface_type = fluid_body.getSurfaceType();
+
     if (surface_type == "confined")
     {
         return main_methods.template addStateDynamics<
@@ -216,6 +218,8 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
         auto &complex_dynamics = main_methods.template addInteractionDynamicsOneLevel<
             AcousticHalfStepType, RiemannSolverType, KernelCorrectionType>(inner_relation);
 
+        addInteractionWithFluidBodies<RiemannSolverType, KernelCorrectionType>(
+            sim, complex_dynamics, fluid_body);
         addInteractionWithSolidBodies<Wall, RiemannSolverType, KernelCorrectionType>(
             sim, complex_dynamics, fluid_body);
         addPressureForceOnSolidBodiesIfPresent<RiemannSolverType, KernelCorrectionType>(
@@ -228,10 +232,33 @@ BaseDynamics<void> &FluidDynamicsBuilder::addAcousticHalfStepForOneBody(
         auto &complex_dynamics = main_methods.template addInteractionDynamicsOneLevel<
             AcousticHalfStepType, RiemannSolverType, KernelCorrectionType>(inner_relation);
 
+        addInteractionWithFluidBodies<RiemannSolverType, KernelCorrectionType>(
+            sim, complex_dynamics, fluid_body);
         addInteractionWithSolidBodies<Wall, RiemannSolverType, KernelCorrectionType>(
             sim, complex_dynamics, fluid_body);
 
         return complex_dynamics;
+    }
+}
+//=================================================================================================//
+template <typename... Parameters, class MainInteractionType, class FluidIdentifier>
+void FluidDynamicsBuilder::addInteractionWithFluidBodies(
+    SPHSimulation &sim, MainInteractionType &main_interaction, FluidIdentifier &fluid_identifier)
+{
+    auto &config_manager = sim.getConfigManager();
+    auto &sph_system = sim.getSPHSystem();
+    std::string src_name = fluid_identifier.Name();
+
+    auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
+    for (const auto &fb_tgt : fluid_bodies_config)
+    {
+        if (src_name != fb_tgt->name_)
+        {
+            std::string relation_name = src_name + fb_tgt->name_;
+            auto &contact_relation = sph_system.getRelationByName<
+                Contact<Relation<FluidIdentifier, FluidBody>>>(relation_name);
+            main_interaction.template addPostContactInteraction<Parameters...>(contact_relation);
+        }
     }
 }
 //=================================================================================================//

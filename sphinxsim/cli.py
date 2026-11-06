@@ -892,7 +892,7 @@ class _ShellPreviewRuntime:
         if self.plotter is None or self._live_output_dir is None:
             return
 
-        from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE
+        from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE, _particle_label
 
         try:
             import pyvista as pv
@@ -925,7 +925,7 @@ class _ShellPreviewRuntime:
                     opacity=0.95,
                     style="points",
                     point_size=_PARTICLE_POINT_SIZE,
-                    label=f"Particles: {body_name}",
+                    label=_particle_label(body_name),
                 )
                 self._live_particle_versions[body_name] = sequence
                 break
@@ -1398,14 +1398,18 @@ class _ShellPreviewRuntime:
             *,
             reset_history: bool = False,
             expand_defaults: bool = True,
+            additional_expanded_paths: set[str] | None = None,
         ) -> None:
+            expanded_paths: set[str] = set()
             iterator = QtWidgets.QTreeWidgetItemIterator(tree)
             while iterator.value() is not None:
                 previous_item = iterator.value()
                 path_key = previous_item.data(0, QtCore.Qt.ItemDataRole.UserRole)
                 if path_key is not None and previous_item.isExpanded():
-                    editor_state["expanded_paths"].add(path_key)
+                    expanded_paths.add(path_key)
                 iterator += 1
+            expanded_paths.update(additional_expanded_paths or set())
+            editor_state["expanded_paths"] = expanded_paths
 
             payload = json.loads(text)
             editor_state["payload"] = payload
@@ -1421,6 +1425,9 @@ class _ShellPreviewRuntime:
             tree.clear()
 
             def add_value(parent: Any | None, label: str, value: Any, path: tuple[Any, ...], depth: int) -> None:
+                if value is None:
+                    return
+
                 path_key = ".".join(str(part) for part in path)
                 if isinstance(value, dict) and value:
                     item = _new_tree_item(parent, _display_label(label), f"Object · {len(value)}")
@@ -1428,7 +1435,7 @@ class _ShellPreviewRuntime:
                     editor_state["item_paths"][id(item)] = path
                     item.setExpanded(
                         path_key in editor_state["expanded_paths"]
-                        or (expand_defaults and depth < 2)
+                        or (expand_defaults and depth < 1)
                     )
                     font = item.font(0)
                     font.setBold(True)
@@ -1443,7 +1450,7 @@ class _ShellPreviewRuntime:
                     editor_state["list_paths"].add(path)
                     item.setExpanded(
                         path_key in editor_state["expanded_paths"]
-                        or (expand_defaults and depth < 2)
+                        or (expand_defaults and depth < 1)
                     )
                     font = item.font(0)
                     font.setBold(True)
@@ -1631,10 +1638,10 @@ class _ShellPreviewRuntime:
                 return
 
             editor_state["undo_stack"].append(before_edit)
-            editor_state["expanded_paths"].add(".".join(str(part) for part in path))
             populate_editor(
                 json.dumps(editor_state["payload"], indent=2, ensure_ascii=False),
                 expand_defaults=False,
+                additional_expanded_paths={".".join(str(part) for part in path)},
             )
             _mark_dirty()
             update_array_actions()
@@ -1706,9 +1713,10 @@ class _ShellPreviewRuntime:
                 return
 
             editor_state["undo_stack"].append(before_edit)
-            populate_editor(canonical_json)
-            editor_state["original_json"] = canonical_json
-            editor_state["baseline_payload"] = json.loads(canonical_json)
+            editor_json = file_content if file_content is not None else canonical_json
+            populate_editor(editor_json, expand_defaults=False)
+            editor_state["original_json"] = editor_json
+            editor_state["baseline_payload"] = copy.deepcopy(editor_state["payload"])
             status.setText("Saved and rebuilding preview geometry…")
             result = self.show_or_update(
                 updated_config,
@@ -1741,16 +1749,39 @@ class _ShellPreviewRuntime:
             current_with_particles: bool,
         ) -> bool:
             """Replace the editor session when shell ``preview`` changes files."""
+            try:
+                editor_config = SimulationConfig(**editor_state["payload"])
+            except ValidationError:
+                same_config = False
+            else:
+                same_config = (
+                    current_config_path.resolve() == editor_state["config_path"].resolve()
+                    and editor_config.model_dump(exclude_none=True)
+                    == current_config.model_dump(exclude_none=True)
+                    and not editor_state["dirty"]
+                )
+            if same_config:
+                editor_state["with_particles"] = current_with_particles
+                return True
+
             if not confirm_discard_changes(
                 "The editor contains unapplied changes. Continuing Preview will discard them. Continue?"
             ):
                 status.setText("Preview canceled. Your unapplied changes are preserved.")
                 return False
+
+            try:
+                current_json = current_config_path.read_text(encoding="utf-8")
+                json.loads(current_json)
+            except (OSError, json.JSONDecodeError) as exc:
+                status.setText(f"Could not load editor config {current_config_path.name}: {exc}")
+                return False
+
             editor_state["config_path"] = current_config_path
             editor_state["with_particles"] = current_with_particles
             editor_state["expanded_paths"] = set()
             filter_box.clear()
-            populate_editor(dump_simulation_config_json(current_config, indent=2), reset_history=True)
+            populate_editor(current_json, reset_history=True)
             update_array_actions()
             return True
 

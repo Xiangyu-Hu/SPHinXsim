@@ -141,9 +141,10 @@ struct RestartConfig
 
 struct GravityConfig
 {
-    Real gravity_ = 0.0;
+    Gravity gravity_;
     StdVec<std::string> enabled_solid_bodies_{};
 };
+
 class SimulationBuilder
 {
   public:

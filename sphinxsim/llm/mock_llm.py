@@ -91,7 +91,6 @@ _FLUID_TEMPLATE: Dict[str, Any] = {
         "fluid_dynamics": {
             "acoustic_cfl": 0.6,
             "advection_cfl": 0.25,
-            "surface_type": "free_surface",
             "particle_sort_frequency": 100,
         },
     },
@@ -228,7 +227,6 @@ _FSI_TEMPLATE: Dict[str, Any] = {
         "fluid_dynamics": {
             "acoustic_cfl": 0.6,
             "advection_cfl": 0.25,
-            "surface_type": "free_surface",
             "particle_sort_frequency": 100,
         },
     },

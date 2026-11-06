@@ -46,11 +46,7 @@ struct SystemDomainConfig
     void updateSystemDomain(const BoundingBoxd &shape_bounds);
 };
 
-#ifdef SPHINXSYS_2D
 Rotation getRotationFromXAxis(const Vecd &direction);
-#else
-Rotation getRotationFromXAxis(const Vecd &direction);
-#endif
 
 class GeometryBuilder
 {
@@ -85,6 +81,8 @@ class GeometryBuilder
     json loadConfig();
 
     static void addPrimitive(const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config);
+    static BoundingBoxd fetch_or_parseBoundingBox(
+        const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config);
     static TransformGeometryBox fetch_or_parseBox(
         const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config);
 

@@ -56,6 +56,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     buildStartupAccelerationIfPresent(sim, main_methods, config);
     buildExternalForceIfPresent(sim, main_methods, config);
+    FluidDynamicsBuilder::addSubscaleBuoyancyIfPresent(sim, main_methods);
     FluidDynamicsBuilder::buildTransportVelocityFormulationIfNotFreeSurface(sim, main_methods);
     FluidDynamicsBuilder::buildViscousForceIfPresent(sim, main_methods);
     ThermalDynamicsBuilder::buildThermalDynamicsIfPresent(sim, main_methods);
@@ -124,6 +125,18 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
             simulation_pipeline.run_hooks(SimulationHookPoint::BoundaryCondition);
             fluid_acoustic_step_2nd_half.exec(dt);
             simulation_pipeline.run_hooks(SimulationHookPoint::CouplingSynchronization);
+
+            if (time_stepper.isFirstComputingStep() || time_stepper.isScreeningStep())
+            {
+                std::cout << std::fixed << std::setprecision(9)
+                          << "N=" << time_stepper.getIterationStep()
+                          << "  Time = " << time_stepper.getPhysicalTimeWithScalingRef()
+                          << "  advection_dt = " << advection_step.getIntervalWithScalingRef()
+                          << "(scaled: " << advection_step.getInterval() << "),"
+                          << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSizeWithScalingRef()
+                          << "(scaled: " << time_stepper.getGlobalTimeStepSize() << ")"
+                          << "\n";
+            }
         });
 
     simulation_pipeline.main_steps.push_back( // advection or particle configuration step
@@ -134,18 +147,6 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
                 fluid_particle_position.exec();
                 simulation_pipeline.run_hooks(SimulationHookPoint::PositionConstraint);
                 time_stepper.incrementIterationStep();
-
-                if (time_stepper.isFirstComputingStep() || time_stepper.isScreeningStep())
-                {
-                    std::cout << std::fixed << std::setprecision(9)
-                              << "N=" << time_stepper.getIterationStep()
-                              << "  Time = " << time_stepper.getPhysicalTimeWithScalingRef()
-                              << "  advection_dt = " << advection_step.getIntervalWithScalingRef()
-                              << "(scaled: " << advection_step.getInterval() << "),"
-                              << "  acoustic_dt = " << time_stepper.getGlobalTimeStepSizeWithScalingRef()
-                              << "(scaled: " << time_stepper.getGlobalTimeStepSize() << ")"
-                              << "\n";
-                }
 
                 if (time_stepper.isObservationStep())
                 {
@@ -199,8 +200,6 @@ FluidSolverConfig FluidSimulationBuilder::parseFluidSolverConfig(
     if (config.contains("max_velocity_factor"))
         params.max_velocity_factor_ = scaling_config.jsonToReal(
             config.at("max_velocity_factor"), "Dimensionless");
-    if (config.contains("surface_type"))
-        params.surface_type_ = config.at("surface_type").get<std::string>();
     if (config.contains("kernel_correction"))
         params.kernel_correction_ = config.at("kernel_correction").get<std::string>();
     if (config.contains("particle_sort_frequency"))

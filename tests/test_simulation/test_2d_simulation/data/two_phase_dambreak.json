@@ -1,0 +1,166 @@
+{
+  "characteristic_dimensions": [
+    {
+      "value": 1.0,
+      "name": "Length",
+      "hint": "geometries.primitives[name=WaterBox].upper_bound"
+    },
+    {
+      "value": 1.0,
+      "name": "Gravity",
+      "hint": "gravity"
+    },
+    {
+      "value": 1.0,
+      "name": "Density",
+      "hint": "fluid_bodies[name=WaterBody].material.density"
+    }
+  ],
+  "simulation_type": "fluid_dynamics",
+  "geometries": {
+    "global_resolution": {
+      "particle_spacing": 0.025
+    },
+    "primitives": [
+      {
+        "name": "WaterBox",
+        "type": "bounding_box",
+        "lower_bound": [0.0, 0.0],
+        "upper_bound": [2.0, 1.0]
+      },
+      {
+        "name": "ContainerBox",
+        "type": "bounding_box",
+        "lower_bound": [0.0, 0.0],
+        "upper_bound": [5.366, 2.0]
+      }
+    ],
+    "shapes": [
+      {
+        "name": "WaterBody",
+        "type": "bounding_box",
+        "primitive": "WaterBox"
+      },
+      {
+        "name": "AirBody",
+        "type": "multipolygon",
+        "polygons": [
+          {
+            "operation": "union",
+            "type": "bounding_box",
+            "primitive": "ContainerBox"
+          },
+          {
+            "operation": "subtraction",
+            "type": "bounding_box",
+            "primitive": "WaterBox"
+          }
+        ]
+      },
+      {
+        "name": "WallBoundary",
+        "type": "multipolygon",
+        "polygons": [
+          {
+            "operation": "union",
+            "type": "container_box",
+            "inner_box": {
+              "primitive": "ContainerBox"
+            },
+            "thickness": 0.1
+          }
+        ]
+      }
+    ]
+  },
+  "particle_generation": {
+    "build_and_run": true,
+    "settings": {
+      "bodies": [
+        {
+          "name": "WaterBody"
+        },
+        {
+          "name": "AirBody"
+        },
+        {
+          "name": "WallBoundary",
+          "solid_body": {}
+        }
+      ],
+      "relaxation_parameters": {
+        "total_iterations": 1000
+      }
+    }
+  },
+  "fluid_bodies": [
+    {
+      "name": "WaterBody",
+      "material": {
+        "type": "weakly_compressible_fluid",
+        "density": 1.0
+      }
+    },
+    {
+      "name": "AirBody",
+      "surface_type": "confined",
+      "material": {
+        "type": "weakly_compressible_fluid",
+        "density": 0.001
+      }
+    }
+  ],
+  "solid_bodies": [
+    {
+      "name": "WallBoundary",
+      "material": {
+        "type": "rigid_body"
+      }
+    }
+  ],
+  "fluid_boundary_conditions": [
+    {
+      "body_name": "AirBody",
+      "type": "wall_bounding"
+    }
+  ],
+  "gravity": [0.0, -1.0],
+  "observers": [
+    {
+      "name": "FluidObserver",
+      "observed_body": "WaterBody",
+      "variable": {
+        "real_type": "Pressure"
+      },
+      "positions": [[5.366, 0.2]]
+    }
+  ],
+  "extra_state_recording": [
+    {
+      "name": "WaterBody",
+      "variables": [
+        {
+          "real_type": ["Pressure"]
+        }
+      ]
+    },
+    {
+      "name": "WallBoundary",
+      "variables": [
+        {
+          "vector_type": ["NormalDirection"]
+        }
+      ]
+    }
+  ],
+  "solver_parameters": {
+    "end_time": 20.0,
+    "output_interval": 0.1,
+    "screen_interval": 100,
+    "fluid_dynamics": {
+      "acoustic_cfl": 0.6,
+      "advection_cfl": 0.25,
+      "particle_sort_frequency": 100
+    }
+  }
+}

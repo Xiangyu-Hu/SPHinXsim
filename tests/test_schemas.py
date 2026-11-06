@@ -752,6 +752,32 @@ class TestSimulationConfig:
                 ]
             )
 
+    def test_wall_bounding_boundary_condition_does_not_require_oriented_box(self):
+        cfg = _make_minimal_fluid_config(
+            fluid_boundary_conditions=[
+                {
+                    "body_name": "WaterBody",
+                    "type": "wall_bounding",
+                }
+            ]
+        )
+
+        boundary_condition = cfg.fluid_boundary_conditions[0]
+        assert boundary_condition.type.value == "wall_bounding"
+        assert boundary_condition.oriented_box is None
+
+    def test_boundary_condition_requires_oriented_box(self):
+        with pytest.raises(ValidationError, match="requires oriented_box"):
+            _make_minimal_fluid_config(
+                fluid_boundary_conditions=[
+                    {
+                        "body_name": "WaterBody",
+                        "type": "emitter",
+                        "inflow_speed": 1.0,
+                    }
+                ]
+            )
+
     def test_particle_generation_blockers_accept_existing_oriented_box(self):
         cfg = _make_minimal_fluid_config(
             particle_generation={
@@ -961,6 +987,21 @@ class TestSimulationConfig:
         assert schedule is not None
         assert schedule.switch_on_time == pytest.approx(1.0)
         assert schedule.duration == pytest.approx(25.0)
+
+    def test_two_phase_dambreak_fixture_accepts_wall_bounding_boundary_condition(self):
+        fixture_path = (
+            Path(__file__).parent
+            / "test_simulation"
+            / "test_2d_simulation"
+            / "data"
+            / "two_phase_dambreak.json"
+        )
+        payload = json.loads(fixture_path.read_text())
+        cfg = SimulationConfig.model_validate(payload)
+
+        boundary_condition = cfg.fluid_boundary_conditions[0]
+        assert boundary_condition.type.value == "wall_bounding"
+        assert boundary_condition.oriented_box is None
 
     def test_boundary_condition_schedule_rejects_negative_duration(self):
         with pytest.raises(ValidationError):

@@ -98,6 +98,7 @@ class FluidBoundaryConditionType(str, Enum):
     EMITTER = "emitter"
     BI_DIRECTIONAL = "bi_directional"
     FREE_STREAM = "free_stream"
+    WALL_BOUNDING = "wall_bounding"
 
 
 class BodyConstraintType(str, Enum):
@@ -909,7 +910,7 @@ class StartupAccelerationConfig(BaseModel):
 
 class FluidBoundaryConditionConfig(BaseModel):
     body_name: str = Field(..., min_length=1)
-    oriented_box: str = Field(..., min_length=1)
+    oriented_box: Optional[str] = Field(default=None, min_length=1)
     type: FluidBoundaryConditionType
     inflow_speed: Optional[float] = Field(default=None, gt=0)
     pressure: Optional[float] = None
@@ -925,6 +926,8 @@ class FluidBoundaryConditionConfig(BaseModel):
 
     @model_validator(mode="after")
     def _type_specific_requirements(self) -> "FluidBoundaryConditionConfig":
+        if self.type != FluidBoundaryConditionType.WALL_BOUNDING and self.oriented_box is None:
+            raise ValueError(f"{self.type.value} boundary condition requires oriented_box")
         if self.type == FluidBoundaryConditionType.FREE_STREAM and (
             self.buffer_box is None
             or self.disposer_box is None
@@ -1282,7 +1285,7 @@ class SimulationConfig(BaseModel):
         for bc in self.fluid_boundary_conditions:
             if bc.body_name not in fluid_names:
                 raise ValueError("fluid_boundary_conditions body_name must reference an existing fluid body")
-            if bc.oriented_box not in oriented_box_names:
+            if bc.oriented_box is not None and bc.oriented_box not in oriented_box_names:
                 raise ValueError("fluid_boundary_conditions oriented_box must exist in geometries.oriented_boxes")
             if bc.velocity is not None:
                 if fluid_body_map[bc.body_name].material.type != MaterialType.WEAKLY_COMPRESSIBLE_FLUID:

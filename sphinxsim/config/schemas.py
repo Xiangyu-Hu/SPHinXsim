@@ -327,7 +327,7 @@ class OrientedBoxConfig(BaseModel):
     center: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     normal: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     radius: Optional[float] = Field(default=None, gt=0)
-    surface_half_size: Optional[List[float]] = Field(default=None, length=2)
+    surface_half_size: Optional[List[float]] = Field(default=None, min_length=2, max_length=2)
 
     half_size: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     transform: Optional[TransformConfig] = None

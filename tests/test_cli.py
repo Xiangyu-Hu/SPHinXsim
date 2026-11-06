@@ -629,19 +629,25 @@ class TestCLIShell:
         assert data["solver_parameters"]["end_time"] == pytest.approx(2.0)
 
     def test_shell_run_selects_3d_native_module(self, build_temp_path):
+        from sphinxsim import cli as cli_mod
+
         cfg = build_temp_path / "shell_3d_config.json"
         cfg.write_text(json.dumps(_valid_3d_data()))
         shell_rel_cfg = f"pytest-temp/{build_temp_path.name}/shell_3d_config.json"
         inputs = [f"load {shell_rel_cfg}", "run", "exit"]
+        preview_runtime = cli_mod._ShellPreviewRuntime()
 
         with (
             patch("builtins.input", side_effect=inputs),
             patch("sphinxsim.cli.load_sphinxsys_core_nd", return_value=_FakeNativeModule) as load_native,
+            patch("sphinxsim.cli._ShellPreviewRuntime", return_value=preview_runtime),
         ):
             rc = main(["shell"])
 
         assert rc == 0
         load_native.assert_called_once_with(3)
+        assert preview_runtime._animation_run_completed is False
+        assert preview_runtime._animation_output_dir is None
 
     def test_shell_update_before_load_errors(self, build_temp_path, capsys):
         inputs = ['update "simulate for 2 s"', "exit"]

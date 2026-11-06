@@ -160,9 +160,29 @@ sphinxsim> continue-to-run --refresh-interval 10
 ✅ Simulation built
 ✅ Simulation initialized
 🚀 Running simulation...
-ℹ️ Preview starts updating after 10 seconds, then plays generated particle snapshots at up to 25 FPS.
+ℹ️ Preview checks for new snapshots every 10 seconds and plays each batch at up to 25 FPS.
 ✅ Simulation completed successfully!
 ```
+
+For the full preview-and-animate workflow, load a JSON config and run:
+
+```text
+sphinxsim> run --with-animation
+```
+
+This performs `preview --with-particles` followed by `continue-to-run` on the
+same generated simulation. Plain `run` remains unchanged. Once the animated
+run or a manual `continue-to-run` completes, enter `replay` to play its
+recorded particle snapshots again at up to 25 FPS:
+
+```text
+sphinxsim> replay
+▶️ Replaying 100 particle frames at up to 25 FPS.
+```
+
+If needed, replay opens the regular configuration preview, preserving the
+correct 2D/3D camera (including the orthographic XY view for 2D). Wait until
+`continue-to-run` has finished before starting replay.
 
 `preview` requires a config to be loaded first (via `load` or `generate`).
 

@@ -62,6 +62,7 @@ from sphinxsim.llm.common import LLMRepairWarning, dump_simulation_config_json
 
 # Convert PROJECT_ROOT to Path after imports
 PROJECT_ROOT = Path(PROJECT_ROOT)
+_LIVE_PREVIEW_MAX_FPS = 25
 
 __version__ = "0.1.0"  # Keep in sync with sphinxsim/__init__.py
 
@@ -826,6 +827,9 @@ class _ShellPreviewRuntime:
         self._live_particle_body_names: set[str] = set()
         self._live_particle_colours: dict[str, Any] = {}
         self._live_particle_versions: dict[str, float] = {}
+        self._live_particle_file_states: dict[Path, tuple[int, int]] = {}
+        self._live_playback_queue: list[tuple[float, dict[str, Path]]] = []
+        self._live_refresh_interval_ms = round(10.0 * 1000)
 
     def _reset_preview_state(self) -> None:
         """Forget all state associated with a closed preview window."""
@@ -886,9 +890,11 @@ class _ShellPreviewRuntime:
         self._live_particle_body_names = set()
         self._live_particle_colours = {}
         self._live_particle_versions = {}
+        self._live_particle_file_states = {}
+        self._live_playback_queue = []
 
     def _refresh_live_particles(self) -> None:
-        """Replace particle actors with the newest completed runtime snapshots."""
+        """Play a stable snapshot batch, then wait before collecting another."""
         if self.plotter is None or self._live_output_dir is None:
             return
 
@@ -899,41 +905,82 @@ class _ShellPreviewRuntime:
         except ImportError:
             return
 
-        for vtp_path in self._live_output_dir.glob("*.vtp"):
-            for body_name in self._live_particle_body_names:
-                prefix = f"{body_name}_"
-                if not vtp_path.stem.startswith(prefix):
-                    continue
-                suffix = vtp_path.stem[len(prefix):]
-                if suffix.startswith("ite_"):
-                    suffix = suffix[len("ite_"):]
-                try:
-                    sequence = float(suffix)
-                except ValueError:
+        if not self._live_playback_queue:
+            batch: dict[float, dict[str, Path]] = {}
+            has_unstable_snapshot = False
+            for vtp_path in self._live_output_dir.glob("*.vtp"):
+                for body_name in self._live_particle_body_names:
+                    prefix = f"{body_name}_"
+                    if not vtp_path.stem.startswith(prefix):
+                        continue
+                    suffix = vtp_path.stem[len(prefix):]
+                    if suffix.startswith("ite_"):
+                        suffix = suffix[len("ite_"):]
+                    try:
+                        sequence = float(suffix)
+                    except ValueError:
+                        break
+                    if sequence <= self._live_particle_versions.get(body_name, float("-inf")):
+                        break
+                    try:
+                        stat = vtp_path.stat()
+                    except OSError:
+                        break
+                    file_state = (stat.st_size, stat.st_mtime_ns)
+                    if self._live_particle_file_states.get(vtp_path) != file_state:
+                        self._live_particle_file_states[vtp_path] = file_state
+                        has_unstable_snapshot = True
+                        break
+                    batch.setdefault(sequence, {})[body_name] = vtp_path
                     break
-                previous_sequence = self._live_particle_versions.get(body_name, float("-inf"))
-                if sequence <= previous_sequence:
-                    break
-                try:
-                    mesh = pv.read(str(vtp_path))
-                except Exception:
-                    break
-                self.plotter.add_mesh(
-                    mesh,
-                    name=f"particle-preview-{body_name}",
-                    color=self._live_particle_colours.get(body_name),
-                    opacity=0.95,
-                    style="points",
-                    point_size=_PARTICLE_POINT_SIZE,
-                    label=_particle_label(body_name),
-                )
-                self._live_particle_versions[body_name] = sequence
-                break
 
-        thread = self._live_run_thread
-        if thread is not None and not thread.is_alive():
-            self._stop_live_refresh()
-            self._live_run_thread = None
+            self._live_playback_queue = [
+                (sequence, body_snapshots)
+                for sequence, body_snapshots in sorted(batch.items())
+            ]
+            for sequence, body_snapshots in self._live_playback_queue:
+                for body_name in body_snapshots:
+                    self._live_particle_versions[body_name] = sequence
+
+            timer = self._live_refresh_timer
+            if self._live_playback_queue and timer is not None:
+                timer.setInterval(round(1000 / _LIVE_PREVIEW_MAX_FPS))
+            elif not self._live_playback_queue:
+                thread = self._live_run_thread
+                if thread is not None and not thread.is_alive() and not has_unstable_snapshot:
+                    self._stop_live_refresh()
+                    self._live_run_thread = None
+                return
+
+        _, body_snapshots = self._live_playback_queue.pop(0)
+        for body_name, vtp_path in body_snapshots.items():
+            try:
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", message=".*vtkXMLPolyDataReader.*")
+                    mesh = pv.read(str(vtp_path))
+            except Exception:
+                continue
+            if getattr(mesh, "n_points", None) == 0:
+                continue
+            self.plotter.add_mesh(
+                mesh,
+                name=f"particle-preview-{body_name}",
+                color=self._live_particle_colours.get(body_name),
+                opacity=0.95,
+                style="points",
+                point_size=_PARTICLE_POINT_SIZE,
+                label=_particle_label(body_name),
+            )
+
+        if not self._live_playback_queue:
+            timer = self._live_refresh_timer
+            if timer is not None:
+                timer.setInterval(self._live_refresh_interval_ms)
+
+            thread = self._live_run_thread
+            if thread is not None and not thread.is_alive():
+                self._stop_live_refresh()
+                self._live_run_thread = None
 
     def _start_live_refresh(self, refresh_interval: float) -> None:
         timer = self._live_refresh_timer
@@ -944,6 +991,9 @@ class _ShellPreviewRuntime:
                 pass
         self._live_refresh_timer = None
         self._live_particle_versions = {}
+        self._live_particle_file_states = {}
+        self._live_playback_queue = []
+        self._live_refresh_interval_ms = round(refresh_interval * 1000)
         if not self._using_background_plotter or self.plotter is None:
             return
         try:
@@ -951,13 +1001,20 @@ class _ShellPreviewRuntime:
         except ImportError:
             return
         timer = QtCore.QTimer()
-        timer.setInterval(max(1, round(refresh_interval * 1000)))
+        timer.setInterval(round(refresh_interval * 1000))
         timer.timeout.connect(self._refresh_live_particles)
         timer.start()
         self._live_refresh_timer = timer
+        if self._live_output_dir is not None:
+            for vtp_path in self._live_output_dir.glob("*.vtp"):
+                try:
+                    stat = vtp_path.stat()
+                except OSError:
+                    continue
+                self._live_particle_file_states[vtp_path] = (stat.st_size, stat.st_mtime_ns)
 
     def continue_to_run(self, refresh_interval: float = 10.0) -> int:
-        """Run the retained simulation and refresh its particle preview periodically."""
+        """Run the retained simulation and play its particle snapshots at a capped rate."""
         simulation = self._pending_simulation
         runtime_config_path = self._pending_runtime_config_path
         self._pending_simulation = None
@@ -997,7 +1054,10 @@ class _ShellPreviewRuntime:
 
             self._live_run_thread = Thread(target=run_simulation, daemon=True)
             self._live_run_thread.start()
-            print(f"ℹ️ Preview refreshes every {refresh_interval:g} seconds while simulation runs.")
+            print(
+                f"ℹ️ Preview checks for new snapshots every {refresh_interval:g} seconds "
+                f"and plays each batch at up to {_LIVE_PREVIEW_MAX_FPS} FPS."
+            )
             return 0
         except Exception as exc:
             print(f"❌ Continued run failed: {exc}", file=sys.stderr)

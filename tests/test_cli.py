@@ -9,7 +9,13 @@ from unittest.mock import patch
 import pytest
 
 import sphinxsim
-from sphinxsim.cli import _config_spatial_dim, _load_config, _new_json_editor_list_item, main
+from sphinxsim.cli import (
+    _config_spatial_dim,
+    _load_config,
+    _new_json_editor_list_item,
+    _shell_completion_matches,
+    main,
+)
 from sphinxsim.cli import _build_parser
 from sphinxsim.llm.common import LLMRepairWarning
 
@@ -768,3 +774,23 @@ class TestCLIGenerateCompletion:
         captured = capsys.readouterr()
         assert "complete -c sphinxsim" in captured.out
         assert "generate" in captured.out
+
+
+class TestShellCompletion:
+    def test_completes_shell_commands(self):
+        assert _shell_completion_matches("", "val") == ["validate"]
+
+    def test_completes_file_arguments(self, tmp_path, monkeypatch):
+        (tmp_path / "config.json").touch()
+        (tmp_path / "configs").mkdir()
+        monkeypatch.chdir(tmp_path)
+
+        assert _shell_completion_matches("load ", "con") == [
+            "config.json",
+            "configs/",
+        ]
+        assert _shell_completion_matches("generate ", "con") == [
+            "config.json",
+            "configs/",
+        ]
+        assert _shell_completion_matches("update ", "con") == []

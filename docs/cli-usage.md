@@ -108,6 +108,10 @@ Configuration: WaterBody (fluid) + WallBoundary (solid)
 Goodbye!
 ```
 
+On interactive terminals, press **Tab** to complete shell commands and file
+arguments (such as `load` and `generate` paths). Use the **Up** and **Down**
+arrow keys to navigate commands entered during the current shell session.
+
 In shell mode you can also use slash-prefixed commands without quotes around the description, for example:
 
 ```text

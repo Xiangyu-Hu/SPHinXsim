@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import glob
 import json
 import os
 import shlex
@@ -30,6 +31,11 @@ import warnings
 from pathlib import Path
 from threading import Thread
 from typing import Any, Tuple
+
+try:
+    import readline
+except ImportError:
+    readline = None
 
 # Set up sys.path FIRST, before any sphinxsim imports
 def _find_project_root(start=None):
@@ -769,6 +775,73 @@ def _shell_auto_validate(config_path: Path) -> bool:
         return False
     print(f"✅ Auto-validation passed: {config_path}")
     return True
+
+
+_SHELL_COMMANDS = (
+    "load",
+    "generate",
+    "update",
+    "validate",
+    "run",
+    "preview",
+    "continue-to-run",
+    "replay",
+    "explore",
+    "help",
+    "exit",
+    "quit",
+)
+
+
+def _shell_completion_matches(prefix: str, text: str) -> list[str]:
+    try:
+        words = shlex.split(prefix)
+    except ValueError:
+        words = prefix.split()
+
+    if not words:
+        commands = (
+            [f"/{command}" for command in _SHELL_COMMANDS]
+            if text.startswith("/")
+            else _SHELL_COMMANDS
+        )
+        return [command for command in commands if command.startswith(text)]
+
+    command = words[0].lstrip("/")
+    if not (
+        (command == "load" and len(words) == 1)
+        or command == "generate"
+        or (command == "preview" and "--screenshot" in words)
+    ):
+        return []
+
+    expanded_text = os.path.expanduser(text)
+    matches = glob.glob(expanded_text + "*")
+    results = []
+    for match in matches:
+        candidate = match
+        if text.startswith("~"):
+            candidate = "~" + os.path.relpath(match, os.path.expanduser("~"))
+        if os.path.isdir(match):
+            candidate += "/"
+        results.append(candidate)
+    return sorted(results)
+
+
+def _shell_readline_completer(text: str, state: int) -> str | None:
+    if readline is None:
+        return None
+    matches = _shell_completion_matches(
+        readline.get_line_buffer()[: readline.get_begidx()], text
+    )
+    return matches[state] if state < len(matches) else None
+
+
+def _configure_shell_readline() -> None:
+    if readline is None:
+        return
+    readline.set_completer(_shell_readline_completer)
+    readline.parse_and_bind("tab: complete")
 
 
 def _resolve_preview_config_path(config_file: str) -> Path:
@@ -2393,6 +2466,8 @@ class _ShellPreviewRuntime:
 
 def cmd_shell(args: argparse.Namespace) -> int:
     """Interactive shell for load/generate/update/validate/run workflow."""
+    if sys.stdin.isatty():
+        _configure_shell_readline()
     provider = os.getenv("SPHINXSIM_LLM_PROVIDER", "mock")
     print("SPHinXsim interactive shell")
     print(f"LLM provider: {provider}")

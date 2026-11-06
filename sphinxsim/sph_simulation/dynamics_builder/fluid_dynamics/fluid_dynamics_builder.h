@@ -71,6 +71,7 @@ class FluidDynamicsBuilder
     static BaseDynamics<void> &addLinearCorrectionMatrix(SPHSimulation &sim, MainMethods &main_methods);
     static BaseDynamics<void> &addDensityRegularization(SPHSimulation &sim, MainMethods &main_methods);
     static void buildViscousForceIfPresent(SPHSimulation &sim, MainMethods &main_methods);
+    static void addSubscaleBuoyancyIfPresent(SPHSimulation &sim, MainMethods &main_methods);
     static void buildSurfaceIndicationIfOpenBoundary(SPHSimulation &sim, MainMethods &main_methods);
     static void buildTransportVelocityFormulationIfNotFreeSurface(SPHSimulation &sim, MainMethods &main_methods);
     static void buildParticleDeletionIfPresent(SPHSimulation &sim, MainMethods &main_methods);

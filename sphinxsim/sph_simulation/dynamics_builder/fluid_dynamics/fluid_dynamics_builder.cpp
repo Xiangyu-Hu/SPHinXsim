@@ -1,5 +1,6 @@
 #include "fluid_dynamics_builder.hpp"
 #include "sph_simulation.h"
+#include "subscale_buoyancy.hpp"
 
 namespace SPH
 {
@@ -268,6 +269,67 @@ void FluidDynamicsBuilder::buildViscousForceIfPresent(
                 SimulationHookPoint::AfterLinearCorrectionMatrix, [&]()
                 { all_viscous_force.exec(); });
         }
+    }
+}
+//=================================================================================================//
+void FluidDynamicsBuilder::addSubscaleBuoyancyIfPresent(SPHSimulation &sim, MainMethods &main_methods)
+{
+    auto &config_manager = sim.getConfigManager();
+    if (!config_manager.hasEntity<GravityConfig>("GravityConfig"))
+        return; // No gravity, no subscale buoyancy
+
+    auto gravity = config_manager.getEntity<GravityConfig>("GravityConfig").gravity_;
+    auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
+    auto &all_subscale_buoyancy = main_methods.addParticleDynamicsGroup();
+
+    auto &sph_system = sim.getSPHSystem();
+    for (const auto &fb_src : fluid_bodies_config)
+    {
+        std::string body_name = fb_src->name_;
+        auto &fluid_body = sph_system.getBodyByName<FluidBody>(body_name);
+        Real rho_src = fluid_body.getMatterMaterial().ReferenceDensity();
+
+        bool has_subscale_buoyancy = false;
+        StdVec<bool> has_subscale_buoyancy_vec(fluid_bodies_config.size(), false);
+        for (UnsignedInt i = 0; i < fluid_bodies_config.size(); ++i)
+        {
+            std::string body_name_tgt = fluid_bodies_config[i]->name_;
+            auto &fluid_body_tgt = sph_system.getBodyByName<FluidBody>(body_name_tgt);
+            Real rho_tgt = fluid_body_tgt.getMatterMaterial().ReferenceDensity();
+            if (rho_tgt > 10.0 * rho_src)
+            {
+                has_subscale_buoyancy_vec[i] = true;
+                has_subscale_buoyancy = true;
+            }
+        }
+        if (!has_subscale_buoyancy)
+            continue; // No subscale buoyancy for this fluid body
+
+        auto &inner_relation = sph_system.getRelationByName<Inner<Relation<FluidBody>>>(body_name);
+        all_subscale_buoyancy.add(
+            &main_methods.template addInteractionDynamics<IsolationFactor>(inner_relation));
+
+        for (UnsignedInt i = 0; i < fluid_bodies_config.size(); ++i)
+        {
+            std::string body_name_tgt = fluid_bodies_config[i]->name_;
+            if (has_subscale_buoyancy_vec[i])
+            {
+                std::string relation_name = fluid_bodies_config[i]->name_ + body_name;
+                auto &contact_relation = sph_system.getRelationByName<
+                    Contact<Relation<FluidBody, FluidBody>>>(relation_name);
+                all_subscale_buoyancy.add( // force is added to the denser fluid body
+                    &main_methods.addInteractionDynamicsWithUpdate<SubscaleBuoyancy>(
+                        contact_relation, gravity, 0.3));
+            }
+        }
+    }
+
+    if (all_subscale_buoyancy.hasDynamics())
+    {
+        auto &simulation_pipeline = sim.getSimulationPipeline();
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::AfterLinearCorrectionMatrix, [&]()
+            { all_subscale_buoyancy.exec(); });
     }
 }
 //=================================================================================================//

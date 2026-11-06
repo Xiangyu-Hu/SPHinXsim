@@ -56,6 +56,7 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     //----------------------------------------------------------------------
     buildStartupAccelerationIfPresent(sim, main_methods, config);
     buildExternalForceIfPresent(sim, main_methods, config);
+    FluidDynamicsBuilder::addSubscaleBuoyancyIfPresent(sim, main_methods);
     FluidDynamicsBuilder::buildTransportVelocityFormulationIfNotFreeSurface(sim, main_methods);
     FluidDynamicsBuilder::buildViscousForceIfPresent(sim, main_methods);
     ThermalDynamicsBuilder::buildThermalDynamicsIfPresent(sim, main_methods);

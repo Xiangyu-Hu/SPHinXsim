@@ -9,7 +9,13 @@ from unittest.mock import patch
 import pytest
 
 import sphinxsim
-from sphinxsim.cli import _config_spatial_dim, _load_config, _new_json_editor_list_item, main
+from sphinxsim.cli import (
+    _config_spatial_dim,
+    _load_config,
+    _new_json_editor_list_item,
+    _shell_completion_matches,
+    main,
+)
 from sphinxsim.cli import _build_parser
 from sphinxsim.llm.common import LLMRepairWarning
 
@@ -629,19 +635,25 @@ class TestCLIShell:
         assert data["solver_parameters"]["end_time"] == pytest.approx(2.0)
 
     def test_shell_run_selects_3d_native_module(self, build_temp_path):
+        from sphinxsim import cli as cli_mod
+
         cfg = build_temp_path / "shell_3d_config.json"
         cfg.write_text(json.dumps(_valid_3d_data()))
         shell_rel_cfg = f"pytest-temp/{build_temp_path.name}/shell_3d_config.json"
         inputs = [f"load {shell_rel_cfg}", "run", "exit"]
+        preview_runtime = cli_mod._ShellPreviewRuntime()
 
         with (
             patch("builtins.input", side_effect=inputs),
             patch("sphinxsim.cli.load_sphinxsys_core_nd", return_value=_FakeNativeModule) as load_native,
+            patch("sphinxsim.cli._ShellPreviewRuntime", return_value=preview_runtime),
         ):
             rc = main(["shell"])
 
         assert rc == 0
         load_native.assert_called_once_with(3)
+        assert preview_runtime._animation_run_completed is False
+        assert preview_runtime._animation_output_dir is None
 
     def test_shell_update_before_load_errors(self, build_temp_path, capsys):
         inputs = ['update "simulate for 2 s"', "exit"]
@@ -762,3 +774,23 @@ class TestCLIGenerateCompletion:
         captured = capsys.readouterr()
         assert "complete -c sphinxsim" in captured.out
         assert "generate" in captured.out
+
+
+class TestShellCompletion:
+    def test_completes_shell_commands(self):
+        assert _shell_completion_matches("", "val") == ["validate"]
+
+    def test_completes_file_arguments(self, tmp_path, monkeypatch):
+        (tmp_path / "config.json").touch()
+        (tmp_path / "configs").mkdir()
+        monkeypatch.chdir(tmp_path)
+
+        assert _shell_completion_matches("load ", "con") == [
+            "config.json",
+            "configs/",
+        ]
+        assert _shell_completion_matches("generate ", "con") == [
+            "config.json",
+            "configs/",
+        ]
+        assert _shell_completion_matches("update ", "con") == []

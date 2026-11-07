@@ -1,0 +1,43 @@
+desktop:
+  resolution:
+    width: 1600
+    height: 1000
+  allow_resize: true
+network:
+  interface: 0.0.0.0
+  websocket_port: 6901
+  use_ipv4: true
+  use_ipv6: false
+  ssl:
+    pem_certificate: /home/simulation/.vnc/tls.crt
+    pem_key: /home/simulation/.vnc/tls.key
+    require_ssl: true
+runtime_configuration:
+  allow_client_to_override_kasm_server_settings: false
+  allow_override_standard_vnc_server_settings: false
+data_loss_prevention:
+  clipboard:
+    server_to_client:
+      enabled: false
+    client_to_server:
+      enabled: false
+command_line:
+  prompt: false
+
+# Scientific UI and fine particle edges: do not trade spatial fidelity for motion.
+# Runtime client overrides stay disabled so persisted browser presets cannot lower quality.
+encoding:
+  max_frame_rate: 60
+  rect_encoding_mode:
+    min_quality: 9
+    max_quality: 9
+    consider_lossless_quality: 9
+  video_encoding_mode:
+    jpeg_quality: 9
+    webp_quality: 9
+    max_resolution:
+      width: 2560
+      height: 1440
+    enter_video_encoding_mode:
+      time_threshold: 100
+      area_threshold: 100%

@@ -1,0 +1,13 @@
+*
+!Dockerfile
+!requirements.txt
+!entrypoint.sh
+!xstartup
+!kasmvnc.yaml
+!SPHinXsim.desktop
+!session.sh
+!embed.js
+!embed.css
+!embed-policy.js
+!.build/
+!.build/*.deb

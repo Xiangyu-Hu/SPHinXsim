@@ -1,0 +1,17 @@
+*
+!source/
+!source/**
+!build/
+!build/**
+!downloads/
+!downloads/boost_1_85_0.tar.bz2
+!downloads/intel-oneapi-base-toolkit-2025.2.0.592_offline.sh
+!downloads/oneapi-for-nvidia-gpus-2025.2.0-linux.sh
+!downloads/sycl-v7.1.0-linux.tar.gz
+source/.git
+source/docker
+source/.build-temp
+source/build*
+source/**/__pycache__
+build/**/__pycache__
+!source-manifest.json

@@ -1087,3 +1087,23 @@ input/
 
 # CodeQL
 _codeql_detected_source_root
+
+# Versioned container build recipes (not generated build outputs)
+!docker/nvidia/build/
+/docker/nvidia/build/**
+!docker/nvidia/build/*.py
+!docker/nvidia/build/*.sh
+!docker/nvidia/build/*.md
+!docker/nvidia/build/LICENSE
+!docker/nvidia/build/*.json
+!docker/nvidia/build/context.dockerignore
+!docker/nvidia/build/*-cuda*/
+!docker/nvidia/build/*-cuda*/Dockerfile
+!docker/nvidia/build/runtime/
+!docker/nvidia/build/runtime/*.py
+!docker/nvidia/build/runtime/*.sh
+!docker/nvidia/build/runtime/*.cpp
+!docker/nvidia/build/tests/
+!docker/nvidia/build/tests/*.py
+!docker/nvidia/build/packages/
+!docker/nvidia/build/packages/*.md

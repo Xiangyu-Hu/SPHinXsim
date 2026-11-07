@@ -1,0 +1,182 @@
+{
+  "simulation_type": "fluid_dynamics",
+  "geometries": {
+    "system_domain": {
+      "lower_bound": [
+        0,
+        0,
+        0
+      ],
+      "upper_bound": [
+        6,
+        2,
+        3
+      ]
+    },
+    "global_resolution": {
+      "particle_spacing": 0.05
+    },
+    "shapes": [
+      {
+        "name": "TankWaterBox",
+        "type": "bounding_box",
+        "lower_bound": [
+          0,
+          0,
+          0
+        ],
+        "upper_bound": [
+          6,
+          1,
+          3
+        ]
+      },
+      {
+        "name": "BoatHull",
+        "type": "triangle_mesh",
+        "file_name": "fixed-hull.stl",
+        "scale": 1.0
+      },
+      {
+        "name": "WaterBody",
+        "type": "complex_shape",
+        "sub_shapes": [
+          "TankWaterBox",
+          "BoatHull"
+        ],
+        "operations": [
+          "union",
+          "subtraction"
+        ]
+      },
+      {
+        "name": "WallInnerBox",
+        "type": "bounding_box",
+        "lower_bound": [
+          0,
+          0,
+          0
+        ],
+        "upper_bound": [
+          6,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "WallOuterBox",
+        "type": "expanded_box",
+        "original": "WallInnerBox",
+        "expansion": 0.2
+      },
+      {
+        "name": "WallBoundary",
+        "type": "complex_shape",
+        "sub_shapes": [
+          "WallOuterBox",
+          "WallInnerBox"
+        ],
+        "operations": [
+          "union",
+          "subtraction"
+        ]
+      }
+    ],
+    "oriented_boxes": []
+  },
+  "particle_generation": {
+    "build_and_run": true,
+    "settings": {
+      "bodies": [
+        {
+          "name": "WaterBody"
+        },
+        {
+          "name": "WallBoundary",
+          "solid_body": {}
+        },
+        {
+          "name": "BoatHull",
+          "solid_body": {}
+        }
+      ],
+      "relaxation_parameters": {
+        "total_iterations": 1000
+      }
+    }
+  },
+  "fluid_bodies": [
+    {
+      "name": "WaterBody",
+      "material": {
+        "type": "weakly_compressible_fluid",
+        "density": 1000.0
+      },
+      "particle_reserve_factor": 1.0
+    }
+  ],
+  "solid_bodies": [
+    {
+      "name": "WallBoundary",
+      "material": {
+        "type": "rigid_body"
+      }
+    },
+    {
+      "name": "BoatHull",
+      "material": {
+        "type": "rigid_body"
+      }
+    }
+  ],
+  "fluid_boundary_conditions": [],
+  "gravity": [
+    0,
+    -9.81,
+    0
+  ],
+  "observers": [],
+  "solver_parameters": {
+    "end_time": 1,
+    "output_interval": 0.1,
+    "screen_interval": 100,
+    "fluid_dynamics": {
+      "acoustic_cfl": 0.6,
+      "advection_cfl": 0.25,
+      "surface_type": "free_surface",
+      "particle_sort_frequency": 100
+    }
+  },
+  "initial_conditions": [
+    {
+      "body_name": "WaterBody",
+      "assignments": [
+        {
+          "variable": {
+            "vector_type": "Velocity"
+          },
+          "value": [
+            0.5,
+            0,
+            0
+          ]
+        }
+      ]
+    }
+  ],
+  "extra_state_recording": [
+    {
+      "name": "WaterBody",
+      "variables": [
+        {
+          "real_type": [
+            "Pressure"
+          ],
+          "vector_type": [
+            "Velocity"
+          ]
+        }
+      ]
+    }
+  ]
+}

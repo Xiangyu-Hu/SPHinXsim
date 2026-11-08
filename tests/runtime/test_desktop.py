@@ -44,6 +44,8 @@ def editor(tmp_path):
     runtime._install_json_editor(config, config_path=path, with_particles=False)
     session = Session(tmp_path, "config.json", runtime)
     runtime.write_config = session.save
+    window.activateWindow()
+    assert QtTest.QTest.qWaitForWindowActive(window), "Native editor did not receive keyboard focus"
     app.processEvents()
     yield app, runtime, session, path
     window.close()

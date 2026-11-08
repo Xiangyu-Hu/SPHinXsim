@@ -1178,6 +1178,33 @@ class TestShellPreview:
         _, kwargs = mock_show_or_update.call_args
         assert kwargs.get("with_particles") is True
 
+    def test_shell_run_with_animation_previews_then_continues(self, build_temp_path):
+        from sphinxsim import cli as cli_mod
+
+        _, rel = self._write_config(build_temp_path)
+        inputs = [f"load {rel}", "run --with-animation", "exit"]
+
+        with (
+            patch.object(
+                cli_mod._ShellPreviewRuntime,
+                "show_or_update",
+                return_value=0,
+            ) as show_or_update,
+            patch.object(
+                cli_mod._ShellPreviewRuntime,
+                "continue_to_run",
+                return_value=0,
+            ) as continue_to_run,
+            patch("builtins.input", side_effect=inputs),
+        ):
+            assert main(["shell"]) == 0
+
+        show_or_update.assert_called_once()
+        _, kwargs = show_or_update.call_args
+        assert kwargs["with_particles"] is True
+        assert kwargs["force"] is True
+        continue_to_run.assert_called_once_with()
+
     def test_shell_runtime_continues_retained_particle_simulation(self, tmp_path):
         from sphinxsim import cli as cli_mod
 
@@ -1205,6 +1232,204 @@ class TestShellPreview:
         assert calls == ["build", "initialize", "run"]
         assert runtime._pending_simulation is None
         assert not runtime_config_path.exists()
+
+    def test_shell_runtime_plays_particle_snapshots_in_sequence(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        class FakePlotter:
+            def __init__(self):
+                self.meshes = []
+
+            def add_mesh(self, mesh, **kwargs):
+                self.meshes.append(mesh)
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = FakePlotter()
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_body_names = {"WaterBody"}
+        runtime._live_run_thread = SimpleNamespace(is_alive=lambda: True)
+        snapshots = [tmp_path / f"WaterBody_{step}.vtp" for step in range(3)]
+        for snapshot in snapshots:
+            snapshot.touch()
+
+        with patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=str)}):
+            for _ in range(6):
+                runtime._refresh_live_particles()
+
+        assert runtime.plotter.meshes == [str(path) for path in snapshots]
+
+    def test_shell_runtime_caps_live_refresh_at_25_fps(self):
+        from sphinxsim import cli as cli_mod
+
+        class FakeTimer:
+            def __init__(self):
+                self.timeout = MagicMock()
+                self.interval = None
+
+            def setInterval(self, interval):
+                self.interval = interval
+
+            def start(self):
+                pass
+
+        timer = FakeTimer()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        runtime._live_output_dir = Path(".")
+        runtime._live_particle_body_names = {"WaterBody"}
+        runtime._live_run_thread = SimpleNamespace(is_alive=lambda: True)
+        runtime._using_background_plotter = True
+        snapshot_paths = [Path(f"WaterBody_{step}.vtp") for step in (1, 2)]
+        with patch.dict(
+            sys.modules,
+            {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))},
+        ), patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=str)}), patch.object(
+            Path, "glob", return_value=snapshot_paths
+        ), patch.object(Path, "stat", return_value=SimpleNamespace(st_size=1, st_mtime_ns=1)):
+            runtime._start_live_refresh(10.0)
+            assert timer.interval == 10_000
+            runtime._refresh_live_particles()
+            assert timer.interval == 40
+            runtime._refresh_live_particles()
+            assert timer.interval == 10_000
+
+        assert runtime.plotter.add_mesh.call_count == 2
+
+    def test_shell_runtime_skips_empty_particle_mesh(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        plotter = MagicMock()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = plotter
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_body_names = {"WaterBody"}
+        (tmp_path / "WaterBody_1.vtp").touch()
+
+        with patch.dict(
+            sys.modules,
+            {"pyvista": SimpleNamespace(read=lambda _path: SimpleNamespace(n_points=0))},
+        ):
+            runtime._refresh_live_particles()
+            runtime._refresh_live_particles()
+
+        plotter.add_mesh.assert_not_called()
+
+    def test_shell_runtime_replays_recorded_frames_at_25_fps(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        class FakeTimer:
+            def __init__(self):
+                self.timeout = MagicMock()
+                self.interval = None
+
+            def setInterval(self, interval):
+                self.interval = interval
+
+            def start(self):
+                pass
+
+            def stop(self):
+                pass
+
+        timer = FakeTimer()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        runtime._using_background_plotter = True
+        runtime._animation_output_dir = tmp_path
+        runtime._animation_particle_body_names = {"WaterBody"}
+        runtime._animation_run_completed = True
+        (tmp_path / "WaterBody_1.vtp").touch()
+        (tmp_path / "WaterBody_2.vtp").touch()
+
+        with patch.dict(
+            sys.modules,
+            {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))},
+        ):
+            assert runtime.replay_animation() == 0
+
+        assert timer.interval == 40
+        assert len(runtime._live_playback_queue) == 2
+        assert runtime._live_replay_mode is True
+        with patch.dict(
+            sys.modules,
+            {
+                "pyvista": SimpleNamespace(
+                    read=lambda path: SimpleNamespace(n_points=10, path=path)
+                )
+            },
+        ):
+            runtime._refresh_live_particles()
+            runtime._refresh_live_particles()
+
+        assert runtime.plotter.add_mesh.call_count == 2
+        assert runtime._live_replay_mode is False
+        assert runtime._live_refresh_timer is None
+
+    def test_shell_runtime_does_not_replay_before_run_finishes(self, tmp_path, capsys):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._animation_output_dir = tmp_path
+        runtime._animation_particle_body_names = {"WaterBody"}
+
+        assert runtime.replay_animation() == 1
+        assert "Complete a successful animated run" in capsys.readouterr().err
+
+    def test_shell_runtime_opens_window_for_replay_after_regular_run(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        class FakeTimer:
+            def __init__(self):
+                self.timeout = MagicMock()
+
+            def setInterval(self, _interval):
+                pass
+
+            def start(self):
+                pass
+
+        timer = FakeTimer()
+        plotter = MagicMock()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._animation_output_dir = tmp_path
+        runtime._animation_particle_body_names = {"WaterBody"}
+        runtime._animation_run_completed = True
+        runtime._animation_config = SimulationConfig(**_minimal_fluid_config())
+        runtime._animation_config_path = tmp_path / "config.json"
+        (tmp_path / "WaterBody_1.vtp").touch()
+
+        def create_preview(*_args, **_kwargs):
+            runtime.plotter = plotter
+            runtime._using_background_plotter = True
+            return 0
+
+        with patch.dict(
+            sys.modules,
+            {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))},
+        ), patch.object(
+            runtime, "show_or_update", side_effect=create_preview
+        ) as show_or_update:
+            assert runtime.replay_animation() == 0
+
+        show_or_update.assert_called_once_with(
+            runtime._animation_config,
+            resolved_config_path=runtime._animation_config_path,
+            with_particles=False,
+            force=True,
+        )
+        assert runtime.plotter is plotter
+        assert runtime._using_background_plotter is True
+
+    def test_shell_replay_command_calls_runtime(self):
+        from sphinxsim import cli as cli_mod
+
+        with patch.object(
+            cli_mod._ShellPreviewRuntime, "replay_animation", return_value=0
+        ) as replay:
+            with patch("builtins.input", side_effect=["replay", "exit"]):
+                assert main(["shell"]) == 0
+
+        replay.assert_called_once_with()
 
     def test_shell_continue_to_run_accepts_refresh_interval(self):
         from sphinxsim import cli as cli_mod

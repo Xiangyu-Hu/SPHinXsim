@@ -160,9 +160,29 @@ sphinxsim> continue-to-run --refresh-interval 10
 ✅ Simulation built
 ✅ Simulation initialized
 🚀 Running simulation...
-ℹ️ Preview refreshes every 10 seconds while simulation runs.
+ℹ️ Preview checks for new snapshots every 10 seconds and plays each batch at up to 25 FPS.
 ✅ Simulation completed successfully!
 ```
+
+For the full preview-and-animate workflow, load a JSON config and run:
+
+```text
+sphinxsim> run --with-animation
+```
+
+This performs `preview --with-particles` followed by `continue-to-run` on the
+same generated simulation. Plain `run` remains unchanged. Once the animated
+run or a manual `continue-to-run` completes, enter `replay` to play its
+recorded particle snapshots again at up to 25 FPS:
+
+```text
+sphinxsim> replay
+▶️ Replaying 100 particle frames at up to 25 FPS.
+```
+
+If needed, replay opens the regular configuration preview, preserving the
+correct 2D/3D camera (including the orthographic XY view for 2D). Wait until
+`continue-to-run` has finished before starting replay.
 
 `preview` requires a config to be loaded first (via `load` or `generate`).
 
@@ -180,12 +200,15 @@ intended.
 sphinxsim> continue-to-run --refresh-interval 2.5
 ```
 
-The default is `10` seconds and the value must be greater than zero. While the
-simulation runs, the persistent Qt preview checks the output folder at that
-interval and replaces each particle cloud when a newer complete body-state VTP
-snapshot is available. This uses `pyvistaqt` plus `PySide6` or `PyQt5`; without
-a Qt-backed persistent preview, the simulation still continues but the window
-cannot refresh its particles live.
+The default interval is `10` seconds and the value must be greater than zero.
+At each interval, the preview collects all available body-state VTP snapshots
+and plays them in sequence at up to 25 FPS. It then waits for another interval
+before collecting the next batch, allowing slower simulations to produce
+more output between playback batches. A snapshot is loaded only after its file
+size and modification time remain stable across checks, avoiding reads while
+the solver is still writing it. This uses `pyvistaqt` plus `PySide6` or
+`PyQt5`; without a Qt-backed persistent preview, the simulation still
+continues but the window cannot refresh its particles live.
 
 ## Python API
 

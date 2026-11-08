@@ -159,7 +159,10 @@ def test_j2_damage_reaches_the_real_native_material_builder(tmp_path):
     config["geometries"]["shapes"][1]["polygons"][0]["thickness"] = .05
     config["geometries"]["system_domain"] = {"lower_bound": [-.05, -.05], "upper_bound": [.55, .2]}
     config["particle_generation"]["settings"]["relaxation_parameters"]["total_iterations"] = 1
-    config["solver_parameters"].update(end_time=.0001, output_interval=.0001)
+    # Continuum frames are recorded at advection boundaries, not every acoustic
+    # step. Advance beyond an advection interval at this coarse resolution so
+    # the test verifies evolved output rather than only the initial frame.
+    config["solver_parameters"].update(end_time=.02, output_interval=.001)
     path = tmp_path / "config.json"
     path.write_text(json.dumps(config))
     simulation = core.SPHSimulation(str(path))
@@ -175,5 +178,6 @@ def test_j2_damage_reaches_the_real_native_material_builder(tmp_path):
     exporter = Exporter(output, tmp_path / "verified", config, 2)
     exporter.scan()
     frames = exporter.bodies[config["continuum_bodies"][0]["name"]]
+    assert len(frames) >= 2
     assert frames[-1]["time"] > 0
     assert frames[-1]["count"] > 0

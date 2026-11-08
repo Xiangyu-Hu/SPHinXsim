@@ -51,9 +51,7 @@ jobs:
           python-version: "3.12"
 
       - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: "3.x"
+        run: python -m pip install cmake==3.31.10
 
       - name: Install system dependencies
         run: |
@@ -170,9 +168,7 @@ jobs:
           python-version: "3.12"
 
       - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: "3.x"
+        run: python -m pip install cmake==3.31.10
 
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -285,9 +281,7 @@ jobs:
           python-version: "3.12"
 
       - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: "3.x"
+        run: python -m pip install cmake==3.31.10
 
       - name: Install macOS system dependencies
         run: |
@@ -372,9 +366,7 @@ jobs:
           python-version: "3.12"
 
       - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: "3.x"
+        run: python -m pip install cmake==3.31.10
 
       - name: Install system dependencies and Intel oneAPI
         run: |
@@ -496,9 +488,7 @@ jobs:
           python-version: "3.12"
 
       - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: "3.x"
+        run: python -m pip install cmake==3.31.10
 
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'

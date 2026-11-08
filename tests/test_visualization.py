@@ -95,7 +95,6 @@ def _minimal_fluid_config() -> dict:
             "fluid_dynamics": {
                 "acoustic_cfl": 0.6,
                 "advection_cfl": 0.25,
-                "surface_type": "free_surface",
             },
         },
     }
@@ -290,6 +289,91 @@ class TestPreviewLegend:
         assert "Weakly compressible fluid" in labels
         assert "Granular material" not in labels
         assert "Solid" in labels
+
+    def test_multiple_fluid_bodies_have_distinct_render_and_legend_colours(
+        self, fluid_config, tmp_path
+    ):
+        from sphinxsim.visualization.preview import (
+            ConfigVisualizer,
+            _body_colour,
+            _legend_entries_for_config,
+        )
+
+        data = copy.deepcopy(fluid_config.model_dump(exclude_none=True))
+        second_body = copy.deepcopy(data["fluid_bodies"][0])
+        second_body["name"] = "AirBody"
+        second_body["material"]["density"] = 1.0
+        data["fluid_bodies"].append(second_body)
+        data["geometries"]["shapes"].append(
+            {
+                "name": "AirBody",
+                "type": "bounding_box",
+                "lower_bound": [0.5, 0.1],
+                "upper_bound": [0.9, 0.4],
+            }
+        )
+        data["particle_generation"]["settings"]["bodies"].append({"name": "AirBody"})
+        config = SimulationConfig.model_validate(data)
+
+        water_colour = _body_colour("WaterBody", config)
+        air_colour = _body_colour("AirBody", config)
+        assert water_colour != air_colour
+
+        entries = _legend_entries_for_config(config)
+        assert ("WaterBody", water_colour) in entries
+        assert ("AirBody", air_colour) in entries
+        particle_entries = _legend_entries_for_config(
+            config, {"WaterBody", "AirBody"}
+        )
+        assert particle_entries == [
+            ("AirBody Particles", air_colour),
+            ("WaterBody Particles", water_colour),
+        ]
+
+        visualizer = ConfigVisualizer(config, tmp_path, off_screen=True)
+        visualizer._shape_bounds_cache = {
+            "WaterBody": ([0.0, 0.0], [0.4, 0.2]),
+            "AirBody": ([0.5, 0.1], [0.9, 0.4]),
+            "WallBoundary": ([-0.05, -0.05], [1.05, 1.05]),
+        }
+        fake_plotter = _FakePlotter()
+        with patch.dict(sys.modules, {"pyvista": _FakePyVista}):
+            visualizer._populate_plotter(fake_plotter, vtp_dir=None)
+
+        body_meshes = {
+            call["label"]: call["color"]
+            for call in fake_plotter.mesh_calls
+            if call.get("label") in {"WaterBody", "AirBody"}
+        }
+        assert body_meshes == {
+            "WaterBody": water_colour,
+            "AirBody": air_colour,
+        }
+
+    def test_fluid_body_palette_does_not_repeat_after_six_bodies(self, fluid_config):
+        from sphinxsim.visualization.preview import _body_colour
+
+        data = copy.deepcopy(fluid_config.model_dump(exclude_none=True))
+        template_body = copy.deepcopy(data["fluid_bodies"][0])
+        for index in range(1, 8):
+            name = f"FluidBody{index}"
+            body = copy.deepcopy(template_body)
+            body["name"] = name
+            data["fluid_bodies"].append(body)
+            data["geometries"]["shapes"].append(
+                {
+                    "name": name,
+                    "type": "bounding_box",
+                    "lower_bound": [float(index), 0.0],
+                    "upper_bound": [float(index) + 0.5, 0.5],
+                }
+            )
+            data["particle_generation"]["settings"]["bodies"].append({"name": name})
+
+        config = SimulationConfig.model_validate(data)
+        colours = [_body_colour(body.name, config) for body in config.fluid_bodies]
+
+        assert len(set(colours)) == len(colours)
 
 
 class TestOrientedBoxLabel:
@@ -648,16 +732,23 @@ class TestPreviewGeneratedParticles:
             viz._populate_plotter(fake_plotter, vtp_dir=None, latest_particle_vtps=fake_latest)
 
         particle_mesh_calls = [
-            call for call in fake_plotter.mesh_calls if str(call.get("label", "")).startswith("Particles: ")
+            call for call in fake_plotter.mesh_calls
+            if call.get("label") in {"WaterBody Particles", "WallBoundary Particles"}
         ]
         assert len(particle_mesh_calls) == 2
+        assert {call["label"] for call in particle_mesh_calls} == {
+            "WaterBody Particles",
+            "WallBoundary Particles",
+        }
         assert all(call.get("style") == "points" for call in particle_mesh_calls)
         assert all(call.get("point_size") == 5 for call in particle_mesh_calls)
 
         particle_label_calls = [
             call
             for call in fake_plotter.point_label_calls
-            if call["labels"] and str(call["labels"][0]).startswith("Particles: ")
+            if call["labels"]
+            and str(call["labels"][0])
+            in {"WaterBody Particles", "WallBoundary Particles"}
         ]
         assert particle_label_calls == []
 
@@ -718,7 +809,8 @@ class TestPreviewGeneratedParticles:
                 viz._populate_plotter(fake_plotter, vtp_dir=None, latest_particle_vtps=fake_latest)
 
         particle_mesh_calls = [
-            call for call in fake_plotter.mesh_calls if str(call.get("label", "")).startswith("Particles: ")
+            call for call in fake_plotter.mesh_calls
+            if call.get("label") == "WaterBody Particles"
         ]
         assert len(particle_mesh_calls) == 1
 
@@ -2100,6 +2192,8 @@ class TestPreviewGravityArrow:
                 "upper_bound": [1.05, 1.05, 1.05],
             },
         ]
+        data["geometries"]["oriented_boxes"][0]["center"] = [0.0, 0.1, 0.0]
+        data["geometries"]["oriented_boxes"][0]["normal"] = [1.0, 0.0, 0.0]
         data["gravity"] = [0.0, 0.0, -9.81]
         cfg = SimulationConfig(**data)
         viz = ConfigVisualizer(cfg, tmp_path, off_screen=True)

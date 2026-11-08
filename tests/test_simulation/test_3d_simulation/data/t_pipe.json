@@ -105,6 +105,7 @@
         "density": 1060.0,
         "viscosity": 0.0035
       },
+      "surface_type": "open_boundary",
       "particle_reserve_factor": 0.2
     }
   ],
@@ -153,7 +154,6 @@
     "fluid_dynamics": {
       "acoustic_cfl": 0.6,
       "advection_cfl": 0.25,
-      "surface_type": "open_boundary",
       "particle_sort_frequency": 100
     }
   }

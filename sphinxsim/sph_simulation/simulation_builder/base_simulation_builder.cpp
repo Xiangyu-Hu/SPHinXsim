@@ -29,7 +29,7 @@ VariableConfig parseVariableConfig(const json &config)
 //=================================================================================================//
 SimulationBuilder::SimulationBuilder() : material_builder_ptr_(std::make_unique<MaterialBuilder>()) {}
 //=================================================================================================//
-SimulationBuilder ::~SimulationBuilder() = default;
+SimulationBuilder::~SimulationBuilder() = default;
 //=================================================================================================//
 void SimulationBuilder::initializeAllBodyConfigs(EntityManager &config_manager)
 {
@@ -53,6 +53,12 @@ void SimulationBuilder::buildFluidBodies(
         Shape &fluid_shape = config_manager.getEntity<Shape>(name);
         auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
         material_builder_ptr_->addMaterial(config_manager, fluid_body, fb.at("material"));
+
+        if (fb.contains("surface_type"))
+        {
+            fluid_body.setSurfaceType(fb.at("surface_type").get<std::string>());
+        }
+
         if (fb.contains("particle_reserve_factor"))
         {
             ParticleBuffer<ReserveSizeFactor> inlet_buffer(
@@ -231,20 +237,21 @@ void SimulationBuilder::buildExternalForceIfPresent(
     if (!config.contains("gravity"))
         return;
 
-    const json &config_gravity = config.at("gravity");
     auto &sph_system = sim.getSPHSystem();
     auto &config_manager = sim.getConfigManager();
+    auto &gravity_config = *config_manager.emplaceEntity<GravityConfig>("GravityConfig");
     auto &gravity_force = main_methods.addParticleDynamicsGroup();
 
+    const json &config_gravity = config.at("gravity");
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
-    Vecd gravity_vector = scaling_config.jsonToVecd(config_gravity, "Acceleration");
+    gravity_config.gravity_ = Gravity(scaling_config.jsonToVecd(config_gravity, "Acceleration"));
 
     auto &fluid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("FluidBodiesConfig");
     for (const auto &fb : fluid_bodies_config)
     {
         auto &fluid_body = sph_system.getBodyByName<FluidBody>(fb->name_);
         gravity_force.add(&main_methods.template addStateDynamics<GravityForceCK<Gravity>>(
-            fluid_body, Gravity(gravity_vector)));
+            fluid_body, gravity_config.gravity_));
     }
 
     auto &continuum_bodies_config = config_manager.getEntity<SPHBodiesConfig>("ContinuumBodiesConfig");
@@ -252,7 +259,7 @@ void SimulationBuilder::buildExternalForceIfPresent(
     {
         auto &continuum_body = sph_system.getBodyByName<RealBody>(cb->name_);
         gravity_force.add(&main_methods.template addStateDynamics<GravityForceCK<Gravity>>(
-            continuum_body, Gravity(gravity_vector)));
+            continuum_body, gravity_config.gravity_));
     }
 
     if (config_gravity.contains("enabled_solid_bodies"))
@@ -262,7 +269,7 @@ void SimulationBuilder::buildExternalForceIfPresent(
             std::string name = sb.at("body_name").get<std::string>();
             auto &solid_body = sph_system.getBodyByName<SolidBody>(name);
             gravity_force.add(&main_methods.template addStateDynamics<GravityForceCK<Gravity>>(
-                solid_body, Gravity(gravity_vector)));
+                solid_body, gravity_config.gravity_));
         }
     }
 

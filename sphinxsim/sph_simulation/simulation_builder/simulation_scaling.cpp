@@ -246,11 +246,11 @@ UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name, bool is_require
     if (unit_name == "Viscosity")
         return UnitMetrics{-1, 1, -1, 0, 0, 0, 0};
     if (unit_name == "Diffusivity")
-        return UnitMetrics{1, 0, -1, 0, 0, 0, 0};
+        return UnitMetrics{2, 0, -1, 0, 0, 0, 0};
     if (unit_name == "ThermalConductivity")
-        return UnitMetrics{-1, 1, -3, -1, 0, 0, 0};
+        return UnitMetrics{1, 1, -3, -1, 0, 0, 0};
     if (unit_name == "VolumetricHeatCapacity")
-        return UnitMetrics{0, 1, -2, -1, 0, 0, 0};
+        return UnitMetrics{-1, 1, -2, -1, 0, 0, 0};
     if (unit_name == "Energy")
         return UnitMetrics{2, 1, -2, 0, 0, 0, 0};
 

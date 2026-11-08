@@ -44,8 +44,10 @@ Here, I show (2d) simulation setting json file to illustrate the basic usage.
           {
             "operation": "union",
             "type": "container_box",
-            "inner_lower_bound": [0.0, 0.0],
-            "inner_upper_bound": [5.366, 5.366],
+            "inner_box": {
+              "lower_bound": [0.0, 0.0],
+              "upper_bound": [5.366, 5.366]
+            },
             "thickness": 0.1
           }
         ]
@@ -122,7 +124,6 @@ Here, I show (2d) simulation setting json file to illustrate the basic usage.
     "fluid_dynamics": {
       "acoustic_cfl": 0.6,
       "advection_cfl": 0.25,
-      "surface_type": "free_surface",
       "particle_sort_frequency": 100
     }
   }

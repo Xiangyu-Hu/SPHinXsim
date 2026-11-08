@@ -1,6 +1,6 @@
 # Connect an external agent through MCP
 
-Build/install the native project following the [installation guide](../../docs/installation.md),
+Build/install the native project following the [installation guide](installation.md),
 then install the required extras from the same checkout:
 
 ```sh
@@ -42,9 +42,9 @@ Verified artifacts use `sphinxsim://jobs/{job_id}/artifacts/{name}` resources. R
 are limited to published files and 1 MiB per resource; use owner-provided file
 delivery for large assets. Resource access rechecks published size/hash evidence.
 
-Read the [native workflow guide](../../docs/agent-workflows.md) for CLI examples,
+Read the [native workflow guide](agent-workflows.md) for CLI examples,
 JSON contracts, execution lifecycle, quality interpretation and test boundaries.
-The optional [skill](skills/sphinxsim/SKILL.md) guides experimental decisions;
+The optional [skill](https://github.com/Xiangyu-Hu/SPHinXsim/blob/main/.github/skills/sphinxsim/SKILL.md) guides experimental decisions;
 install it through your client's supported skill mechanism. It grants no access.
 
 No Docker image is required by this protocol. Image names, GPU devices, remote

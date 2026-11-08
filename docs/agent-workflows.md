@@ -4,6 +4,12 @@ SPHinXsim uses its existing `sphinxsim` package and CLI for both people and
 agents. MCP exposes the same application operations. There is no separate
 agent package, command-line program, required cloud service or container image.
 
+For client configuration and resource access, see [MCP setup](mcp.md). The optional
+[companion skill](https://github.com/Xiangyu-Hu/SPHinXsim/blob/main/.github/skills/sphinxsim/SKILL.md) follows the repository's
+`.github/skills/` convention. Install the complete `sphinxsim` skill directory,
+including its `references/`, through your agent client's supported mechanism.
+It guides experiment design and quality interpretation; it grants no access.
+
 ## Installation
 
 Follow the platform [installation guide](installation.md) to build the native

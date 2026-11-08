@@ -14,16 +14,16 @@ are different levels of evidence. Never present them as interchangeable.
 4. Compile explicit quantities in the native configuration; inspect diagnostics
    and normalizations. Validate before submitting. Do not hide assumptions or
    invent fields accepted only by a loose JSON object.
-5. Start with a coarse, short trial. Return the persistent job reference; query
+5. Start with a coarse, short trial. Return the complete persistent job reference and its request hash; query
    it when needed. Disconnecting or canceling an MCP request is not permission
    to terminate an independent simulation. Cancel only when explicitly asked.
 6. Retained particles may continue only within their lease and frozen input.
    Expiry requires a new execution of that frozen input. Never silently substitute
    a changed draft. Repeated continue must not launch duplicate calculations.
-7. Read the quality report and its `notEvaluated` entries. Zero findings does not
+7. Read the quality report and its `not_evaluated` entries. Zero findings does not
    prove no leakage, convergence or accuracy. Saved-frame extrema have no spatial
    locations; do not infer a bow/wake/local pressure from a global scalar range.
-8. For the optional shared desktop, observe before short visual action sequences
+8. For the optional native desktop, read status before commands or external visual action sequences
    and verify the outcome. Human actions may change focus, values or camera.
    Do not reuse stale coordinates after resizing. Preserve unsaved edits on CAS
    conflicts. Stop fences automatic actions, not human input or solver work.
@@ -31,3 +31,11 @@ are different levels of evidence. Never present them as interchangeable.
 Keep large STL/VTP assets outside model context. Use verified references and
 bounded summaries. The deployment owner chooses workspace access and GPU/CPU/
 memory limits. This guide does not grant access or replace tool enforcement.
+
+Use the installed `sphinxsim` CLI or its MCP adapter; no separate Agent CLI
+is needed. Inspect the project inventory before submission, and use a stable
+`submission_id` when retrying the same frozen request. Never replace an explicit
+job reference with a guess about the latest task. For native edits, use observed
+`instance_id`, `version` and the appropriate raw `expected_hash`. CAD generation
+produces a candidate; apply it explicitly after review. Unsaved edits and stale
+versions are conflicts to resolve, not reasons to overwrite human changes.

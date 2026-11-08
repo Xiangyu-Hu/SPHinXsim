@@ -1,10 +1,8 @@
-# Agent workflow for SPHinXsim
+# Agent workflow
 
-The canonical, portable workflow is in the companion Skill's
-[workflow reference](skills/sphinxsim/references/workflow.md).
-Read it when authoring configurations, using shared desktop actions or interpreting
-quality reports. The reference distinguishes source/schema evidence from verified
-execution and physical accuracy.
+Use the companion [skill workflow](skills/sphinxsim/references/workflow.md) when
+authoring experiments or interpreting quality reports. It separates schema and
+source evidence from verified execution and physical accuracy.
 
-For runtime prerequisites, image builds, MCP client configuration and Skill
-installation, see the [MCP usage guide](MCP_GUIDE.md).
+The [native CLI guide](../../docs/agent-workflows.md) defines commands and state
+contracts. [MCP setup](MCP_GUIDE.md) describes the optional protocol adapter.

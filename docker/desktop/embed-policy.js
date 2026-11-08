@@ -1,1 +1,0 @@
-globalThis.SPHINXSIM_EMBED_CUSTOM_ORIGINS = [];

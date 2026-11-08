@@ -1,6 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=SPHinXsim
-Exec=xterm -hold -T SPHinXsim -fa Monospace -fs 12 -geometry 100x24 -e /usr/local/bin/sphinxsim-native shell
-Terminal=false
-OnlyShowIn=XFCE;

@@ -33,13 +33,13 @@ from typing import Any, Tuple
 
 # Set up sys.path FIRST, before any sphinxsim imports
 def _find_project_root(start=None):
-    start = start or os.getcwd()
+    start = start or str(Path(__file__).resolve().parent)
     current = start
     while current != os.path.dirname(current):  # Not at root
-        if os.path.exists(os.path.join(current, "pyproject.toml")):
+        if os.path.exists(os.path.join(current, "pyproject.toml")) and os.path.isfile(os.path.join(current, "sphinxsim", "cli.py")):
             return current
         current = os.path.dirname(current)
-    raise RuntimeError("Project root not found")
+    return os.getcwd()
 
 PROJECT_ROOT = _find_project_root()
 sys.path.insert(0, PROJECT_ROOT)
@@ -88,11 +88,13 @@ def _load_config(path: Path) -> Tuple[SimulationConfig | None, int]:
         return None, 1
     try:
         data = json.loads(path.read_text())
-        return SimulationConfig(**data), 0
+        from sphinxsim.runtime.physics import check_config
+        normalized, _ = check_config(data)
+        return SimulationConfig(**normalized), 0
     except json.JSONDecodeError as exc:
         print(f"Invalid JSON: {exc}", file=sys.stderr)
         return None, 1
-    except ValidationError as exc:
+    except (ValidationError, ValueError) as exc:
         print(f"Config validation failed:\n{exc}", file=sys.stderr)
         return None, 1
 
@@ -811,7 +813,9 @@ class _ShellPreviewRuntime:
     updates its scene in place.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, config_type=None, write_config=None) -> None:
+        self.config_type = config_type or SimulationConfig
+        self.write_config = write_config or _write_validated_config
         self.plotter: Any | None = None
         self.last_signature: str | None = None
         self._using_background_plotter = False
@@ -1651,7 +1655,7 @@ class _ShellPreviewRuntime:
                 return
 
             try:
-                updated_config = SimulationConfig(**payload)
+                updated_config = self.config_type(**payload)
             except ValidationError as exc:
                 first_error = exc.errors(include_url=False)[0]
                 location = ".".join(str(part) for part in first_error.get("loc", ("config",)))
@@ -1681,7 +1685,7 @@ class _ShellPreviewRuntime:
                 patched_payload = _apply_payload_diff(
                     raw_payload, editor_state["baseline_payload"], payload
                 )
-                patched_config = SimulationConfig(**patched_payload)
+                patched_config = self.config_type(**patched_payload)
                 if patched_config.model_dump(exclude_none=True) == updated_config.model_dump(
                     exclude_none=True
                 ):
@@ -1700,7 +1704,7 @@ class _ShellPreviewRuntime:
                 file_content = None
 
             try:
-                _write_validated_config(active_config_path, updated_config, file_content)
+                self.write_config(active_config_path, updated_config, file_content)
             except OSError as exc:
                 status.setText(f"Could not save {active_config_path.name}: {exc}")
                 return
@@ -1765,6 +1769,7 @@ class _ShellPreviewRuntime:
             "refresh": refresh_editor,
             # Optional embedding hooks; default CLI behavior is unchanged.
             "is_dirty": lambda: bool(editor_state["dirty"]),
+            "payload": lambda: copy.deepcopy(collect_payload()),
             "discard": lambda: populate_editor(editor_state["original_json"], reset_history=True),
         }
         return True
@@ -2523,7 +2528,7 @@ COMPLETION_SCRIPTS = {
     local cur opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="generate validate update run preview explore shell --help --version --generate-completion"
+    opts="generate validate update run preview explore shell capabilities compile geometry project job desktop mcp --help --version --generate-completion"
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
     return 0
 }
@@ -2540,6 +2545,13 @@ _sphinxsim() {
         'preview:Render an interactive geometry/BC preview of a JSON config file'
         'explore:Ask schema/functionality questions using LLM'
         'shell:Interactive shell for config workflow'
+        'capabilities:Inspect schema and native routing evidence'
+        'compile:Compile quantities into native configuration'
+        'geometry:Generate verified CAD geometry'
+        'project:Inspect project inputs'
+        'job:Query or control an explicit job'
+        'desktop:Serve or operate the native application'
+        'mcp:Serve native operations over MCP stdio'
     )
     _describe 'sphinxsim commands' subcmds
 }
@@ -2551,7 +2563,8 @@ complete -c sphinxsim -f -a "update" -d "Update existing simulation config"
 complete -c sphinxsim -f -a "run" -d "Run simulation from JSON config"
 complete -c sphinxsim -f -a "preview" -d "Render interactive geometry/BC preview"
 complete -c sphinxsim -f -a "explore" -d "Ask schema/functionality questions"
-complete -c sphinxsim -f -a "shell" -d "Interactive shell workflow" """
+complete -c sphinxsim -f -a "shell" -d "Interactive shell workflow"
+complete -c sphinxsim -f -a "capabilities compile geometry project job desktop mcp" -d "Native application operations" """
 }
 
 
@@ -2678,6 +2691,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     shell.set_defaults(func=cmd_shell)
 
+    from sphinxsim.commands import register
+    register(subparsers)
     return parser
 
 
@@ -2725,10 +2740,22 @@ def _parse_shell_ai_cli_style(text: str) -> list[str] | None:
     return [command] + parts[1:]
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, publish_json=None) -> int:
     """Entry point for the ``sphinxsim`` CLI."""
     parser = _build_parser()
     args = parser.parse_args(argv)
+    if publish_json is not None:
+        if not callable(publish_json) or not getattr(args, "request", None):
+            parser.error("The trusted publisher hook requires a frozen --request execution")
+        args.publish_json = publish_json
+    if args.command in ("run", "preview") and not args.request and args.config_file is None:
+        args.config_file = "config.json"
+    structured = any(getattr(args, key, None) for key in ("json", "detach", "request", "root", "output", "submission_id"))
+    policy_changed = any(getattr(args, key, default) != default for key, default in
+                         (("lease_seconds", 600), ("refresh_seconds", 10), ("wall_seconds", 3600)))
+    if args.command in ("validate", "run", "preview") and (structured or policy_changed):
+        from sphinxsim.commands import execute
+        return execute(args)
     return args.func(args)
 
 

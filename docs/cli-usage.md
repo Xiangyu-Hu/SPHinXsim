@@ -2,6 +2,9 @@
 
 SPHinXsim provides a command-line interface for building, validating, updating, and running SPH simulations. This guide covers all available commands and workflows.
 
+Structured JSON, CadQuery modeling, persistent execution and MCP use the same
+CLI. See [Native CLI and external agents](agent-workflows.md).
+
 ## Quick start
 
 ### Shell auto-completion

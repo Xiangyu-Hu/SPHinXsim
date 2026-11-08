@@ -28,6 +28,9 @@ SPHinXsim is cross-platform can be compiled and used in Windows, Linux and McOS 
 
 For installation, program manual and tutorials, please check at <https://xiangyu-hu.github.io/SPHinXsim/>.
 
+For structured CLI operations, CadQuery and optional MCP access, see
+[Native CLI and external agents](docs/agent-workflows.md).
+
 ## Interaction with SPHinXsim and the team
 
 Thank you for using and supporting our open-source project!

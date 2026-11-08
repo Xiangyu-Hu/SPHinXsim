@@ -92,7 +92,7 @@ jobs:
 
       - name: Install C++ dependencies via vcpkg
         run: |
-          ${{ github.workspace }}/vcpkg/vcpkg install --clean-after-build \
+          python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
             eigen3 \
             tbb \
             boost-program-options \
@@ -195,7 +195,7 @@ jobs:
         shell: pwsh
         run: |
           $vcpkg = "${{ github.workspace }}\\vcpkg\\vcpkg.exe"
-          & $vcpkg install --clean-after-build `
+          python .github/scripts/retry-vcpkg-download.py $vcpkg install --clean-after-build `
             eigen3 `
             tbb `
             boost-program-options `
@@ -301,32 +301,17 @@ jobs:
           cache-version: ${{ env.VCPKG_VERSION }}-macos
 
       - name: Install C++ dependencies via vcpkg (macOS)
-        shell: bash
         run: |
-          for attempt in 1 2 3; do
-            if "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
-              eigen3 \
-              tbb \
-              boost-program-options \
-              boost-geometry \
-              simbody \
-              spdlog \
-              gtest \
-              pybind11 \
-              nlohmann-json 2>&1 | tee "${{ runner.temp }}/vcpkg-install.log"; then
-              break
-            else
-              status=$?
-            fi
-            # Retry transient downloads, never hide a compiler or configuration failure.
-            if [ "$attempt" -eq 3 ] || ! grep -Eq \
-              'curl operation failed with response code (429|500|502|503|504)\.' \
-              "${{ runner.temp }}/vcpkg-install.log"; then
-              exit "$status"
-            fi
-            echo "Transient dependency download failure; retrying in $((attempt * 15)) seconds."
-            sleep "$((attempt * 15))"
-          done
+          python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
+            eigen3 \
+            tbb \
+            boost-program-options \
+            boost-geometry \
+            simbody \
+            spdlog \
+            gtest \
+            pybind11 \
+            nlohmann-json
 
       - name: Configure CMake (macOS)
         run: |
@@ -418,9 +403,9 @@ jobs:
 
       - name: Install C++ dependencies via vcpkg
         run: |
-          ${{ github.workspace }}/vcpkg/vcpkg install --clean-after-build \
+          python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
             openblas[dynamic-arch] --allow-unsupported
-          ${{ github.workspace }}/vcpkg/vcpkg install --clean-after-build \
+          python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
             eigen3 \
             tbb \
             boost-program-options \
@@ -546,7 +531,7 @@ jobs:
       - name: Install C++ dependencies via vcpkg (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
-          ${{ github.workspace }}/vcpkg/vcpkg install --clean-after-build \
+          python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
             eigen3 \
             tbb \
             boost-program-options \
@@ -562,7 +547,7 @@ jobs:
         shell: pwsh
         run: |
           $vcpkg = "${{ github.workspace }}\vcpkg\vcpkg.exe"
-          & $vcpkg install --clean-after-build `
+          python .github/scripts/retry-vcpkg-download.py $vcpkg install --clean-after-build `
             eigen3 `
             tbb `
             boost-program-options `

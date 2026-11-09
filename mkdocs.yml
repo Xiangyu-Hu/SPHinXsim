@@ -8,6 +8,9 @@ nav:
       - Windows: installation-windows.md
       - macOS: installation-macos.md
   - CLI Usage: cli-usage.md
+  - External Agents:
+      - Native Workflows: agent-workflows.md
+      - MCP Setup: mcp.md
   - Visualization: visualization.md
   - LLM Testing: llm-testing.md
   - Theoretical Backgrounds:

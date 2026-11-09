@@ -14,7 +14,8 @@ sudo apt-get install -y \
   ninja-build \
   autoconf automake autoconf-archive \
   libxmu-dev libxi-dev libgl-dev libxt-dev \
-  libxcb-cursor0
+  libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 \
+  libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-shape0
 ```
 
 ## Clone Repository

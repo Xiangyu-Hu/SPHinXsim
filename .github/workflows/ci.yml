@@ -51,9 +51,7 @@ jobs:
           python-version: "3.12"
 
       - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: "3.x"
+        run: python -m pip install cmake==4.2.3
 
       - name: Install system dependencies
         run: |
@@ -68,7 +66,18 @@ jobs:
             python3-dev \
             autoconf automake autoconf-archive \
             libxmu-dev libxi-dev libgl-dev libxt-dev \
-            libxcb-cursor0
+            libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 \
+            libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-shape0 \
+            xvfb xauth libgl1-mesa-dri libegl1 libopengl0
+
+      - name: Verify Qt display before native compilation
+        env:
+          QT_QPA_PLATFORM: xcb
+          QT_DEBUG_PLUGINS: "1"
+        run: |
+          python -m pip install 'PySide6>=6.5'
+          xvfb-run -a -s "-screen 0 1600x1000x24" python -c \
+            'from PySide6.QtWidgets import QApplication; app = QApplication([]); print("Qt display:", app.platformName())'
 
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -83,7 +92,7 @@ jobs:
 
       - name: Install C++ dependencies via vcpkg
         run: |
-          ${{ github.workspace }}/vcpkg/vcpkg install --clean-after-build \
+          python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
             eigen3 \
             tbb \
             boost-program-options \
@@ -116,11 +125,22 @@ jobs:
       - name: Install Python package (editable with dev dependencies)
         run: |
           export CMAKE_ARGS="-D CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
-          pip install -e ".[dev]"
+          pip install -e ".[dev,cad,mcp,results,visualization]"
 
-      - name: Run unit tests (tests/)
+      - name: Run unit tests (tests/, including native operations)
+        env:
+          SPHINXSIM_REQUIRE_NATIVE_TESTS: "1"
         run: |
           pytest tests/ -v
+
+      - name: Test real native desktop and screenshot on a CPU display
+        env:
+          SPHINXSIM_REQUIRE_NATIVE_TESTS: "1"
+          SPHINXSIM_DESKTOP_TESTS: "1"
+          QT_QPA_PLATFORM: xcb
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          xvfb-run -a -s "-screen 0 1600x1000x24" pytest tests/runtime/test_desktop.py -v -s
 
       - name: Run example tests (examples/)
         run: |
@@ -148,11 +168,11 @@ jobs:
           python-version: "3.12"
 
       - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: "3.x"
+        run: python -m pip install cmake==4.2.3
 
       - name: Set up ccache
+        # Caching is optional; build and tests still run if its download fails.
+        continue-on-error: true
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: ${{ github.job }}-${{ runner.os }}
@@ -160,12 +180,10 @@ jobs:
       - name: Install Windows build tools
         shell: pwsh
         run: |
-          choco install ccache -y --no-progress
-          choco install ninja -y --no-progress
-          $chocoBin = Join-Path $env:ChocolateyInstall 'bin'
-          $chocoBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          & (Join-Path $chocoBin 'ccache.exe') --version
-          & (Join-Path $chocoBin 'ninja.exe') --version
+          python -m pip install ninja==1.13.2
+          $ninjaBin = python -c 'import ninja; print(ninja.BIN_DIR)'
+          $ninjaBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $ninjaBin 'ninja.exe') --version
 
       - name: Set up vcpkg
         uses: friendlyanon/setup-vcpkg@v1
@@ -177,7 +195,7 @@ jobs:
         shell: pwsh
         run: |
           $vcpkg = "${{ github.workspace }}\\vcpkg\\vcpkg.exe"
-          & $vcpkg install --clean-after-build `
+          python .github/scripts/retry-vcpkg-download.py $vcpkg install --clean-after-build `
             eigen3 `
             tbb `
             boost-program-options `
@@ -195,7 +213,8 @@ jobs:
         shell: pwsh
         run: |
           $pythonExe = python -c 'import sys; print(sys.executable)'
-          $ccacheExe = Join-Path $env:ChocolateyInstall 'bin\ccache.exe'
+          $ccache = Get-Command ccache -CommandType Application -ErrorAction SilentlyContinue
+          $ccacheExe = if ($ccache) { $ccache.Source } else { '' }
           cmake --preset integrated-build-release-windows `
             -D CMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" `
             -D CMAKE_C_COMPILER_LAUNCHER="$ccacheExe" `
@@ -263,9 +282,7 @@ jobs:
           python-version: "3.12"
 
       - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: "3.x"
+        run: python -m pip install cmake==4.2.3
 
       - name: Install macOS system dependencies
         run: |
@@ -285,7 +302,7 @@ jobs:
 
       - name: Install C++ dependencies via vcpkg (macOS)
         run: |
-          ${{ github.workspace }}/vcpkg/vcpkg install --clean-after-build \
+          python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
             eigen3 \
             tbb \
             boost-program-options \
@@ -350,9 +367,7 @@ jobs:
           python-version: "3.12"
 
       - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: "3.x"
+        run: python -m pip install cmake==4.2.3
 
       - name: Install system dependencies and Intel oneAPI
         run: |
@@ -388,9 +403,9 @@ jobs:
 
       - name: Install C++ dependencies via vcpkg
         run: |
-          ${{ github.workspace }}/vcpkg/vcpkg install --clean-after-build \
+          python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
             openblas[dynamic-arch] --allow-unsupported
-          ${{ github.workspace }}/vcpkg/vcpkg install --clean-after-build \
+          python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
             eigen3 \
             tbb \
             boost-program-options \
@@ -474,9 +489,7 @@ jobs:
           python-version: "3.12"
 
       - name: Set up CMake
-        uses: jwlawson/actions-setup-cmake@v2
-        with:
-          cmake-version: "3.x"
+        run: python -m pip install cmake==4.2.3
 
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
@@ -504,10 +517,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          choco install ninja -y --no-progress
-          $chocoBin = Join-Path $env:ChocolateyInstall 'bin'
-          $chocoBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          & (Join-Path $chocoBin 'ninja.exe') --version
+          python -m pip install ninja==1.13.2
+          $ninjaBin = python -c 'import ninja; print(ninja.BIN_DIR)'
+          $ninjaBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & (Join-Path $ninjaBin 'ninja.exe') --version
 
       - name: Set up vcpkg
         uses: friendlyanon/setup-vcpkg@v1
@@ -518,7 +531,7 @@ jobs:
       - name: Install C++ dependencies via vcpkg (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
-          ${{ github.workspace }}/vcpkg/vcpkg install --clean-after-build \
+          python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
             eigen3 \
             tbb \
             boost-program-options \
@@ -534,7 +547,7 @@ jobs:
         shell: pwsh
         run: |
           $vcpkg = "${{ github.workspace }}\vcpkg\vcpkg.exe"
-          & $vcpkg install --clean-after-build `
+          python .github/scripts/retry-vcpkg-download.py $vcpkg install --clean-after-build `
             eigen3 `
             tbb `
             boost-program-options `
@@ -582,3 +595,4 @@ jobs:
         run: |
           python -c "import os,tempfile; d=tempfile.mkdtemp(); os.chdir(d); from sphinxsim.bindings.loader import load_sphinxsys_core; m=load_sphinxsys_core(); print('Loaded extension:', m.__name__)"
           sphinxsim --help
+          python -c "import os,tempfile,subprocess,sys,json; from importlib.metadata import distribution; d=tempfile.mkdtemp(); os.chdir(d); assert [e.name for e in distribution('sphinxsim').entry_points if e.group=='console_scripts']==['sphinxsim']; r=subprocess.run([sys.executable,'-m','sphinxsim','capabilities','--json'],capture_output=True,text=True,check=True); c=json.loads(r.stdout)['data']; assert 'loft' in c['modeling']['operations']; assert any(m['name']=='j2_plasticity' for m in c['capabilities']['materials'])"

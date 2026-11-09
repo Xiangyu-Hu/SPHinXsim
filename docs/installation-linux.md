@@ -73,12 +73,6 @@ Rough rule: ~1.5–2 GB RAM per job for C++ projects. For example you can build 
 cmake --build --preset integrated-build-release --parallel 4
 ```
 
-or using percentage 
-
-```bash
-cmake --build --preset integrated-build-release --parallel 50%
-```
-
 Install compiled C++ extension modules into the active Python environment:
 
 ```bash

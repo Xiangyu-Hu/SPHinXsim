@@ -165,7 +165,7 @@ and the mean or hydrostatic stress becomes
 \begin{equation}
 \sigma_H
 =
-\frac{1}{3}\operatorname{tr}(\boldsymbol{\sigma})
+\frac{1}{d}\operatorname{tr}(\boldsymbol{\sigma})
 = -p.
 \label{eq:hydrostatic}
 \end{equation}
@@ -379,7 +379,7 @@ is used as the accumulated plastic-history measure,
 \alpha
 \equiv
 \bar{\varepsilon}^{p}.
-\label{eq:CoxPnull}
+\label{eq:plastic-history-measure}
 \end{equation}
 
 The current yield stress consequently evolves according to
@@ -390,7 +390,7 @@ The current yield stress consequently evolves according to
 \sigma_y
 +
 H\bar{\varepsilon}^{p}.
-\label{eq:CoxPnull}
+\label{eq:current-yield-stress}
 \end{equation}
 
 This identification is particularly advantageous for the damage extension 

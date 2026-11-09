@@ -11,25 +11,62 @@
 
 ## Repository Description
 
-The Python and LLM UI for the multi-physics library [SPHinXsys](https://github.com/Xiangyu-Hu/SPHinXsys).
+SPHinXsim is the agent-ready simulation platform for [SPHinXsys](https://github.com/Xiangyu-Hu/SPHinXsys): a structured, automation-friendly interface for building, validating, and running high-fidelity multi-physics simulations.
 
-### Highlights
+From a single specification, users and external agents can validate inputs, generate CAD geometry, compile native configurations, launch simulations, and inspect verified results through one consistent CLI and MCP workflow.
 
-* Simulation building system accepting structured Jason as single source of truth
-* Jason interface directly used for the C++ based simulator
-* Optional Python interface using pybind11
-* Optional Natural Language (CLI) interface based on Pydantic and Schema validations
-* [Pyvista](https://pyvista.org/) visualization (CLI interface) for simulation settings
-* Full support for heterogeneous computing with CPU and GPU using [SYCL](https://www.khronos.org/sycl/)
+### Built for people and autonomous workflows
 
-## Installation, tutorial and documentation
+* JSON-first simulation design with a single source of truth
+* Native CLI, shell, and MCP interfaces for interactive and automated use
+* CAD-driven geometry generation and validation before execution
+* Optional Python integration via pybind11 for embedded workflows
+* Visualization and result inspection with [PyVista](https://pyvista.org/)
+* Heterogeneous CPU/GPU execution with [SYCL](https://www.khronos.org/sycl/)
 
-SPHinXsim is cross-platform can be compiled and used in Windows, Linux and McOS systems.
+### SPHinXsim Agent
 
-For installation, program manual and tutorials, please check at <https://xiangyu-hu.github.io/SPHinXsim/>.
+The newest workflow makes `sphinxsim` itself the execution layer for both human operators and external agents. There is no separate proprietary agent runtime or cloud-only control plane; the same native application operations are exposed through the shell, the CLI, and the Model Context Protocol (MCP).
 
-For structured CLI operations, CadQuery and optional MCP access, see
-[Native CLI and external agents](docs/agent-workflows.md).
+This enables powerful agent-driven workflows such as:
+
+* schema validation and simulation input checking,
+* CAD generation and geometry review,
+* compilation of native simulation configurations,
+* persistent execution and job management,
+* result inspection and verified resource publication.
+
+For the complete workflow, installation guidance, and MCP configuration, see [Native CLI and external agents](docs/agent-workflows.md).
+
+## Quick start
+
+```bash
+python -m pip install -e '.[dev,cad,mcp,results,visualization]'
+sphinxsim --help
+python -m sphinxsim --help
+```
+
+### Interface options
+
+```bash
+# Shell / terminal workflow
+sphinxsim capabilities --json
+sphinxsim validate project/config.json --root /workspace --json
+
+# Python / CLI entry point
+python -m sphinxsim --help
+
+# MCP / external agent workflow
+sphinxsim mcp --root /workspace
+```
+
+## Installation, tutorials, and documentation
+
+SPHinXsim is cross-platform and can be built and used on Windows, Linux, and macOS.
+
+For installation guides, tutorials, and the project manual, visit <https://xiangyu-hu.github.io/SPHinXsim/>.
+
+For native shell usage, CLI workflows, CAD generation, and optional MCP/agent integration, see [Native CLI and external agents](docs/agent-workflows.md).
 
 ## Interaction with SPHinXsim and the team
 

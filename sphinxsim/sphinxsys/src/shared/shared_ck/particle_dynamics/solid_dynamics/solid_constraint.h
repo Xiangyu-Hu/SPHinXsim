@@ -37,6 +37,34 @@ namespace SPH
 {
 namespace solid_dynamics
 {
+  /**
+ * @brief Attach each selected particle to its initial position
+ * with an undamped linear spring.
+ */
+template <class DynamicsIdentifier>
+class SpringConstrainCK : public MotionConstraintCK<DynamicsIdentifier>
+{
+  public:
+    SpringConstrainCK(DynamicsIdentifier &identifier, Real stiffness);
+    virtual ~SpringConstrainCK() {};
+
+    class UpdateKernel
+    {
+      public:
+        template <class ExecutionPolicy, class EncloserType>
+        UpdateKernel(const ExecutionPolicy &ex_policy, EncloserType &encloser);
+        void update(size_t index_i, Real dt = 0.0);
+
+      protected:
+        Vecd *pos_, *pos0_, *vel_;
+        Real *mass_;
+        Real stiffness_;
+    };
+
+  protected:
+    DiscreteVariable<Real> *dv_mass_;
+    Real stiffness_;
+};
 template <class DynamicsIdentifier>
 class ConstraintBySimBodyCK : public BaseLocalDynamics<DynamicsIdentifier>
 {

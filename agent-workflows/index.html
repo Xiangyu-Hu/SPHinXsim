@@ -1,0 +1,1540 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../cli-usage/">
+      
+      
+        <link rel="next" href="../mcp/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../images/logo-16x16.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Native Workflows - SPHinXsim</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#native-cli-and-external-agents" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="SPHinXsim" class="md-header__button md-logo" aria-label="SPHinXsim" data-md-component="logo">
+      
+  <img src="../images/logo-white.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            SPHinXsim
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Native Workflows
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../installation/" class="md-tabs__link">
+          
+  
+  
+  Installation
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../cli-usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  CLI Usage
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../dambreak.md" class="md-tabs__link">
+          
+  
+  
+  Learning Resources
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+  External Agents
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../visualization/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Visualization
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../llm-testing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  LLM Testing
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../theoretical-background/" class="md-tabs__link">
+          
+  
+  
+  Theoretical Backgrounds
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="SPHinXsim" class="md-nav__button md-logo" aria-label="SPHinXsim" data-md-component="logo">
+      
+  <img src="../images/logo-white.png" alt="logo">
+
+    </a>
+    SPHinXsim
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Installation
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation-linux/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Linux
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation-windows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Windows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation-macos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    macOS
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli-usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learning Resources
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learning Resources
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dambreak.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dambreak flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../filling-tank.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filling a tank
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../milling.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Milling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    External Agents
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    External Agents
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Workflows
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Native Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-and-action-authority" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration and action authority
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-and-cad" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration and CAD
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#persistent-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persistent execution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#native-desktop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Native desktop
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#results-and-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Results and limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Theoretical Backgrounds
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Theoretical Backgrounds
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theoretical-background/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theoretical-background-physical-models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Physical Models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../theoretical-background-sph-methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SPH Methods
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-and-action-authority" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration and action authority
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration-and-cad" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration and CAD
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#persistent-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persistent execution
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#native-desktop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Native desktop
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#results-and-limits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Results and limits
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="native-cli-and-external-agents">Native CLI and external agents</h1>
+<p>SPHinXsim uses its existing <code>sphinxsim</code> package and CLI for both people and
+agents. MCP exposes the same application operations. There is no separate
+agent package, command-line program, required cloud service or container image.</p>
+<p>For client configuration and resource access, see <a href="../mcp/">MCP setup</a>. The optional
+<a href="https://github.com/Xiangyu-Hu/SPHinXsim/blob/main/.github/skills/sphinxsim/SKILL.md">companion skill</a> follows the repository's
+<code>.github/skills/</code> convention. Install the complete <code>sphinxsim</code> skill directory,
+including its <code>references/</code>, through your agent client's supported mechanism.
+It guides experiment design and quality interpretation; it grants no access.</p>
+<h2 id="installation">Installation</h2>
+<p>Follow the platform <a href="../installation/">installation guide</a> to build the native
+bindings. From this checkout, install the optional features you need:</p>
+<div class="highlight"><pre><span></span><code>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s1">'.[dev,cad,mcp,results,visualization]'</span>
+sphinxsim<span class="w"> </span>--help
+python<span class="w"> </span>-m<span class="w"> </span>sphinxsim<span class="w"> </span>--help
+</code></pre></div>
+<p><code>cad</code> installs CadQuery/OCCT and mesh validation dependencies. <code>results</code> supplies
+VTK and mesh boolean support for headless export and quality checks. <code>mcp</code>
+installs the official MCP Python SDK. <code>visualization</code> supplies the native Qt
+window. These extras do not replace the compiled SPHinXsim bindings. Basic
+CLI/schema use does not import CAD, MCP or Qt until requested.</p>
+<p>The native simulator retains its platform support. Detached local jobs currently
+require POSIX process supervision; on Windows use native synchronous <code>run</code>
+and <code>preview</code>. A remote desktop, GPU runtime, display/input provider, authentication
+gateway and container packaging are the deployment owner's responsibility and
+are not shipped in this change.</p>
+<h2 id="configuration-and-action-authority">Configuration and action authority</h2>
+<p>Native simulation JSON defines what to simulate. Explicit CLI/MCP operations
+define what to do. Validation and execution do not rewrite source JSON.
+Compilation returns a new native configuration, unit conversions and normalization
+diagnostics; review those before explicitly applying it.</p>
+<p>File references resolve within the workspace chosen by the owner. A frozen
+project includes the entry JSON and the complete admitted resource inventory,
+including sizes and SHA-256 hashes. A hash alone is not a substitute for the
+referenced bytes. Raw file hashes and normalized configuration identities have
+different scopes and must not be substituted for one another.</p>
+<p>Use native snake_case JSON keys and the existing positional-file and
+<code>-o/--output</code> CLI conventions. Structured operations accept bounded JSON input
+and return <code>{ "ok": true, "data": ... }</code> or a JSON error. <code>--json</code> selects
+machine output; native execution diagnostics go to stderr or bounded job logs.</p>
+<h2 id="configuration-and-cad">Configuration and CAD</h2>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>capabilities<span class="w"> </span>--json
+sphinxsim<span class="w"> </span>validate<span class="w"> </span>project/config.json<span class="w"> </span>--root<span class="w"> </span>/workspace<span class="w"> </span>--json
+sphinxsim<span class="w"> </span>compile<span class="w"> </span>specification.json<span class="w"> </span>-o<span class="w"> </span>reviewed-config.json<span class="w"> </span>--json
+sphinxsim<span class="w"> </span>geometry<span class="w"> </span>recipe.json<span class="w"> </span>-o<span class="w"> </span>project/models/candidate<span class="w"> </span>--json
+</code></pre></div>
+<p>Compilation accepts <code>{ "version": 1, "configuration": &lt;native configuration&gt; }</code>.
+Within that structure an explicitly supported quantity may use, for example,
+<code>"particle_spacing": { "value": 25, "unit": "mm" }</code>. Compilation produces
+ordinary native numeric JSON; it does not introduce a second physics language.
+Combining explicit quantities with native characteristic scaling is rejected.</p>
+<p>A minimal CAD recipe is:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"version"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"unit"</span><span class="p">:</span><span class="w"> </span><span class="s2">"mm"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"operations"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="nt">"id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"body"</span><span class="p">,</span><span class="w"> </span><span class="nt">"op"</span><span class="p">:</span><span class="w"> </span><span class="s2">"box"</span><span class="p">,</span><span class="w"> </span><span class="nt">"args"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"size"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">2000</span><span class="p">,</span><span class="w"> </span><span class="mi">1000</span><span class="p">,</span><span class="w"> </span><span class="mi">800</span><span class="p">]}}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"output"</span><span class="p">:</span><span class="w"> </span><span class="s2">"body"</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Query <code>capabilities.modeling</code> for the bounded operations and parameters,
+including sketches, extrusion, revolution, loft, sweep, booleans and transforms.
+CAD accepts data, never arbitrary Python or shell code. It outputs meter-based
+<code>model.stl</code>, <code>model.step</code>, <code>recipe.json</code> and <code>cad-result.json</code>, with bounds,
+volume, mesh checks and file hashes. Existing output directories are preserved.
+CAD success does not define a material, boundary condition, motion law or physical
+body: attach the verified geometry through an explicit native configuration edit.</p>
+<p>For long CAD work, <code>geometry recipe.json --detach --root /workspace --json</code> returns a job
+reference immediately. The MCP <code>geometry</code> operation also defaults to detached;
+set <code>detach: false</code> and an explicit workspace-relative <code>output</code> for synchronous
+generation. Both paths use the same CAD implementation and validation.</p>
+<h2 id="persistent-execution">Persistent execution</h2>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>project<span class="w"> </span>project/config.json<span class="w"> </span>--root<span class="w"> </span>/workspace<span class="w"> </span>--json
+sphinxsim<span class="w"> </span>preview<span class="w"> </span>project/config.json<span class="w"> </span>--with-particles<span class="w"> </span>--detach<span class="w"> </span>--root<span class="w"> </span>/workspace<span class="w"> </span>--json
+sphinxsim<span class="w"> </span>run<span class="w"> </span>project/config.json<span class="w"> </span>--detach<span class="w"> </span>--root<span class="w"> </span>/workspace<span class="w"> </span>--json
+sphinxsim<span class="w"> </span>job<span class="w"> </span>status<span class="w"> </span>reference.json<span class="w"> </span>--root<span class="w"> </span>/workspace<span class="w"> </span>--json
+sphinxsim<span class="w"> </span>job<span class="w"> </span><span class="k">continue</span><span class="w"> </span>reference.json<span class="w"> </span>--root<span class="w"> </span>/workspace<span class="w"> </span>--json
+sphinxsim<span class="w"> </span>job<span class="w"> </span>results<span class="w"> </span>reference.json<span class="w"> </span>--root<span class="w"> </span>/workspace<span class="w"> </span>--json
+</code></pre></div>
+<p><code>--json</code>/<code>--detach</code> select headless job publication for run/preview. For the
+original interactive or off-screen screenshot workflow, keep using native
+<code>preview</code> without those options; incompatible GUI/job option combinations are
+rejected rather than silently ignored.</p>
+<p>Save the returned <code>data.reference</code> object as <code>reference.json</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span><span class="nt">"job_id"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;UUID&gt;"</span><span class="p">,</span><span class="w"> </span><span class="nt">"request_sha256"</span><span class="p">:</span><span class="w"> </span><span class="s2">"&lt;SHA-256 of the frozen request&gt;"</span><span class="p">}</span>
+</code></pre></div>
+<p>Every later job command requires that complete reference. Results, status, logs,
+continue and cancel do not infer a current or latest job. MCP submission requires
+the reviewed inventory from <code>project_inspect</code>; changed inputs are rejected before
+execution. Use a stable <code>submission_id</code> (CLI: <code>--submission-id UUID</code>) to retry the
+same frozen submission; reusing it with different inputs or policy is rejected.</p>
+<p>Particle preview retains one native instance until its explicit lease expires.
+<code>job continue</code> continues that instance once; retries do not start another solver.
+An expired lease requires an explicitly requested new execution of frozen inputs.
+Disconnection and stopping agent operations do not cancel calculations. Explicit
+<code>job cancel</code> requests cancellation from the live supervisor, never a stored PID.
+Interrupted supervisors are reported; inputs are not automatically replayed.</p>
+<p>An external scheduler can execute an already-frozen request without creating a
+second local queue:</p>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>run<span class="w"> </span>--request<span class="w"> </span>request.json<span class="w"> </span>--output<span class="w"> </span>/execution<span class="w"> </span>--json
+sphinxsim<span class="w"> </span>preview<span class="w"> </span>--request<span class="w"> </span>particle-request.json<span class="w"> </span>--output<span class="w"> </span>/execution<span class="w"> </span>--json
+</code></pre></div>
+<p>The work directory must contain <code>project/</code> matching the JSON inventory.
+<code>run</code> accepts kind <code>run</code>; <code>preview</code> accepts <code>geometry</code> or <code>particles</code>.
+The request schema is <code>execution</code> in
+<a href="../sphinxsim/runtime/schemas/contracts-v1.json"><code>contracts-v1.json</code></a>.
+The caller owns resource isolation, supervision and a fresh execution directory.
+Retained particles accept the explicit <code>control.json</code> command bound to their
+<code>attempt</code>; the work directory and request identify all inputs. Reusing an existing
+solver output is rejected. No arbitrary executable is accepted.</p>
+<p>A trusted Python host can call <code>sphinxsim.cli.main(argv, publish_json=callback)</code>
+for frozen <code>--request</code> execution. The callback receives <code>(path, document)</code> before
+manifest/status JSON becomes visible and must publish atomically or raise.
+The default is the native atomic JSON writer. This permits an external host to
+translate its wire envelope without a second output tree or a race after
+publication. There is no CLI/MCP argument that loads executable callbacks;
+only trusted embedding code can supply one. Resource hashing, numerical buffers
+and native configuration admission remain the native implementation's responsibility.</p>
+<h2 id="native-desktop">Native desktop</h2>
+<div class="highlight"><pre><span></span><code>sphinxsim<span class="w"> </span>desktop<span class="w"> </span>serve<span class="w"> </span>project/config.json<span class="w"> </span>--root<span class="w"> </span>/workspace<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--reference-file<span class="w"> </span>/workspace/.native-desktop.json<span class="w"> </span>--locale<span class="w"> </span>en<span class="w"> </span>--theme<span class="w"> </span>dark
+</code></pre></div>
+<p>This opens the native Qt editor and simulation actions. Preview and particle
+generation are explicit actions; opening a window does not submit a computation.
+The new reference file is owner-readable only and contains a short-lived
+authenticated loopback connection. Treat it as a credential. The server binds
+an ephemeral loopback port, not a public listener. Closing the window releases
+the listener and leaves independent jobs running.</p>
+<p>CLI <code>desktop status request.json --desktop-reference ... --json</code> reads current
+state; <code>{}</code> is sufficient for status. Mutating commands name the observed
+<code>instance_id</code>, <code>version</code> and an <code>automation_id</code>. Applying or saving uses the raw
+<code>expected_hash</code>; preview/particles also require a stable <code>submission_id</code> UUID.
+<code>apply</code> accepts a complete reviewed native <code>configuration</code>. CAD generation only
+produces a candidate: applying it is a separate explicit configuration operation.</p>
+<p>Human edits invalidate old versions. Unsaved edits are preserved on conflicts.
+<code>desktop stop</code> fences the named automation scope, without canceling jobs or
+blocking human editing. A fresh turn observes again and uses a fresh scope.
+Continue/cancel/result require an explicit job reference. Historical result views
+show the frozen configuration and latest verified output; <code>edit</code> explicitly
+returns to the source configuration. Refresh failures retain the previous scene.
+Screenshots capture the native window as PNG on a supported display.</p>
+<p>Remote mouse/keyboard, focus observation, resolution changes, video streaming,
+browser embedding and provider-specific recovery belong to external integrations.
+They are not simulated by the native application commands.</p>
+<h2 id="results-and-limits">Results and limits</h2>
+<p>Published manifests, buffers and original VTP files are verified before exposure.
+Only complete VTP snapshots are decoded; unfinished files are retried. Results
+can remain available after a failed execution and are marked partial when incomplete.
+Bodies can be fluids or continua; counts may vary per frame and fields are taken
+from actual output. <code>results_inspect</code> returns bounded summaries and verified
+resource references, not every frame in the model context.</p>
+<p>Quality reports inspect saved outputs: finite data, output time coverage,
+particle counts, supported domain checks and penetration into supported static
+solid geometry. They state tolerances and <code>not_evaluated</code> checks. Open boundaries,
+native scaling, missing surfaces and insufficient data restrict interpretation.
+Source routing evidence, schema admission, successful execution and physical
+accuracy are different claims. No report certifies convergence or all coupled
+physics combinations; global extrema do not locate a pressure hotspot.</p>
+<h2 id="tests">Tests</h2>
+<p>Use the existing project build, install and test entry points:</p>
+<div class="highlight"><pre><span></span><code>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s1">'.[dev,cad,mcp,results,visualization]'</span>
+pytest<span class="w"> </span>tests/<span class="w"> </span>-v
+ctest<span class="w"> </span>--test-dir<span class="w"> </span>build-integrated<span class="w"> </span>--output-on-failure<span class="w"> </span>-L<span class="w"> </span>simulation_class
+</code></pre></div>
+<p>The native Linux CI installs the extras and runs real OCCT, stdio MCP, native
+particle/continue/lease and J2 material-builder tests. It also runs an opt-in
+real Qt/VTK window and PNG test under Xvfb with a CPU renderer. Without bindings,
+local native tests skip explicitly; <code>SPHINXSIM_REQUIRE_NATIVE_TESTS=1</code> turns that
+absence into failure. <code>SPHINXSIM_DESKTOP_TESTS=1</code> enables the real-window test
+when a display and bindings are available. Qt editor tests alone do not establish
+GPU or remote-desktop end-to-end behavior.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "content.code.copy", "search.highlight"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+        <script src="../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

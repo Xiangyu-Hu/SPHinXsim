@@ -14,7 +14,8 @@ sudo apt-get install -y \
   ninja-build \
   autoconf automake autoconf-archive \
   libxmu-dev libxi-dev libgl-dev libxt-dev \
-  libxcb-cursor0
+  libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 \
+  libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-shape0
 ```
 
 ## Clone Repository
@@ -62,6 +63,14 @@ cmake --preset integrated-build-release \
   -D CMAKE_TOOLCHAIN_FILE="$(pwd)/../vcpkg/scripts/buildsystems/vcpkg.cmake" \
   -D Python3_EXECUTABLE="$(which python3)"
 cmake --build --preset integrated-build-release --parallel "$(nproc)"
+```
+
+To avoid issue of insufficient memory,
+you need to pick the number of ` "$(nproc)"` based on your RAM.
+Rough rule: ~1.5–2 GB RAM per job for C++ projects. For example you can build with
+
+```bash
+cmake --build --preset integrated-build-release --parallel 4
 ```
 
 Install compiled C++ extension modules into the active Python environment:

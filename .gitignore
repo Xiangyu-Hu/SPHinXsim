@@ -1087,3 +1087,8 @@ input/
 
 # CodeQL
 _codeql_detected_source_root
+
+# Native local jobs, default CAD output and desktop connection credential.
+/.sphinxsim/
+/cad-output/
+/.native-desktop.json

@@ -84,7 +84,6 @@ def _make_minimal_fluid_config(**overrides) -> SimulationConfig:
             "fluid_dynamics": {
                 "acoustic_cfl": 0.6,
                 "advection_cfl": 0.25,
-                "surface_type": "free_surface",
                 "particle_sort_frequency": 100,
             },
         },
@@ -221,7 +220,7 @@ class TestSimulationConfig:
         assert cfg.log_level is LogLevel.INFO
         assert len(cfg.fluid_bodies) == 1
         assert cfg.solver_parameters.fluid_dynamics is not None
-        assert cfg.solver_parameters.fluid_dynamics.surface_type == "free_surface"
+        assert cfg.fluid_bodies[0].surface_type == "free_surface"
 
     def test_log_level_accepts_cpp_parser_values(self):
         for log_level in ("trace", "debug", "info", "warning", "error", "critical", "off"):
@@ -232,22 +231,51 @@ class TestSimulationConfig:
         with pytest.raises(ValidationError, match="log_level"):
             _make_minimal_fluid_config(log_level="verbose")
 
-    def test_fluid_solver_accepts_surface_type(self):
+    def test_fluid_body_accepts_surface_type(self):
         cfg = _make_minimal_fluid_config(
-            solver_parameters={
-                "end_time": 1.0,
-                "output_interval": 0.01,
-                "screen_interval": 100,
-                "fluid_dynamics": {
-                    "acoustic_cfl": 0.6,
-                    "advection_cfl": 0.25,
+            fluid_bodies=[
+                {
+                    "name": "WaterBody",
+                    "material": {
+                        "type": "weakly_compressible_fluid",
+                        "density": 1000.0,
+                    },
                     "surface_type": "open_boundary",
-                    "particle_sort_frequency": 100,
-                },
-            }
+                }
+            ]
         )
-        assert cfg.solver_parameters.fluid_dynamics is not None
-        assert cfg.solver_parameters.fluid_dynamics.surface_type == "open_boundary"
+        assert cfg.fluid_bodies[0].surface_type == "open_boundary"
+
+    def test_fluid_solver_rejects_surface_type(self):
+        with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+            _make_minimal_fluid_config(
+                solver_parameters={
+                    "end_time": 1.0,
+                    "output_interval": 0.01,
+                    "screen_interval": 100,
+                    "fluid_dynamics": {
+                        "acoustic_cfl": 0.6,
+                        "advection_cfl": 0.25,
+                        "surface_type": "open_boundary",
+                        "particle_sort_frequency": 100,
+                    },
+                }
+            )
+
+    def test_fluid_body_rejects_invalid_surface_type(self):
+        with pytest.raises(ValidationError):
+            _make_minimal_fluid_config(
+                fluid_bodies=[
+                    {
+                        "name": "WaterBody",
+                        "material": {
+                            "type": "weakly_compressible_fluid",
+                            "density": 1000.0,
+                        },
+                        "surface_type": "invalid_surface",
+                    }
+                ]
+            )
 
     def test_fluid_solver_rejects_unknown_key(self):
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
@@ -259,7 +287,6 @@ class TestSimulationConfig:
                     "fluid_dynamics": {
                         "acoustic_cfl": 0.6,
                         "advection_cfl": 0.25,
-                        "surface_type": "free_surface",
                         "unsupported_key": "x",
                     },
                 }
@@ -354,6 +381,15 @@ class TestSimulationConfig:
                             "type": "clockwise_points",
                             "points": [[0.6, 0.6], [0.8, 0.6], [0.8, 0.8], [0.6, 0.6]],
                         },
+                        {
+                            "operation": "union",
+                            "type": "container_box",
+                            "inner_box": {
+                                "lower_bound": [0.0, 0.0],
+                                "upper_bound": [0.9, 0.9],
+                            },
+                            "thickness": 0.01,
+                        },
                     ],
                 },
                 {
@@ -380,7 +416,69 @@ class TestSimulationConfig:
             "circle",
             "triangle",
             "clockwise_points",
+            "container_box",
         ]
+        assert multipolygon.polygons[3].inner_box.lower_bound == [0.0, 0.0]
+
+    def test_multipolygon_container_box_accepts_bounding_box_primitive(self):
+        geometries = {
+            "system_domain": {"lower_bound": [0.0, 0.0], "upper_bound": [1.0, 1.0]},
+            "global_resolution": {"particle_spacing": 0.05},
+            "primitives": [
+                {
+                    "name": "WaterBounds",
+                    "type": "bounding_box",
+                    "lower_bound": [0.1, 0.1],
+                    "upper_bound": [0.5, 0.5],
+                },
+                {
+                    "name": "ContainerBounds",
+                    "type": "bounding_box",
+                    "lower_bound": [0.0, 0.0],
+                    "upper_bound": [1.0, 1.0],
+                }
+            ],
+            "shapes": [
+                {
+                    "name": "WaterBody",
+                    "type": "bounding_box",
+                    "primitive": "WaterBounds",
+                },
+                {
+                    "name": "WallBoundary",
+                    "type": "multipolygon",
+                    "polygons": [
+                        {
+                            "operation": "union",
+                            "type": "bounding_box",
+                            "primitive": "ContainerBounds",
+                        },
+                        {
+                            "operation": "union",
+                            "type": "container_box",
+                            "inner_box": {"primitive": "ContainerBounds"},
+                            "thickness": 0.01,
+                        }
+                    ],
+                },
+            ],
+            "oriented_boxes": [
+                {
+                    "name": "Inlet",
+                    "type": "region",
+                    "half_size": [0.1, 0.05],
+                    "transform": {"translation": [0.05, 0.2], "rotation_angle": 0.0},
+                }
+            ],
+        }
+
+        cfg = _make_minimal_fluid_config(geometries=geometries)
+        assert cfg.geometries.shapes[0].primitive == "WaterBounds"
+        polygons = cfg.geometries.shapes[1].polygons
+        assert polygons[0].type.value == "bounding_box"
+        assert polygons[0].primitive == "ContainerBounds"
+        inner_box = polygons[1].inner_box
+        assert inner_box.primitive == "ContainerBounds"
 
     def test_multipolygon_data_file_uses_file_name(self):
         geometries = {
@@ -654,6 +752,32 @@ class TestSimulationConfig:
                 ]
             )
 
+    def test_wall_bounding_boundary_condition_does_not_require_oriented_box(self):
+        cfg = _make_minimal_fluid_config(
+            fluid_boundary_conditions=[
+                {
+                    "body_name": "WaterBody",
+                    "type": "wall_bounding",
+                }
+            ]
+        )
+
+        boundary_condition = cfg.fluid_boundary_conditions[0]
+        assert boundary_condition.type.value == "wall_bounding"
+        assert boundary_condition.oriented_box is None
+
+    def test_boundary_condition_requires_oriented_box(self):
+        with pytest.raises(ValidationError, match="requires oriented_box"):
+            _make_minimal_fluid_config(
+                fluid_boundary_conditions=[
+                    {
+                        "body_name": "WaterBody",
+                        "type": "emitter",
+                        "inflow_speed": 1.0,
+                    }
+                ]
+            )
+
     def test_particle_generation_blockers_accept_existing_oriented_box(self):
         cfg = _make_minimal_fluid_config(
             particle_generation={
@@ -864,6 +988,21 @@ class TestSimulationConfig:
         assert schedule.switch_on_time == pytest.approx(1.0)
         assert schedule.duration == pytest.approx(25.0)
 
+    def test_two_phase_dambreak_fixture_accepts_wall_bounding_boundary_condition(self):
+        fixture_path = (
+            Path(__file__).parent
+            / "test_simulation"
+            / "test_2d_simulation"
+            / "data"
+            / "two_phase_dambreak.json"
+        )
+        payload = json.loads(fixture_path.read_text())
+        cfg = SimulationConfig.model_validate(payload)
+
+        boundary_condition = cfg.fluid_boundary_conditions[0]
+        assert boundary_condition.type.value == "wall_bounding"
+        assert boundary_condition.oriented_box is None
+
     def test_boundary_condition_schedule_rejects_negative_duration(self):
         with pytest.raises(ValidationError):
             _make_minimal_fluid_config(
@@ -901,7 +1040,7 @@ class TestSimulationConfig:
         assert schedule.switch_on_time == pytest.approx(0.0)
         assert schedule.duration is None
 
-    def test_fluid_dynamics_rejects_multiple_fluid_bodies(self):
+    def test_fluid_dynamics_accepts_multiple_fluid_bodies(self):
         data = _make_minimal_fluid_config().model_dump(mode="json", exclude_none=True)
         extra_body = json.loads(json.dumps(data["fluid_bodies"][0]))
         extra_body["name"] = "WaterBody2"
@@ -916,7 +1055,26 @@ class TestSimulationConfig:
         data["particle_generation"]["settings"]["bodies"].append({"name": "WaterBody2"})
         data["fluid_bodies"].append(extra_body)
 
-        with pytest.raises(ValidationError, match="exactly one fluid body"):
+        config = SimulationConfig.model_validate(data)
+        assert [body.name for body in config.fluid_bodies] == ["WaterBody", "WaterBody2"]
+
+    def test_primitive_dimension_must_match_system_domain(self):
+        data = _make_minimal_fluid_config().model_dump(mode="json", exclude_none=True)
+        data["geometries"]["primitives"] = [
+            {
+                "name": "WaterBounds",
+                "type": "bounding_box",
+                "lower_bound": [0.0, 0.0, 0.0],
+                "upper_bound": [0.4, 0.2, 0.1],
+            }
+        ]
+        data["geometries"]["shapes"][0] = {
+            "name": "WaterBody",
+            "type": "bounding_box",
+            "primitive": "WaterBounds",
+        }
+
+        with pytest.raises(ValidationError, match="dimensionality must be consistent"):
             SimulationConfig.model_validate(data)
 
     def test_continuum_dynamics_rejects_multiple_continuum_bodies(self):
@@ -1251,35 +1409,6 @@ class TestSimulationConfig:
                 ]
             )
 
-    def test_continuum_solver_accepts_surface_type(self):
-        cfg = _make_minimal_continuum_config(
-            solver_parameters={
-                "end_time": 1.0,
-                "output_interval": 0.01,
-                "continuum_dynamics": {
-                    "acoustic_cfl": 0.4,
-                    "advection_cfl": 0.2,
-                    "surface_type": "open_boundary",
-                },
-            }
-        )
-        assert cfg.solver_parameters.continuum_dynamics is not None
-        assert cfg.solver_parameters.continuum_dynamics.surface_type == "open_boundary"
-
-    def test_continuum_solver_rejects_invalid_surface_type(self):
-        with pytest.raises(ValidationError):
-            _make_minimal_continuum_config(
-                solver_parameters={
-                    "end_time": 1.0,
-                    "output_interval": 0.01,
-                    "continuum_dynamics": {
-                        "acoustic_cfl": 0.4,
-                        "advection_cfl": 0.2,
-                        "surface_type": "invalid_surface",
-                    },
-                }
-            )
-
     def test_continuum_solver_accepts_plastic_riemann_dissipation_factor(self):
         cfg = _make_minimal_continuum_config(
             solver_parameters={
@@ -1397,7 +1526,6 @@ class TestSimulationConfig:
                     "acoustic_cfl": 0.6,
                     "advection_cfl": 0.25,
                     "max_velocity_factor": 2.0,
-                    "surface_type": "free_surface",
                     "particle_sort_frequency": 100,
                 },
             }

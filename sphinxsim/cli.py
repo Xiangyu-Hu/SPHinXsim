@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import glob
 import json
 import os
 import shlex
@@ -31,15 +32,20 @@ from pathlib import Path
 from threading import Thread
 from typing import Any, Tuple
 
+try:
+    import readline
+except ImportError:
+    readline = None
+
 # Set up sys.path FIRST, before any sphinxsim imports
 def _find_project_root(start=None):
-    start = start or os.getcwd()
+    start = start or str(Path(__file__).resolve().parent)
     current = start
     while current != os.path.dirname(current):  # Not at root
-        if os.path.exists(os.path.join(current, "pyproject.toml")):
+        if os.path.exists(os.path.join(current, "pyproject.toml")) and os.path.isfile(os.path.join(current, "sphinxsim", "cli.py")):
             return current
         current = os.path.dirname(current)
-    raise RuntimeError("Project root not found")
+    return os.getcwd()
 
 PROJECT_ROOT = _find_project_root()
 sys.path.insert(0, PROJECT_ROOT)
@@ -62,6 +68,7 @@ from sphinxsim.llm.common import LLMRepairWarning, dump_simulation_config_json
 
 # Convert PROJECT_ROOT to Path after imports
 PROJECT_ROOT = Path(PROJECT_ROOT)
+_LIVE_PREVIEW_MAX_FPS = 25
 
 __version__ = "0.1.0"  # Keep in sync with sphinxsim/__init__.py
 
@@ -88,11 +95,13 @@ def _load_config(path: Path) -> Tuple[SimulationConfig | None, int]:
         return None, 1
     try:
         data = json.loads(path.read_text())
-        return SimulationConfig(**data), 0
+        from sphinxsim.runtime.physics import check_config
+        normalized, _ = check_config(data)
+        return SimulationConfig(**normalized), 0
     except json.JSONDecodeError as exc:
         print(f"Invalid JSON: {exc}", file=sys.stderr)
         return None, 1
-    except ValidationError as exc:
+    except (ValidationError, ValueError) as exc:
         print(f"Config validation failed:\n{exc}", file=sys.stderr)
         return None, 1
 
@@ -770,6 +779,73 @@ def _shell_auto_validate(config_path: Path) -> bool:
     return True
 
 
+_SHELL_COMMANDS = (
+    "load",
+    "generate",
+    "update",
+    "validate",
+    "run",
+    "preview",
+    "continue-to-run",
+    "replay",
+    "explore",
+    "help",
+    "exit",
+    "quit",
+)
+
+
+def _shell_completion_matches(prefix: str, text: str) -> list[str]:
+    try:
+        words = shlex.split(prefix)
+    except ValueError:
+        words = prefix.split()
+
+    if not words:
+        commands = (
+            [f"/{command}" for command in _SHELL_COMMANDS]
+            if text.startswith("/")
+            else _SHELL_COMMANDS
+        )
+        return [command for command in commands if command.startswith(text)]
+
+    command = words[0].lstrip("/")
+    if not (
+        (command == "load" and len(words) == 1)
+        or command == "generate"
+        or (command == "preview" and "--screenshot" in words)
+    ):
+        return []
+
+    expanded_text = os.path.expanduser(text)
+    matches = glob.glob(expanded_text + "*")
+    results = []
+    for match in matches:
+        candidate = match
+        if text.startswith("~"):
+            candidate = "~" + os.path.relpath(match, os.path.expanduser("~"))
+        if os.path.isdir(match):
+            candidate += "/"
+        results.append(candidate)
+    return sorted(results)
+
+
+def _shell_readline_completer(text: str, state: int) -> str | None:
+    if readline is None:
+        return None
+    matches = _shell_completion_matches(
+        readline.get_line_buffer()[: readline.get_begidx()], text
+    )
+    return matches[state] if state < len(matches) else None
+
+
+def _configure_shell_readline() -> None:
+    if readline is None:
+        return
+    readline.set_completer(_shell_readline_completer)
+    readline.parse_and_bind("tab: complete")
+
+
 def _resolve_preview_config_path(config_file: str) -> Path:
     """Resolve preview config path using cwd-first then .build-temp fallback."""
     config_path = Path(config_file)
@@ -811,7 +887,9 @@ class _ShellPreviewRuntime:
     updates its scene in place.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, config_type=None, write_config=None) -> None:
+        self.config_type = config_type or SimulationConfig
+        self.write_config = write_config or _write_validated_config
         self.plotter: Any | None = None
         self.last_signature: str | None = None
         self._using_background_plotter = False
@@ -826,6 +904,16 @@ class _ShellPreviewRuntime:
         self._live_particle_body_names: set[str] = set()
         self._live_particle_colours: dict[str, Any] = {}
         self._live_particle_versions: dict[str, float] = {}
+        self._live_particle_file_states: dict[Path, tuple[int, int]] = {}
+        self._live_playback_queue: list[tuple[float, dict[str, Path]]] = []
+        self._live_refresh_interval_ms = round(10.0 * 1000)
+        self._live_replay_mode = False
+        self._animation_output_dir: Path | None = None
+        self._animation_particle_body_names: set[str] = set()
+        self._animation_particle_colours: dict[str, Any] = {}
+        self._animation_config: SimulationConfig | None = None
+        self._animation_config_path: Path | None = None
+        self._animation_run_completed = False
 
     def _reset_preview_state(self) -> None:
         """Forget all state associated with a closed preview window."""
@@ -886,54 +974,105 @@ class _ShellPreviewRuntime:
         self._live_particle_body_names = set()
         self._live_particle_colours = {}
         self._live_particle_versions = {}
+        self._live_particle_file_states = {}
+        self._live_playback_queue = []
+        self._live_replay_mode = False
 
     def _refresh_live_particles(self) -> None:
-        """Replace particle actors with the newest completed runtime snapshots."""
+        """Play a stable snapshot batch or an explicitly requested replay."""
         if self.plotter is None or self._live_output_dir is None:
             return
 
-        from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE
+        from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE, _particle_label
 
         try:
             import pyvista as pv
         except ImportError:
             return
 
-        for vtp_path in self._live_output_dir.glob("*.vtp"):
-            for body_name in self._live_particle_body_names:
-                prefix = f"{body_name}_"
-                if not vtp_path.stem.startswith(prefix):
-                    continue
-                suffix = vtp_path.stem[len(prefix):]
-                if suffix.startswith("ite_"):
-                    suffix = suffix[len("ite_"):]
-                try:
-                    sequence = float(suffix)
-                except ValueError:
-                    break
-                previous_sequence = self._live_particle_versions.get(body_name, float("-inf"))
-                if sequence <= previous_sequence:
-                    break
-                try:
-                    mesh = pv.read(str(vtp_path))
-                except Exception:
-                    break
-                self.plotter.add_mesh(
-                    mesh,
-                    name=f"particle-preview-{body_name}",
-                    color=self._live_particle_colours.get(body_name),
-                    opacity=0.95,
-                    style="points",
-                    point_size=_PARTICLE_POINT_SIZE,
-                    label=f"Particles: {body_name}",
-                )
-                self._live_particle_versions[body_name] = sequence
-                break
-
-        thread = self._live_run_thread
-        if thread is not None and not thread.is_alive():
+        if self._live_replay_mode and not self._live_playback_queue:
             self._stop_live_refresh()
-            self._live_run_thread = None
+            return
+
+        if not self._live_replay_mode and not self._live_playback_queue:
+            batch: dict[float, dict[str, Path]] = {}
+            has_unstable_snapshot = False
+            for vtp_path in self._live_output_dir.glob("*.vtp"):
+                for body_name in self._live_particle_body_names:
+                    prefix = f"{body_name}_"
+                    if not vtp_path.stem.startswith(prefix):
+                        continue
+                    suffix = vtp_path.stem[len(prefix):]
+                    if suffix.startswith("ite_"):
+                        suffix = suffix[len("ite_"):]
+                    try:
+                        sequence = float(suffix)
+                    except ValueError:
+                        break
+                    if sequence <= self._live_particle_versions.get(body_name, float("-inf")):
+                        break
+                    try:
+                        stat = vtp_path.stat()
+                    except OSError:
+                        break
+                    file_state = (stat.st_size, stat.st_mtime_ns)
+                    if self._live_particle_file_states.get(vtp_path) != file_state:
+                        self._live_particle_file_states[vtp_path] = file_state
+                        has_unstable_snapshot = True
+                        break
+                    batch.setdefault(sequence, {})[body_name] = vtp_path
+                    break
+
+            self._live_playback_queue = [
+                (sequence, body_snapshots)
+                for sequence, body_snapshots in sorted(batch.items())
+            ]
+            for sequence, body_snapshots in self._live_playback_queue:
+                for body_name in body_snapshots:
+                    self._live_particle_versions[body_name] = sequence
+
+            timer = self._live_refresh_timer
+            if self._live_playback_queue and timer is not None:
+                timer.setInterval(round(1000 / _LIVE_PREVIEW_MAX_FPS))
+            elif not self._live_playback_queue:
+                thread = self._live_run_thread
+                if thread is not None and not thread.is_alive() and not has_unstable_snapshot:
+                    self._stop_live_refresh()
+                    self._live_run_thread = None
+                return
+
+        _, body_snapshots = self._live_playback_queue.pop(0)
+        for body_name, vtp_path in body_snapshots.items():
+            try:
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", message=".*vtkXMLPolyDataReader.*")
+                    mesh = pv.read(str(vtp_path))
+            except Exception:
+                continue
+            if getattr(mesh, "n_points", None) == 0:
+                continue
+            self.plotter.add_mesh(
+                mesh,
+                name=f"particle-preview-{body_name}",
+                color=self._live_particle_colours.get(body_name),
+                opacity=0.95,
+                style="points",
+                point_size=_PARTICLE_POINT_SIZE,
+                label=_particle_label(body_name),
+            )
+
+        if self._live_replay_mode and not self._live_playback_queue:
+            self._stop_live_refresh()
+            print("✅ Particle animation replay completed.")
+        elif not self._live_playback_queue:
+            timer = self._live_refresh_timer
+            if timer is not None:
+                timer.setInterval(self._live_refresh_interval_ms)
+
+            thread = self._live_run_thread
+            if thread is not None and not thread.is_alive():
+                self._stop_live_refresh()
+                self._live_run_thread = None
 
     def _start_live_refresh(self, refresh_interval: float) -> None:
         timer = self._live_refresh_timer
@@ -944,6 +1083,10 @@ class _ShellPreviewRuntime:
                 pass
         self._live_refresh_timer = None
         self._live_particle_versions = {}
+        self._live_particle_file_states = {}
+        self._live_playback_queue = []
+        self._live_replay_mode = False
+        self._live_refresh_interval_ms = round(refresh_interval * 1000)
         if not self._using_background_plotter or self.plotter is None:
             return
         try:
@@ -951,13 +1094,105 @@ class _ShellPreviewRuntime:
         except ImportError:
             return
         timer = QtCore.QTimer()
-        timer.setInterval(max(1, round(refresh_interval * 1000)))
+        timer.setInterval(round(refresh_interval * 1000))
         timer.timeout.connect(self._refresh_live_particles)
         timer.start()
         self._live_refresh_timer = timer
+        if self._live_output_dir is not None:
+            for vtp_path in self._live_output_dir.glob("*.vtp"):
+                try:
+                    stat = vtp_path.stat()
+                except OSError:
+                    continue
+                self._live_particle_file_states[vtp_path] = (stat.st_size, stat.st_mtime_ns)
+
+    def replay_animation(self) -> int:
+        """Replay all recorded particle snapshots at no more than 25 FPS."""
+        thread = self._live_run_thread
+        if thread is not None and thread.is_alive():
+            print("❌ Wait for the simulation to finish before replaying.", file=sys.stderr)
+            return 1
+        if not self._animation_run_completed:
+            print("❌ Complete a successful animated run before replaying.", file=sys.stderr)
+            return 1
+        if self._animation_output_dir is None or not self._animation_particle_body_names:
+            print(
+                "No particle animation is available. Run 'run --with-animation', "
+                "or run 'preview --with-particles' followed by 'continue-to-run'.",
+                file=sys.stderr,
+            )
+            return 1
+        if self.plotter is None:
+            if self._animation_config is None or self._animation_config_path is None:
+                print("❌ The configuration for this particle animation is unavailable.", file=sys.stderr)
+                return 1
+            rc = self.show_or_update(
+                self._animation_config,
+                resolved_config_path=self._animation_config_path,
+                with_particles=False,
+                force=True,
+            )
+            if rc != 0:
+                return rc
+        elif not self._using_background_plotter:
+            print("❌ Animation replay requires the Qt-backed persistent preview.", file=sys.stderr)
+            return 1
+
+        try:
+            from qtpy import QtCore
+        except ImportError as exc:
+            print(
+                f"❌ Animation replay requires Qt (`pyvistaqt` with `PySide6` or `PyQt5`): {exc}",
+                file=sys.stderr,
+            )
+            return 1
+
+        snapshots: dict[float, dict[str, Path]] = {}
+        for vtp_path in self._animation_output_dir.glob("*.vtp"):
+            for body_name in self._animation_particle_body_names:
+                prefix = f"{body_name}_"
+                if not vtp_path.stem.startswith(prefix):
+                    continue
+                suffix = vtp_path.stem[len(prefix):]
+                if suffix.startswith("ite_"):
+                    suffix = suffix[len("ite_"):]
+                try:
+                    sequence = float(suffix)
+                except ValueError:
+                    break
+                snapshots.setdefault(sequence, {})[body_name] = vtp_path
+                break
+
+        if not snapshots:
+            print(f"❌ No particle snapshots found in {self._animation_output_dir}.", file=sys.stderr)
+            return 1
+
+        self._stop_live_refresh()
+        self._live_output_dir = self._animation_output_dir
+        self._live_particle_body_names = set(self._animation_particle_body_names)
+        self._live_particle_colours = dict(self._animation_particle_colours)
+        self._live_particle_versions = {
+            body_name: float("-inf")
+            for body_name in self._live_particle_body_names
+        }
+        self._live_playback_queue = [
+            (sequence, body_snapshots)
+            for sequence, body_snapshots in sorted(snapshots.items())
+        ]
+        self._live_replay_mode = True
+        timer = QtCore.QTimer()
+        timer.setInterval(round(1000 / _LIVE_PREVIEW_MAX_FPS))
+        timer.timeout.connect(self._refresh_live_particles)
+        timer.start()
+        self._live_refresh_timer = timer
+        print(
+            f"▶️ Replaying {len(self._live_playback_queue)} particle frames "
+            f"at up to {_LIVE_PREVIEW_MAX_FPS} FPS."
+        )
+        return 0
 
     def continue_to_run(self, refresh_interval: float = 10.0) -> int:
-        """Run the retained simulation and refresh its particle preview periodically."""
+        """Run the retained simulation and play its particle snapshots at a capped rate."""
         simulation = self._pending_simulation
         runtime_config_path = self._pending_runtime_config_path
         self._pending_simulation = None
@@ -975,6 +1210,7 @@ class _ShellPreviewRuntime:
             return 1
 
         try:
+            self._animation_run_completed = False
             simulation.buildSimulation()
             print("✅ Simulation built")
             simulation.initializeSimulation()
@@ -985,6 +1221,7 @@ class _ShellPreviewRuntime:
             def run_simulation() -> None:
                 try:
                     simulation.run()
+                    self._animation_run_completed = True
                     print("✅ Simulation completed successfully!")
                 except Exception as exc:
                     print(f"❌ Continued run failed: {exc}", file=sys.stderr)
@@ -997,7 +1234,10 @@ class _ShellPreviewRuntime:
 
             self._live_run_thread = Thread(target=run_simulation, daemon=True)
             self._live_run_thread.start()
-            print(f"ℹ️ Preview refreshes every {refresh_interval:g} seconds while simulation runs.")
+            print(
+                f"ℹ️ Preview checks for new snapshots every {refresh_interval:g} seconds "
+                f"and plays each batch at up to {_LIVE_PREVIEW_MAX_FPS} FPS."
+            )
             return 0
         except Exception as exc:
             print(f"❌ Continued run failed: {exc}", file=sys.stderr)
@@ -1398,14 +1638,18 @@ class _ShellPreviewRuntime:
             *,
             reset_history: bool = False,
             expand_defaults: bool = True,
+            additional_expanded_paths: set[str] | None = None,
         ) -> None:
+            expanded_paths: set[str] = set()
             iterator = QtWidgets.QTreeWidgetItemIterator(tree)
             while iterator.value() is not None:
                 previous_item = iterator.value()
                 path_key = previous_item.data(0, QtCore.Qt.ItemDataRole.UserRole)
                 if path_key is not None and previous_item.isExpanded():
-                    editor_state["expanded_paths"].add(path_key)
+                    expanded_paths.add(path_key)
                 iterator += 1
+            expanded_paths.update(additional_expanded_paths or set())
+            editor_state["expanded_paths"] = expanded_paths
 
             payload = json.loads(text)
             editor_state["payload"] = payload
@@ -1421,6 +1665,9 @@ class _ShellPreviewRuntime:
             tree.clear()
 
             def add_value(parent: Any | None, label: str, value: Any, path: tuple[Any, ...], depth: int) -> None:
+                if value is None:
+                    return
+
                 path_key = ".".join(str(part) for part in path)
                 if isinstance(value, dict) and value:
                     item = _new_tree_item(parent, _display_label(label), f"Object · {len(value)}")
@@ -1428,7 +1675,7 @@ class _ShellPreviewRuntime:
                     editor_state["item_paths"][id(item)] = path
                     item.setExpanded(
                         path_key in editor_state["expanded_paths"]
-                        or (expand_defaults and depth < 2)
+                        or (expand_defaults and depth < 1)
                     )
                     font = item.font(0)
                     font.setBold(True)
@@ -1443,7 +1690,7 @@ class _ShellPreviewRuntime:
                     editor_state["list_paths"].add(path)
                     item.setExpanded(
                         path_key in editor_state["expanded_paths"]
-                        or (expand_defaults and depth < 2)
+                        or (expand_defaults and depth < 1)
                     )
                     font = item.font(0)
                     font.setBold(True)
@@ -1631,10 +1878,10 @@ class _ShellPreviewRuntime:
                 return
 
             editor_state["undo_stack"].append(before_edit)
-            editor_state["expanded_paths"].add(".".join(str(part) for part in path))
             populate_editor(
                 json.dumps(editor_state["payload"], indent=2, ensure_ascii=False),
                 expand_defaults=False,
+                additional_expanded_paths={".".join(str(part) for part in path)},
             )
             _mark_dirty()
             update_array_actions()
@@ -1651,7 +1898,7 @@ class _ShellPreviewRuntime:
                 return
 
             try:
-                updated_config = SimulationConfig(**payload)
+                updated_config = self.config_type(**payload)
             except ValidationError as exc:
                 first_error = exc.errors(include_url=False)[0]
                 location = ".".join(str(part) for part in first_error.get("loc", ("config",)))
@@ -1681,7 +1928,7 @@ class _ShellPreviewRuntime:
                 patched_payload = _apply_payload_diff(
                     raw_payload, editor_state["baseline_payload"], payload
                 )
-                patched_config = SimulationConfig(**patched_payload)
+                patched_config = self.config_type(**patched_payload)
                 if patched_config.model_dump(exclude_none=True) == updated_config.model_dump(
                     exclude_none=True
                 ):
@@ -1700,15 +1947,16 @@ class _ShellPreviewRuntime:
                 file_content = None
 
             try:
-                _write_validated_config(active_config_path, updated_config, file_content)
+                self.write_config(active_config_path, updated_config, file_content)
             except OSError as exc:
                 status.setText(f"Could not save {active_config_path.name}: {exc}")
                 return
 
             editor_state["undo_stack"].append(before_edit)
-            populate_editor(canonical_json)
-            editor_state["original_json"] = canonical_json
-            editor_state["baseline_payload"] = json.loads(canonical_json)
+            editor_json = file_content if file_content is not None else canonical_json
+            populate_editor(editor_json, expand_defaults=False)
+            editor_state["original_json"] = editor_json
+            editor_state["baseline_payload"] = copy.deepcopy(editor_state["payload"])
             status.setText("Saved and rebuilding preview geometry…")
             result = self.show_or_update(
                 updated_config,
@@ -1741,16 +1989,39 @@ class _ShellPreviewRuntime:
             current_with_particles: bool,
         ) -> bool:
             """Replace the editor session when shell ``preview`` changes files."""
+            try:
+                editor_config = SimulationConfig(**editor_state["payload"])
+            except ValidationError:
+                same_config = False
+            else:
+                same_config = (
+                    current_config_path.resolve() == editor_state["config_path"].resolve()
+                    and editor_config.model_dump(exclude_none=True)
+                    == current_config.model_dump(exclude_none=True)
+                    and not editor_state["dirty"]
+                )
+            if same_config:
+                editor_state["with_particles"] = current_with_particles
+                return True
+
             if not confirm_discard_changes(
                 "The editor contains unapplied changes. Continuing Preview will discard them. Continue?"
             ):
                 status.setText("Preview canceled. Your unapplied changes are preserved.")
                 return False
+
+            try:
+                current_json = current_config_path.read_text(encoding="utf-8")
+                json.loads(current_json)
+            except (OSError, json.JSONDecodeError) as exc:
+                status.setText(f"Could not load editor config {current_config_path.name}: {exc}")
+                return False
+
             editor_state["config_path"] = current_config_path
             editor_state["with_particles"] = current_with_particles
             editor_state["expanded_paths"] = set()
             filter_box.clear()
-            populate_editor(dump_simulation_config_json(current_config, indent=2), reset_history=True)
+            populate_editor(current_json, reset_history=True)
             update_array_actions()
             return True
 
@@ -1763,6 +2034,10 @@ class _ShellPreviewRuntime:
             "shortcut": shortcut,
             "undo_shortcut": undo_shortcut,
             "refresh": refresh_editor,
+            # Optional embedding hooks; default CLI behavior is unchanged.
+            "is_dirty": lambda: bool(editor_state["dirty"]),
+            "payload": lambda: copy.deepcopy(collect_payload()),
+            "discard": lambda: populate_editor(editor_state["original_json"], reset_history=True),
         }
         return True
 
@@ -2132,6 +2407,7 @@ class _ShellPreviewRuntime:
                 draw_sidebar(self.plotter)
             visualizer._populate_plotter(self.plotter, vtp_dir, latest_particle_vtps)
             if with_particles:
+                self._animation_run_completed = False
                 pending_simulation = visualizer.take_particle_simulation()
                 if pending_simulation is not None:
                     from sphinxsim.visualization.preview import _body_colour
@@ -2148,6 +2424,16 @@ class _ShellPreviewRuntime:
                         body_name: _body_colour(body_name, config)
                         for body_name in self._live_particle_body_names
                     }
+                    self._animation_output_dir = self._live_output_dir
+                    self._animation_particle_body_names = set(self._live_particle_body_names)
+                    self._animation_particle_colours = dict(self._live_particle_colours)
+                    self._animation_config = config
+                    self._animation_config_path = resolved_config_path
+                else:
+                    self._animation_output_dir = None
+                    self._animation_particle_body_names = set()
+                    self._animation_particle_colours = {}
+                    self._animation_run_completed = False
             if configure_layout is not None:
                 configure_layout(self.plotter)
             visualizer._configure_default_view(self.plotter, ndim)
@@ -2188,14 +2474,16 @@ class _ShellPreviewRuntime:
 
 def cmd_shell(args: argparse.Namespace) -> int:
     """Interactive shell for load/generate/update/validate/run workflow."""
+    if sys.stdin.isatty():
+        _configure_shell_readline()
     provider = os.getenv("SPHINXSIM_LLM_PROVIDER", "mock")
     print("SPHinXsim interactive shell")
     print(f"LLM provider: {provider}")
     print(
             "Commands: load FILE, generate DESCRIPTION FILE, "
             "update [--patch-mode] [--dry-run] [--strict true|false] INSTRUCTION, "
-                "validate, run, preview [--with-particles] [--screenshot FILE], "
-                    "continue-to-run [--refresh-interval SECONDS], explore QUESTION, exit"
+            "validate, run [--with-animation], preview [--with-particles] [--screenshot FILE], "
+                "continue-to-run [--refresh-interval SECONDS], replay, explore QUESTION, exit"
     )
     print("Note: relative paths are resolved from the current directory first, then .build-temp/.")
 
@@ -2236,7 +2524,8 @@ def cmd_shell(args: argparse.Namespace) -> int:
             print("  preview --screenshot FILE        - Save a screenshot to FILE instead of interactive window")
             print("  continue-to-run [--refresh-interval SECONDS]")
             print("                                 - Finish and run the retained particle preview simulation")
-            print("  run                             - Run simulation from loaded config")
+            print("  replay                          - Replay recorded particle snapshots at up to 25 FPS")
+            print("  run [--with-animation]          - Run config; optionally preview particles and animate")
             print("  exit                            - Exit shell")
             continue
 
@@ -2444,15 +2733,51 @@ def cmd_shell(args: argparse.Namespace) -> int:
             _ = preview_runtime.continue_to_run(refresh_interval)
             continue
 
+        if cmd == "replay":
+            if len(parts) != 1:
+                print("Usage: replay", file=sys.stderr)
+                continue
+            _ = preview_runtime.replay_animation()
+            continue
+
         if cmd == "run":
+            with_animation = len(parts) == 2 and parts[1] == "--with-animation"
+            if len(parts) > 1 and not with_animation:
+                print("Usage: run [--with-animation]", file=sys.stderr)
+                continue
             if config_path is None:
                 print("No config loaded. Run 'load FILE' or 'generate' first.", file=sys.stderr)
                 continue
 
+            cfg, rc = _load_config(config_path)
+            if rc != 0 or cfg is None:
+                print(f"❌ Validation failed for {config_path}", file=sys.stderr)
+                continue
+            if with_animation:
+                resolved_config_path = _resolve_preview_config_path(str(config_path))
+                print(f"🖼  Building particle-animation preview for: {resolved_config_path}")
+                print("   Building C++ geometry; bounds cache fallback will be used if VTP meshes are unavailable.")
+                preview_rc = preview_runtime.show_or_update(
+                    cfg,
+                    resolved_config_path=resolved_config_path,
+                    with_particles=True,
+                    force=True,
+                )
+                if preview_rc == 0:
+                    _ = preview_runtime.continue_to_run()
+                continue
+
+            preview_runtime._animation_output_dir = None
+            preview_runtime._animation_particle_body_names = set()
+            preview_runtime._animation_particle_colours = {}
+            preview_runtime._animation_config = None
+            preview_runtime._animation_config_path = None
+            preview_runtime._animation_run_completed = False
+            output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation"
+
             # Persistent preview keeps native UI/runtime state alive in-process.
             # Run simulation in an isolated subprocess to avoid state leakage.
             if preview_runtime.plotter is not None:
-                resolved_config_path = _resolve_preview_config_path(str(config_path))
                 print(
                     "ℹ️ Running simulation in isolated subprocess (persistent preview is active).",
                     flush=True,
@@ -2479,15 +2804,10 @@ def cmd_shell(args: argparse.Namespace) -> int:
                 continue
 
             try:
-                cfg, rc = _load_config(config_path)
-                if rc != 0 or cfg is None:
-                    print(f"❌ Validation failed for {config_path}", file=sys.stderr)
-                    continue
                 ndim = _config_spatial_dim(cfg)
                 sph = load_sphinxsys_core_nd(ndim)
 
                 shell_sim = sph.SPHSimulation(str(config_path))
-                output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation"
                 output_dir.mkdir(exist_ok=True, parents=True)
                 shell_sim.resetOutputRoot(str(output_dir))
                 print(f"📁 Now, the output folder is changed to: {output_dir}")
@@ -2520,7 +2840,7 @@ COMPLETION_SCRIPTS = {
     local cur opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="generate validate update run preview explore shell --help --version --generate-completion"
+    opts="generate validate update run preview explore shell capabilities compile geometry project job desktop mcp --help --version --generate-completion"
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
     return 0
 }
@@ -2537,6 +2857,13 @@ _sphinxsim() {
         'preview:Render an interactive geometry/BC preview of a JSON config file'
         'explore:Ask schema/functionality questions using LLM'
         'shell:Interactive shell for config workflow'
+        'capabilities:Inspect schema and native routing evidence'
+        'compile:Compile quantities into native configuration'
+        'geometry:Generate verified CAD geometry'
+        'project:Inspect project inputs'
+        'job:Query or control an explicit job'
+        'desktop:Serve or operate the native application'
+        'mcp:Serve native operations over MCP stdio'
     )
     _describe 'sphinxsim commands' subcmds
 }
@@ -2548,7 +2875,8 @@ complete -c sphinxsim -f -a "update" -d "Update existing simulation config"
 complete -c sphinxsim -f -a "run" -d "Run simulation from JSON config"
 complete -c sphinxsim -f -a "preview" -d "Render interactive geometry/BC preview"
 complete -c sphinxsim -f -a "explore" -d "Ask schema/functionality questions"
-complete -c sphinxsim -f -a "shell" -d "Interactive shell workflow" """
+complete -c sphinxsim -f -a "shell" -d "Interactive shell workflow"
+complete -c sphinxsim -f -a "capabilities compile geometry project job desktop mcp" -d "Native application operations" """
 }
 
 
@@ -2675,6 +3003,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     shell.set_defaults(func=cmd_shell)
 
+    from sphinxsim.commands import register
+    register(subparsers)
     return parser
 
 
@@ -2722,10 +3052,22 @@ def _parse_shell_ai_cli_style(text: str) -> list[str] | None:
     return [command] + parts[1:]
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, publish_json=None) -> int:
     """Entry point for the ``sphinxsim`` CLI."""
     parser = _build_parser()
     args = parser.parse_args(argv)
+    if publish_json is not None:
+        if not callable(publish_json) or not getattr(args, "request", None):
+            parser.error("The trusted publisher hook requires a frozen --request execution")
+        args.publish_json = publish_json
+    if args.command in ("run", "preview") and not args.request and args.config_file is None:
+        args.config_file = "config.json"
+    structured = any(getattr(args, key, None) for key in ("json", "detach", "request", "root", "output", "submission_id"))
+    policy_changed = any(getattr(args, key, default) != default for key, default in
+                         (("lease_seconds", 600), ("refresh_seconds", 10), ("wall_seconds", 3600)))
+    if args.command in ("validate", "run", "preview") and (structured or policy_changed):
+        from sphinxsim.commands import execute
+        return execute(args)
     return args.func(args)
 
 

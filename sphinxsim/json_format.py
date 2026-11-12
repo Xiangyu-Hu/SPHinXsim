@@ -10,6 +10,42 @@ Layout = dict[tuple, bool]
 _BLANK = "\0blank"
 
 
+def apply_payload_diff(raw: Any, base: Any, edited: Any) -> Any:
+    """Apply only intentional edits, preserving omitted defaults and raw floats."""
+    if base == edited:
+        return raw
+    if isinstance(raw, dict) and isinstance(base, dict) and isinstance(edited, dict):
+        result = dict(raw)
+        for key, value in edited.items():
+            if key not in base:
+                result[key] = value
+            elif key not in raw:
+                if value != base[key]:
+                    result[key] = value
+            else:
+                result[key] = apply_payload_diff(raw[key], base[key], value)
+        for key in base:
+            if key not in edited:
+                result.pop(key, None)
+        return result
+    if isinstance(raw, list) and isinstance(base, list) and isinstance(edited, list) and len(raw) == len(base) == len(edited):
+        return [apply_payload_diff(r, b, e) for r, b, e in zip(raw, base, edited)]
+    return edited
+
+
+def format_json_like_source(payload: Any, source: str, path: Path | None = None) -> str:
+    """Share Preview's layout, numeric spelling, newline and Prettier rules."""
+    if payload == json.loads(source):
+        return source
+    patched = apply_payload_diff(load_json_preserving_floats(source), json.loads(source), payload)
+    options = (find_prettier_options(path) if path else None) or {}
+    text = format_json(patched, layout=object_layout(source),
+                       print_width=int(options.get("printWidth", 80)), tab_width=int(options.get("tabWidth", 2)))
+    if source.endswith("\n"):
+        text += "\n"
+    return text.replace("\n", "\r\n") if "\r\n" in source else text
+
+
 class RawFloat(float):
     """A float that remembers its source text (e.g. ``1.0e-2``) for faithful output."""
 

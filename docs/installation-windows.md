@@ -55,11 +55,16 @@ https://learn.microsoft.com/en-us/answers/questions/6011933/how-to-fix-long-path
 
 Optional manual CMake workflow:
 
+Run these commands in a Visual Studio x64 developer shell so that `cl`, the
+Windows SDK, and Ninja are available. The Windows presets explicitly clear the
+compiler launchers, including any `ccache` setting left in an existing CMake
+cache. Reconfigure after updating the presets before building again.
+
 ```powershell
 cmake --preset integrated-build-release-windows `
   -D CMAKE_TOOLCHAIN_FILE="$pwd\..\vcpkg\scripts\buildsystems\vcpkg.cmake" `
   -D Python3_EXECUTABLE="$(python -c "import sys; print(sys.executable)")"
-cmake --build --preset integrated-build-release-windows --parallel
+cmake --build --preset integrated-build-release-windows --parallel 1
 ```
 
 Install compiled C++ extension modules into the active Python environment (manual workflow only):

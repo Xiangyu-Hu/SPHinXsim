@@ -16,6 +16,10 @@ The project is designed around explicit simulation configuration rather than opa
 
 ## Core workflow
 
+For a single desktop window with a JSON editor, PyVista Preview, and embedded
+Chainlit chat, run `python -m sphinxsim workbench`. See
+[Desktop Workbench](workbench.md) for configuration edits and Agent demonstrations.
+
 The recommended user workflow is to use the **interactive shell**:
 
 ```bash

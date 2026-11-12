@@ -69,6 +69,10 @@ class AgentChatSession:
         return self.agent.execution_status(self._require_id())
 
     def open_preview(self):
+        from sphinxsim.ui.workbench.bridge import WorkbenchClient
+        client = WorkbenchClient.from_environment()
+        if client is not None:
+            return client.observe(self._require_id())
         from sphinxsim.visualization.agent_preview import launch_agent_preview
         return launch_agent_preview(self.agent.runtime.project_root,
                                     self.agent.runtime.workspace, self._require_id())
@@ -300,6 +304,8 @@ class ChatController:
         self,
         text: str,
         attachments: Sequence[ChatAttachment] = (),
+        *,
+        context: str | None = None,
     ) -> str:
         """Append one user message, call the configured provider, and save the reply."""
         cleaned = text.strip()
@@ -310,7 +316,10 @@ class ChatController:
             user_message["attachments"] = list(attachments)
         self.messages.append(user_message)
         try:
-            response = self.llm.chat(self.messages)
+            messages = self.messages
+            if context is not None:
+                messages = [*self.messages[:-1], {"role": "system", "content": context}, self.messages[-1]]
+            response = self.llm.chat(messages)
         except Exception:
             self.messages.pop()
             raise

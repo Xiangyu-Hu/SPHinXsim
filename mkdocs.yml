@@ -8,6 +8,7 @@ nav:
       - Windows: installation-windows.md
       - macOS: installation-macos.md
   - CLI Usage: cli-usage.md
+  - Desktop Workbench: workbench.md
   - AgentCAE: agent-cae.md
   - Visualization: visualization.md
   - LLM Testing: llm-testing.md

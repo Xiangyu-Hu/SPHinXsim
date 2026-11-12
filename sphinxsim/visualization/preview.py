@@ -221,11 +221,13 @@ class ConfigVisualizer:
         *,
         config_path: Path | None = None,
         off_screen: bool = False,
+        output_root: Path | None = None,
     ) -> None:
         self.config = config
         self.project_root = Path(project_root)
         self.config_path = Path(config_path) if config_path is not None else None
         self.off_screen = off_screen
+        self.output_root = Path(output_root) if output_root is not None else None
 
         self._vtp_dir: Path | None = None
         self._shape_bounds_cache: dict[str, Any] | None = None
@@ -411,6 +413,9 @@ class ConfigVisualizer:
             return False
         try:
             if len(renderers) < 2:
+                renderers[0].SetBackground(PREVIEW_MAIN_BACKGROUND)
+                renderers[0].SetViewport(0.0, 0.0, 1.0, 1.0)
+                plotter.subplot(0, 0)
                 return False
             try:
                 plotter.set_background(PREVIEW_MAIN_BACKGROUND)
@@ -543,6 +548,14 @@ class ConfigVisualizer:
     def _configure_default_view(self, plotter: Any, ndim: int) -> None:
         """Set a sensible initial camera and interaction style."""
         if ndim != 2:
+            # A shared canvas can previously have displayed a 2-D case. Restore
+            # perspective, rotation and framing when switching back to 3-D.
+            try:
+                plotter.enable_trackball_style()
+                plotter.disable_parallel_projection()
+                plotter.view_isometric()
+            except AttributeError:
+                pass
             return
 
         # Keep 2-D previews in an orthographic XY view to avoid 3-D feel.
@@ -602,7 +615,7 @@ class ConfigVisualizer:
         except ImportError as exc:
             raise ImportError(str(exc)) from None
 
-        vtp_output_dir = self.project_root / ".build-temp" / "test_simulation"
+        vtp_output_dir = self.output_root or self.project_root / ".build-temp" / "test_simulation"
         vtp_output_dir.mkdir(parents=True, exist_ok=True)
         output_subdir = vtp_output_dir / "output"
         for stale_dir in (vtp_output_dir, output_subdir):

@@ -98,6 +98,7 @@ class FluidBoundaryConditionType(str, Enum):
     EMITTER = "emitter"
     BI_DIRECTIONAL = "bi_directional"
     FREE_STREAM = "free_stream"
+    WALL_BOUNDING = "wall_bounding"
 
 
 class BodyConstraintType(str, Enum):
@@ -152,9 +153,40 @@ class TransformConfig(BaseModel):
 
 class PrimitiveConfig(BaseModel):
     name: str = Field(..., min_length=1)
-    type: Literal["box"]
-    half_size: List[float] = Field(..., min_length=2, max_length=3)
-    transform: TransformConfig
+    type: Literal["box", "bounding_box"]
+    half_size: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
+    transform: Optional[TransformConfig] = None
+    lower_bound: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
+    upper_bound: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
+
+    @model_validator(mode="after")
+    def _validate_primitive(self) -> "PrimitiveConfig":
+        if self.type == "box":
+            if self.half_size is None or self.transform is None:
+                raise ValueError("box primitive requires half_size and transform")
+        else:
+            if self.lower_bound is None or self.upper_bound is None:
+                raise ValueError("bounding_box primitive requires lower_bound and upper_bound")
+            if len(self.lower_bound) != len(self.upper_bound):
+                raise ValueError("bounding_box primitive dimensionality must match")
+        return self
+
+
+class BoundingBoxReferenceConfig(BaseModel):
+    primitive: Optional[str] = Field(default=None, min_length=1)
+    lower_bound: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
+    upper_bound: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
+
+    @model_validator(mode="after")
+    def _validate_bounding_box(self) -> "BoundingBoxReferenceConfig":
+        if self.primitive:
+            if self.lower_bound is not None or self.upper_bound is not None:
+                raise ValueError("bounding_box requires either primitive or inline bounds")
+        elif self.lower_bound is None or self.upper_bound is None:
+            raise ValueError("bounding_box requires primitive or lower_bound and upper_bound")
+        elif len(self.lower_bound) != len(self.upper_bound):
+            raise ValueError("bounding_box dimensionality must match")
+        return self
 
 
 class MultiPolygonEntryConfig(BaseModel):
@@ -169,8 +201,7 @@ class MultiPolygonEntryConfig(BaseModel):
     points: Optional[List[List[float]]] = None
     lower_bound: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     upper_bound: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
-    inner_lower_bound: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
-    inner_upper_bound: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
+    inner_box: Optional[BoundingBoxReferenceConfig] = None
     thickness: Optional[float] = Field(default=None, gt=0)
     file_name: Optional[str] = None
 
@@ -180,17 +211,16 @@ class MultiPolygonEntryConfig(BaseModel):
             if not self.primitive and (self.half_size is None or self.transform is None):
                 raise ValueError("multipolygon box requires primitive or half_size and transform")
         elif self.type == MultiPolygonPrimitiveType.BOUNDING_BOX:
-            if self.lower_bound is None or self.upper_bound is None:
-                raise ValueError("multipolygon bounding_box requires lower_bound and upper_bound")
-            if len(self.lower_bound) != len(self.upper_bound):
+            if self.primitive:
+                if self.lower_bound is not None or self.upper_bound is not None:
+                    raise ValueError("multipolygon bounding_box requires either primitive or inline bounds")
+            elif self.lower_bound is None or self.upper_bound is None:
+                raise ValueError("multipolygon bounding_box requires primitive or lower_bound and upper_bound")
+            elif len(self.lower_bound) != len(self.upper_bound):
                 raise ValueError("multipolygon bounding_box dimensionality must match")
         elif self.type == MultiPolygonPrimitiveType.CONTAINER_BOX:
-            if self.inner_lower_bound is None or self.inner_upper_bound is None or self.thickness is None:
-                raise ValueError(
-                    "multipolygon container_box requires inner_lower_bound, inner_upper_bound and thickness"
-                )
-            if len(self.inner_lower_bound) != len(self.inner_upper_bound):
-                raise ValueError("multipolygon container_box dimensionality must match")
+            if self.inner_box is None or self.thickness is None:
+                raise ValueError("multipolygon container_box requires inner_box and thickness")
         elif self.type == MultiPolygonPrimitiveType.CIRCLE:
             if self.center is None or self.radius is None or self.resolution is None:
                 raise ValueError("multipolygon circle requires center, radius and resolution")
@@ -244,9 +274,12 @@ class ShapeConfig(BaseModel):
             return self
 
         if self.type == BodyShapeType.BOUNDING_BOX:
-            if self.lower_bound is None or self.upper_bound is None:
+            if self.primitive is not None:
+                if self.lower_bound is not None or self.upper_bound is not None:
+                    raise ValueError("bounding_box shape requires either primitive or inline bounds")
+            elif self.lower_bound is None or self.upper_bound is None:
                 raise ValueError("bounding_box shape requires lower_bound and upper_bound")
-            if len(self.lower_bound) != len(self.upper_bound):
+            elif len(self.lower_bound) != len(self.upper_bound):
                 raise ValueError("bounding_box dimensionality must match")
             return self
 
@@ -295,7 +328,7 @@ class OrientedBoxConfig(BaseModel):
     center: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     normal: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     radius: Optional[float] = Field(default=None, gt=0)
-    surface_half_size: Optional[List[float]] = Field(default=None, length=2)
+    surface_half_size: Optional[List[float]] = Field(default=None, min_length=2, max_length=2)
 
     half_size: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     transform: Optional[TransformConfig] = None
@@ -323,6 +356,7 @@ class GeometriesConfig(BaseModel):
         """Ensure shape definitions are unique and only reference earlier shapes."""
         defined_shape_names: set[str] = set()
         defined_primitive_names: set[str] = set()
+        primitive_types: dict[str, str] = {}
 
         for primitive in self.primitives:
             if primitive.name in defined_primitive_names:
@@ -330,6 +364,7 @@ class GeometriesConfig(BaseModel):
                     f"geometries.primitives contains duplicate primitive name '{primitive.name}'"
                 )
             defined_primitive_names.add(primitive.name)
+            primitive_types[primitive.name] = primitive.type
 
         for shape in self.shapes:
             if shape.name in defined_shape_names:
@@ -340,6 +375,10 @@ class GeometriesConfig(BaseModel):
             if shape.primitive is not None and shape.primitive not in defined_primitive_names:
                 raise ValueError(
                     f"shape '{shape.name}' references unknown primitive '{shape.primitive}'"
+                )
+            if shape.primitive is not None and primitive_types[shape.primitive] != shape.type.value:
+                raise ValueError(
+                    f"shape '{shape.name}' primitive '{shape.primitive}' must be a {shape.type.value} primitive"
                 )
 
             if shape.type == BodyShapeType.EXPANDED_BOX:
@@ -367,6 +406,26 @@ class GeometriesConfig(BaseModel):
                         raise ValueError(
                             f"multipolygon shape '{shape.name}' references unknown primitive '{polygon.primitive}'"
                         )
+                    if polygon.primitive is not None and primitive_types[polygon.primitive] != polygon.type.value:
+                        raise ValueError(
+                            f"multipolygon shape '{shape.name}' primitive '{polygon.primitive}' "
+                            f"must be a {polygon.type.value} primitive"
+                        )
+                    if (
+                        polygon.inner_box is not None
+                        and polygon.inner_box.primitive is not None
+                    ):
+                        inner_primitive = polygon.inner_box.primitive
+                        if inner_primitive not in defined_primitive_names:
+                            raise ValueError(
+                                f"multipolygon shape '{shape.name}' references unknown primitive "
+                                f"'{inner_primitive}'"
+                            )
+                        if primitive_types[inner_primitive] != "bounding_box":
+                            raise ValueError(
+                                f"multipolygon shape '{shape.name}' inner_box primitive "
+                                f"'{inner_primitive}' must be a bounding_box primitive"
+                            )
 
             defined_shape_names.add(shape.name)
 
@@ -407,6 +466,7 @@ class ParticleGenerationBodyConfig(BaseModel):
     cylinder_shape_inserts: List[str] = Field(default_factory=list)
     solid_body: Optional[dict] = None
     relaxation: Optional[RelaxationBodyConfig] = None
+    adaptation_ratios: Optional[List[float]] = Field(default=None, min_length=2, max_length=2)
 
     @model_validator(mode="after")
     def _warn_unknown_fields(self) -> "ParticleGenerationBodyConfig":
@@ -764,6 +824,7 @@ class MaterialConfig(BaseModel):
 class FluidBodyConfig(BaseModel):
     name: str = Field(..., min_length=1)
     material: MaterialConfig
+    surface_type: Literal["free_surface", "confined", "open_boundary", "free_stream"] = "free_surface"
     particle_reserve_factor: Optional[float] = Field(default=None, gt=0)
 
     @model_validator(mode="after")
@@ -784,6 +845,7 @@ class SolidBodyConfig(BaseModel):
     name: str = Field(..., min_length=1)
     material: MaterialConfig
     is_moving: bool = False
+    adaptation_ratios: Optional[List[float]] = Field(default=None, min_length=2, max_length=2)
 
     @model_validator(mode="after")
     def _material_type(self) -> "SolidBodyConfig":
@@ -848,7 +910,7 @@ class StartupAccelerationConfig(BaseModel):
 
 class FluidBoundaryConditionConfig(BaseModel):
     body_name: str = Field(..., min_length=1)
-    oriented_box: str = Field(..., min_length=1)
+    oriented_box: Optional[str] = Field(default=None, min_length=1)
     type: FluidBoundaryConditionType
     inflow_speed: Optional[float] = Field(default=None, gt=0)
     pressure: Optional[float] = None
@@ -864,6 +926,8 @@ class FluidBoundaryConditionConfig(BaseModel):
 
     @model_validator(mode="after")
     def _type_specific_requirements(self) -> "FluidBoundaryConditionConfig":
+        if self.type != FluidBoundaryConditionType.WALL_BOUNDING and self.oriented_box is None:
+            raise ValueError(f"{self.type.value} boundary condition requires oriented_box")
         if self.type == FluidBoundaryConditionType.FREE_STREAM and (
             self.buffer_box is None
             or self.disposer_box is None
@@ -936,7 +1000,6 @@ class FluidDynamicsSolverConfig(BaseModel):
     acoustic_cfl: float = Field(default=0.6, gt=0)
     advection_cfl: float = Field(default=0.25, gt=0)
     max_velocity_factor: float = Field(default=1.0, gt=0)
-    surface_type: Literal["free_surface", "confined", "open_boundary", "free_stream"] = "free_surface"
     kernel_correction: Literal["linear", "none"] = "linear"
     particle_sort_frequency: Optional[int] = Field(default=None, gt=0)
 
@@ -952,7 +1015,6 @@ class ContinuumDynamicsSolverConfig(BaseModel):
     shear_stress_damping: Optional[float] = 0.0
     hourglass_factor: Optional[float] = 2.0
     plastic_riemann_dissipation_factor: Optional[float] = Field(default=None, gt=0)
-    surface_type: Literal["free_surface", "confined", "open_boundary"] = "free_surface"
 
 
 class SolverParametersConfig(BaseModel):
@@ -1019,9 +1081,10 @@ class SimulationConfig(BaseModel):
             dim = len(self.geometries.system_domain.lower_bound)
             if self.startup_acceleration is not None and len(self.startup_acceleration.target_velocity) != dim:
                 raise ValueError("startup_acceleration target_velocity dimensionality must match geometries.system_domain")
-            return dim
 
         dims: set[int] = set()
+        if self.geometries.system_domain is not None:
+            dims.add(len(self.geometries.system_domain.lower_bound))
         if self.startup_acceleration is not None:
             dims.add(len(self.startup_acceleration.target_velocity))
         if self.gravity is not None:
@@ -1035,8 +1098,11 @@ class SimulationConfig(BaseModel):
                 dims.add(len(shape.transform.translation))
 
         for primitive in self.geometries.primitives:
-            dims.add(len(primitive.half_size))
-            dims.add(len(primitive.transform.translation))
+            for vec in (primitive.half_size, primitive.lower_bound, primitive.upper_bound):
+                if vec is not None:
+                    dims.add(len(vec))
+            if primitive.transform is not None:
+                dims.add(len(primitive.transform.translation))
 
         for oriented_box in self.geometries.oriented_boxes:
             for vec in (oriented_box.center, oriented_box.normal, oriented_box.half_size):
@@ -1117,8 +1183,6 @@ class SimulationConfig(BaseModel):
         if self.simulation_type == SimulationType.FLUID_DYNAMICS:
             if not self.fluid_bodies:
                 raise ValueError("fluid_dynamics simulation requires fluid_bodies")
-            if len(self.fluid_bodies) > 1:
-                raise ValueError("fluid_dynamics currently supports exactly one fluid body")
             if self.solver_parameters.fluid_dynamics is None:
                 raise ValueError("fluid_dynamics simulation requires solver_parameters.fluid_dynamics")
         elif self.simulation_type == SimulationType.CONTINUUM_DYNAMICS:
@@ -1159,6 +1223,12 @@ class SimulationConfig(BaseModel):
                 if body.name not in shape_names:
                     raise ValueError(
                         f"particle_generation body '{body.name}' must match a shape name in geometries.shapes"
+                    )
+                level_set = body.relaxation.level_set if body.relaxation is not None else None
+                if level_set and level_set.get("shape") is not None and level_set["shape"] not in shape_names:
+                    raise ValueError(
+                        f"particle_generation body '{body.name}' relaxation level_set shape "
+                        f"'{level_set['shape']}' must match a shape name in geometries.shapes"
                     )
                 for blocker_name in body.blockers:
                     if blocker_name not in oriented_box_names:
@@ -1215,7 +1285,7 @@ class SimulationConfig(BaseModel):
         for bc in self.fluid_boundary_conditions:
             if bc.body_name not in fluid_names:
                 raise ValueError("fluid_boundary_conditions body_name must reference an existing fluid body")
-            if bc.oriented_box not in oriented_box_names:
+            if bc.oriented_box is not None and bc.oriented_box not in oriented_box_names:
                 raise ValueError("fluid_boundary_conditions oriented_box must exist in geometries.oriented_boxes")
             if bc.velocity is not None:
                 if fluid_body_map[bc.body_name].material.type != MaterialType.WEAKLY_COMPRESSIBLE_FLUID:

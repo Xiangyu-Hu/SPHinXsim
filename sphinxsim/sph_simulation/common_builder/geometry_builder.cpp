@@ -138,6 +138,13 @@ void GeometryBuilder::addPrimitive(
         return;
     }
 
+    if (type == "bounding_box")
+    {
+        BoundingBoxd bounding_box = parseBoundingBox(scaling_config, config);
+        config_manager.emplaceEntity<BoundingBoxd>(name, bounding_box);
+        return;
+    }
+
     throw std::runtime_error(
         "GeometryBuilder::addPrimitive: unsupported primitive type: " + type);
 }
@@ -154,6 +161,20 @@ TransformGeometryBox GeometryBuilder::parseBox(const ScalingConfig &scaling_conf
     Vecd half_size = scaling_config.jsonToVecd(config.at("half_size"), "Length");
     Transform transform = scaling_config.jsonToTransform(config.at("transform"));
     return TransformGeometryBox(transform, half_size);
+}
+//=================================================================================================//
+BoundingBoxd GeometryBuilder::fetch_or_parseBoundingBox(
+    const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config)
+{
+    if (config.contains("primitive"))
+    {
+        return BoundingBoxd(config_manager.getEntity<BoundingBoxd>(
+            config.at("primitive").get<std::string>()));
+    }
+    else
+    {
+        return parseBoundingBox(scaling_config, config);
+    }
 }
 //=================================================================================================//
 TransformGeometryBox GeometryBuilder::fetch_or_parseBox(
@@ -259,9 +280,8 @@ MultiPolygon GeometryBuilder::parseMultiPolygon(
     const std::string polygon_type = config.at("type").get<std::string>();
     if (polygon_type == "bounding_box")
     {
-        Vecd lower_bound = scaling_config.jsonToVecd(config.at("lower_bound"), "Length");
-        Vecd upper_bound = scaling_config.jsonToVecd(config.at("upper_bound"), "Length");
-        multi_polygon.addBox(BoundingBoxd(lower_bound, upper_bound), GeometricOps::add);
+        BoundingBoxd bounding_box = fetch_or_parseBoundingBox(scaling_config, config_manager, config);
+        multi_polygon.addBox(bounding_box, GeometricOps::add);
         return multi_polygon;
     }
 
@@ -274,9 +294,8 @@ MultiPolygon GeometryBuilder::parseMultiPolygon(
 
     if (polygon_type == "container_box")
     {
-        BoundingBoxd inner_box(
-            scaling_config.jsonToVecd(config.at("inner_lower_bound"), "Length"),
-            scaling_config.jsonToVecd(config.at("inner_upper_bound"), "Length"));
+        BoundingBoxd inner_box = fetch_or_parseBoundingBox(
+            scaling_config, config_manager, config.at("inner_box"));
         Real thickness = scaling_config.jsonToReal(config.at("thickness"), "Length");
         multi_polygon.addContainerBox(inner_box, thickness, GeometricOps::add);
         return multi_polygon;
@@ -346,7 +365,8 @@ Shape *GeometryBuilder::addShape(
 
     if (type == "bounding_box")
     {
-        BoundingBoxd bounding_box = parseBoundingBox(scaling_config, config);
+        BoundingBoxd bounding_box = fetch_or_parseBoundingBox(
+            scaling_config, config_manager, config);
         config_manager.emplaceEntity<BoundingBoxd>(name, bounding_box);
         GeometricShapeBox *shape = config_manager.emplaceEntity<GeometricShapeBox>(name, bounding_box, name);
         shape->writeGeometricShapeBoxToVtp(scaling_factor);

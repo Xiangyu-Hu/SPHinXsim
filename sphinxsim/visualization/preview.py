@@ -23,6 +23,7 @@ a clear install hint.
 
 from __future__ import annotations
 
+import colorsys
 import json
 import tempfile
 from pathlib import Path
@@ -56,6 +57,14 @@ if TYPE_CHECKING:
 
 # Colours assigned per body category so users instantly see what is what.
 _FLUID_COLOUR = (0.20, 0.53, 0.85)       # blue
+_FLUID_COLOURS = (
+    _FLUID_COLOUR,
+    (0.90, 0.42, 0.20),  # orange
+    (0.20, 0.68, 0.45),  # green
+    (0.62, 0.38, 0.78),  # purple
+    (0.88, 0.72, 0.18),  # gold
+    (0.18, 0.67, 0.73),  # teal
+)
 _SOLID_COLOUR = (0.48, 0.48, 0.48)       # grey
 _CONTINUUM_COLOUR = (0.78, 0.42, 0.05)   # amber
 _UNKNOWN_COLOUR = (0.60, 0.80, 0.40)     # green (shapes not in any body list)
@@ -67,10 +76,17 @@ _GRAVITY_COLOUR = (0.00, 0.48, 0.50)        # dark cyan — gravity direction ar
 _PARTICLE_POINT_SIZE = 5
 
 
+def _particle_label(body_name: str) -> str:
+    return f"{body_name} Particles"
+
+
 def _body_colour(body_name: str, config: "SimulationConfig") -> tuple[float, float, float]:
-    for b in config.fluid_bodies:
+    for index, b in enumerate(config.fluid_bodies):
         if b.name == body_name:
-            return _FLUID_COLOUR
+            if index < len(_FLUID_COLOURS):
+                return _FLUID_COLOURS[index]
+            hue = (index * 0.618033988749895) % 1.0
+            return colorsys.hsv_to_rgb(hue, 0.68, 0.92)
     for b in config.solid_bodies:
         if b.name == body_name:
             return _SOLID_COLOUR
@@ -95,33 +111,29 @@ def _legend_entries_for_config(
     entries: list[tuple[str, tuple[float, float, float]]] = []
     seen: set[tuple[str, tuple[float, float, float]]] = set()
 
-    for info in collect_preview_body_information(config):
-        body_type = str(info.get("body_type", ""))
-        material_model = str(info.get("material_model") or "Material")
-        colour = _FLUID_COLOUR if body_type == "Fluid body" else _CONTINUUM_COLOUR
-        key = (material_model, colour)
-        if key not in seen:
-            entries.append(key)
-            seen.add(key)
+    if not particle_body_names:
+        for info in collect_preview_body_information(config):
+            body_type = str(info.get("body_type", ""))
+            material_model = str(info.get("material_model") or "Material")
+            if body_type == "Fluid body" and len(config.fluid_bodies) > 1:
+                label = str(info["name"])
+                colour = _body_colour(label, config)
+            else:
+                label = material_model
+                colour = _FLUID_COLOUR if body_type == "Fluid body" else _CONTINUUM_COLOUR
+            key = (label, colour)
+            if key not in seen:
+                entries.append(key)
+                seen.add(key)
 
-    # Particle overlays can be displayed without a corresponding material
-    # entry. Name these from the actual body instead of calling them granular.
     for body_name in sorted(particle_body_names or set()):
         colour = _body_colour(body_name, config)
-        if any(body.name == body_name for body in config.fluid_bodies):
-            label = "Fluid particles"
-        elif any(body.name == body_name for body in config.continuum_bodies):
-            label = "Continuum particles"
-        elif any(body.name == body_name for body in config.solid_bodies):
-            label = "Solid particles"
-        else:
-            label = f"Particles: {body_name}"
-        key = (label, colour)
+        key = (_particle_label(body_name), colour)
         if key not in seen:
             entries.append(key)
             seen.add(key)
 
-    if config.solid_bodies:
+    if not particle_body_names and config.solid_bodies:
         entries.append(("Solid", _SOLID_COLOUR))
 
     return entries
@@ -141,55 +153,6 @@ def _bounds_to_box(lower: list[float], upper: list[float]) -> Any:
             bounds=(lower[0], upper[0], lower[1], upper[1], -0.01, 0.01)
         )
     return pv.Box(bounds=(lower[0], upper[0], lower[1], upper[1], lower[2], upper[2]))
-
-
-def _label_anchor_point(mesh: Any) -> tuple[float, float, float]:
-    """Choose a label position inside *mesh* when possible.
-
-    For concave shapes the geometric center can lie outside. We sample a few
-    points inside the axis-aligned bounds and keep the first point confirmed as
-    enclosed by the surface. If enclosure checks are unavailable, we fall back
-    to the mesh center.
-    """
-    try:
-        import pyvista as pv  # type: ignore[import]
-    except Exception:
-        return tuple(float(v) for v in mesh.center)
-
-    bounds = mesh.bounds
-    x0, x1, y0, y1, z0, z1 = (float(v) for v in bounds)
-    center = tuple(float(v) for v in mesh.center)
-
-    # Probe from center outward; using interior fractions avoids boundary points.
-    fractions = (0.5, 0.35, 0.65, 0.2, 0.8)
-    candidates = []
-    for fx in fractions:
-        x = x0 + (x1 - x0) * fx
-        for fy in fractions:
-            y = y0 + (y1 - y0) * fy
-            for fz in fractions:
-                z = z0 + (z1 - z0) * fz
-                candidates.append((x, y, z))
-
-    # Ensure the geometric center is always tested first.
-    candidates.insert(0, center)
-
-    try:
-        points = pv.PolyData(candidates)
-        selected = points.select_interior_points(
-            mesh,
-            tolerance=1e-6,
-            check_surface=False,
-        )
-        mask = selected["SelectedPoints"]
-        for idx, value in enumerate(mask):
-            if int(value) == 1:
-                point = candidates[idx]
-                return (float(point[0]), float(point[1]), float(point[2]))
-    except Exception:
-        pass
-
-    return center
 
 
 # ---------------------------------------------------------------------------
@@ -930,7 +893,7 @@ class ConfigVisualizer:
                 opacity=0.95,
                 style="points",
                 point_size=_PARTICLE_POINT_SIZE,
-                label=f"Particles: {body_name}",
+                label=_particle_label(body_name),
             )
 
             _update_scene_bounds(particle_mesh)

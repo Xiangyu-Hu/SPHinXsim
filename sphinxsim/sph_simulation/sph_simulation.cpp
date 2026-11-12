@@ -87,7 +87,7 @@ void SPHSimulation::generateParticles()
     {
         ParticleGeneration particle_generation;
         particle_generation.buildParticleGeneration(*this, particle_generation_config.at("settings"));
-        particle_generation.runRelaxation();
+        particle_generation.runRelaxation(config_manager_);
     }
     particles_generated_ = true;
 }

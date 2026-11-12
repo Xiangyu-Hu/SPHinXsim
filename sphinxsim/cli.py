@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import glob
 import json
 import os
 import shlex
@@ -31,15 +32,20 @@ from pathlib import Path
 from threading import Thread
 from typing import Any, Tuple
 
+try:
+    import readline
+except ImportError:
+    readline = None
+
 # Set up sys.path FIRST, before any sphinxsim imports
 def _find_project_root(start=None):
-    start = start or os.getcwd()
+    start = start or str(Path(__file__).resolve().parent)
     current = start
     while current != os.path.dirname(current):  # Not at root
-        if os.path.exists(os.path.join(current, "pyproject.toml")):
+        if os.path.exists(os.path.join(current, "pyproject.toml")) and os.path.isfile(os.path.join(current, "sphinxsim", "cli.py")):
             return current
         current = os.path.dirname(current)
-    raise RuntimeError("Project root not found")
+    return os.getcwd()
 
 PROJECT_ROOT = _find_project_root()
 sys.path.insert(0, PROJECT_ROOT)
@@ -59,6 +65,7 @@ from sphinxsim.llm.common import LLMRepairWarning, dump_simulation_config_json
 
 # Convert PROJECT_ROOT to Path after imports
 PROJECT_ROOT = Path(PROJECT_ROOT)
+_LIVE_PREVIEW_MAX_FPS = 25
 
 __version__ = "0.1.0"  # Keep in sync with sphinxsim/__init__.py
 
@@ -85,11 +92,13 @@ def _load_config(path: Path) -> Tuple[SimulationConfig | None, int]:
         return None, 1
     try:
         data = json.loads(path.read_text())
-        return SimulationConfig(**data), 0
+        from sphinxsim.runtime.physics import check_config
+        normalized, _ = check_config(data)
+        return SimulationConfig(**normalized), 0
     except json.JSONDecodeError as exc:
         print(f"Invalid JSON: {exc}", file=sys.stderr)
         return None, 1
-    except ValidationError as exc:
+    except (ValidationError, ValueError) as exc:
         print(f"Config validation failed:\n{exc}", file=sys.stderr)
         return None, 1
 
@@ -743,6 +752,73 @@ def _shell_auto_validate(config_path: Path) -> bool:
     return True
 
 
+_SHELL_COMMANDS = (
+    "load",
+    "generate",
+    "update",
+    "validate",
+    "run",
+    "preview",
+    "continue-to-run",
+    "replay",
+    "explore",
+    "help",
+    "exit",
+    "quit",
+)
+
+
+def _shell_completion_matches(prefix: str, text: str) -> list[str]:
+    try:
+        words = shlex.split(prefix)
+    except ValueError:
+        words = prefix.split()
+
+    if not words:
+        commands = (
+            [f"/{command}" for command in _SHELL_COMMANDS]
+            if text.startswith("/")
+            else _SHELL_COMMANDS
+        )
+        return [command for command in commands if command.startswith(text)]
+
+    command = words[0].lstrip("/")
+    if not (
+        (command == "load" and len(words) == 1)
+        or command == "generate"
+        or (command == "preview" and "--screenshot" in words)
+    ):
+        return []
+
+    expanded_text = os.path.expanduser(text)
+    matches = glob.glob(expanded_text + "*")
+    results = []
+    for match in matches:
+        candidate = match
+        if text.startswith("~"):
+            candidate = "~" + os.path.relpath(match, os.path.expanduser("~"))
+        if os.path.isdir(match):
+            candidate += "/"
+        results.append(candidate)
+    return sorted(results)
+
+
+def _shell_readline_completer(text: str, state: int) -> str | None:
+    if readline is None:
+        return None
+    matches = _shell_completion_matches(
+        readline.get_line_buffer()[: readline.get_begidx()], text
+    )
+    return matches[state] if state < len(matches) else None
+
+
+def _configure_shell_readline() -> None:
+    if readline is None:
+        return
+    readline.set_completer(_shell_readline_completer)
+    readline.parse_and_bind("tab: complete")
+
+
 def _resolve_preview_config_path(config_file: str) -> Path:
     """Resolve preview config path using cwd-first then .build-temp fallback."""
     config_path = Path(config_file)
@@ -784,7 +860,9 @@ class _ShellPreviewRuntime:
     updates its scene in place.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, config_type=None, write_config=None) -> None:
+        self.config_type = config_type or SimulationConfig
+        self.write_config = write_config or _write_validated_config
         self.plotter: Any | None = None
         self.last_signature: str | None = None
         self._using_background_plotter = False
@@ -799,6 +877,16 @@ class _ShellPreviewRuntime:
         self._live_particle_body_names: set[str] = set()
         self._live_particle_colours: dict[str, Any] = {}
         self._live_particle_versions: dict[str, float] = {}
+        self._live_particle_file_states: dict[Path, tuple[int, int]] = {}
+        self._live_playback_queue: list[tuple[float, dict[str, Path]]] = []
+        self._live_refresh_interval_ms = round(10.0 * 1000)
+        self._live_replay_mode = False
+        self._animation_output_dir: Path | None = None
+        self._animation_particle_body_names: set[str] = set()
+        self._animation_particle_colours: dict[str, Any] = {}
+        self._animation_config: SimulationConfig | None = None
+        self._animation_config_path: Path | None = None
+        self._animation_run_completed = False
 
     def _reset_preview_state(self) -> None:
         """Forget all state associated with a closed preview window."""
@@ -859,27 +947,105 @@ class _ShellPreviewRuntime:
         self._live_particle_body_names = set()
         self._live_particle_colours = {}
         self._live_particle_versions = {}
+        self._live_particle_file_states = {}
+        self._live_playback_queue = []
+        self._live_replay_mode = False
 
     def _refresh_live_particles(self) -> None:
-        """Replace particle actors with the newest completed runtime snapshots."""
+        """Play a stable snapshot batch or an explicitly requested replay."""
         if self.plotter is None or self._live_output_dir is None:
             return
 
-        from sphinxsim.results import ResultCatalog
-        from sphinxsim.visualization.live_particles import refresh_particle_actors
-        catalog = getattr(self, "_result_catalog", None)
-        if catalog is None:
-            self._result_catalog = catalog = ResultCatalog()
-        refresh_particle_actors(
-            self.plotter, self._live_output_dir,
-            {body: self._live_particle_colours.get(body) for body in self._live_particle_body_names},
-            self._live_particle_versions, catalog,
-        )
+        from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE, _particle_label
 
-        thread = self._live_run_thread
-        if thread is not None and not thread.is_alive():
+        try:
+            import pyvista as pv
+        except ImportError:
+            return
+
+        if self._live_replay_mode and not self._live_playback_queue:
             self._stop_live_refresh()
-            self._live_run_thread = None
+            return
+
+        if not self._live_replay_mode and not self._live_playback_queue:
+            batch: dict[float, dict[str, Path]] = {}
+            has_unstable_snapshot = False
+            for vtp_path in self._live_output_dir.glob("*.vtp"):
+                for body_name in self._live_particle_body_names:
+                    prefix = f"{body_name}_"
+                    if not vtp_path.stem.startswith(prefix):
+                        continue
+                    suffix = vtp_path.stem[len(prefix):]
+                    if suffix.startswith("ite_"):
+                        suffix = suffix[len("ite_"):]
+                    try:
+                        sequence = float(suffix)
+                    except ValueError:
+                        break
+                    if sequence <= self._live_particle_versions.get(body_name, float("-inf")):
+                        break
+                    try:
+                        stat = vtp_path.stat()
+                    except OSError:
+                        break
+                    file_state = (stat.st_size, stat.st_mtime_ns)
+                    if self._live_particle_file_states.get(vtp_path) != file_state:
+                        self._live_particle_file_states[vtp_path] = file_state
+                        has_unstable_snapshot = True
+                        break
+                    batch.setdefault(sequence, {})[body_name] = vtp_path
+                    break
+
+            self._live_playback_queue = [
+                (sequence, body_snapshots)
+                for sequence, body_snapshots in sorted(batch.items())
+            ]
+            for sequence, body_snapshots in self._live_playback_queue:
+                for body_name in body_snapshots:
+                    self._live_particle_versions[body_name] = sequence
+
+            timer = self._live_refresh_timer
+            if self._live_playback_queue and timer is not None:
+                timer.setInterval(round(1000 / _LIVE_PREVIEW_MAX_FPS))
+            elif not self._live_playback_queue:
+                thread = self._live_run_thread
+                if thread is not None and not thread.is_alive() and not has_unstable_snapshot:
+                    self._stop_live_refresh()
+                    self._live_run_thread = None
+                return
+
+        _, body_snapshots = self._live_playback_queue.pop(0)
+        for body_name, vtp_path in body_snapshots.items():
+            try:
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", message=".*vtkXMLPolyDataReader.*")
+                    mesh = pv.read(str(vtp_path))
+            except Exception:
+                continue
+            if getattr(mesh, "n_points", None) == 0:
+                continue
+            self.plotter.add_mesh(
+                mesh,
+                name=f"particle-preview-{body_name}",
+                color=self._live_particle_colours.get(body_name),
+                opacity=0.95,
+                style="points",
+                point_size=_PARTICLE_POINT_SIZE,
+                label=_particle_label(body_name),
+            )
+
+        if self._live_replay_mode and not self._live_playback_queue:
+            self._stop_live_refresh()
+            print("✅ Particle animation replay completed.")
+        elif not self._live_playback_queue:
+            timer = self._live_refresh_timer
+            if timer is not None:
+                timer.setInterval(self._live_refresh_interval_ms)
+
+            thread = self._live_run_thread
+            if thread is not None and not thread.is_alive():
+                self._stop_live_refresh()
+                self._live_run_thread = None
 
     def _start_live_refresh(self, refresh_interval: float) -> None:
         timer = self._live_refresh_timer
@@ -890,6 +1056,10 @@ class _ShellPreviewRuntime:
                 pass
         self._live_refresh_timer = None
         self._live_particle_versions = {}
+        self._live_particle_file_states = {}
+        self._live_playback_queue = []
+        self._live_replay_mode = False
+        self._live_refresh_interval_ms = round(refresh_interval * 1000)
         if not self._using_background_plotter or self.plotter is None:
             return
         try:
@@ -897,13 +1067,105 @@ class _ShellPreviewRuntime:
         except ImportError:
             return
         timer = QtCore.QTimer()
-        timer.setInterval(max(1, round(refresh_interval * 1000)))
+        timer.setInterval(round(refresh_interval * 1000))
         timer.timeout.connect(self._refresh_live_particles)
         timer.start()
         self._live_refresh_timer = timer
+        if self._live_output_dir is not None:
+            for vtp_path in self._live_output_dir.glob("*.vtp"):
+                try:
+                    stat = vtp_path.stat()
+                except OSError:
+                    continue
+                self._live_particle_file_states[vtp_path] = (stat.st_size, stat.st_mtime_ns)
+
+    def replay_animation(self) -> int:
+        """Replay all recorded particle snapshots at no more than 25 FPS."""
+        thread = self._live_run_thread
+        if thread is not None and thread.is_alive():
+            print("❌ Wait for the simulation to finish before replaying.", file=sys.stderr)
+            return 1
+        if not self._animation_run_completed:
+            print("❌ Complete a successful animated run before replaying.", file=sys.stderr)
+            return 1
+        if self._animation_output_dir is None or not self._animation_particle_body_names:
+            print(
+                "No particle animation is available. Run 'run --with-animation', "
+                "or run 'preview --with-particles' followed by 'continue-to-run'.",
+                file=sys.stderr,
+            )
+            return 1
+        if self.plotter is None:
+            if self._animation_config is None or self._animation_config_path is None:
+                print("❌ The configuration for this particle animation is unavailable.", file=sys.stderr)
+                return 1
+            rc = self.show_or_update(
+                self._animation_config,
+                resolved_config_path=self._animation_config_path,
+                with_particles=False,
+                force=True,
+            )
+            if rc != 0:
+                return rc
+        elif not self._using_background_plotter:
+            print("❌ Animation replay requires the Qt-backed persistent preview.", file=sys.stderr)
+            return 1
+
+        try:
+            from qtpy import QtCore
+        except ImportError as exc:
+            print(
+                f"❌ Animation replay requires Qt (`pyvistaqt` with `PySide6` or `PyQt5`): {exc}",
+                file=sys.stderr,
+            )
+            return 1
+
+        snapshots: dict[float, dict[str, Path]] = {}
+        for vtp_path in self._animation_output_dir.glob("*.vtp"):
+            for body_name in self._animation_particle_body_names:
+                prefix = f"{body_name}_"
+                if not vtp_path.stem.startswith(prefix):
+                    continue
+                suffix = vtp_path.stem[len(prefix):]
+                if suffix.startswith("ite_"):
+                    suffix = suffix[len("ite_"):]
+                try:
+                    sequence = float(suffix)
+                except ValueError:
+                    break
+                snapshots.setdefault(sequence, {})[body_name] = vtp_path
+                break
+
+        if not snapshots:
+            print(f"❌ No particle snapshots found in {self._animation_output_dir}.", file=sys.stderr)
+            return 1
+
+        self._stop_live_refresh()
+        self._live_output_dir = self._animation_output_dir
+        self._live_particle_body_names = set(self._animation_particle_body_names)
+        self._live_particle_colours = dict(self._animation_particle_colours)
+        self._live_particle_versions = {
+            body_name: float("-inf")
+            for body_name in self._live_particle_body_names
+        }
+        self._live_playback_queue = [
+            (sequence, body_snapshots)
+            for sequence, body_snapshots in sorted(snapshots.items())
+        ]
+        self._live_replay_mode = True
+        timer = QtCore.QTimer()
+        timer.setInterval(round(1000 / _LIVE_PREVIEW_MAX_FPS))
+        timer.timeout.connect(self._refresh_live_particles)
+        timer.start()
+        self._live_refresh_timer = timer
+        print(
+            f"▶️ Replaying {len(self._live_playback_queue)} particle frames "
+            f"at up to {_LIVE_PREVIEW_MAX_FPS} FPS."
+        )
+        return 0
 
     def continue_to_run(self, refresh_interval: float = 10.0) -> int:
-        """Run the retained simulation and refresh its particle preview periodically."""
+        """Run the retained simulation and play its particle snapshots at a capped rate."""
         simulation = self._pending_simulation
         runtime_config_path = self._pending_runtime_config_path
         self._pending_simulation = None
@@ -921,6 +1183,7 @@ class _ShellPreviewRuntime:
             return 1
 
         try:
+            self._animation_run_completed = False
             simulation.buildSimulation()
             print("✅ Simulation built")
             simulation.initializeSimulation()
@@ -931,6 +1194,7 @@ class _ShellPreviewRuntime:
             def run_simulation() -> None:
                 try:
                     simulation.run()
+                    self._animation_run_completed = True
                     print("✅ Simulation completed successfully!")
                 except Exception as exc:
                     print(f"❌ Continued run failed: {exc}", file=sys.stderr)
@@ -943,7 +1207,10 @@ class _ShellPreviewRuntime:
 
             self._live_run_thread = Thread(target=run_simulation, daemon=True)
             self._live_run_thread.start()
-            print(f"ℹ️ Preview refreshes every {refresh_interval:g} seconds while simulation runs.")
+            print(
+                f"ℹ️ Preview checks for new snapshots every {refresh_interval:g} seconds "
+                f"and plays each batch at up to {_LIVE_PREVIEW_MAX_FPS} FPS."
+            )
             return 0
         except Exception as exc:
             print(f"❌ Continued run failed: {exc}", file=sys.stderr)
@@ -1008,60 +1275,564 @@ class _ShellPreviewRuntime:
         for corner in (QtCore.Qt.Corner.TopRightCorner, QtCore.Qt.Corner.BottomRightCorner):
             app_window.setCorner(corner, QtCore.Qt.DockWidgetArea.RightDockWidgetArea)
         app_window.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dock)
-        QtCore.QTimer.singleShot(0, lambda: app_window.resizeDocks([dock], [360], QtCore.Qt.Orientation.Horizontal))
-        state = {"path": config_path, "particles": with_particles}
 
-        def confirm_discard():
-            return not editor.dirty or QtWidgets.QMessageBox.warning(
-                editor, "Discard unapplied changes?",
-                "The editor contains unapplied changes. Reloading will discard them. Continue?",
-                QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
-                QtWidgets.QMessageBox.StandardButton.No,
-            ) == QtWidgets.QMessageBox.StandardButton.Yes
+        json_editor_initial_width = 360
+        json_editor_minimum_width = 260
 
-        def refresh_editor(current_config, current_config_path, current_with_particles):
-            if not confirm_discard():
-                editor.status.setText("Preview canceled. Your unapplied changes are preserved.")
-                return False
-            text = dump_simulation_config_json(current_config, indent=2)
+        dock.setMinimumWidth(json_editor_minimum_width)
+        dock.setMaximumWidth(16777215)
+        content.setMinimumWidth(0)
+        content.setMaximumWidth(16777215)
+        tree.setMinimumWidth(0)
+        tree.setMaximumWidth(16777215)
+
+        dock.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Preferred,
+            QtWidgets.QSizePolicy.Policy.Expanding,
+        )
+        content.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding,
+            QtWidgets.QSizePolicy.Policy.Expanding,
+        )
+        tree.setSizePolicy(
+            QtWidgets.QSizePolicy.Policy.Expanding,
+            QtWidgets.QSizePolicy.Policy.Expanding,
+        )
+
+        def _set_initial_json_editor_width() -> None:
             try:
-                raw = current_config_path.read_bytes().decode("utf-8")
-                if SimulationConfig.model_validate_json(raw) == current_config:
-                    text = raw
-            except (OSError, ValueError):
+                app_window.resizeDocks(
+                    [dock],
+                    [json_editor_initial_width],
+                    QtCore.Qt.Orientation.Horizontal,
+                )
+            except Exception:
                 pass
-            state.update(path=current_config_path, particles=current_with_particles)
-            editor.set_text(text, config_path=current_config_path, saved_text=text)
-            return True
 
-        def save_changes():
+        QtCore.QTimer.singleShot(0, _set_initial_json_editor_width)
+        QtCore.QTimer.singleShot(100, _set_initial_json_editor_width)
+
+        editor_state: dict[str, Any] = {
+            "payload": {},
+            "config_path": config_path,
+            "with_particles": with_particles,
+            "fields": [],
+            "original_json": "",
+            "baseline_payload": {},
+            "undo_stack": [],
+            "dirty": False,
+            "expanded_paths": set(),
+            "item_paths": {},
+            "list_paths": set(),
+        }
+
+        def _new_tree_item(
+            parent: Any | None,
+            label: str,
+            summary: str = "",
+        ) -> Any:
+            item = QtWidgets.QTreeWidgetItem([label, summary])
+            if parent is None:
+                tree.addTopLevelItem(item)
+            else:
+                parent.addChild(item)
+            return item
+
+        field_labels = {
+            "simulation_type": "Simulation type",
+            "particle_spacing": "Particle spacing [m]",
+            "characteristic_length_particles": "Characteristic particles",
+            "lower_bound": "Lower bound [m]",
+            "upper_bound": "Upper bound [m]",
+            "half_size": "Half size [m]",
+            "translation": "Translation [m]",
+            "center": "Center [m]",
+            "radius": "Radius [m]",
+            "density": "Density [kg/m³]",
+            "sound_speed": "Sound speed [m/s]",
+            "viscosity": "Viscosity [Pa·s]",
+            "youngs_modulus": "Young's modulus [Pa]",
+            "yield_stress": "Yield stress [Pa]",
+            "cohesion": "Cohesion [Pa]",
+            "friction_angle": "Friction angle [rad]",
+            "dilatancy_angle": "Dilatancy angle [rad]",
+            "end_time": "End time [s]",
+            "output_interval": "Output interval [s]",
+            "screen_interval": "Screen interval",
+            "inflow_speed": "Inflow speed [m/s]",
+            "gravity": "Gravity [m/s²]",
+        }
+        enum_choices = {
+            "simulation_type": ["fluid_dynamics", "continuum_dynamics"],
+            "surface_type": ["free_surface", "confined", "open_boundary", "free_stream"],
+            "kernel_correction": ["linear", "none"],
+        }
+
+        def _display_label(key: str) -> str:
+            if key.startswith("["):
+                return key
+            return field_labels.get(key, key.replace("_", " ").capitalize())
+
+        def _entry_label(value: Any, index: int) -> str:
+            if isinstance(value, dict):
+                for identity_key in ("name", "body_name", "observed_body", "oriented_box"):
+                    identity = value.get(identity_key)
+                    if isinstance(identity, str) and identity:
+                        return identity
+            return f"Item {index + 1}"
+
+        def _mark_dirty(item: Any | None = None) -> None:
+            editor_state["dirty"] = True
+            revert_button.setEnabled(True)
+            if item is not None:
+                item.setBackground(0, QtGui.QColor("#594a24"))
+            status.setText("Unsaved changes. Press Ctrl+S to validate, save, and refresh.")
+
+        def _clear_field_errors() -> None:
+            for _, _, widget, item in editor_state["fields"]:
+                widget.setStyleSheet("")
+                widget.setToolTip("")
+                item.setToolTip(0, "")
+
+        def _value_widget(value: Any, key: str) -> Any:
+            if isinstance(value, bool):
+                widget = QtWidgets.QCheckBox(tree)
+                widget.setChecked(value)
+                return widget
+
+            if key in enum_choices and isinstance(value, str):
+                widget = QtWidgets.QComboBox(tree)
+                widget.addItems(enum_choices[key])
+                if value not in enum_choices[key]:
+                    widget.addItem(value)
+                widget.setCurrentText(value)
+                widget.view().setStyleSheet(
+                    "QAbstractItemView { background: #24272d; color: #e6e8ec; "
+                    "selection-background-color: #315f8c; selection-color: #ffffff; }"
+                )
+                return widget
+
+            if isinstance(value, int):
+                widget = QtWidgets.QLineEdit(tree)
+                widget.setText(str(value))
+                return widget
+
+            if isinstance(value, float):
+                widget = QtWidgets.QLineEdit(tree)
+                widget.setText(str(value))
+                return widget
+
+            widget = QtWidgets.QLineEdit(tree)
+            if isinstance(value, str):
+                widget.setText(value)
+            else:
+                widget.setText(json.dumps(value, ensure_ascii=False))
+            return widget
+
+        def populate_editor(
+            text: str,
+            *,
+            reset_history: bool = False,
+            expand_defaults: bool = True,
+            additional_expanded_paths: set[str] | None = None,
+        ) -> None:
+            expanded_paths: set[str] = set()
+            iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+            while iterator.value() is not None:
+                previous_item = iterator.value()
+                path_key = previous_item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+                if path_key is not None and previous_item.isExpanded():
+                    expanded_paths.add(path_key)
+                iterator += 1
+            expanded_paths.update(additional_expanded_paths or set())
+            editor_state["expanded_paths"] = expanded_paths
+
+            payload = json.loads(text)
+            editor_state["payload"] = payload
+            editor_state["fields"] = []
+            editor_state["item_paths"] = {}
+            editor_state["list_paths"] = set()
+            if reset_history:
+                editor_state["original_json"] = text
+                editor_state["baseline_payload"] = copy.deepcopy(payload)
+                editor_state["undo_stack"] = []
+            editor_state["dirty"] = False
+            revert_button.setEnabled(bool(editor_state["undo_stack"]))
+            tree.clear()
+
+            def add_value(parent: Any | None, label: str, value: Any, path: tuple[Any, ...], depth: int) -> None:
+                if value is None:
+                    return
+
+                path_key = ".".join(str(part) for part in path)
+                if isinstance(value, dict) and value:
+                    item = _new_tree_item(parent, _display_label(label), f"Object · {len(value)}")
+                    item.setData(0, QtCore.Qt.ItemDataRole.UserRole, path_key)
+                    editor_state["item_paths"][id(item)] = path
+                    item.setExpanded(
+                        path_key in editor_state["expanded_paths"]
+                        or (expand_defaults and depth < 1)
+                    )
+                    font = item.font(0)
+                    font.setBold(True)
+                    item.setFont(0, font)
+                    for child_key, child_value in value.items():
+                        add_value(item, str(child_key), child_value, (*path, child_key), depth + 1)
+                    return
+                if isinstance(value, list) and value:
+                    item = _new_tree_item(parent, _display_label(label), f"List · {len(value)}")
+                    item.setData(0, QtCore.Qt.ItemDataRole.UserRole, path_key)
+                    editor_state["item_paths"][id(item)] = path
+                    editor_state["list_paths"].add(path)
+                    item.setExpanded(
+                        path_key in editor_state["expanded_paths"]
+                        or (expand_defaults and depth < 1)
+                    )
+                    font = item.font(0)
+                    font.setBold(True)
+                    item.setFont(0, font)
+                    for index, child_value in enumerate(value):
+                        add_value(
+                            item,
+                            _entry_label(child_value, index),
+                            child_value,
+                            (*path, index),
+                            depth + 1,
+                        )
+                    return
+
+                if isinstance(value, list):
+                    item = _new_tree_item(parent, _display_label(label), "List · 0")
+                    item.setData(0, QtCore.Qt.ItemDataRole.UserRole, path_key)
+                    editor_state["item_paths"][id(item)] = path
+                    editor_state["list_paths"].add(path)
+                    return
+
+                item = _new_tree_item(parent, _display_label(label))
+                item.setData(0, QtCore.Qt.ItemDataRole.UserRole, path_key)
+                editor_state["item_paths"][id(item)] = path
+                if isinstance(value, list):
+                    editor_state["list_paths"].add(path)
+                widget = _value_widget(value, label)
+                tree.setItemWidget(item, 1, widget)
+                tooltip = path_key
+                item.setToolTip(0, tooltip)
+                widget.setToolTip(tooltip)
+                if hasattr(widget, "textChanged"):
+                    widget.textChanged.connect(lambda *_args, entry=item: _mark_dirty(entry))
+                elif hasattr(widget, "valueChanged"):
+                    widget.valueChanged.connect(lambda *_args, entry=item: _mark_dirty(entry))
+                elif hasattr(widget, "toggled"):
+                    widget.toggled.connect(lambda *_args, entry=item: _mark_dirty(entry))
+                editor_state["fields"].append((path, value, widget, item))
+
+            if isinstance(payload, dict):
+                for key, value in payload.items():
+                    add_value(None, str(key), value, (key,), 0)
+            else:
+                add_value(None, "Configuration", payload, (), 0)
+
+        def filter_items(query: str) -> None:
+            query = query.strip().lower()
+
+            def visit(item: Any) -> bool:
+                own_match = not query or query in item.text(0).lower() or query in item.text(1).lower()
+                child_match = False
+                for index in range(item.childCount()):
+                    child_match = visit(item.child(index)) or child_match
+                item.setHidden(not (own_match or child_match))
+                if child_match and query:
+                    item.setExpanded(True)
+                return own_match or child_match
+
+            for index in range(tree.topLevelItemCount()):
+                visit(tree.topLevelItem(index))
+
+        def collect_payload() -> dict[str, Any]:
+            payload = editor_state["payload"]
+            for path, original_value, widget, _ in editor_state["fields"]:
+                if isinstance(original_value, bool):
+                    value = widget.isChecked()
+                else:
+                    if isinstance(original_value, str):
+                        value = widget.currentText() if isinstance(widget, QtWidgets.QComboBox) else widget.text()
+                    elif isinstance(original_value, int):
+                        value = int(widget.text())
+                    elif isinstance(original_value, float):
+                        value = float(widget.text())
+                    else:
+                        value = json.loads(widget.text())
+
+                target = payload
+                for part in path[:-1]:
+                    target = target[part]
+                if path:
+                    target[path[-1]] = value
+            return payload
+
+        def reset_to_json(text: str, message: str) -> None:
+            editor_state["expanded_paths"] = set()
+            populate_editor(text)
+            status.setText(message)
+
+        def undo_changes() -> None:
+            if not editor_state["undo_stack"]:
+                reset_to_json(editor_state["original_json"], "Restored the last saved configuration.")
+                return
+            reset_to_json(editor_state["undo_stack"].pop(), "Reverted the latest local edit.")
+            revert_button.setEnabled(bool(editor_state["undo_stack"]))
+
+        def confirm_discard_changes(message: str) -> bool:
+            if not editor_state["dirty"]:
+                return True
+            buttons = (
+                QtWidgets.QMessageBox.StandardButton.Yes
+                | QtWidgets.QMessageBox.StandardButton.No
+            )
+            answer = QtWidgets.QMessageBox.warning(
+                content,
+                "Discard unapplied changes?",
+                message,
+                buttons,
+                QtWidgets.QMessageBox.StandardButton.No,
+            )
+            return answer == QtWidgets.QMessageBox.StandardButton.Yes
+
+        def reload_from_disk() -> None:
+            if not confirm_discard_changes(
+                "The editor contains unapplied changes. Reloading from disk will discard them. Continue?"
+            ):
+                status.setText("Reload canceled. Your unapplied changes are preserved.")
+                return
+            active_config_path = editor_state["config_path"]
             try:
-                updated_config = editor.validate_config()
-                _write_validated_config(state["path"], updated_config, editor.text())
-                editor.mark_saved()
-                result = self.show_or_update(updated_config, resolved_config_path=state["path"],
-                                           with_particles=state["particles"], force=True)
-                editor.status.setText("Saved successfully." if result == 0 else "Saved, but Preview refresh failed.")
-            except (ValueError, OSError) as exc:
-                editor.status.setText(str(exc))
+                source = active_config_path.read_text(encoding="utf-8")
+                SimulationConfig(**json.loads(source))
+            except (OSError, ValidationError, json.JSONDecodeError) as exc:
+                status.setText(f"Could not reload configuration: {exc}")
+                return
+            editor_state["expanded_paths"] = set()
+            populate_editor(source, reset_history=True)
+            status.setText("Reloaded the saved configuration from disk.")
+
+        def _payload_at(path: tuple[Any, ...]) -> Any:
+            target = editor_state["payload"]
+            for part in path:
+                target = target[part]
+            return target
+
+        def update_array_actions() -> None:
+            item = tree.currentItem()
+            path = editor_state["item_paths"].get(id(item)) if item is not None else None
+            is_list = path in editor_state["list_paths"] if path is not None else False
+            is_list_entry = bool(path) and path[:-1] in editor_state["list_paths"] and isinstance(path[-1], int)
+            add_item_button.setEnabled(is_list)
+            duplicate_item_button.setEnabled(is_list_entry)
+            remove_item_button.setEnabled(is_list_entry)
+            move_up_button.setEnabled(is_list_entry and path[-1] > 0)
+            if is_list_entry:
+                try:
+                    move_down_button.setEnabled(path[-1] < len(_payload_at(path[:-1])) - 1)
+                except (KeyError, IndexError, TypeError):
+                    move_down_button.setEnabled(False)
+            else:
+                move_down_button.setEnabled(False)
 
         def reload_from_disk():
             if not confirm_discard():
                 return
             try:
-                text = state["path"].read_bytes().decode("utf-8")
-                SimulationConfig.model_validate_json(text)
-                editor.set_text(text, config_path=state["path"], saved_text=text)
-                editor.status.setText("Reloaded the saved configuration from disk.")
-            except (OSError, ValueError) as exc:
-                editor.status.setText(str(exc))
+                collect_payload()
+                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                if operation == "add" and path in editor_state["list_paths"]:
+                    target_list = _payload_at(path)
+                    if not target_list:
+                        target_list.append(
+                            _new_json_editor_list_item(path, _config_spatial_dim(config))
+                        )
+                    else:
+                        target_list.append(copy.deepcopy(target_list[-1]))
+                elif path[:-1] in editor_state["list_paths"] and isinstance(path[-1], int):
+                    target_list = _payload_at(path[:-1])
+                    index = path[-1]
+                    if operation == "duplicate":
+                        target_list.insert(index + 1, copy.deepcopy(target_list[index]))
+                    elif operation == "remove":
+                        target_list.pop(index)
+                    elif operation == "up" and index > 0:
+                        target_list[index - 1], target_list[index] = target_list[index], target_list[index - 1]
+                    elif operation == "down" and index < len(target_list) - 1:
+                        target_list[index + 1], target_list[index] = target_list[index], target_list[index + 1]
+                    else:
+                        return
+                else:
+                    return
+            except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                status.setText(f"Could not update list: {exc}")
+                return
 
-        editor.saveRequested.connect(save_changes)
-        editor.reloadRequested.connect(reload_from_disk)
+            editor_state["undo_stack"].append(before_edit)
+            populate_editor(
+                json.dumps(editor_state["payload"], indent=2, ensure_ascii=False),
+                expand_defaults=False,
+                additional_expanded_paths={".".join(str(part) for part in path)},
+            )
+            _mark_dirty()
+            update_array_actions()
+
+        def apply_changes() -> None:
+            active_config_path = editor_state["config_path"]
+            active_with_particles = editor_state["with_particles"]
+            _clear_field_errors()
+            try:
+                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                payload = collect_payload()
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                status.setText(f"Invalid value: {exc}")
+                return
+
+            try:
+                updated_config = self.config_type(**payload)
+            except ValidationError as exc:
+                first_error = exc.errors(include_url=False)[0]
+                location = ".".join(str(part) for part in first_error.get("loc", ("config",)))
+                error_path = tuple(first_error.get("loc", ()))
+                for path, _, widget, item in editor_state["fields"]:
+                    if path == error_path:
+                        message = str(first_error.get("msg"))
+                        widget.setStyleSheet(
+                            "border: 2px solid #ff6b5f; background: #472522; color: #ffffff;"
+                        )
+                        widget.setToolTip(message)
+                        item.setToolTip(0, message)
+                        tree.scrollToItem(item)
+                        break
+                status.setText(f"Configuration validation failed at {location}: {first_error.get('msg')}")
+                return
+
+            # Patch only the edited entries into the on-disk JSON so defaults
+            # (empty lists, null-like entries) are not added to the file.
+            canonical_json = dump_simulation_config_json(updated_config, indent=2)
+            file_content: str | None = None
+            try:
+                raw_text = active_config_path.read_bytes().decode("utf-8")
+                line_ending = "\r\n" if "\r\n" in raw_text else "\n"
+                raw_text = raw_text.replace("\r\n", "\n")
+                raw_payload = load_json_preserving_floats(raw_text)
+                patched_payload = _apply_payload_diff(
+                    raw_payload, editor_state["baseline_payload"], payload
+                )
+                patched_config = self.config_type(**patched_payload)
+                if patched_config.model_dump(exclude_none=True) == updated_config.model_dump(
+                    exclude_none=True
+                ):
+                    prettier = find_prettier_options(active_config_path)
+                    if prettier is None:
+                        file_content = json.dumps(patched_payload, indent=2, ensure_ascii=False)
+                    else:
+                        file_content = format_json(
+                            patched_payload,
+                            layout=object_layout(raw_text),
+                            print_width=int(prettier.get("printWidth", 80)),
+                            tab_width=int(prettier.get("tabWidth", 2)),
+                        ) + ("\n" if raw_text.endswith("\n") else "")
+                    file_content = file_content.replace("\n", line_ending)
+            except (OSError, ValidationError, json.JSONDecodeError, TypeError, KeyError):
+                file_content = None
+
+            try:
+                self.write_config(active_config_path, updated_config, file_content)
+            except OSError as exc:
+                status.setText(f"Could not save {active_config_path.name}: {exc}")
+                return
+
+            editor_state["undo_stack"].append(before_edit)
+            editor_json = file_content if file_content is not None else canonical_json
+            populate_editor(editor_json, expand_defaults=False)
+            editor_state["original_json"] = editor_json
+            editor_state["baseline_payload"] = copy.deepcopy(editor_state["payload"])
+            status.setText("Saved and rebuilding preview geometry…")
+            result = self.show_or_update(
+                updated_config,
+                resolved_config_path=active_config_path,
+                with_particles=active_with_particles,
+                force=True,
+            )
+            status.setText(
+                "Saved successfully." if result == 0 else "Saved, but preview refresh failed; see terminal output."
+            )
+
+        shortcut = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Save, tree)
+        shortcut.activated.connect(apply_changes)
+        undo_shortcut = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Undo, content)
+        undo_shortcut.activated.connect(undo_changes)
+        expand_button.clicked.connect(tree.expandAll)
+        collapse_button.clicked.connect(tree.collapseAll)
+        revert_button.clicked.connect(undo_changes)
+        reload_button.clicked.connect(reload_from_disk)
+        add_item_button.clicked.connect(lambda: edit_array("add"))
+        duplicate_item_button.clicked.connect(lambda: edit_array("duplicate"))
+        remove_item_button.clicked.connect(lambda: edit_array("remove"))
+        move_up_button.clicked.connect(lambda: edit_array("up"))
+        move_down_button.clicked.connect(lambda: edit_array("down"))
+        tree.currentItemChanged.connect(lambda *_args: update_array_actions())
+        filter_box.textChanged.connect(filter_items)
+        def refresh_editor(
+            current_config: SimulationConfig,
+            current_config_path: Path,
+            current_with_particles: bool,
+        ) -> bool:
+            """Replace the editor session when shell ``preview`` changes files."""
+            try:
+                editor_config = SimulationConfig(**editor_state["payload"])
+            except ValidationError:
+                same_config = False
+            else:
+                same_config = (
+                    current_config_path.resolve() == editor_state["config_path"].resolve()
+                    and editor_config.model_dump(exclude_none=True)
+                    == current_config.model_dump(exclude_none=True)
+                    and not editor_state["dirty"]
+                )
+            if same_config:
+                editor_state["with_particles"] = current_with_particles
+                return True
+
+            if not confirm_discard_changes(
+                "The editor contains unapplied changes. Continuing Preview will discard them. Continue?"
+            ):
+                status.setText("Preview canceled. Your unapplied changes are preserved.")
+                return False
+
+            try:
+                current_json = current_config_path.read_text(encoding="utf-8")
+                json.loads(current_json)
+            except (OSError, json.JSONDecodeError) as exc:
+                status.setText(f"Could not load editor config {current_config_path.name}: {exc}")
+                return False
+
+            editor_state["config_path"] = current_config_path
+            editor_state["with_particles"] = current_with_particles
+            editor_state["expanded_paths"] = set()
+            filter_box.clear()
+            populate_editor(current_json, reset_history=True)
+            update_array_actions()
+            return True
+
         refresh_editor(config, config_path, with_particles)
-        self._json_editor = {"dock": dock, "widget": editor, "tree": editor.tree,
-            "filter": editor.filter, "status": editor.status, "refresh": refresh_editor,
-            "shortcut": editor.save_shortcut, "undo_shortcut": editor.undo_shortcut}
+        self._json_editor = {
+            "dock": dock,
+            "tree": tree,
+            "filter": filter_box,
+            "status": status,
+            "shortcut": shortcut,
+            "undo_shortcut": undo_shortcut,
+            "refresh": refresh_editor,
+            # Optional embedding hooks; default CLI behavior is unchanged.
+            "is_dirty": lambda: bool(editor_state["dirty"]),
+            "payload": lambda: copy.deepcopy(collect_payload()),
+            "discard": lambda: populate_editor(editor_state["original_json"], reset_history=True),
+        }
         return True
 
     def pump_ui_events(self) -> None:
@@ -1430,6 +2201,7 @@ class _ShellPreviewRuntime:
                 draw_sidebar(self.plotter)
             visualizer._populate_plotter(self.plotter, vtp_dir, latest_particle_vtps)
             if with_particles:
+                self._animation_run_completed = False
                 pending_simulation = visualizer.take_particle_simulation()
                 if pending_simulation is not None:
                     from sphinxsim.visualization.preview import _body_colour
@@ -1446,6 +2218,16 @@ class _ShellPreviewRuntime:
                         body_name: _body_colour(body_name, config)
                         for body_name in self._live_particle_body_names
                     }
+                    self._animation_output_dir = self._live_output_dir
+                    self._animation_particle_body_names = set(self._live_particle_body_names)
+                    self._animation_particle_colours = dict(self._live_particle_colours)
+                    self._animation_config = config
+                    self._animation_config_path = resolved_config_path
+                else:
+                    self._animation_output_dir = None
+                    self._animation_particle_body_names = set()
+                    self._animation_particle_colours = {}
+                    self._animation_run_completed = False
             if configure_layout is not None:
                 configure_layout(self.plotter)
             visualizer._configure_default_view(self.plotter, ndim)
@@ -1486,14 +2268,16 @@ class _ShellPreviewRuntime:
 
 def cmd_shell(args: argparse.Namespace) -> int:
     """Interactive shell for load/generate/update/validate/run workflow."""
+    if sys.stdin.isatty():
+        _configure_shell_readline()
     provider = os.getenv("SPHINXSIM_LLM_PROVIDER", "mock")
     print("SPHinXsim interactive shell")
     print(f"LLM provider: {provider}")
     print(
             "Commands: load FILE, generate DESCRIPTION FILE, "
             "update [--patch-mode] [--dry-run] [--strict true|false] INSTRUCTION, "
-                "validate, run, preview [--with-particles] [--screenshot FILE], "
-                    "continue-to-run [--refresh-interval SECONDS], explore QUESTION, exit"
+            "validate, run [--with-animation], preview [--with-particles] [--screenshot FILE], "
+                "continue-to-run [--refresh-interval SECONDS], replay, explore QUESTION, exit"
     )
     print("Note: relative paths are resolved from the current directory first, then .build-temp/.")
 
@@ -1534,7 +2318,8 @@ def cmd_shell(args: argparse.Namespace) -> int:
             print("  preview --screenshot FILE        - Save a screenshot to FILE instead of interactive window")
             print("  continue-to-run [--refresh-interval SECONDS]")
             print("                                 - Finish and run the retained particle preview simulation")
-            print("  run                             - Run simulation from loaded config")
+            print("  replay                          - Replay recorded particle snapshots at up to 25 FPS")
+            print("  run [--with-animation]          - Run config; optionally preview particles and animate")
             print("  exit                            - Exit shell")
             continue
 
@@ -1742,15 +2527,51 @@ def cmd_shell(args: argparse.Namespace) -> int:
             _ = preview_runtime.continue_to_run(refresh_interval)
             continue
 
+        if cmd == "replay":
+            if len(parts) != 1:
+                print("Usage: replay", file=sys.stderr)
+                continue
+            _ = preview_runtime.replay_animation()
+            continue
+
         if cmd == "run":
+            with_animation = len(parts) == 2 and parts[1] == "--with-animation"
+            if len(parts) > 1 and not with_animation:
+                print("Usage: run [--with-animation]", file=sys.stderr)
+                continue
             if config_path is None:
                 print("No config loaded. Run 'load FILE' or 'generate' first.", file=sys.stderr)
                 continue
 
+            cfg, rc = _load_config(config_path)
+            if rc != 0 or cfg is None:
+                print(f"❌ Validation failed for {config_path}", file=sys.stderr)
+                continue
+            if with_animation:
+                resolved_config_path = _resolve_preview_config_path(str(config_path))
+                print(f"🖼  Building particle-animation preview for: {resolved_config_path}")
+                print("   Building C++ geometry; bounds cache fallback will be used if VTP meshes are unavailable.")
+                preview_rc = preview_runtime.show_or_update(
+                    cfg,
+                    resolved_config_path=resolved_config_path,
+                    with_particles=True,
+                    force=True,
+                )
+                if preview_rc == 0:
+                    _ = preview_runtime.continue_to_run()
+                continue
+
+            preview_runtime._animation_output_dir = None
+            preview_runtime._animation_particle_body_names = set()
+            preview_runtime._animation_particle_colours = {}
+            preview_runtime._animation_config = None
+            preview_runtime._animation_config_path = None
+            preview_runtime._animation_run_completed = False
+            output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation"
+
             # Persistent preview keeps native UI/runtime state alive in-process.
             # Run simulation in an isolated subprocess to avoid state leakage.
             if preview_runtime.plotter is not None:
-                resolved_config_path = _resolve_preview_config_path(str(config_path))
                 print(
                     "ℹ️ Running simulation in isolated subprocess (persistent preview is active).",
                     flush=True,
@@ -1777,15 +2598,10 @@ def cmd_shell(args: argparse.Namespace) -> int:
                 continue
 
             try:
-                cfg, rc = _load_config(config_path)
-                if rc != 0 or cfg is None:
-                    print(f"❌ Validation failed for {config_path}", file=sys.stderr)
-                    continue
                 ndim = _config_spatial_dim(cfg)
                 sph = load_sphinxsys_core_nd(ndim)
 
                 shell_sim = sph.SPHSimulation(str(config_path))
-                output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation"
                 output_dir.mkdir(exist_ok=True, parents=True)
                 shell_sim.resetOutputRoot(str(output_dir))
                 print(f"📁 Now, the output folder is changed to: {output_dir}")
@@ -1859,7 +2675,7 @@ COMPLETION_SCRIPTS = {
     local cur opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="generate validate update run preview explore shell chatbot workbench agent --help --version --generate-completion"
+    opts="generate validate update run preview explore shell capabilities compile geometry project job desktop mcp --help --version --generate-completion"
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
     return 0
 }
@@ -1876,9 +2692,13 @@ _sphinxsim() {
         'preview:Render an interactive geometry/BC preview of a JSON config file'
         'explore:Ask schema/functionality questions using LLM'
         'shell:Interactive shell for config workflow'
-        'chatbot:Launch the standalone SPHinXsim chatbot'
-        'workbench:Open the JSON Preview and chat desktop workbench'
-        'agent:Manage durable AgentCAE workflows'
+        'capabilities:Inspect schema and native routing evidence'
+        'compile:Compile quantities into native configuration'
+        'geometry:Generate verified CAD geometry'
+        'project:Inspect project inputs'
+        'job:Query or control an explicit job'
+        'desktop:Serve or operate the native application'
+        'mcp:Serve native operations over MCP stdio'
     )
     _describe 'sphinxsim commands' subcmds
 }
@@ -1891,9 +2711,7 @@ complete -c sphinxsim -f -a "run" -d "Run simulation from JSON config"
 complete -c sphinxsim -f -a "preview" -d "Render interactive geometry/BC preview"
 complete -c sphinxsim -f -a "explore" -d "Ask schema/functionality questions"
 complete -c sphinxsim -f -a "shell" -d "Interactive shell workflow"
-complete -c sphinxsim -f -a "chatbot" -d "Launch the standalone SPHinXsim chatbot"
-complete -c sphinxsim -f -a "workbench" -d "Open the desktop workbench"
-complete -c sphinxsim -f -a "agent" -d "Manage durable AgentCAE workflows" """
+complete -c sphinxsim -f -a "capabilities compile geometry project job desktop mcp" -d "Native application operations" """
 }
 
 
@@ -2031,39 +2849,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     shell.set_defaults(func=cmd_shell)
 
-    # chatbot
-    chatbot = subparsers.add_parser(
-        "chatbot",
-        help="Launch the standalone SPHinXsim Chainlit chatbot.",
-    )
-    chatbot.add_argument(
-        "--host",
-        default="127.0.0.1",
-        help="Host interface for the local chatbot server (default: 127.0.0.1).",
-    )
-    chatbot.add_argument(
-        "--port",
-        type=int,
-        default=8000,
-        help="Port for the local chatbot server (default: 8000).",
-    )
-    chatbot.add_argument(
-        "--headless",
-        action="store_true",
-        help="Start the server without opening a browser.",
-    )
-    chatbot.add_argument(
-        "--watch",
-        action="store_true",
-        help="Reload the Chainlit app when its Python files change.",
-    )
-    chatbot.set_defaults(func=cmd_chatbot)
-
-    # agent
-    from sphinxsim.agent_cli import configure_agent_parser
-
-    configure_agent_parser(subparsers, PROJECT_ROOT)
-
+    from sphinxsim.commands import register
+    register(subparsers)
     return parser
 
 
@@ -2111,10 +2898,22 @@ def _parse_shell_ai_cli_style(text: str) -> list[str] | None:
     return [command] + parts[1:]
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, publish_json=None) -> int:
     """Entry point for the ``sphinxsim`` CLI."""
     parser = _build_parser()
     args = parser.parse_args(argv)
+    if publish_json is not None:
+        if not callable(publish_json) or not getattr(args, "request", None):
+            parser.error("The trusted publisher hook requires a frozen --request execution")
+        args.publish_json = publish_json
+    if args.command in ("run", "preview") and not args.request and args.config_file is None:
+        args.config_file = "config.json"
+    structured = any(getattr(args, key, None) for key in ("json", "detach", "request", "root", "output", "submission_id"))
+    policy_changed = any(getattr(args, key, default) != default for key, default in
+                         (("lease_seconds", 600), ("refresh_seconds", 10), ("wall_seconds", 3600)))
+    if args.command in ("validate", "run", "preview") and (structured or policy_changed):
+        from sphinxsim.commands import execute
+        return execute(args)
     return args.func(args)
 
 

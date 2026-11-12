@@ -9,7 +9,13 @@ from unittest.mock import patch
 import pytest
 
 import sphinxsim
-from sphinxsim.cli import _config_spatial_dim, _load_config, _new_json_editor_list_item, main
+from sphinxsim.cli import (
+    _config_spatial_dim,
+    _load_config,
+    _new_json_editor_list_item,
+    _shell_completion_matches,
+    main,
+)
 from sphinxsim.cli import _build_parser
 from sphinxsim.llm.common import LLMRepairWarning
 
@@ -44,8 +50,10 @@ def _valid_data() -> dict:
                         {
                             "operation": "union",
                             "type": "container_box",
-                            "inner_lower_bound": [0.0, 0.0],
-                            "inner_upper_bound": [1.0, 1.0],
+                            "inner_box": {
+                                "lower_bound": [0.0, 0.0],
+                                "upper_bound": [1.0, 1.0],
+                            },
                             "thickness": 0.1
                         }
                     ]
@@ -105,7 +113,6 @@ def _valid_data() -> dict:
             "fluid_dynamics": {
                 "acoustic_cfl": 0.6,
                 "advection_cfl": 0.25,
-                "surface_type": "free_surface",
                 "particle_sort_frequency": 100,
             },
         },
@@ -230,6 +237,138 @@ class TestJsonEditorListItems:
         )
 
         assert item == {"variable": {"real_type": "Pressure"}, "value": 0.0}
+
+    def test_editor_preserves_sparse_dambreak_json_and_hides_nulls(
+        self, tmp_path, monkeypatch
+    ):
+        pytest.importorskip("qtpy")
+        from qtpy import QtCore, QtWidgets
+
+        from sphinxsim import cli as cli_mod
+
+        monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+        app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+        source_path = (
+            Path(__file__).parent
+            / "test_simulation"
+            / "test_2d_simulation"
+            / "data"
+            / "dambreak.json"
+        )
+        raw_payload = json.loads(source_path.read_text(encoding="utf-8"))
+        raw_payload["startup_acceleration"] = None
+        config_path = tmp_path / "dambreak.json"
+        config_path.write_text(json.dumps(raw_payload), encoding="utf-8")
+        config = sphinxsim.SimulationConfig.model_validate(raw_payload)
+        window = QtWidgets.QMainWindow()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = type("FakePlotter", (), {"app_window": window})()
+
+        assert runtime._install_json_editor(
+            config,
+            config_path=config_path,
+            with_particles=False,
+        )
+        editor = runtime._json_editor
+        tree = editor["tree"]
+
+        def find_displayed_paths(item):
+            path = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+            paths = {path} if path is not None else set()
+            for index in range(item.childCount()):
+                paths.update(find_displayed_paths(item.child(index)))
+            return paths
+
+        displayed_paths = set()
+        for index in range(tree.topLevelItemCount()):
+            displayed_paths.update(find_displayed_paths(tree.topLevelItem(index)))
+
+        source_payload = json.loads(source_path.read_text(encoding="utf-8"))
+        assert "continuum_bodies" not in source_payload
+        assert "body_constraints" not in source_payload
+        assert "continuum_bodies" not in displayed_paths
+        assert "body_constraints" not in displayed_paths
+        assert "geometries.system_domain" not in displayed_paths
+        assert "startup_acceleration" not in displayed_paths
+
+        runtime.close()
+        window.close()
+        app.processEvents()
+
+    def test_saving_edit_preserves_sparse_json_and_collapsed_tree_state(
+        self, tmp_path, monkeypatch
+    ):
+        pytest.importorskip("qtpy")
+        from qtpy import QtCore, QtWidgets
+
+        from sphinxsim import cli as cli_mod
+
+        monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+        app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+        config = sphinxsim.SimulationConfig.model_validate(_valid_data())
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps(_valid_data()), encoding="utf-8")
+        window = QtWidgets.QMainWindow()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = type("FakePlotter", (), {"app_window": window})()
+
+        assert runtime._install_json_editor(
+            config,
+            config_path=config_path,
+            with_particles=False,
+        )
+        editor = runtime._json_editor
+        tree = editor["tree"]
+        tree.collapseAll()
+
+        iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+        end_time = None
+        while iterator.value() is not None:
+            item = iterator.value()
+            if (
+                item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+                == "solver_parameters.end_time"
+            ):
+                end_time = tree.itemWidget(item, 1)
+                break
+            iterator += 1
+        assert end_time is not None
+        end_time.setText("2.0")
+
+        def refresh_after_save(updated_config, *, resolved_config_path, with_particles, force):
+            assert force is True
+            assert editor["refresh"](
+                updated_config, resolved_config_path, with_particles
+            )
+            return 0
+
+        runtime.show_or_update = refresh_after_save
+        editor["shortcut"].activated.emit()
+        app.processEvents()
+
+        saved_payload = json.loads(config_path.read_text(encoding="utf-8"))
+        assert "body_constraints" not in saved_payload
+        assert "continuum_bodies" not in saved_payload
+        assert "primitives" not in saved_payload["geometries"]
+        assert saved_payload["solver_parameters"]["end_time"] == pytest.approx(2.0)
+        top_level_labels = {
+            tree.topLevelItem(index).text(0)
+            for index in range(tree.topLevelItemCount())
+        }
+        assert "Body constraints" not in top_level_labels
+        assert "Continuum bodies" not in top_level_labels
+        assert "Primitives" not in {
+            tree.topLevelItem(index).child(child_index).text(0)
+            for index in range(tree.topLevelItemCount())
+            for child_index in range(tree.topLevelItem(index).childCount())
+        }
+        assert not any(
+            tree.topLevelItem(index).isExpanded()
+            for index in range(tree.topLevelItemCount())
+        )
+
+        runtime.close()
+        window.close()
 
 
 class TestCLIGenerate:
@@ -510,19 +649,25 @@ class TestCLIShell:
         assert data["solver_parameters"]["end_time"] == pytest.approx(2.0)
 
     def test_shell_run_selects_3d_native_module(self, build_temp_path):
+        from sphinxsim import cli as cli_mod
+
         cfg = build_temp_path / "shell_3d_config.json"
         cfg.write_text(json.dumps(_valid_3d_data()))
         shell_rel_cfg = f"pytest-temp/{build_temp_path.name}/shell_3d_config.json"
         inputs = [f"load {shell_rel_cfg}", "run", "exit"]
+        preview_runtime = cli_mod._ShellPreviewRuntime()
 
         with (
             patch("builtins.input", side_effect=inputs),
             patch("sphinxsim.cli.load_sphinxsys_core_nd", return_value=_FakeNativeModule) as load_native,
+            patch("sphinxsim.cli._ShellPreviewRuntime", return_value=preview_runtime),
         ):
             rc = main(["shell"])
 
         assert rc == 0
         load_native.assert_called_once_with(3)
+        assert preview_runtime._animation_run_completed is False
+        assert preview_runtime._animation_output_dir is None
 
     def test_shell_update_before_load_errors(self, build_temp_path, capsys):
         inputs = ['update "simulate for 2 s"', "exit"]
@@ -643,3 +788,23 @@ class TestCLIGenerateCompletion:
         captured = capsys.readouterr()
         assert "complete -c sphinxsim" in captured.out
         assert "generate" in captured.out
+
+
+class TestShellCompletion:
+    def test_completes_shell_commands(self):
+        assert _shell_completion_matches("", "val") == ["validate"]
+
+    def test_completes_file_arguments(self, tmp_path, monkeypatch):
+        (tmp_path / "config.json").touch()
+        (tmp_path / "configs").mkdir()
+        monkeypatch.chdir(tmp_path)
+
+        assert _shell_completion_matches("load ", "con") == [
+            "config.json",
+            "configs/",
+        ]
+        assert _shell_completion_matches("generate ", "con") == [
+            "config.json",
+            "configs/",
+        ]
+        assert _shell_completion_matches("update ", "con") == []

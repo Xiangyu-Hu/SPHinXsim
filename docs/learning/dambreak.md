@@ -1,5 +1,9 @@
 # Simulating dambreak flows with SPHinXsim
 
+This is the first example use to learn how to setting up a flow simulation using SPHinXsim.
+Note that, dambreak flow is a classical benchmark case for free-surface flow simulation using SPH method, 
+and it has been widely used in the literature to validate the accuracy of SPH solvers.
+
 The 2d and 3d dambreak examples demonstrate the basic usage of SPHinXsim for simulating free-surface flows. The examples are located in the `tests/test_simulation/test_2d_simulation/dambreak.json` for the 2d case and `tests/test_simulation/test_3d_simulation/dambreak.json` for the 3d case.
 
 Here, I show (2d) simulation setting json file to illustrate the basic usage.
@@ -44,8 +48,10 @@ Here, I show (2d) simulation setting json file to illustrate the basic usage.
           {
             "operation": "union",
             "type": "container_box",
-            "inner_lower_bound": [0.0, 0.0],
-            "inner_upper_bound": [5.366, 5.366],
+            "inner_box": {
+              "lower_bound": [0.0, 0.0],
+              "upper_bound": [5.366, 5.366]
+            },
             "thickness": 0.1
           }
         ]
@@ -122,7 +128,6 @@ Here, I show (2d) simulation setting json file to illustrate the basic usage.
     "fluid_dynamics": {
       "acoustic_cfl": 0.6,
       "advection_cfl": 0.25,
-      "surface_type": "free_surface",
       "particle_sort_frequency": 100
     }
   }

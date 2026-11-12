@@ -343,8 +343,10 @@ class TestSTLGeometryOverrides:
                             {
                                 "operation": "union",
                                 "type": "container_box",
-                                "inner_lower_bound": [0.0, 0.0],
-                                "inner_upper_bound": [1.0, 0.5],
+                                "inner_box": {
+                                    "lower_bound": [0.0, 0.0],
+                                    "upper_bound": [1.0, 0.5],
+                                },
                                 "thickness": 0.01,
                             }
                         ],
@@ -394,7 +396,52 @@ class TestSTLGeometryOverrides:
             if shape.get("type") == "multipolygon"
         )
         polygon = wall["polygons"][0]
-        assert polygon["inner_upper_bound"] == pytest.approx([0.4, 0.15])
+        assert polygon["inner_box"]["upper_bound"] == pytest.approx([0.4, 0.15])
+        assert polygon["thickness"] == pytest.approx(0.008)
+        assert updated["geometries"]["system_domain"]["lower_bound"] == pytest.approx(
+            [-0.008, -0.008]
+        )
+        assert updated["geometries"]["system_domain"]["upper_bound"] == pytest.approx(
+            [0.408, 0.158]
+        )
+
+    def test_explicit_inner_size_updates_container_box_primitive(self):
+        config = {
+            "geometries": {
+                "global_resolution": {"particle_spacing": 0.002},
+                "primitives": [
+                    {
+                        "name": "TankInner",
+                        "type": "bounding_box",
+                        "lower_bound": [0.0, 0.0],
+                        "upper_bound": [1.0, 0.5],
+                    }
+                ],
+                "shapes": [
+                    {
+                        "name": "TankWall",
+                        "type": "multipolygon",
+                        "polygons": [
+                            {
+                                "operation": "union",
+                                "type": "container_box",
+                                "inner_box": {"primitive": "TankInner"},
+                                "thickness": 0.01,
+                            }
+                        ],
+                    }
+                ],
+            }
+        }
+
+        updated = apply_explicit_instruction_overrides(
+            config,
+            "Create a tank with inner length 0.4 m and inner height 0.15 m.",
+        )
+
+        primitive = updated["geometries"]["primitives"][0]
+        polygon = updated["geometries"]["shapes"][0]["polygons"][0]
+        assert primitive["upper_bound"] == pytest.approx([0.4, 0.15])
         assert polygon["thickness"] == pytest.approx(0.008)
         assert updated["geometries"]["system_domain"]["lower_bound"] == pytest.approx(
             [-0.008, -0.008]

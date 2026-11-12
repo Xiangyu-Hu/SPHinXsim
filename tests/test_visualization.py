@@ -95,7 +95,6 @@ def _minimal_fluid_config() -> dict:
             "fluid_dynamics": {
                 "acoustic_cfl": 0.6,
                 "advection_cfl": 0.25,
-                "surface_type": "free_surface",
             },
         },
     }
@@ -290,6 +289,91 @@ class TestPreviewLegend:
         assert "Weakly compressible fluid" in labels
         assert "Granular material" not in labels
         assert "Solid" in labels
+
+    def test_multiple_fluid_bodies_have_distinct_render_and_legend_colours(
+        self, fluid_config, tmp_path
+    ):
+        from sphinxsim.visualization.preview import (
+            ConfigVisualizer,
+            _body_colour,
+            _legend_entries_for_config,
+        )
+
+        data = copy.deepcopy(fluid_config.model_dump(exclude_none=True))
+        second_body = copy.deepcopy(data["fluid_bodies"][0])
+        second_body["name"] = "AirBody"
+        second_body["material"]["density"] = 1.0
+        data["fluid_bodies"].append(second_body)
+        data["geometries"]["shapes"].append(
+            {
+                "name": "AirBody",
+                "type": "bounding_box",
+                "lower_bound": [0.5, 0.1],
+                "upper_bound": [0.9, 0.4],
+            }
+        )
+        data["particle_generation"]["settings"]["bodies"].append({"name": "AirBody"})
+        config = SimulationConfig.model_validate(data)
+
+        water_colour = _body_colour("WaterBody", config)
+        air_colour = _body_colour("AirBody", config)
+        assert water_colour != air_colour
+
+        entries = _legend_entries_for_config(config)
+        assert ("WaterBody", water_colour) in entries
+        assert ("AirBody", air_colour) in entries
+        particle_entries = _legend_entries_for_config(
+            config, {"WaterBody", "AirBody"}
+        )
+        assert particle_entries == [
+            ("AirBody Particles", air_colour),
+            ("WaterBody Particles", water_colour),
+        ]
+
+        visualizer = ConfigVisualizer(config, tmp_path, off_screen=True)
+        visualizer._shape_bounds_cache = {
+            "WaterBody": ([0.0, 0.0], [0.4, 0.2]),
+            "AirBody": ([0.5, 0.1], [0.9, 0.4]),
+            "WallBoundary": ([-0.05, -0.05], [1.05, 1.05]),
+        }
+        fake_plotter = _FakePlotter()
+        with patch.dict(sys.modules, {"pyvista": _FakePyVista}):
+            visualizer._populate_plotter(fake_plotter, vtp_dir=None)
+
+        body_meshes = {
+            call["label"]: call["color"]
+            for call in fake_plotter.mesh_calls
+            if call.get("label") in {"WaterBody", "AirBody"}
+        }
+        assert body_meshes == {
+            "WaterBody": water_colour,
+            "AirBody": air_colour,
+        }
+
+    def test_fluid_body_palette_does_not_repeat_after_six_bodies(self, fluid_config):
+        from sphinxsim.visualization.preview import _body_colour
+
+        data = copy.deepcopy(fluid_config.model_dump(exclude_none=True))
+        template_body = copy.deepcopy(data["fluid_bodies"][0])
+        for index in range(1, 8):
+            name = f"FluidBody{index}"
+            body = copy.deepcopy(template_body)
+            body["name"] = name
+            data["fluid_bodies"].append(body)
+            data["geometries"]["shapes"].append(
+                {
+                    "name": name,
+                    "type": "bounding_box",
+                    "lower_bound": [float(index), 0.0],
+                    "upper_bound": [float(index) + 0.5, 0.5],
+                }
+            )
+            data["particle_generation"]["settings"]["bodies"].append({"name": name})
+
+        config = SimulationConfig.model_validate(data)
+        colours = [_body_colour(body.name, config) for body in config.fluid_bodies]
+
+        assert len(set(colours)) == len(colours)
 
 
 class TestOrientedBoxLabel:
@@ -653,16 +737,23 @@ class TestPreviewGeneratedParticles:
             viz._populate_plotter(fake_plotter, vtp_dir=None, latest_particle_vtps=fake_latest)
 
         particle_mesh_calls = [
-            call for call in fake_plotter.mesh_calls if str(call.get("label", "")).startswith("Particles: ")
+            call for call in fake_plotter.mesh_calls
+            if call.get("label") in {"WaterBody Particles", "WallBoundary Particles"}
         ]
         assert len(particle_mesh_calls) == 2
+        assert {call["label"] for call in particle_mesh_calls} == {
+            "WaterBody Particles",
+            "WallBoundary Particles",
+        }
         assert all(call.get("style") == "points" for call in particle_mesh_calls)
         assert all(call.get("point_size") == 5 for call in particle_mesh_calls)
 
         particle_label_calls = [
             call
             for call in fake_plotter.point_label_calls
-            if call["labels"] and str(call["labels"][0]).startswith("Particles: ")
+            if call["labels"]
+            and str(call["labels"][0])
+            in {"WaterBody Particles", "WallBoundary Particles"}
         ]
         assert particle_label_calls == []
 
@@ -723,7 +814,8 @@ class TestPreviewGeneratedParticles:
                 viz._populate_plotter(fake_plotter, vtp_dir=None, latest_particle_vtps=fake_latest)
 
         particle_mesh_calls = [
-            call for call in fake_plotter.mesh_calls if str(call.get("label", "")).startswith("Particles: ")
+            call for call in fake_plotter.mesh_calls
+            if call.get("label") == "WaterBody Particles"
         ]
         assert len(particle_mesh_calls) == 1
 
@@ -1091,6 +1183,33 @@ class TestShellPreview:
         _, kwargs = mock_show_or_update.call_args
         assert kwargs.get("with_particles") is True
 
+    def test_shell_run_with_animation_previews_then_continues(self, build_temp_path):
+        from sphinxsim import cli as cli_mod
+
+        _, rel = self._write_config(build_temp_path)
+        inputs = [f"load {rel}", "run --with-animation", "exit"]
+
+        with (
+            patch.object(
+                cli_mod._ShellPreviewRuntime,
+                "show_or_update",
+                return_value=0,
+            ) as show_or_update,
+            patch.object(
+                cli_mod._ShellPreviewRuntime,
+                "continue_to_run",
+                return_value=0,
+            ) as continue_to_run,
+            patch("builtins.input", side_effect=inputs),
+        ):
+            assert main(["shell"]) == 0
+
+        show_or_update.assert_called_once()
+        _, kwargs = show_or_update.call_args
+        assert kwargs["with_particles"] is True
+        assert kwargs["force"] is True
+        continue_to_run.assert_called_once_with()
+
     def test_shell_runtime_continues_retained_particle_simulation(self, tmp_path):
         from sphinxsim import cli as cli_mod
 
@@ -1118,6 +1237,204 @@ class TestShellPreview:
         assert calls == ["build", "initialize", "run"]
         assert runtime._pending_simulation is None
         assert not runtime_config_path.exists()
+
+    def test_shell_runtime_plays_particle_snapshots_in_sequence(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        class FakePlotter:
+            def __init__(self):
+                self.meshes = []
+
+            def add_mesh(self, mesh, **kwargs):
+                self.meshes.append(mesh)
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = FakePlotter()
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_body_names = {"WaterBody"}
+        runtime._live_run_thread = SimpleNamespace(is_alive=lambda: True)
+        snapshots = [tmp_path / f"WaterBody_{step}.vtp" for step in range(3)]
+        for snapshot in snapshots:
+            snapshot.touch()
+
+        with patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=str)}):
+            for _ in range(6):
+                runtime._refresh_live_particles()
+
+        assert runtime.plotter.meshes == [str(path) for path in snapshots]
+
+    def test_shell_runtime_caps_live_refresh_at_25_fps(self):
+        from sphinxsim import cli as cli_mod
+
+        class FakeTimer:
+            def __init__(self):
+                self.timeout = MagicMock()
+                self.interval = None
+
+            def setInterval(self, interval):
+                self.interval = interval
+
+            def start(self):
+                pass
+
+        timer = FakeTimer()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        runtime._live_output_dir = Path(".")
+        runtime._live_particle_body_names = {"WaterBody"}
+        runtime._live_run_thread = SimpleNamespace(is_alive=lambda: True)
+        runtime._using_background_plotter = True
+        snapshot_paths = [Path(f"WaterBody_{step}.vtp") for step in (1, 2)]
+        with patch.dict(
+            sys.modules,
+            {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))},
+        ), patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=str)}), patch.object(
+            Path, "glob", return_value=snapshot_paths
+        ), patch.object(Path, "stat", return_value=SimpleNamespace(st_size=1, st_mtime_ns=1)):
+            runtime._start_live_refresh(10.0)
+            assert timer.interval == 10_000
+            runtime._refresh_live_particles()
+            assert timer.interval == 40
+            runtime._refresh_live_particles()
+            assert timer.interval == 10_000
+
+        assert runtime.plotter.add_mesh.call_count == 2
+
+    def test_shell_runtime_skips_empty_particle_mesh(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        plotter = MagicMock()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = plotter
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_body_names = {"WaterBody"}
+        (tmp_path / "WaterBody_1.vtp").touch()
+
+        with patch.dict(
+            sys.modules,
+            {"pyvista": SimpleNamespace(read=lambda _path: SimpleNamespace(n_points=0))},
+        ):
+            runtime._refresh_live_particles()
+            runtime._refresh_live_particles()
+
+        plotter.add_mesh.assert_not_called()
+
+    def test_shell_runtime_replays_recorded_frames_at_25_fps(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        class FakeTimer:
+            def __init__(self):
+                self.timeout = MagicMock()
+                self.interval = None
+
+            def setInterval(self, interval):
+                self.interval = interval
+
+            def start(self):
+                pass
+
+            def stop(self):
+                pass
+
+        timer = FakeTimer()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        runtime._using_background_plotter = True
+        runtime._animation_output_dir = tmp_path
+        runtime._animation_particle_body_names = {"WaterBody"}
+        runtime._animation_run_completed = True
+        (tmp_path / "WaterBody_1.vtp").touch()
+        (tmp_path / "WaterBody_2.vtp").touch()
+
+        with patch.dict(
+            sys.modules,
+            {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))},
+        ):
+            assert runtime.replay_animation() == 0
+
+        assert timer.interval == 40
+        assert len(runtime._live_playback_queue) == 2
+        assert runtime._live_replay_mode is True
+        with patch.dict(
+            sys.modules,
+            {
+                "pyvista": SimpleNamespace(
+                    read=lambda path: SimpleNamespace(n_points=10, path=path)
+                )
+            },
+        ):
+            runtime._refresh_live_particles()
+            runtime._refresh_live_particles()
+
+        assert runtime.plotter.add_mesh.call_count == 2
+        assert runtime._live_replay_mode is False
+        assert runtime._live_refresh_timer is None
+
+    def test_shell_runtime_does_not_replay_before_run_finishes(self, tmp_path, capsys):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._animation_output_dir = tmp_path
+        runtime._animation_particle_body_names = {"WaterBody"}
+
+        assert runtime.replay_animation() == 1
+        assert "Complete a successful animated run" in capsys.readouterr().err
+
+    def test_shell_runtime_opens_window_for_replay_after_regular_run(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        class FakeTimer:
+            def __init__(self):
+                self.timeout = MagicMock()
+
+            def setInterval(self, _interval):
+                pass
+
+            def start(self):
+                pass
+
+        timer = FakeTimer()
+        plotter = MagicMock()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._animation_output_dir = tmp_path
+        runtime._animation_particle_body_names = {"WaterBody"}
+        runtime._animation_run_completed = True
+        runtime._animation_config = SimulationConfig(**_minimal_fluid_config())
+        runtime._animation_config_path = tmp_path / "config.json"
+        (tmp_path / "WaterBody_1.vtp").touch()
+
+        def create_preview(*_args, **_kwargs):
+            runtime.plotter = plotter
+            runtime._using_background_plotter = True
+            return 0
+
+        with patch.dict(
+            sys.modules,
+            {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))},
+        ), patch.object(
+            runtime, "show_or_update", side_effect=create_preview
+        ) as show_or_update:
+            assert runtime.replay_animation() == 0
+
+        show_or_update.assert_called_once_with(
+            runtime._animation_config,
+            resolved_config_path=runtime._animation_config_path,
+            with_particles=False,
+            force=True,
+        )
+        assert runtime.plotter is plotter
+        assert runtime._using_background_plotter is True
+
+    def test_shell_replay_command_calls_runtime(self):
+        from sphinxsim import cli as cli_mod
+
+        with patch.object(
+            cli_mod._ShellPreviewRuntime, "replay_animation", return_value=0
+        ) as replay:
+            with patch("builtins.input", side_effect=["replay", "exit"]):
+                assert main(["shell"]) == 0
+
+        replay.assert_called_once_with()
 
     def test_shell_continue_to_run_accepts_refresh_interval(self):
         from sphinxsim import cli as cli_mod
@@ -2105,6 +2422,8 @@ class TestPreviewGravityArrow:
                 "upper_bound": [1.05, 1.05, 1.05],
             },
         ]
+        data["geometries"]["oriented_boxes"][0]["center"] = [0.0, 0.1, 0.0]
+        data["geometries"]["oriented_boxes"][0]["normal"] = [1.0, 0.0, 0.0]
         data["gravity"] = [0.0, 0.0, -9.81]
         cfg = SimulationConfig(**data)
         viz = ConfigVisualizer(cfg, tmp_path, off_screen=True)

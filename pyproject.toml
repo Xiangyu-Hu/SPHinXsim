@@ -15,6 +15,7 @@ dependencies = [
     "langgraph-checkpoint-sqlite>=3.1,<4.0",
     "pydantic>=2.0",
     "numpy>=1.21",
+    "jsonschema>=4.20",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +31,10 @@ visualization = [
 chatbot = [
     "chainlit>=2.11,<3.0",
 ]
+
+cad = ["cadquery>=2.6,<2.7", "vtk>=9.3,<9.5", "manifold3d>=3.2,<4"]
+mcp = ["mcp>=1.30,<2"]
+results = ["vtk>=9.3,<9.5", "manifold3d>=3.2,<4"]
 
 [project.scripts]
 sphinxsim = "sphinxsim.cli:main"

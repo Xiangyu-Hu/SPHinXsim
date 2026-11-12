@@ -1,6 +1,7 @@
 #include "fluid_dynamics_builder.hpp"
 
 #include "material_builder.h"
+#include "near_wall_boundary_ck.hpp"
 #include "sph_simulation.h"
 
 namespace SPH
@@ -32,9 +33,42 @@ void FluidDynamicsBuilder::addBoundaryCondition(
 
     const std::string body_name = config.at("body_name").get<std::string>();
     FluidBody &fluid_body = sim.getSPHSystem().getBodyByName<FluidBody>(body_name);
+    const std::string type = config.at("type").get<std::string>();
+
+    if (!config.contains("oriented_box"))
+    {
+        if (type == "wall_bounding")
+        {
+            auto &sph_system = sim.getSPHSystem();
+            auto &wall_boundings = main_methods.addParticleDynamicsGroup();
+            auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
+            for (const auto &sb_tgt : solid_bodies_config)
+            {
+                std::string relation_name = fluid_body.Name() + sb_tgt->name_;
+                auto &contact_relation = sph_system.getRelationByName<
+                    Contact<Relation<FluidBody, SolidBody>>>(relation_name);
+                wall_boundings.add(&main_methods.template addInteractionDynamicsOneLevel<
+                                    BoundingFromWallCK>(contact_relation));
+            }
+
+            if (!wall_boundings.hasDynamics())
+            {
+                return;
+            }
+
+            simulation_pipeline.insert_hook(
+                SimulationHookPoint::PositionConstraint, [&]()
+                { wall_boundings.exec(); });
+
+            return;
+        }
+
+        throw std::runtime_error(
+            "FluidDynamicsBuilder::buildBoundaryConditionsIfPresent: unsupported: " + type);
+    }
+
     const std::string oriented_box_name = config.at("oriented_box").get<std::string>();
     OrientedBox &oriented_box = config_manager.getEntity<OrientedBox>(oriented_box_name);
-    const std::string type = config.at("type").get<std::string>();
 
     if (type == "emitter")
     { // must be oriented box for emitter
@@ -84,10 +118,11 @@ void FluidDynamicsBuilder::addBoundaryCondition(
 
     if (type == "bi_directional")
     {
-        if (fluid_solver_config.surface_type_ != "open_boundary")
+        if (fluid_body.getSurfaceType() != "open_boundary")
         {
             std::cout << "\n------------------------------------------------------------" << std::endl;
             std::cout << "FluidDynamicsBuilder::buildBoundaryConditionsIfPresent:" << std::endl;
+            std::cout << "surface_type: " << fluid_body.getSurfaceType() << std::endl;
             std::cout << "Error: bi_directional condition at OrientBox '" << oriented_box_name
                       << "' only works for open boundary flow!" << std::endl;
             std::cout << "------------------------------------------------------------" << std::endl;
@@ -149,6 +184,7 @@ void FluidDynamicsBuilder::addBoundaryCondition(
 
         return;
     }
+
     if (type == "free_stream")
     {
         // Emitter strip injects particles; buffer sponge imposes the inflow ramp and pins the

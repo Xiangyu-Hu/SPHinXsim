@@ -8,8 +8,13 @@ nav:
       - Windows: installation-windows.md
       - macOS: installation-macos.md
   - CLI Usage: cli-usage.md
-  - Desktop Workbench: workbench.md
-  - AgentCAE: agent-cae.md
+  - Learning Resources:
+      - Dambreak flow: dambreak.md
+      - Filling a tank: filling-tank.md
+      - Milling: milling.md
+  - External Agents:
+      - Native Workflows: agent-workflows.md
+      - MCP Setup: mcp.md
   - Visualization: visualization.md
   - LLM Testing: llm-testing.md
   - Theoretical Backgrounds:

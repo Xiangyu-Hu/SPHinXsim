@@ -52,8 +52,10 @@
           {
             "operation": "union",
             "type": "container_box",
-            "inner_lower_bound": [-0.07, -0.08],
-            "inner_upper_bound": [0.13, 0.07],
+            "inner_box": {
+              "lower_bound": [-0.07, -0.08],
+              "upper_bound": [0.13, 0.07]
+            },
             "thickness": 0.0032
           }
         ]

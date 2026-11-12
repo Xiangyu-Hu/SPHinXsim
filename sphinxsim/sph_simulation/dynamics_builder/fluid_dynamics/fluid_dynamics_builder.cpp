@@ -232,7 +232,8 @@ void FluidDynamicsBuilder::buildViscousForceIfPresent(
             auto &viscous_force = main_methods.addInteractionDynamicsWithUpdate<
                 ViscousForceCK, Viscosity, NoKernelCorrectionCK>(inner_relation);
             auto &fluid_body = sph_system.getBodyByName<FluidBody>(body_name);
-            
+            addInteractionWithFluidBodies<Viscosity, NoKernelCorrectionCK>(
+                sim, viscous_force, fluid_body);
             addInteractionWithSolidBodies<Wall, Viscosity, NoKernelCorrectionCK>(
                 sim, viscous_force, fluid_body);
             all_viscous_force.add(&viscous_force);

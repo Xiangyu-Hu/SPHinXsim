@@ -2,7 +2,8 @@
 import asyncio
 import base64
 import json
-from urllib.parse import urlparse, unquote
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 from pathlib import Path
 
 from mcp import types
@@ -19,7 +20,9 @@ async def serve(service):
     @server.list_tools()
     async def list_tools():
         return [types.Tool(name=name, description=description, inputSchema=schema, outputSchema={"type": "object"})
-                for name, (description, schema) in TOOLS.items() if name != "desktop" or service.desktop_reference]
+                for name, (description, schema) in TOOLS.items()
+                if (name != "desktop" or service.desktop_reference)
+                and (name != "workbench" or service.workbench_enabled)]
 
     @server.call_tool()
     async def call_tool(name, arguments):
@@ -36,7 +39,7 @@ async def serve(service):
                         return
                     for key, child in value.items():
                         if key == "resource" and isinstance(child, str) and child.startswith("file:"):
-                            relative = Path(unquote(urlparse(child).path)).relative_to(service.jobs.directory)
+                            relative = Path(url2pathname(urlparse(child).path)).relative_to(service.jobs.directory)
                             value[key] = f"sphinxsim://jobs/{relative.parts[0]}/artifacts/{relative.name}"
                         else:
                             references(child)

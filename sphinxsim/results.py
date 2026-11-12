@@ -1,6 +1,7 @@
 """Shared, GUI-independent streaming access to SPHinXsim particle results."""
 from __future__ import annotations
 from dataclasses import dataclass
+import json
 import math
 from pathlib import Path
 from typing import Sequence
@@ -10,6 +11,17 @@ from xml.sax.handler import ContentHandler
 
 class AnalysisError(ValueError):
     """An output file is missing, incomplete, or violates the result contract."""
+
+
+def referenced_job(output_dir):
+    """Resolve a complete MCP job reference stored with a workflow run."""
+    pointer = Path(output_dir) / "job-reference.json"
+    if not pointer.is_file():
+        return None
+    from sphinxsim.runtime.jobs import JobStore
+    content = json.loads(pointer.read_text(encoding="utf-8"))
+    jobs = JobStore(content["workspace"])
+    return jobs, jobs.resolve(content["reference"])
 
 
 @dataclass(frozen=True)
@@ -34,6 +46,10 @@ class ResultCatalog:
     def latest(self, output_dir: str | Path, body_names: Sequence[str], *,
                include_generation: bool = False) -> dict[str, ResultFrame]:
         root = Path(output_dir)
+        job = referenced_job(root)
+        if job:
+            jobs, job_id = job
+            root = jobs.job_path(job_id) / "solver"
         root = root / "output" if (root / "output").is_dir() else root
         latest: dict[str, ResultFrame] = {}
         for path in root.glob("*.vtp"):
@@ -221,6 +237,19 @@ class VTPPositionReader:
         if not isinstance(body_name, str) or not body_name.strip():
             raise AnalysisError("body_name must be a non-empty string")
         root = Path(output_dir).resolve()
+        job = referenced_job(root)
+        if job:
+            jobs, job_id = job
+            publication = jobs.results(job_id)
+            if not publication.get("available"):
+                raise AnalysisError("No published MCP job results available")
+            directory = jobs.job_path(job_id) / "result"
+            manifest = json.loads((directory / publication["manifest"]).read_text(encoding="utf-8"))
+            frames = manifest.get("bodies", {}).get(body_name, [])
+            if not frames:
+                raise AnalysisError(f"no state VTP files found for body {body_name!r}")
+            frame = max(frames, key=lambda item: item["time"])
+            return directory / frame["source"], frame["time"]
         data_dir = root / "output" if (root / "output").is_dir() else root
         if not data_dir.is_dir():
             raise AnalysisError(f"run output directory does not exist: {data_dir}")

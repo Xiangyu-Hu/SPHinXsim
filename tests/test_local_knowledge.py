@@ -62,3 +62,13 @@ def test_manifest_and_snapshot_round_trip(tmp_path: Path) -> None:
 def test_retrieval_rejects_empty_query() -> None:
     with pytest.raises(KnowledgeError, match="searchable terms"):
         make_knowledge_base().retrieve("---")
+
+
+def test_upstream_workflow_and_mcp_guides_are_available_to_planners():
+    knowledge = make_knowledge_base()
+    sources = set(knowledge.manifest.sources)
+
+    assert "docs/agent-workflows.md" in sources
+    assert "docs/mcp.md" in sources
+    assert len({document.document_id for document in knowledge.documents}) == len(knowledge.documents)
+    assert any("POSIX" in document.text for document in knowledge.documents)

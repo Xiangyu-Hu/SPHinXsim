@@ -441,6 +441,7 @@ class WorkbenchWindow(QtWidgets.QMainWindow):
         case = output / "case.json"
         case.write_text(json.dumps(rebase_asset_paths(payload, self.document.path.parent), indent=2), encoding="utf-8")
         process = self.run_job = QtCore.QProcess(self)
+        process.setProperty("output_dir", str(output))
         self._configure_native_process(process, output)
         process.setProcessChannelMode(QtCore.QProcess.ProcessChannelMode.MergedChannels)
         process.setStandardOutputFile(str(output / "solver.log"))
@@ -467,8 +468,16 @@ class WorkbenchWindow(QtWidgets.QMainWindow):
 
     def stop_run(self):
         if self.run_job is not None and self.run_job.state() != QtCore.QProcess.ProcessState.NotRunning:
-            self.run_job.kill()
-            self.run_job.waitForFinished(3000)
+            output = Path(self.run_job.property("output_dir"))
+            (output / "cancel.request").touch()
+            if not self.run_job.waitForFinished(5000):
+                pointer = output / "job-reference.json"
+                if pointer.exists():
+                    from sphinxsim.runtime.client import MCPClient
+                    reference = json.loads(pointer.read_text(encoding="utf-8"))
+                    MCPClient(reference["workspace"]).call("job_cancel", {"reference": reference["reference"]})
+                self.run_job.kill()
+                self.run_job.waitForFinished(3000)
 
     def reconnect_chat(self):
         if self.chat_server:

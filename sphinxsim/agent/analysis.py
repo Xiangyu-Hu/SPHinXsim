@@ -134,6 +134,22 @@ class InitialGeometryReader:
             raise AnalysisError(
                 "geometry initial-front analysis currently supports bounding_box only"
             )
+        if shape.get("primitive") is not None:
+            if shape.get("lower_bound") is not None or shape.get("upper_bound") is not None:
+                raise AnalysisError("bounding_box requires either primitive or inline bounds")
+            primitives = geometries.get("primitives", [])
+            if not isinstance(primitives, list):
+                raise AnalysisError("configuration geometries.primitives must be a list")
+            matches = [
+                primitive
+                for primitive in primitives
+                if isinstance(primitive, dict) and primitive.get("name") == shape["primitive"]
+            ]
+            if len(matches) != 1 or matches[0].get("type") != "bounding_box":
+                raise AnalysisError(
+                    f"bounding_box primitive {shape['primitive']!r} must resolve to exactly one bounding_box"
+                )
+            shape = matches[0]
         lower = shape.get("lower_bound")
         upper = shape.get("upper_bound")
         if not isinstance(lower, list) or not isinstance(upper, list) or len(lower) != len(upper):

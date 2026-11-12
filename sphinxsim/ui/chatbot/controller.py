@@ -69,10 +69,10 @@ class AgentChatSession:
         return self.agent.execution_status(self._require_id())
 
     def open_preview(self):
-        from sphinxsim.ui.workbench.bridge import WorkbenchClient
-        client = WorkbenchClient.from_environment()
-        if client is not None:
-            return client.observe(self._require_id())
+        if os.environ.get("SPHINXSIM_WORKBENCH_URL"):
+            from sphinxsim.runtime.client import MCPClient
+            client = MCPClient(self.agent.runtime.project_root)
+            return client.call("workbench", {"operation": "observe", "workflow_id": self._require_id()})
         from sphinxsim.visualization.agent_preview import launch_agent_preview
         return launch_agent_preview(self.agent.runtime.project_root,
                                     self.agent.runtime.workspace, self._require_id())
@@ -293,12 +293,19 @@ class ChatController:
         "or simulations."
     )
 
-    def __init__(self, provider: str | None = None) -> None:
+    def __init__(self, provider: str | None = None, *, tool_client=None) -> None:
         self.provider = normalize_llm_provider(provider)
         self.llm = get_llm(self.provider)
         self.messages: list[dict[str, Any]] = [
             {"role": "system", "content": self.SYSTEM_PROMPT}
         ]
+        self.tool_client = tool_client
+        if tool_client is not None:
+            self.messages[0]["content"] = (
+                "You are the SPHinXsim assistant connected to the native MCP tool service. "
+                "Use its discovered operations and returned evidence for configuration, CAD, jobs and analysis. "
+                "Explain execution status and physical validation limits precisely."
+            )
 
     def respond(
         self,
@@ -319,7 +326,11 @@ class ChatController:
             messages = self.messages
             if context is not None:
                 messages = [*self.messages[:-1], {"role": "system", "content": context}, self.messages[-1]]
-            response = self.llm.chat(messages)
+            if self.tool_client is not None:
+                from sphinxsim.llm.mcp_tools import MCPToolConversation
+                response = MCPToolConversation(self.tool_client, self.llm, self.provider).respond(messages, context)
+            else:
+                response = self.llm.chat(messages)
         except Exception:
             self.messages.pop()
             raise

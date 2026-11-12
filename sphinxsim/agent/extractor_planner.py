@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
+import json
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -16,7 +17,7 @@ from sphinxsim.llm.structured_provider import (
     StructuredJSONBackend,
     StructuredProviderError,
 )
-from sphinxsim.config import SimulationConfig
+from sphinxsim.runtime.physics import check_config
 
 from .declarative_extractors import DeclarativeExtractorSpec
 
@@ -59,24 +60,15 @@ class ExtractorPlanningContext(BaseModel):
     def from_case(cls, config_path: str | Path) -> "ExtractorPlanningContext":
         """Validate a case and derive the minimum safe planning allow-list."""
         path = Path(config_path).resolve()
-        config = SimulationConfig.model_validate_json(
-            path.read_text(encoding="utf-8")
-        )
-        domain = config.geometries.system_domain
-        dimension = (
-            len(domain.lower_bound) if domain is not None else config._infer_spatial_dim()
-        )
-        if dimension is None:
-            raise ExtractorPlanningError(
-                "case does not provide enough information to infer spatial dimension"
-            )
+        config, report = check_config(json.loads(path.read_text(encoding="utf-8")))
+        dimension = report["dimension"]
         body_names = sorted(
             {
-                body.name
+                body["name"]
                 for collection in (
-                    config.fluid_bodies,
-                    config.continuum_bodies,
-                    config.solid_bodies,
+                    config.get("fluid_bodies", []),
+                    config.get("continuum_bodies", []),
+                    config.get("solid_bodies", []),
                 )
                 for body in collection
             }

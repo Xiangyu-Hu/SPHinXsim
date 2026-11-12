@@ -8,6 +8,7 @@ import sys
 import time
 
 from .export_vtp import atomic_json
+from sphinxsim.services.process_control import identity, terminate_tree
 
 
 def main():
@@ -18,24 +19,24 @@ def main():
     work = Path(sys.argv[1]).resolve(strict=True)
     state = json.loads((work / "job.json").read_text())
     process = None
+    process_identity = None
     try:
         with (work / "solver.log").open("wb") as log:
             command = ([sys.executable, "-m", "sphinxsim", "geometry", str(work / "recipe.json"), "--output", str(work / "cad"), "--json"]
                        if state["kind"] == "cad" else [sys.executable, "-m", "sphinxsim", "run" if state["kind"] == "run" else "preview", "--request", str(work / "request.json"), "--output", str(work), "--json"])
             process = subprocess.Popen(command,
-                cwd=work, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                cwd=work, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                start_new_session=os.name == "posix",
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+            process_identity = identity(process.pid)
         started = time.monotonic()
         while process.poll() is None:
             if (work / "cancel.json").exists() or time.monotonic() - started > state["wall_seconds"]:
                 state["state"] = "canceled" if (work / "cancel.json").exists() else "failed"
                 if state["state"] == "failed":
                     state["error"] = "Wall-clock execution budget exceeded"
-                os.killpg(process.pid, signal.SIGTERM)
-                try:
-                    process.wait(timeout=3)
-                except subprocess.TimeoutExpired:
-                    os.killpg(process.pid, signal.SIGKILL)
-                    process.wait()
+                terminate_tree(process_identity)
+                process.wait()
                 break
             published = work / "published.json"
             if published.exists():
@@ -63,12 +64,8 @@ def main():
         state.update(state="interrupted", error="Local supervisor interrupted; automatic replay is disabled")
     finally:
         if process and process.poll() is None:
-            os.killpg(process.pid, signal.SIGTERM)
-            try:
-                process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
+            terminate_tree(process_identity)
+            process.wait()
         state["heartbeat"] = time.time()
         atomic_json(work / "job.json", state)
 

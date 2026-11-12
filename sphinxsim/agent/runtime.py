@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from sphinxsim.services import SPHinXsimCLIAdapter
+from .mcp_execution import MCPExecutionClient
 from sphinxsim.llm import (
     LLMProviderName,
     get_llm,
@@ -173,12 +174,15 @@ class AgentRuntime:
                 raise AgentServiceError(
                     "NVIDIA-compatible generation requires SPHINXSIM_LLM_API_KEY"
                 )
-        adapter = SPHinXsimCLIAdapter(
+        adapter = MCPExecutionClient(
             cwd=self.project_root,
+            root=os.path.commonpath([self.project_root, self.workspace]),
             environment=environment,
             default_timeout=settings.command_timeout,
             control_dir=self.workspace / "execution" / settings.workflow_id,
         )
+        if starting:
+            context.native_mcp_tools = adapter.inventory()
         preview_reviewer = None
         if execution_enabled:
             preview_reviewer = (

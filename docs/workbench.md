@@ -22,6 +22,12 @@ it does not edit the repository's demo file. To open your own JSON:
 python -m sphinxsim workbench path/to/case.json --workspace .build-temp/workbench-demo
 ```
 
+Existing workspace cases using `container_box.inner_lower_bound` and
+`inner_upper_bound` open with an updated `inner_box` in the editor draft.
+The **JSON Editor** tab marks this draft as unsaved. Review it and use
+**Save + Preview** to persist the updated geometry fields. Cases containing both
+representations or an incomplete pair of legacy bounds require an explicit edit.
+
 Switch between **JSON Editor** and **Chat** using the right sidebar tabs. Both
 keep their state: switching preserves unsaved edits, editor selection and the
 chat conversation. Drag the vertical splitter to resize the sidebar. Preview
@@ -54,13 +60,16 @@ is removed from the workbench, so the scene uses the full canvas width.
   valid unsaved edits without saving them.
 - **Initial particles** enables particle generation for the next preview.
 - In chat, ask about the current JSON or send `/config change end time to 0.08 seconds`.
-  The same LLM provider used by the shell proposes a validated configuration patch.
+  The `workbench` and `config_propose` MCP tools produce a validated revision-bound proposal.
   In mock mode this example is deterministic; mock is not a natural-language model.
 - A new proposal marks the **JSON Editor** tab with a dot and leaves Chat visible.
   Switch to **JSON Editor > LLM diff**, click **Apply proposal to draft**, then
   **Save + Preview**. A star on **JSON Editor** indicates unsaved draft edits.
   Proposals cannot silently overwrite newer manual edits, and externally changed
   files must be reopened before saving.
+- Chat discovers the native MCP tools for configuration, CAD, job control, and
+  result inspection. Send `/mcp capabilities {}` to inspect capabilities with a
+  mock provider. Real LLM providers can select tools from the discovered schemas.
 - **Run saved case** starts an isolated C++ process using a snapshot of the saved
   configuration. **Stop case run** stops that manual run. Runtime logs and VTPs
   are kept below `<workspace>/manual_runs/`.

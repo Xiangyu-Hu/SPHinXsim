@@ -121,13 +121,8 @@ class CaseWorkspace:
 
     @staticmethod
     def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
-        temporary = path.with_suffix(path.suffix + ".tmp")
+        from .store import AgentTaskStore, StoreError
         try:
-            temporary.write_text(
-                json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
-                encoding="utf-8",
-            )
-            os.replace(temporary, path)
-        except OSError as exc:
-            temporary.unlink(missing_ok=True)
+            AgentTaskStore._atomic_write(path, json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+        except (OSError, StoreError) as exc:
             raise CaseToolError(f"unable to write configuration {path}: {exc}") from exc

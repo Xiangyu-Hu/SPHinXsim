@@ -54,6 +54,12 @@ class ToolDefinition:
             raise ToolRegistryError(f"invalid output for tool {self.name}: {exc}") from exc
 
     def as_capability(self) -> dict[str, Any]:
+        operations = {
+            "prepare_case": ["case_prepare"], "set_friction_angle": ["set_friction_angle"],
+            "validate_case": ["validate"], "run_case": ["project_inspect", "submit", "job_status", "results_inspect"],
+            "analyze_result": ["analyze_result"], "analyze_runout": ["analyze_result"],
+            "compare_sweep_results": ["compare_results"],
+        }
         return {
             "name": self.name,
             "description": self.description,
@@ -65,6 +71,7 @@ class ToolDefinition:
             "deterministic": self.deterministic,
             "approval_required_by_default": self.approval_required_by_default,
             "tags": list(self.tags),
+            "mcp_operations": operations.get(self.name, []),
         }
 
 

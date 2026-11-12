@@ -233,6 +233,14 @@ class ConfigVisualizer:
             if shape.translation is not None:
                 return len(shape.translation)
 
+        # Referenced shapes can carry all dimension evidence in primitives.
+        for primitive in geo.primitives:
+            for vec in (primitive.lower_bound, primitive.upper_bound, primitive.half_size):
+                if vec is not None:
+                    return len(vec)
+            if primitive.transform is not None:
+                return len(primitive.transform.translation)
+
         # Walk oriented boxes: center / normal / half_size.
         for ob in geo.oriented_boxes:
             for vec in (ob.center, ob.normal, ob.half_size):

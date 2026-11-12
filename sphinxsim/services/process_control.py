@@ -1,9 +1,11 @@
 """Process identity checks and cross-process ownership for local workers."""
 from __future__ import annotations
 from contextlib import contextmanager
+import errno
 import os
 from pathlib import Path
 import psutil
+import time
 
 
 def identity(pid: int) -> dict:
@@ -37,21 +39,25 @@ def terminate_tree(record: dict) -> None:
 
 
 @contextmanager
-def workspace_lock(path: Path):
+def workspace_lock(path: Path, *, blocking=False):
     """OS-owned lock released automatically if its worker dies."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+b") as handle:
         handle.seek(0)
         if os.name == "nt":
             import msvcrt
-            try:
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-            except OSError as exc:
-                raise RuntimeError("An Agent worker is already running in this workspace") from exc
+            while True:
+                try:
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError as exc:
+                    if not blocking or exc.errno not in (errno.EACCES, errno.EAGAIN, errno.EDEADLK):
+                        raise RuntimeError("An Agent worker is already running in this workspace") from exc
+                    time.sleep(.05)
         else:
             import fcntl
             try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(handle, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
             except OSError as exc:
                 raise RuntimeError("An Agent worker is already running in this workspace") from exc
         try:

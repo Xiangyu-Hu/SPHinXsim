@@ -116,9 +116,9 @@ class StaticPlanExecutor:
         self.command_adapter = command_adapter
         self.command_timeout = command_timeout
         source_root = getattr(command_adapter, "cwd", Path.cwd())
-        self.case_workspace = case_workspace or CaseWorkspace(
-            store.root,
-            source_root=source_root,
+        self.case_workspace = case_workspace or (
+            command_adapter if hasattr(command_adapter, "call")
+            else CaseWorkspace(store.root, source_root=source_root)
         )
         if extractor_registry is not None and runout_analyzer is not None:
             raise ValueError(
@@ -482,11 +482,18 @@ class StaticPlanExecutor:
             self.store.save_run(run)
 
         try:
-            result = self.extractor_registry.analyze(
-                config_path,
-                run.output_dir,
-                raw_spec,
-            )
+            if hasattr(self.command_adapter, "call"):
+                from .analysis_plan import AnalysisPlan
+                from .declarative_extractors import DeclarativeExtractorResult
+                analysis_plan = step.parameters.get("analysis_plan") or AnalysisPlan(
+                    builtin=AnalysisSpec.model_validate(raw_spec)).model_dump(mode="json")
+                response = self.command_adapter.call("analyze_result", {
+                    "config_file": self.command_adapter.relative(config_path),
+                    "output_dir": self.command_adapter.relative(run.output_dir), "analysis_plan": analysis_plan})
+                model = RunoutResult if analysis_plan["kind"] == "builtin" else DeclarativeExtractorResult
+                result = model.model_validate(response["metrics"])
+            else:
+                result = self.extractor_registry.analyze(config_path, run.output_dir, raw_spec)
         except (AnalysisError, ExtractorRegistryError, ValueError) as exc:
             analysis.finish(
                 AnalysisStatus.FAILED,
@@ -544,11 +551,15 @@ class StaticPlanExecutor:
                 raise ValueError("compare_results requires completed analyses")
             samples.append((float(angle), run_id, analysis_id, analysis.metrics))
 
-        result = self.sweep_analyzer.summarize(
-            sweep_id=sweep_id,
-            target_value=float(target_value),
-            samples=samples,
-        )
+        if hasattr(self.command_adapter, "call"):
+            from .analysis import FrictionAngleSweepResult
+            response = self.command_adapter.call("compare_results", {
+                "sweep_id": sweep_id, "target_value": float(target_value), "samples": [
+                    {"friction_angle_degrees": angle, "run_id": run_id, "analysis_id": analysis_id, "metrics": metrics}
+                    for angle, run_id, analysis_id, metrics in samples]})
+            result = FrictionAngleSweepResult.model_validate(response)
+        else:
+            result = self.sweep_analyzer.summarize(sweep_id=sweep_id, target_value=float(target_value), samples=samples)
         self.store.create_sweep_result(task.task_id, result)
         if sweep_id not in task.sweep_ids:
             task.sweep_ids.append(sweep_id)

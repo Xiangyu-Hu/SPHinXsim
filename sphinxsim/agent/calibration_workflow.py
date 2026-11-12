@@ -42,7 +42,7 @@ class CalibrationPlanner(Protocol):
 
 
 class CalibrationCommandAdapter(Protocol):
-    """Existing CLI methods used by the deterministic calibration workflow."""
+    """Workflow boundary implemented by the native MCP execution client."""
 
     cwd: Path
 

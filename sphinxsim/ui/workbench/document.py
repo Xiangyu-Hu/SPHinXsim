@@ -11,6 +11,7 @@ import tempfile
 import threading
 
 from sphinxsim.config.schemas import SimulationConfig
+from sphinxsim.runtime.physics import check_config
 
 
 def fingerprint(text):
@@ -41,10 +42,33 @@ class WorkbenchDocument:
     def load(self, path):
         path = Path(path).resolve()
         text = path.read_bytes().decode("utf-8")
-        SimulationConfig.model_validate_json(text)
+        payload = json.loads(text)
+        if not isinstance(payload, dict):
+            raise ValueError("Configuration must be a JSON object")
+        for shape in payload.get("geometries", {}).get("shapes", []):
+            if shape.get("type") != "multipolygon":
+                continue
+            for polygon in shape.get("polygons") or []:
+                if polygon.get("type") != "container_box":
+                    continue
+                legacy_keys = ("inner_lower_bound", "inner_upper_bound")
+                if not any(key in polygon for key in legacy_keys):
+                    continue
+                if polygon.get("inner_box") is not None:
+                    raise ValueError("container_box contains both inner_box and legacy inner bounds")
+                if not all(key in polygon for key in legacy_keys):
+                    raise ValueError("Legacy container_box requires inner_lower_bound and inner_upper_bound")
+                polygon["inner_box"] = {
+                    "lower_bound": polygon.pop("inner_lower_bound"),
+                    "upper_bound": polygon.pop("inner_upper_bound"),
+                }
+        check_config(payload)
+        from sphinxsim.json_format import format_json_like_source
+        draft = format_json_like_source(payload, text, path)
         with self.lock:
             self.path = path
-            self.text = self.saved_text = text
+            self.text = draft
+            self.saved_text = text
             self.proposal = None
 
     def set_text(self, text):
@@ -60,7 +84,8 @@ class WorkbenchDocument:
 
     def validate(self):
         with self.lock:
-            return SimulationConfig.model_validate_json(self.text)
+            configuration, _ = check_config(json.loads(self.text))
+            return SimulationConfig.model_validate(configuration)
 
     def save(self):
         with self.lock:
@@ -81,7 +106,7 @@ class WorkbenchDocument:
             self.saved_text = self.text
 
     def propose(self, base_revision, payload, instruction):
-        SimulationConfig.model_validate(payload)
+        check_config(payload)
         with self.lock:
             if self.snapshot()["revision"] != base_revision:
                 raise ValueError("The draft changed during the LLM request. Ask again using the current draft.")

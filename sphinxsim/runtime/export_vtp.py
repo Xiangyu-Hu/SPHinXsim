@@ -1,17 +1,35 @@
 """Headless, one-file-at-a-time VTK export with immutable content-addressed buffers."""
 import hashlib
 import json
+import os
 import re
 import shutil
+import tempfile
+import time
 from pathlib import Path
 
 import numpy as np
 
 
 def atomic_json(path, value):
-    temp = path.with_suffix(".tmp")
-    temp.write_text(json.dumps(value, allow_nan=False))
-    temp.replace(path)
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, suffix=".tmp", delete=False) as handle:
+            temporary = Path(handle.name)
+            json.dump(value, handle, allow_nan=False)
+        for attempt in range(100):
+            try:
+                temporary.replace(path)
+                break
+            except PermissionError:
+                if os.name != "nt" or attempt == 99:
+                    raise
+                time.sleep(.01)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 def hash_file(path):
     digest = hashlib.sha256()

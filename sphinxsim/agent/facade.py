@@ -260,12 +260,17 @@ class AgentCAE:
         config_path: str | Path,
         output_dir: str | Path,
     ) -> DeclarativeExtractorResult:
-        result = self.load_extractors().build_registry().analyze(
-            config_path,
-            output_dir,
-            {"metric": extractor_id},
-        )
-        return DeclarativeExtractorResult.model_validate(result)
+        from sphinxsim.runtime.client import MCPClient
+        from .analysis_plan import AnalysisPlan
+        definitions = self.load_extractors().extractors
+        selected = next((item for item in definitions if item.extractor_id == extractor_id), None)
+        if selected is None:
+            raise ValueError(f"unknown analysis extractor: {extractor_id}")
+        plan = AnalysisPlan(kind="declarative", metric_name=selected.outputs[0].output_name, declarative=selected)
+        client = MCPClient(self.runtime.project_root)
+        response = client.call("analyze_result", {"config_file": client.relative(config_path),
+            "output_dir": client.relative(output_dir), "analysis_plan": plan.model_dump(mode="json")})
+        return DeclarativeExtractorResult.model_validate(response["metrics"])
 
     def report(self, workflow_id: str, *, save: bool = True) -> AgentCAEReport:
         self.runtime.load_settings(workflow_id)

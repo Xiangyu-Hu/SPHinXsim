@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import tempfile
 import time
 
 from pydantic import ValidationError
@@ -87,9 +88,11 @@ class AgentTaskStore:
     @staticmethod
     def _atomic_write(path: Path, content: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_suffix(path.suffix + ".tmp")
+        temporary = None
         try:
-            temporary.write_text(content, encoding="utf-8")
+            with tempfile.NamedTemporaryFile(mode="wb", dir=path.parent, delete=False) as handle:
+                temporary = Path(handle.name)
+                handle.write(content.encode("utf-8"))
             for attempt in range(5):
                 try:
                     os.replace(temporary, path)
@@ -100,7 +103,8 @@ class AgentTaskStore:
                     time.sleep(0.01 * (2**attempt))
         except OSError as exc:
             try:
-                temporary.unlink(missing_ok=True)
+                if temporary is not None:
+                    temporary.unlink(missing_ok=True)
             except OSError:
                 pass
             raise StoreError(f"unable to write Agent state file {path}: {exc}") from exc

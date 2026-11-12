@@ -1,9 +1,7 @@
-"""Non-invasive adapter around the existing SPHinXsim CLI commands.
+"""Process adapter for explicit synchronous public CLI invocations.
 
-The adapter deliberately invokes the public CLI in a child process instead of
-calling private functions from ``sphinxsim.cli``.  Existing ``generate``,
-``update``, ``validate``, ``preview``, ``run`` and ``explore`` behavior remains
-the single implementation used by both people and future Agent/graph tools.
+The Agent runtime uses the native MCP execution client. This adapter preserves
+the public Python API for callers executing CLI commands directly.
 """
 
 from __future__ import annotations

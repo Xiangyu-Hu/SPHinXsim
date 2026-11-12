@@ -43,6 +43,7 @@ def build_capability_registry(tool_registry: ToolRegistry) -> CapabilityRegistry
                 "outputs": ["initial_front", "final_front", "runout_extension"],
                 "front_methods": ["maximum"],
                 "initial_front_sources": ["bounding_box_geometry"],
+                "geometry_representations": ["inline_bounds", "primitive_reference"],
                 "direction": "normalized_2d_or_3d_vector",
                 "unit": "m",
             }

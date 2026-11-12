@@ -32,6 +32,58 @@ def connection(document):
         bridge.close()
 
 
+@pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_legacy_container_bounds_load_as_a_migrated_draft_until_save(tmp_path, newline):
+    source = Path(__file__).parent / "test_simulation/test_2d_simulation/data/column_collapse.json"
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    polygon = payload["geometries"]["shapes"][1]["polygons"][0]
+    inner_box = polygon.pop("inner_box")
+    polygon["inner_lower_bound"] = inner_box["lower_bound"]
+    polygon["inner_upper_bound"] = inner_box["upper_bound"]
+    payload["solver_parameters"]["end_time"] = .125
+    path = tmp_path / "case.json"
+    original = (json.dumps(payload, indent=2) + "\n").replace("\n", newline).encode("utf-8")
+    path.write_bytes(original)
+
+    document = WorkbenchDocument(path)
+
+    assert document.snapshot()["dirty"] is True
+    assert path.read_bytes() == original
+    assert document.saved_text == original.decode("utf-8")
+    migrated = json.loads(document.text)
+    migrated_polygon = migrated["geometries"]["shapes"][1]["polygons"][0]
+    assert migrated_polygon["inner_box"] == inner_box
+    assert "inner_lower_bound" not in migrated_polygon
+    assert "inner_upper_bound" not in migrated_polygon
+    assert document.validate().solver_parameters.end_time == .125
+    assert migrated["continuum_bodies"] == payload["continuum_bodies"]
+    assert ("\r\n" in document.text) == (newline == "\r\n")
+
+    document.save()
+
+    assert document.snapshot()["dirty"] is False
+    assert path.read_bytes() == document.text.encode("utf-8")
+    assert WorkbenchDocument(path).snapshot()["dirty"] is False
+
+
+@pytest.mark.parametrize("problem", ["mixed", "incomplete"])
+def test_ambiguous_legacy_container_bounds_report_an_error_without_writing(tmp_path, problem):
+    source = Path(__file__).parent / "test_simulation/test_2d_simulation/data/column_collapse.json"
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    polygon = payload["geometries"]["shapes"][1]["polygons"][0]
+    polygon["inner_lower_bound"] = [0.0, 0.0]
+    if problem == "incomplete":
+        polygon.pop("inner_box")
+    path = tmp_path / "case.json"
+    original = json.dumps(payload).encode("utf-8")
+    path.write_bytes(original)
+
+    with pytest.raises(ValueError, match="container_box"):
+        WorkbenchDocument(path)
+
+    assert path.read_bytes() == original
+
+
 def test_proposal_is_reviewed_before_application_and_saved_explicitly(document, connection):
     _, client = connection
     original = document.path.read_bytes().decode("utf-8")
@@ -76,6 +128,23 @@ def test_invalid_draft_and_external_disk_edits_do_not_destroy_saved_config(docum
     with pytest.raises(ValueError, match="changed on disk"):
         document.save()
     assert document.path.read_bytes().decode("utf-8") == original + "\n"
+
+
+def test_native_admission_rejects_inactive_material_edits_and_proposals(document):
+    original = document.path.read_bytes()
+    snapshot = document.snapshot()
+    payload = json.loads(snapshot["text"])
+    payload["solid_bodies"][0]["material"]["youngs_modulus"] = 1000
+
+    with pytest.raises(ValueError, match="Fields not consumed"):
+        document.propose(snapshot["revision"], payload, "Change the wall material")
+    assert document.pending_proposal() is None
+    assert document.text == snapshot["text"]
+
+    document.set_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="Fields not consumed"):
+        document.save()
+    assert document.path.read_bytes() == original
 
 
 def test_bridge_requires_token_and_accepts_only_valid_workflow_ids(document, connection):

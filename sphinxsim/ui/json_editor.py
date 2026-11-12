@@ -33,6 +33,7 @@ ENUM_CHOICES = {
     "surface_type": ["free_surface", "confined", "open_boundary", "free_stream"],
     "kernel_correction": ["linear", "none"],
 }
+PATH_ROLE = QtCore.Qt.ItemDataRole.UserRole + 1
 
 
 class JsonPropertyEditor(QtWidgets.QWidget):
@@ -190,7 +191,10 @@ class JsonPropertyEditor(QtWidgets.QWidget):
                               if isinstance(value, dict) and isinstance(value.get(name), str)), f"Item {path[-1] + 1}")
             item = QtWidgets.QTreeWidgetItem([label, ""])
             (parent.addChild if parent is not None else self.tree.addTopLevelItem)(item)
-            item.setData(0, QtCore.Qt.ItemDataRole.UserRole, path)
+            # Native desktop integrations consume dotted paths; retain typed
+            # array indices separately for structural editing.
+            item.setData(0, QtCore.Qt.ItemDataRole.UserRole, ".".join(map(str, path)))
+            item.setData(0, PATH_ROLE, path)
             item.setToolTip(0, ".".join(map(str, path)))
             self._items[path] = item
             if isinstance(value, (dict, list)):
@@ -277,7 +281,7 @@ class JsonPropertyEditor(QtWidgets.QWidget):
     def _filter(self, query):
         query = query.strip().lower()
         def visit(item):
-            path = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+            path = item.data(0, PATH_ROLE)
             widget = self._fields.get(path)
             value = widget.currentText() if isinstance(widget, QtWidgets.QComboBox) else (
                     widget.text() if isinstance(widget, QtWidgets.QLineEdit) else item.text(1))
@@ -293,7 +297,7 @@ class JsonPropertyEditor(QtWidgets.QWidget):
 
     def _update_actions(self, *_):
         item = self.tree.currentItem()
-        path = item.data(0, QtCore.Qt.ItemDataRole.UserRole) if item else ()
+        path = item.data(0, PATH_ROLE) if item else ()
         entry = bool(path) and path[:-1] in self._lists and isinstance(path[-1], int)
         self.buttons["Add"].setEnabled(path in self._lists)
         for label in ("Duplicate", "Remove"):
@@ -307,7 +311,7 @@ class JsonPropertyEditor(QtWidgets.QWidget):
             self.status.setText("Correct invalid field values before changing a list.")
             return
         item = self.tree.currentItem()
-        path = item.data(0, QtCore.Qt.ItemDataRole.UserRole) if item else ()
+        path = item.data(0, PATH_ROLE) if item else ()
         before = self._text
         if operation == "add" and path in self._lists:
             target = self._at(path)

@@ -505,6 +505,30 @@ class TestConfigVisualizerNoPyvista:
 
 
 class TestSpatialDimensionInference:
+    def test_named_primitives_supply_2d_dimension_without_domain_or_gravity(self, tmp_path):
+        from sphinxsim.visualization.preview import ConfigVisualizer
+
+        data = _minimal_fluid_config()
+        geometries = data["geometries"]
+        geometries.pop("system_domain")
+        geometries["oriented_boxes"] = []
+        data.pop("gravity")
+        data["fluid_boundary_conditions"] = []
+        primitives = []
+        for shape in geometries["shapes"]:
+            primitive_name = shape["name"] + "Bounds"
+            primitives.append({
+                "name": primitive_name, "type": "bounding_box",
+                "lower_bound": shape.pop("lower_bound"),
+                "upper_bound": shape.pop("upper_bound"),
+            })
+            shape["primitive"] = primitive_name
+        geometries["primitives"] = primitives
+
+        config = SimulationConfig(**data)
+
+        assert ConfigVisualizer(config, tmp_path, off_screen=True)._spatial_dim() == 2
+
     def test_planar_simbody_constraint_is_inferred_as_2d(self, tmp_path):
         from sphinxsim.visualization.preview import ConfigVisualizer
 

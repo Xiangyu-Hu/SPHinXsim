@@ -44,6 +44,36 @@ delivery for large assets. Resource access rechecks published size/hash evidence
 
 Read the [native workflow guide](agent-workflows.md) for CLI examples,
 JSON contracts, execution lifecycle, quality interpretation and test boundaries.
+
+The Agent and Chatbot use this same stdio service through the official MCP SDK.
+Tool discovery includes the following authoring and analysis operations.
+
+| Operation | Input and result |
+| --- | --- |
+| `config_generate` | Generate validated native JSON into an explicit workspace file |
+| `config_update` | Update and validate a selected configuration before saving |
+| `config_propose` | Return a validated draft proposal and admission report |
+| `case_prepare` | Copy a configuration and stage its STL/data resources |
+| `set_friction_angle` | Update one plastic-continuum body using degrees |
+| `analyze_result` | Evaluate a runout or declarative analysis plan |
+| `compare_results` | Compare completed measurements with a target |
+| `results_render` | Render a PNG from verified published geometry and particles |
+
+These tools use the same snake_case names, JSON Schema input validation,
+structured object results, workspace paths, and MCP error responses as the native
+operations. `submit` and the job operations support Windows and POSIX. Generated
+case resources are copied into content-addressed files under the working project.
+Result analysis checks the job's complete reference, frozen input inventory, and
+published asset hashes before reading particle data.
+
+When launched by Workbench, its connection enables a `workbench` tool for draft
+status, revision-bound proposals, and workflow observation. Discover this tool
+from the running server. Apply and save proposals through the desktop editor.
+The Chatbot accepts `/mcp <tool> <JSON arguments>` for explicit calls, including
+with a mock provider. For example, `/mcp capabilities {}` queries the native
+inventory. Real LLM providers also select discovered tools through structured
+requests and receive the actual operation results before answering.
+
 The optional [skill](https://github.com/Xiangyu-Hu/SPHinXsim/blob/main/.github/skills/sphinxsim/SKILL.md) guides experimental decisions;
 install it through your client's supported skill mechanism. It grants no access.
 

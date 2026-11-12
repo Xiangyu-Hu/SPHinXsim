@@ -30,6 +30,7 @@ class PlannerContext(BaseModel):
 
     user_prompt: str = Field(..., min_length=1)
     tool_capabilities: list[dict[str, Any]]
+    native_mcp_tools: list[dict[str, Any]] = Field(default_factory=list)
     simulation_dimensions: list[int]
     parameters: dict[str, dict[str, Any]]
     metrics: dict[str, dict[str, Any]]
@@ -61,8 +62,10 @@ class PlannerContextBuilder:
         self.capabilities = capabilities
         self.knowledge = knowledge
         self.retrieval_limit = retrieval_limit
+        self.native_mcp_tools = None
 
     def build(self, user_prompt: str) -> PlannerContext:
+        from sphinxsim.operations import TOOLS
         cleaned = user_prompt.strip()
         if not cleaned:
             raise ValueError("user_prompt must not be empty")
@@ -74,6 +77,9 @@ class PlannerContextBuilder:
         return PlannerContext(
             user_prompt=cleaned,
             tool_capabilities=self.tool_registry.export_capabilities(),
+            native_mcp_tools=self.native_mcp_tools if self.native_mcp_tools is not None else [
+                {"name": name, "description": description, "input_schema": schema}
+                for name, (description, schema) in TOOLS.items() if name not in ("desktop", "workbench")],
             simulation_dimensions=list(self.capabilities.simulation_dimensions),
             parameters=self.capabilities.parameters,
             metrics=self.capabilities.metrics,

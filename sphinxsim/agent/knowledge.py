@@ -228,9 +228,11 @@ def build_default_knowledge_base(
             text=(
                 "Runout analysis streams ASCII VTP Position values and does not load the "
                 "complete particle file into memory. final_front is the selected final "
-                "particle x-coordinate front. runout_extension equals final_front minus "
+                "particle front projected onto the normalized analysis direction. "
+                "runout_extension equals final_front minus "
                 "initial_front. The current initial front comes from configuration "
-                "geometry. Current front methods: "
+                "bounding_box geometry with inline bounds or a named bounding_box primitive. "
+                "Current front methods: "
                 f"{runout['front_methods']}. Current initial-front sources: "
                 f"{runout['initial_front_sources']}."
             ),
@@ -256,10 +258,11 @@ def build_default_knowledge_base(
         )
     )
 
-    cli_path = Path(project_root) / "docs" / "cli-usage.md"
-    if cli_path.is_file():
-        documents.extend(_markdown_sections(cli_path, maximum_sections=20))
-    return LocalKnowledgeBase(documents, version="1.1")
+    for filename in ("cli-usage.md", "agent-workflows.md", "mcp.md"):
+        path = Path(project_root) / "docs" / filename
+        if path.is_file():
+            documents.extend(_markdown_sections(path, maximum_sections=20))
+    return LocalKnowledgeBase(documents, version="1.2")
 
 
 def _markdown_sections(path: Path, maximum_sections: int) -> list[KnowledgeDocument]:
@@ -275,10 +278,10 @@ def _markdown_sections(path: Path, maximum_sections: int) -> list[KnowledgeDocum
         body = "\n".join(lines[1:]).strip() or title
         documents.append(
             KnowledgeDocument(
-                document_id=f"docs.cli_usage.{index}",
+                document_id=f"docs.{path.stem.replace('-', '_')}.{index}",
                 title=title,
                 text=body,
-                source="docs/cli-usage.md",
+                source=f"docs/{path.name}",
                 tags=["documentation", "cli"],
             )
         )

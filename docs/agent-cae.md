@@ -1,8 +1,7 @@
 # AgentCAE
 
-AgentCAE is a durable orchestration layer built on top of the existing SPHinXsim
-`generate`, validation, and `run` commands. It does not replace the C++ solver or
-the existing shell. It plans a bounded workflow, records every candidate case and
+AgentCAE is a durable orchestration layer using the native SPHinXsim MCP stdio
+service. It discovers the running tool inventory, plans a bounded workflow, records every candidate case and
 result, pauses before solver execution when approval is enabled, analyzes VTP
 artifacts, and adjusts the next candidate until the requested tolerance is met.
 
@@ -157,23 +156,149 @@ separate workspace for independent AgentCAE deployments. The RunManager enforces
 one active solver worker per workspace, verifies process identity before stopping
 a process tree, and marks orphaned workers as interrupted for explicit resume.
 
+## Upstream configuration compatibility
+
+Agent validation, extractor planning, Workbench loading, proposals, and saves use
+the shared native admission checks in `sphinxsim.runtime.physics`. Native CLI and
+MCP operations use the same checks. Invalid or inactive material fields therefore
+produce an error at the editing or planning entry point.
+
+LLM configuration cleanup preserves named `box` and `bounding_box` primitive
+references. Initial-front analysis resolves a named `bounding_box` primitive and
+supports inline bounds. It checks reference uniqueness, primitive type, finite
+ordered bounds, and direction dimensionality. Preview also infers dimensionality
+from primitives when the domain and gravity are omitted.
+
+Use the upstream configuration locations for new or revised cases.
+
+- Set surface handling with `fluid_bodies[].surface_type`.
+- Define a container with `polygons[].inner_box`, using inline bounds or a named
+  `bounding_box` primitive.
+- Set solid refinement with
+  `particle_generation.settings.bodies[].solid_body.refinement_to_global`.
+  The shared admission check reports `adaptation_ratios` as an inactive field
+  and includes the current configuration path in its error.
+- Reference a relaxation geometry with
+  `particle_generation.settings.bodies[].relaxation.level_set.shape`.
+
+AgentCAE's RunManager owns workflow orchestration. Native MCP `project_inspect`,
+`submit`, `job_status`, `job_logs`, `job_cancel`, and `results_inspect` own solver
+execution on Windows and POSIX. Each workflow run stores the complete job
+reference in `job-reference.json`. Reopening a submitted run queries that job.
+Analysis verifies published hashes and uses the frozen configuration and saved
+particle sources. Preview rendering uses `results_render` on a published particle
+job. Each MCP attempt records its transport, reference, timing, and failure state.
+
+Configuration generation, reviewed editor proposals, case/resource preparation,
+friction edits, and result extraction use operations registered in
+`sphinxsim.operations.TOOLS`. The official MCP SDK client calls the same service
+available to external clients. The planner receives its discovered tool schemas
+alongside the calibration contracts and upstream documentation.
+
+The Chatbot discovers native tools for structured LLM tool selection. Real
+providers can inspect capabilities, author configurations, generate CAD, submit
+jobs, and inspect results from the conversation. An explicit command such as
+`/mcp capabilities {}` also works with the mock provider. Embedded editor changes
+use `workbench` and `config_propose`, followed by the existing proposal review.
+
 ## Acceptance tests
 
-Fast product and regression tests, excluding opt-in external/real-solver suites:
+Run these commands from the repository root in the existing project Python
+environment. Each stage checks a different part of the Agent workflow.
+
+### Static review
 
 ```powershell
-python -m pytest -q -m "not integration"
+git diff --check
+git diff --stat
+git diff
 ```
 
-Real C++ calibration is opt-in because it performs several simulations:
+### Configuration and analysis regression tests
+
+These tests exercise Python configuration admission, primitive preservation,
+initial-front extraction, planner context, and Workbench document validation.
 
 ```powershell
+$env:SPHINXSIM_LLM_PROVIDER = "mock"
+python -m pytest -q tests/runtime/test_configuration.py tests/test_llm.py tests/test_runout_analyzer.py tests/test_extractor_planner.py tests/test_local_knowledge.py tests/test_planner_context.py tests/test_workbench.py -m "not integration"
+python -m pytest -q tests/test_visualization.py -k "TestSpatialDimensionInference"
+python -m sphinxsim capabilities --json
+python -m sphinxsim validate tests/test_simulation/test_2d_simulation/data/column_collapse.json
+```
+
+All selected tests should pass. The configuration tests check equivalent
+admission through CLI, MCP operations, and compilation, preserve the source file,
+and exercise refinement and named Level Set dictionaries. Runout tests compare
+inline and primitive-based initial fronts in 2D and 3D with both direction signs.
+
+### Deterministic Agent workflow tests
+
+The deterministic adapter supplies particle artifacts for the complete
+plan/approve/execute/analyze/report cycle. Lifecycle tests also exercise the real
+CLI and persisted state with the mock LLM provider.
+
+```powershell
+python -m pytest -q tests/runtime/test_agent_tools.py tests/test_mcp_tool_conversation.py tests/test_mock_vertical_workflow.py tests/test_deterministic_calibration_workflow.py tests/test_agent_cae_product_acceptance.py tests/test_agent_cli.py
+```
+
+The vertical acceptance test checks four completed candidates, persisted reports,
+and convergence. Product acceptance also checks reopening workflows in another
+facade and controlled failures for unavailable artifacts.
+
+### Real solver acceptance
+
+Use an environment with the project's existing 2D native extension. This test
+executes several C++ simulations with a mock LLM provider.
+
+```powershell
+$env:SPHINXSIM_LLM_PROVIDER = "mock"
 $env:SPHINXSIM_RUN_REAL_CALIBRATION = "1"
 python -m pytest tests/test_real_calibration_workflow.py -q -k mock_llm
+Remove-Item Env:SPHINXSIM_RUN_REAL_CALIBRATION
 ```
 
-The real acceptance criterion is convergence to `0.2 m` with an absolute runout
-extension error no greater than `0.005 m` within eight unique candidates.
+The acceptance criterion is convergence to `0.2 m` with an absolute runout
+extension error at most `0.005 m` within eight unique candidates.
+
+### Manual lifecycle and desktop checks
+
+Use the existing native extension and visualization dependencies for visual
+preflight and solver execution. The `mock` setting supplies LLM responses while
+the approved workflow runs the native simulator.
+
+```powershell
+$env:SPHINXSIM_LLM_PROVIDER = "mock"
+$agentWorkspace = ".build-temp/agent-upstream-validation"
+$agentWorkflowId = "upstream_" + (Get-Date -Format "yyyyMMdd_HHmmss")
+python -m sphinxsim agent --workspace $agentWorkspace start "Calibrate a 2D column-collapse runout extension to 0.2 m." --workflow-id $agentWorkflowId --json
+python -m sphinxsim agent --workspace $agentWorkspace status $agentWorkflowId --json
+python -m sphinxsim agent --workspace $agentWorkspace approve $agentWorkflowId --background --json
+python -m sphinxsim agent --workspace $agentWorkspace execution $agentWorkflowId
+python -m sphinxsim agent --workspace $agentWorkspace events $agentWorkflowId
+python -m sphinxsim agent --workspace $agentWorkspace status $agentWorkflowId --json
+python -m sphinxsim agent --workspace $agentWorkspace report $agentWorkflowId --json
+```
+
+Before approval, expect `awaiting_approval` to be true and `case_prepared` to be
+false. After the worker finishes, expect status `converged`,
+`best_absolute_error <= 0.005` in status, and
+`best_result.absolute_error <= 0.005` in the report. Inspect each attempt's
+`stdout.log`, `stderr.log`, and `attempt.json` under
+`execution/<workflow-id>/attempts/` if a command fails. Open another terminal with
+the same workspace and workflow ID to check persisted status. `cancel` requests
+termination, and `resume` continues an interrupted running workflow.
+
+Open `python -m sphinxsim workbench` to check the JSON editor, reviewed LLM
+proposals, explicit save, Preview, and Agent chat. Preview should select the 2D
+binding for a case whose dimensions are defined only through named primitives.
+The optional desktop test exercises the real Qt/chat/preview/solver flow.
+
+```powershell
+$env:SPHINXSIM_RUN_WORKBENCH_DESKTOP = "1"
+python -m pytest tests/test_workbench.py -q -k real_workbench_desktop
+Remove-Item Env:SPHINXSIM_RUN_WORKBENCH_DESKTOP
+```
 
 ## Current scope
 

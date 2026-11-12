@@ -100,6 +100,17 @@ def test_context_is_derived_from_validated_case() -> None:
     assert context.body_names == ["GranularBody", "WallBoundary"]
 
 
+def test_context_rejects_fields_ignored_by_the_native_material_builder(tmp_path):
+    source = Path(__file__).parent / "test_simulation/test_2d_simulation/data/column_collapse.json"
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    payload["solid_bodies"][0]["material"]["youngs_modulus"] = 1000
+    path = tmp_path / "case.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Fields not consumed"):
+        ExtractorPlanningContext.from_case(path)
+
+
 def test_nvidia_client_parses_structured_json_without_live_network(monkeypatch) -> None:
     client = NvidiaExtractorPlannerClient(api_key="test-key")
     monkeypatch.setattr(

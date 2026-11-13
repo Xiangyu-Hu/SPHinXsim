@@ -36,18 +36,27 @@ Invoke this skill when:
 
 ## Architecture
 
-The CLI layer should be organized around responsibility, not by keeping everything in a single file.
+The CLI layer is organized by responsibility, and some larger features are split into dedicated modules.
 
-Recommended split:
+Current structure:
 - `main.py` — top-level entrypoint, `main()`, parser setup, command flow
-- `parser.py` — argument registration and parser factory functions
-- `structured.py` — structured command registration/execution
-- `preview.py` — preview runtime and window behaviors
-- `interactive.py` — shell input, completion, REPL-style command handling
-- `config_io.py` — file loading and validation helpers used by CLI commands
+- `preview_runtime.py` — persistent preview runtime and live-particle lifecycle
+- `json_editor.py` — Qt-backed JSON property editor for preview config editing
+- `common.py` — shared config I/O and diff helpers used by CLI commands
+- `generate.py`, `update.py`, `validate.py`, `run.py`, `explore.py`, `shell.py`, `preview.py` — command-specific implementations
 
-Keep the public import surface stable through package-level re-exports so imports such as
-`from sphinxsim.cli import main` continue to work during the migration.
+The `sphinxsim/cli/__init__.py` package root keeps a compatibility export surface for legacy imports such as
+`from sphinxsim.cli import _new_json_editor_list_item` or `from sphinxsim.cli import main` while implementation is allowed to move into dedicated modules.
+
+## Editor extraction guidance
+
+When moving editor logic out of `preview_runtime.py`:
+- keep the runtime-facing API stable (`_json_editor` dictionary shape and `refresh` callback behavior)
+- move widgets, state management, and save/validate logic into a dedicated module such as `sphinxsim/cli/json_editor.py`
+- update the preview runtime to delegate to the extracted editor builder
+- preserve old import names if tests or callers still reference them from `sphinxsim.cli`
+
+This especially matters for the JSON property editor because it is UI-heavy and highly coupled to preview logic; isolating it makes the code easier to test without altering the shell preview lifecycle.
 
 ## Key conventions
 
@@ -73,22 +82,23 @@ Keep the public import surface stable through package-level re-exports so import
 
 ## Validation
 
-After a CLI refactor, verify with:
+After a CLI refactor, verify with the project’s configured environment, typically the repo venv:
 
 ```bash
-python3 -m pytest tests/test_cli.py -q
+. .venv/bin/activate
+pytest -q
 python3 -m sphinxsim --help
 python3 -m sphinxsim validate --help
 ```
 
-These checks confirm the package import path, the console entrypoint, and the CLI parser still behave correctly.
+These checks confirm the package import path, the console entrypoint, and the CLI parser still behave correctly. For this project, the repo-local `.venv` is the authoritative runtime for validation.
 
 ## Refactor checklist
 
 When splitting the CLI:
-1. Create the package directory under `sphinxsim/cli/`.
-2. Move the implementation into focused modules.
-3. Add package-level re-exports in `sphinxsim/cli/__init__.py`.
-4. Keep a stable `main()` entrypoint.
-5. Update any direct script references if needed.
-6. Run the CLI-focused tests.
+1. Create or update the focused module under `sphinxsim/cli/`.
+2. Move the implementation into the right responsibility boundary without changing runtime internals.
+3. Add or preserve package-level re-exports in `sphinxsim/cli/__init__.py` for compatibility.
+4. Keep the runtime-facing preview/editor contract stable if external code relies on `_json_editor`.
+5. Keep `main()` and command dispatch working as the public entrypoint.
+6. Run the repo test suite in `.venv` before claiming the refactor is safe.

@@ -22,6 +22,7 @@ for _module_name in (
     ".shell",
     ".preview",
     ".preview_runtime",
+    ".json_editor",
     ".main",
 ):
     _module = import_module(_module_name, __name__)

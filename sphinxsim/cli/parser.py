@@ -17,12 +17,12 @@ from .validate import cmd_validate
 
 
 COMPLETION_SCRIPTS = {
-    "bash": """_sphinxsim() {
+    "bash": """_sphinxsim_completion() {
     local cur prevwords cword
     _init_completion || return
     COMPREPLY=( $(COMP_WORDS[0] --generate-completion bash 2>/dev/null) )
 }
-complete -F _sphinxsim sphinxsim
+complete -F _sphinxsim_completion sphinxsim
 """,
     "zsh": """#compdef sphinxsim
 

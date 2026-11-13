@@ -7,7 +7,17 @@ import json
 import sys
 
 from sphinxsim.config.schemas import SimulationConfig
-from sphinxsim.llm import get_llm
+from sphinxsim.llm import get_llm as _default_get_llm
+
+
+def _resolve_get_llm():
+    """Return the package-level factory when tests patch sphinxsim.cli.get_llm."""
+    try:
+        import sphinxsim.cli as cli_pkg
+    except Exception:
+        return _default_get_llm
+    candidate = getattr(cli_pkg, "get_llm", None)
+    return candidate if callable(candidate) else _default_get_llm
 
 
 def _schema_explore_context() -> str:
@@ -34,7 +44,7 @@ def cmd_explore(args: argparse.Namespace) -> int:
         print("question must not be empty", file=sys.stderr)
         return 1
 
-    llm = get_llm()
+    llm = _resolve_get_llm()()
     if not hasattr(llm, "explore"):
         print(
             "The selected LLM provider does not support schema exploration.",

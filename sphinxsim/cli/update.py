@@ -10,9 +10,19 @@ from pydantic import ValidationError
 
 from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.config.update_patch import UpdatePatch, apply_update_patch
-from sphinxsim.llm import get_llm
+from sphinxsim.llm import get_llm as _default_get_llm
 
 from .common import _collect_change_lines, _load_config
+
+
+def _resolve_get_llm():
+    """Return the package-level LLM factory when callers monkeypatch the CLI root."""
+    try:
+        import sphinxsim.cli as cli_pkg
+    except Exception:
+        return _default_get_llm
+    candidate = getattr(cli_pkg, "get_llm", None)
+    return candidate if callable(candidate) else _default_get_llm
 
 
 def _print_update_summary(before_cfg: SimulationConfig, after_cfg: SimulationConfig) -> None:
@@ -38,7 +48,7 @@ def cmd_update(args: argparse.Namespace) -> int:
         return rc
     assert config is not None
 
-    llm = get_llm()
+    llm = _resolve_get_llm()()
     try:
         if not hasattr(llm, "update"):
             print(

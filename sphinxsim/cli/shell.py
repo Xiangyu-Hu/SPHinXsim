@@ -417,6 +417,10 @@ def cmd_shell(args: argparse.Namespace) -> int:
             _ = preview_runtime.continue_to_run(refresh_interval)
             continue
 
+        if cmd == "replay":
+            _ = preview_runtime.replay_animation()
+            continue
+
         if cmd == "run":
             with_animation = len(parts) == 2 and parts[1] == "--with-animation"
             if len(parts) > 1 and not with_animation:

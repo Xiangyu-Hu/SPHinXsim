@@ -8,10 +8,20 @@ import sys
 import tempfile
 from pathlib import Path
 
-from sphinxsim.bindings.loader import load_sphinxsys_core_nd
+from sphinxsim.bindings.loader import load_sphinxsys_core_nd as _default_load_sphinxsys_core_nd
 from sphinxsim.config.schemas import SimulationConfig
 
 from .common import PROJECT_ROOT, _load_config
+
+
+def _resolve_load_sphinxsys_core_nd():
+    """Return the package-level native loader if tests monkeypatch the CLI root."""
+    try:
+        import sphinxsim.cli as cli_pkg
+    except Exception:
+        return _default_load_sphinxsys_core_nd
+    candidate = getattr(cli_pkg, "load_sphinxsys_core_nd", None)
+    return candidate if callable(candidate) else _default_load_sphinxsys_core_nd
 
 
 def _config_spatial_dim(config: SimulationConfig) -> int:
@@ -60,7 +70,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     ndim = _config_spatial_dim(config)
     try:
-        sph = load_sphinxsys_core_nd(ndim)
+        sph = _resolve_load_sphinxsys_core_nd()(ndim)
     except ImportError:
         print(f"❌ {ndim}D C++ extension not available", file=sys.stderr)
         print("\n🔧 Please build the C++ extension:", file=sys.stderr)

@@ -25,7 +25,7 @@ MATERIAL_FIELDS = {
     "composite_solid": "density poisson_ratio youngs_modulus_active youngs_modulus_1 youngs_modulus_2 material_id_regions active_strain",
 }
 SHAPE_FIELDS = {
-    "box": "primitive half_size transform", "bounding_box": "lower_bound upper_bound",
+    "box": "primitive half_size transform", "bounding_box": "primitive lower_bound upper_bound",
     "expanded_box": "original expansion", "extrude_shape": "original thickness",
     "complex_shape": "sub_shapes operations", "multipolygon": "polygons",
     "cylinder": "radius half_height transform", "triangle_mesh": "file_name translation scale",
@@ -49,8 +49,11 @@ def reject_inactive_fields(payload):
     geometries = payload.get("geometries", {})
     for index, shape in enumerate(geometries.get("shapes", [])):
         fields = {"name", "type", *SHAPE_FIELDS.get(shape.get("type"), "").split()}
-        if shape.get("primitive") and shape.get("type") == "box":
-            fields -= {"half_size", "transform"}
+        if shape.get("primitive"):
+            if shape.get("type") == "box":
+                fields -= {"half_size", "transform"}
+            elif shape.get("type") == "bounding_box":
+                fields -= {"lower_bound", "upper_bound"}
         admit(shape, fields, f"geometries.shapes[{index}]")
     for index, box in enumerate(geometries.get("oriented_boxes", [])):
         fields = "center normal radius surface_half_size" if box.get("type") == "boundary" else "primitive" if box.get("primitive") else "half_size transform"
@@ -203,7 +206,7 @@ def check_config(payload):
     spacing = normalized["geometries"]["global_resolution"].get("particle_spacing")
     if spacing:
         for shape in normalized["geometries"]["shapes"]:
-            if shape.get("type") == "bounding_box":
+            if shape.get("type") == "bounding_box" and "lower_bound" in shape:
                 lengths = [b-a for a, b in zip(shape["lower_bound"], shape["upper_bound"])]
                 if min(lengths) < 3 * spacing:
                     notes.append({"code": "thin_geometry", "severity": "warning", "body": shape["name"],

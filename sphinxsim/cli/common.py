@@ -33,12 +33,13 @@ PROJECT_ROOT = Path(_find_project_root())
 __version__ = "0.1.0"
 
 
-def _load_config(path: Path) -> Tuple[SimulationConfig | None, int]:
+def _load_config(path: str | Path) -> Tuple[SimulationConfig | None, int]:
     """Load and validate a SimulationConfig from *path*.
 
     Returns ``(config, 0)`` on success or ``(None, 1)`` after printing an
     error message to stderr.
     """
+    path = Path(path)
     if not path.is_absolute():
         cwd_path = Path.cwd() / path
         build_temp_path = PROJECT_ROOT / ".build-temp" / path

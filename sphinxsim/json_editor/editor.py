@@ -11,7 +11,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from sphinxsim.config.schemas import SimulationConfig
-from sphinxsim.json_format import (
+from sphinxsim.json_editor.json_format import (
     find_prettier_options,
     format_json,
     load_json_preserving_floats,

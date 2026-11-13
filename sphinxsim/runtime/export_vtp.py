@@ -310,9 +310,9 @@ class Exporter:
         self.serial += 1
         manifest = {"version":2,"revision":self.serial,"config_revision":self.revision,"phase":phase,"primary_body":self.primary,"dimension":self.dimension,"geometry":self.geometry,"bodies":self.bodies,"fields":self.fields,"bounds":[self.low.tolist(),self.high.tolist()],"units":"m, s, kg, Pa","completed":completed,"requested_end_time":self.config.get("solver_parameters", {}).get("end_time"),"last_frame_time":self.bodies.get(self.primary,[{"time":0}])[-1]["time"],"decimated":False,"interpolated":False,"gravity":self.config.get("gravity")}
         manifest["body_metadata"] = {}
-        for key,role,zh,en in (("fluid_bodies","fluid","流体","Fluid"),("continuum_bodies","continuum","颗粒材料","Granular material"),("solid_bodies","solid","壁面","Walls")):
+        for key,role,label in (("fluid_bodies","fluid","Fluid"),("continuum_bodies","continuum","Granular material"),("solid_bodies","solid","Walls")):
             for body in self.config.get(key,[]):
-                manifest["body_metadata"][body["name"]] = {"role":role,"label":{"zh":zh,"en":en}}
+                manifest["body_metadata"][body["name"]] = {"role":role,"label":{"zh":label,"en":label}}
         manifest["field_metadata"] = {name: field_metadata(name) for name in self.fields}
         report = self.quality.report(completed)
         raw = json.dumps(report, allow_nan=False, sort_keys=True).encode()
@@ -340,19 +340,18 @@ class Exporter:
 
 def field_metadata(name):
     known = {
-        "Speed": ("速度", "Speed", "m/s"), "Pressure": ("压力", "Pressure", "Pa"),
-        "Density": ("密度", "Density", "kg/m³"), "ReferenceDensity": ("参考密度", "Reference density", "kg/m³"),
-        "Temperature": ("温度", "Temperature", "K"), "Compression": ("压缩比", "Compression", ""),
-        "VerticalStress": ("竖向应力", "Vertical stress", "Pa"),
-        "AccDeviatoricPlasticStrain": ("累计偏塑性应变", "Accumulated deviatoric plastic strain", ""),
+        "Speed": ("Speed", "m/s"), "Pressure": ("Pressure", "Pa"),
+        "Density": ("Density", "kg/m³"), "ReferenceDensity": ("Reference density", "kg/m³"),
+        "Temperature": ("Temperature", "K"), "Compression": ("Compression", ""),
+        "VerticalStress": ("Vertical stress", "Pa"),
+        "AccDeviatoricPlasticStrain": ("Accumulated deviatoric plastic strain", ""),
     }
     if name in known:
-        zh,en,unit = known[name]
+        label,unit = known[name]
     elif "MassFraction" in name or name.startswith("VolumeFraction"):
         mass = "MassFraction" in name
         species = name.split("MassFraction" if mass else "VolumeFraction",1)[1]
-        zh_species = {"Water":"水","Oil":"油","SpeciesA":"组分 A","SpeciesB":"组分 B","MultiSpeciesPhase":"混合组分相"}.get(species,species)
-        zh,en,unit = zh_species + ("质量分数" if mass else "体积分数"), species + (" mass fraction" if mass else " volume fraction"), ""
+        label,unit = species + (" mass fraction" if mass else " volume fraction"), ""
     else:
-        zh,en,unit = name,name,""
-    return {"label":{"zh":zh,"en":en},"unit":unit}
+        label,unit = name,""
+    return {"label":{"zh":label,"en":label},"unit":unit}

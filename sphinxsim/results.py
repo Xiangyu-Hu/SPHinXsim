@@ -356,5 +356,3 @@ class VTPPositionReader:
         if magnitude == 0.0:
             raise AnalysisError("projection direction must not be zero")
         return tuple(value / magnitude for value in values)
-
-

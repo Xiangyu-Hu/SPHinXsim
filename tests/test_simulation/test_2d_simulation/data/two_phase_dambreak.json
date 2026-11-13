@@ -100,7 +100,7 @@
         "type": "weakly_compressible_fluid",
         "density": 1.0,
         "viscosity": {
-          "reynolds_number": 1000.0
+          "Reynolds_number": 1000.0
         }
       }
     },
@@ -111,7 +111,7 @@
         "type": "weakly_compressible_fluid",
         "density": 0.001,
         "viscosity": {
-          "reynolds_number": 100000.0
+          "Reynolds_number": 100000.0
         }
       }
     }

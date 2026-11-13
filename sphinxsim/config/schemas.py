@@ -98,6 +98,7 @@ class FluidBoundaryConditionType(str, Enum):
     EMITTER = "emitter"
     BI_DIRECTIONAL = "bi_directional"
     FREE_STREAM = "free_stream"
+    DISPOSER = "disposer"
     WALL_BOUNDING = "wall_bounding"
 
 

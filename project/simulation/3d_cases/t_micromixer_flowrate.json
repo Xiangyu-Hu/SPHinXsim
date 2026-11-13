@@ -1,0 +1,208 @@
+{
+  "characteristic_dimensions": [
+    {
+      "value": 0.00025,
+      "name": "Length",
+      "hint": "geometries.oriented_boxes[name=LeftInlet].radius"
+    },
+    {
+      "value": 1000.0,
+      "name": "Density",
+      "hint": "fluid_bodies[name=WaterBlock].material.density"
+    },
+    {
+      "value": 2.0e-8,
+      "name": "VolumetricFlowRate",
+      "hint": "fluid_boundary_conditions[oriented_box=LeftInlet].inflow_rate"
+    }
+  ],
+
+  "simulation_type": "fluid_dynamics",
+
+  "geometries": {
+    "global_resolution": { "characteristic_length_particles": 5 },
+    "shapes": [
+      {
+        "name": "WaterBlock",
+        "type": "triangle_mesh",
+        "file_name": "t_micromixer_flowrate_fluid.STL",
+        "scale": 0.001
+      },
+      {
+        "name": "FluidExtruded",
+        "type": "extrude_shape",
+        "original": "WaterBlock",
+        "thickness": "boundary"
+      },
+      {
+        "name": "LeftPort",
+        "type": "box",
+        "half_size": [0.0006, 0.00025, 0.0006],
+        "transform": {
+          "translation": [0.0, -0.00525, 0.0],
+          "rotation_angle": 0.0,
+          "rotation_axis": [0.0, 0.0, 1.0]
+        }
+      },
+      {
+        "name": "RightPort",
+        "type": "box",
+        "half_size": [0.0006, 0.00025, 0.0006],
+        "transform": {
+          "translation": [0.0, 0.00525, 0.0],
+          "rotation_angle": 0.0,
+          "rotation_axis": [0.0, 0.0, 1.0]
+        }
+      },
+      {
+        "name": "OutPort",
+        "type": "box",
+        "half_size": [0.00025, 0.0006, 0.0006],
+        "transform": {
+          "translation": [0.00775, 0.0, 0.0],
+          "rotation_angle": 0.0,
+          "rotation_axis": [0.0, 0.0, 1.0]
+        }
+      },
+      {
+        "name": "WallBoundary",
+        "type": "complex_shape",
+        "sub_shapes": ["FluidExtruded", "WaterBlock", "LeftPort", "RightPort", "OutPort"],
+        "operations": ["union", "subtraction", "subtraction", "subtraction", "subtraction"]
+      }
+    ],
+    "oriented_boxes": [
+      {
+        "name": "LeftInlet",
+        "type": "boundary",
+        "center": [0.0, -0.005, 0.0],
+        "normal": [0.0, 1.0, 0.0],
+        "radius": 0.00025
+      },
+      {
+        "name": "RightInlet",
+        "type": "boundary",
+        "center": [0.0, 0.005, 0.0],
+        "normal": [0.0, -1.0, 0.0],
+        "radius": 0.00025
+      },
+      {
+        "name": "Outlet",
+        "type": "boundary",
+        "center": [0.0075, 0.0, 0.0],
+        "normal": [-1.0, 0.0, 0.0],
+        "radius": 0.00025
+      }
+    ]
+  },
+
+  "particle_generation": {
+    "build_and_run": true,
+    "settings": {
+      "bodies": [
+        {
+          "name": "WaterBlock",
+          "relaxation": { "dependent_bodies": ["WallBoundary"] }
+        },
+        {
+          "name": "WallBoundary",
+          "relaxation": { "level_set": {} },
+          "solid_body": {}
+        }
+      ],
+      "relaxation_constraints": [
+        {
+          "body_name": "WaterBlock",
+          "oriented_box": "LeftInlet",
+          "type": "normal"
+        },
+        {
+          "body_name": "WaterBlock",
+          "oriented_box": "RightInlet",
+          "type": "normal"
+        },
+        {
+          "body_name": "WaterBlock",
+          "oriented_box": "Outlet",
+          "type": "normal"
+        }
+      ],
+      "relaxation_parameters": {
+        "total_iterations": 1000
+      }
+    }
+  },
+
+  "fluid_bodies": [
+    {
+      "name": "WaterBlock",
+      "material": {
+        "type": "weakly_compressible_fluid",
+        "density": 1000.0,
+        "viscosity": 0.001
+      },
+      "surface_type": "open_boundary",
+      "particle_reserve_factor": 1.0
+    }
+  ],
+
+  "solid_bodies": [
+    {
+      "name": "WallBoundary",
+      "material": {
+        "type": "rigid_body"
+      }
+    }
+  ],
+
+  "fluid_boundary_conditions": [
+    {
+      "body_name": "WaterBlock",
+      "oriented_box": "LeftInlet",
+      "type": "bi_directional",
+      "inflow_rate": 2.0e-8,
+      "inflow_area": 1.9634954084936206e-07,
+      "record_flow_rate": true
+    },
+    {
+      "body_name": "WaterBlock",
+      "oriented_box": "RightInlet",
+      "type": "bi_directional",
+      "inflow_rate": 2.0e-8,
+      "inflow_area": 1.9634954084936206e-07,
+      "record_flow_rate": true
+    },
+    {
+      "body_name": "WaterBlock",
+      "oriented_box": "Outlet",
+      "type": "bi_directional",
+      "pressure": 0.0
+    }
+  ],
+
+  "extra_state_recording": [
+    {
+      "name": "WaterBlock",
+      "variables": [
+        {
+          "real_type": ["Pressure", "Density", "VolumetricMeasure"],
+          "int_type": ["Indicator", "BufferIndicator"],
+          "vector_type": ["Velocity"]
+        }
+      ]
+    }
+  ],
+
+  "solver_parameters": {
+    "end_time": 0.35,
+    "output_interval": 0.005,
+    "observation_interval": 20,
+    "screen_interval": 100,
+    "fluid_dynamics": {
+      "acoustic_cfl": 0.6,
+      "advection_cfl": 0.25,
+      "max_velocity_factor": 1.5,
+      "particle_sort_frequency": 100
+    }
+  }
+}

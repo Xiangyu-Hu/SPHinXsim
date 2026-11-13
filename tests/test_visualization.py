@@ -505,6 +505,30 @@ class TestConfigVisualizerNoPyvista:
 
 
 class TestSpatialDimensionInference:
+    def test_named_primitives_supply_2d_dimension_without_domain_or_gravity(self, tmp_path):
+        from sphinxsim.visualization.preview import ConfigVisualizer
+
+        data = _minimal_fluid_config()
+        geometries = data["geometries"]
+        geometries.pop("system_domain")
+        geometries["oriented_boxes"] = []
+        data.pop("gravity")
+        data["fluid_boundary_conditions"] = []
+        primitives = []
+        for shape in geometries["shapes"]:
+            primitive_name = shape["name"] + "Bounds"
+            primitives.append({
+                "name": primitive_name, "type": "bounding_box",
+                "lower_bound": shape.pop("lower_bound"),
+                "upper_bound": shape.pop("upper_bound"),
+            })
+            shape["primitive"] = primitive_name
+        geometries["primitives"] = primitives
+
+        config = SimulationConfig(**data)
+
+        assert ConfigVisualizer(config, tmp_path, off_screen=True)._spatial_dim() == 2
+
     def test_planar_simbody_constraint_is_inferred_as_2d(self, tmp_path):
         from sphinxsim.visualization.preview import ConfigVisualizer
 
@@ -655,12 +679,17 @@ class TestPreviewGeneratedParticles:
         vtp_dir = tmp_path / "output"
         vtp_dir.mkdir(parents=True)
 
-        # WaterBody: keep step 10, WallBoundary: keep step 2.
-        (vtp_dir / "WaterBody_0000.vtp").write_text("a")
-        (vtp_dir / "WaterBody_0010.vtp").write_text("b")
-        (vtp_dir / "WaterBody_ite_0012.vtp").write_text("b2")
-        (vtp_dir / "WallBoundary_0002.vtp").write_text("c")
-        (vtp_dir / "WallBoundary_0001.vtp").write_text("d")
+        # Runtime states use actual TimeValue; particle-generation iterations do not win.
+        def state(name, time):
+            (vtp_dir / name).write_text(
+                f'<VTKFile><PolyData><FieldData><DataArray Name="TimeValue">{time}</DataArray>'
+                '</FieldData></PolyData></VTKFile>'
+            )
+        state("WaterBody_0000.vtp", 0)
+        state("WaterBody_0010.vtp", 10)
+        state("WaterBody_ite_0012.vtp", 12)
+        state("WallBoundary_0002.vtp", 2)
+        state("WallBoundary_0001.vtp", 1)
 
         # Should be ignored (not body state particle files).
         (vtp_dir / "ShapeWaterBody.vtp").write_text("shape")
@@ -668,7 +697,7 @@ class TestPreviewGeneratedParticles:
 
         latest = viz._discover_latest_particle_vtps(vtp_dir)
 
-        assert latest["WaterBody"].name == "WaterBody_ite_0012.vtp"
+        assert latest["WaterBody"].name == "WaterBody_0010.vtp"
         assert latest["WallBoundary"].name == "WallBoundary_0002.vtp"
         assert "particle_generation" not in latest
 

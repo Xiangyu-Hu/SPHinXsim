@@ -40,6 +40,34 @@ TOOLS = {
     "job_continue": ("Continue the same frozen particle instance within its lease, idempotently.", schema({"reference": REFERENCE}, ["reference"])),
     "job_cancel": ("Explicitly cancel this calculation; disconnecting does not cancel it.", schema({"reference": REFERENCE}, ["reference"])),
     "results_inspect": ("Verify published hashes and report saved-output quality limits.", schema({"reference": REFERENCE}, ["reference"])),
+    "config_generate": ("Generate and validate native configuration from an explicit description, then save it to the selected workspace file.", schema({
+        "description": {"type": "string", "minLength": 1, "maxLength": 16000}, "output": PATH,
+        "provider": {"enum": ["mock", "ollama", "openai", "nvidia_nim"]}}, ["description", "output"])),
+    "config_update": ("Update an explicitly selected native configuration and validate the result before saving.", schema({
+        "config_file": PATH, "description": {"type": "string", "minLength": 1, "maxLength": 16000}, "output": PATH,
+        "provider": {"enum": ["mock", "ollama", "openai", "nvidia_nim"]}}, ["config_file", "description", "output"])),
+    "config_propose": ("Return a validated configuration proposal for an explicit draft and instruction.", schema({
+        "configuration": OBJECT, "description": {"type": "string", "minLength": 1, "maxLength": 16000},
+        "provider": {"enum": ["mock", "ollama", "openai", "nvidia_nim"]}}, ["configuration", "description"])),
+    "case_prepare": ("Copy a selected configuration and its referenced STL/data assets into an explicit working project.", schema({
+        "config_file": PATH, "output": PATH}, ["config_file", "output"])),
+    "set_friction_angle": ("Set one plastic-continuum body's friction angle in degrees and validate the updated native configuration.", schema({
+        "config_file": PATH, "body_name": {"type": "string", "minLength": 1},
+        "friction_angle_degrees": {"type": "number", "minimum": 0, "exclusiveMaximum": 90}},
+        ["config_file", "body_name", "friction_angle_degrees"])),
+    "analyze_result": ("Evaluate a declared runout or declarative analysis on explicit saved solver output.", schema({
+        "config_file": PATH, "output_dir": PATH, "analysis_plan": OBJECT}, ["config_file", "output_dir", "analysis_plan"])),
+    "compare_results": ("Compare completed runout measurements with an explicit target.", schema({
+        "sweep_id": {"type": "string", "minLength": 1}, "target_value": {"type": "number"},
+        "samples": {"type": "array", "minItems": 1, "maxItems": 128, "items": schema({
+            "friction_angle_degrees": {"type": "number", "minimum": 0, "exclusiveMaximum": 90},
+            "run_id": {"type": "string"}, "analysis_id": {"type": "string"}, "metrics": OBJECT},
+            ["friction_angle_degrees", "run_id", "analysis_id", "metrics"])}}, ["sweep_id", "target_value", "samples"])),
+    "results_render": ("Render a PNG from verified published geometry and particle frames of an explicit job.", schema({
+        "reference": REFERENCE, "output": PATH}, ["reference", "output"])),
+    "workbench": ("Inspect the connected Workbench draft, propose a revision-bound edit, or observe an explicit workflow.", schema({
+        "operation": {"enum": ["status", "propose", "observe"]}, "revision": {"type": "string"},
+        "configuration": OBJECT, "instruction": {"type": "string"}, "workflow_id": {"type": "string"}}, ["operation"])),
     "desktop": ("Operate the explicitly enabled native application using an observed instance and version. No remote input driver is included.", schema({
         "operation": {"enum": ["status", "apply", "save", "preview", "particles", "continue", "cancel", "result", "edit", "screenshot", "stop"]},
         "instance_id": {"type": "string"}, "version": {"type": "integer", "minimum": 0},
@@ -52,6 +80,7 @@ class Operations:
     def __init__(self, root, *, desktop_reference=None):
         self.root = Path(root).expanduser().resolve(strict=True)
         self.desktop_reference = desktop_reference
+        self.workbench_enabled = bool(os.getenv("SPHINXSIM_WORKBENCH_URL") and os.getenv("SPHINXSIM_WORKBENCH_TOKEN"))
 
     @property
     def jobs(self):
@@ -71,7 +100,7 @@ class Operations:
             if not arguments.get("include_schema"):
                 result.pop("schema", None)
             return {**result, "modeling": recipe_contract(), "execution": {
-                "detached_local_jobs": os.name == "posix", "max_active_jobs": 4,
+                "detached_local_jobs": os.name in ("posix", "nt"), "max_active_jobs": 4,
                 "resource_limits": "The process owner supplies CPU/memory/GPU isolation"},
                 "desktop": {"enabled": self.desktop_reference is not None, "computer_use": "external provider"}}
         if name == "compile":
@@ -103,6 +132,22 @@ class Operations:
                 raise ValueError("Desktop access was not enabled by the process owner")
             from .desktop.client import request
             return request(self.desktop_reference, arguments)
+        if name == "workbench":
+            if not self.workbench_enabled:
+                raise ValueError("Workbench access was not enabled by the process owner")
+            from sphinxsim.ui.workbench.bridge import WorkbenchClient
+            client = WorkbenchClient.from_environment()
+            operation = arguments["operation"]
+            if operation == "status":
+                return client.state()
+            if operation == "propose":
+                return client.request("/proposal", {"revision": arguments["revision"],
+                    "payload": arguments["configuration"], "instruction": arguments["instruction"]})
+            return client.observe(arguments["workflow_id"])
+        if name in ("config_generate", "config_update", "config_propose", "case_prepare", "set_friction_angle",
+                    "analyze_result", "compare_results", "results_render"):
+            from .runtime.agent_tools import call
+            return call(self, name, arguments)
         methods = {"job_status": self.jobs.status, "job_logs": self.jobs.logs,
                    "job_continue": self.jobs.continue_job, "job_cancel": self.jobs.cancel,
                    "results_inspect": self.jobs.results}

@@ -25,7 +25,7 @@ MATERIAL_FIELDS = {
     "composite_solid": "density poisson_ratio youngs_modulus_active youngs_modulus_1 youngs_modulus_2 material_id_regions active_strain",
 }
 SHAPE_FIELDS = {
-    "box": "primitive half_size transform", "bounding_box": "lower_bound upper_bound",
+    "box": "primitive half_size transform", "bounding_box": "primitive lower_bound upper_bound",
     "expanded_box": "original expansion", "extrude_shape": "original thickness",
     "complex_shape": "sub_shapes operations", "multipolygon": "polygons",
     "cylinder": "radius half_height transform", "triangle_mesh": "file_name translation scale",
@@ -41,11 +41,28 @@ def reject_inactive_fields(payload):
 
     for group in ("fluid_bodies", "continuum_bodies", "solid_bodies"):
         for index, body in enumerate(payload.get(group, [])):
+            if body.get("adaptation_ratios") is not None:
+                raise ValueError(
+                    f"{group}[{index}].adaptation_ratios is not consumed by the native builder; "
+                    "set particle_generation.settings.bodies[].solid_body.refinement_to_global for solid refinement"
+                )
             item = body.get("material", {})
             kind = item.get("type")
             if kind not in MATERIAL_FIELDS:
                 raise ValueError(f"Material {kind} has no supported native material-builder branch")
             admit(item, {"type", "viscosity", "thermal_properties", *MATERIAL_FIELDS[kind].split()}, f"{group}[{index}].material")
+    generation = payload.get("particle_generation") or {}
+    if not isinstance(generation, dict):
+        raise ValueError("particle_generation must be an object")
+    settings = generation.get("settings") or {}
+    if not isinstance(settings, dict):
+        raise ValueError("particle_generation.settings must be an object")
+    for index, body in enumerate(settings.get("bodies", [])):
+        if body.get("adaptation_ratios") is not None:
+            raise ValueError(
+                f"particle_generation.settings.bodies[{index}].adaptation_ratios is not consumed by the native builder; "
+                "set solid_body.refinement_to_global for solid refinement"
+            )
     geometries = payload.get("geometries", {})
     for index, shape in enumerate(geometries.get("shapes", [])):
         fields = {"name", "type", *SHAPE_FIELDS.get(shape.get("type"), "").split()}
@@ -113,6 +130,8 @@ def catalog():
 def reject_unknown(value, schema, definitions, path="$", depth=0):
     if depth > 64:
         raise ValueError("Configuration nesting exceeds limit")
+    if schema is True or schema == {}:
+        return
     if "$ref" in schema:
         schema = definitions[schema["$ref"].split("/")[-1]]
     if value is None:
@@ -134,10 +153,15 @@ def reject_unknown(value, schema, definitions, path="$", depth=0):
             raise ValueError(f"Expected a scalar or list at {path}")
         props = schema.get("properties", {})
         unknown = set(value) - set(props)
-        if unknown and not isinstance(schema.get("additionalProperties"), dict):
+        additional = schema.get("additionalProperties", False)
+        # Declared dictionaries carry native options such as level_set.shape.
+        # Named model fields still use the strict application admission policy.
+        if "properties" in schema and additional is True:
+            additional = False
+        if unknown and additional is not True and not isinstance(additional, dict):
             raise ValueError(f"Unknown fields at {path}: {sorted(unknown)}")
         for key, child in value.items():
-            reject_unknown(child, props.get(key, schema.get("additionalProperties", {})), definitions, path + "." + key, depth + 1)
+            reject_unknown(child, props.get(key, additional), definitions, path + "." + key, depth + 1)
     elif isinstance(value, list) and "items" in schema:
         for index, child in enumerate(value):
             reject_unknown(child, schema["items"], definitions, f"{path}[{index}]", depth + 1)
@@ -202,9 +226,11 @@ def check_config(payload):
                   "message": "Configuration accepted by native schema; physical combination has not been certified."})
     spacing = normalized["geometries"]["global_resolution"].get("particle_spacing")
     if spacing:
+        primitives = {primitive["name"]: primitive for primitive in normalized["geometries"]["primitives"]}
         for shape in normalized["geometries"]["shapes"]:
             if shape.get("type") == "bounding_box":
-                lengths = [b-a for a, b in zip(shape["lower_bound"], shape["upper_bound"])]
+                bounds = primitives[shape["primitive"]] if shape.get("primitive") else shape
+                lengths = [b-a for a, b in zip(bounds["lower_bound"], bounds["upper_bound"])]
                 if min(lengths) < 3 * spacing:
                     notes.append({"code": "thin_geometry", "severity": "warning", "body": shape["name"],
                                   "message": "A shape dimension spans fewer than three particle spacings; inspect particle coverage."})

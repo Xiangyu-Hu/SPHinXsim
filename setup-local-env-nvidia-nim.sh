@@ -27,30 +27,30 @@ fi
 
 # Set LLM provider for local development
 export SPHINXSIM_LLM_PROVIDER=nvidia_nim
-export NVIDIA_NIM_MODEL="z-ai/glm-5.2"
-export NVIDIA_NIM_BASE_URL="https://integrate.api.nvidia.com/v1"
+export SPHINXSIM_LLM_MODEL="${SPHINXSIM_LLM_MODEL:-meta/muse-glimmer-30b}"
+export SPHINXSIM_LLM_BASE_URL="${SPHINXSIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}"
 # Comma-separated alternatives tried automatically if the primary model is degraded/unavailable.
-export NVIDIA_NIM_FALLBACK_MODELS="meta/llama-3.1-70b-instruct,meta/llama-3.1-8b-instruct"
+export SPHINXSIM_LLM_FALLBACK_MODELS="${SPHINXSIM_LLM_FALLBACK_MODELS:-meta/llama-3.1-70b-instruct,meta/llama-3.1-8b-instruct}"
 
 # API key loading order:
-# 1) Existing NVIDIA_NIM_API_KEY in environment
-# 2) Existing NVIDIA_API_KEY in environment (compatibility)
-# 3) First line from NVIDIA_NIM_API_KEY_FILE (default: ~/.config/sphinxsim/nvidia_nim_api_key)
-export NVIDIA_NIM_API_KEY_FILE="${NVIDIA_NIM_API_KEY_FILE:-$HOME/.config/sphinxsim/nvidia_nim_api_key}"
+# 1) Existing SPHINXSIM_LLM_API_KEY in environment
+# 2) Existing OPENAI_API_KEY for OpenAI-compatible endpoints
+# 3) First line from SPHINXSIM_LLM_API_KEY_FILE (default: ~/.config/sphinxsim/llm_api_key)
+export SPHINXSIM_LLM_API_KEY_FILE="${SPHINXSIM_LLM_API_KEY_FILE:-$HOME/.config/sphinxsim/llm_api_key}"
 
-if [ -z "${NVIDIA_NIM_API_KEY:-}" ] && [ -n "${NVIDIA_API_KEY:-}" ]; then
-    export NVIDIA_NIM_API_KEY="$NVIDIA_API_KEY"
+if [ -z "${SPHINXSIM_LLM_API_KEY:-}" ] && [ -n "${OPENAI_API_KEY:-}" ]; then
+    export SPHINXSIM_LLM_API_KEY="$OPENAI_API_KEY"
 fi
 
-if [ -z "${NVIDIA_NIM_API_KEY:-}" ] && [ -f "$NVIDIA_NIM_API_KEY_FILE" ]; then
-    export NVIDIA_NIM_API_KEY="$(head -n 1 "$NVIDIA_NIM_API_KEY_FILE" | tr -d '\r')"
+if [ -z "${SPHINXSIM_LLM_API_KEY:-}" ] && [ -f "$SPHINXSIM_LLM_API_KEY_FILE" ]; then
+    export SPHINXSIM_LLM_API_KEY="$(head -n 1 "$SPHINXSIM_LLM_API_KEY_FILE" | tr -d '\r')"
 fi
 
-if [ -n "${NVIDIA_NIM_API_KEY:-}" ]; then
+if [ -n "${SPHINXSIM_LLM_API_KEY:-}" ]; then
     echo "✅ NVIDIA NIM API key loaded"
 else
     echo "❌ NVIDIA NIM API key not found"
-    echo "Set NVIDIA_NIM_API_KEY, NVIDIA_API_KEY, or create: $NVIDIA_NIM_API_KEY_FILE"
+    echo "Set SPHINXSIM_LLM_API_KEY, OPENAI_API_KEY, or create: $SPHINXSIM_LLM_API_KEY_FILE"
 fi
 
 # Set VCPKG_ROOT for local development

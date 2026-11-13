@@ -43,7 +43,7 @@ _FLUID_CONFIG = MockLLM().generate("water dam break simulation")
 
 class TestNvidiaNIMLLMInit:
     def test_requires_api_key(self):
-        with pytest.raises(ValueError, match="API key is required"):
+        with pytest.raises(ValueError, match="SPHINXSIM_LLM_API_KEY"):
             NvidiaNIMLLM(api_key=None)
 
     def test_defaults(self):
@@ -183,7 +183,7 @@ class TestNvidiaNIMLLMGenerate:
 
     def test_network_error_raises_runtime_error(self):
         with patch("urllib.request.urlopen", side_effect=urllib_error.URLError("connection refused")):
-            with pytest.raises(RuntimeError, match="Failed to contact NVIDIA NIM"):
+            with pytest.raises(RuntimeError, match="NVIDIA-compatible endpoint"):
                 self.llm.generate("water flow")
 
     def test_generate_repairs_malformed_shape_and_material(self):
@@ -278,7 +278,7 @@ class TestNvidiaNIMLLMGenerate:
         )
 
         with patch("urllib.request.urlopen", side_effect=degraded_error):
-            with pytest.raises(RuntimeError, match="NVIDIA_NIM_FALLBACK_MODELS"):
+            with pytest.raises(RuntimeError, match="SPHINXSIM_LLM_FALLBACK_MODELS"):
                 self.llm.generate("water flow")
 
 
@@ -384,12 +384,12 @@ class TestNvidiaNIMLLMUpdate:
 class TestGetLLMNvidiaNIM:
     def test_get_llm_returns_nvidia_nim_when_env_set(self, monkeypatch):
         monkeypatch.setenv("SPHINXSIM_LLM_PROVIDER", "nvidia_nim")
-        monkeypatch.setenv("NVIDIA_NIM_API_KEY", "test-key")
+        monkeypatch.setenv("SPHINXSIM_LLM_API_KEY", "test-key")
         llm = get_llm()
         assert isinstance(llm, NvidiaNIMLLM)
     def test_get_llm_accepts_legacy_nvidia_api_key_env(self, monkeypatch):
         monkeypatch.setenv("SPHINXSIM_LLM_PROVIDER", "nvidia_nim")
-        monkeypatch.delenv("NVIDIA_NIM_API_KEY", raising=False)
-        monkeypatch.setenv("NVIDIA_API_KEY", "test-key")
+        monkeypatch.delenv("SPHINXSIM_LLM_API_KEY", raising=False)
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         llm = get_llm()
         assert isinstance(llm, NvidiaNIMLLM)

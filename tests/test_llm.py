@@ -462,6 +462,28 @@ class TestSTLGeometryOverrides:
         assert "file_name" not in granular
         assert "scale" not in granular
 
+    @pytest.mark.parametrize("shape_type", ["box", "bounding_box"])
+    def test_sanitize_preserves_named_primitive_references(self, shape_type):
+        cfg = example_config("2d column collapse")
+        shape = cfg["geometries"]["shapes"][0]
+        primitive = {"name": "InitialBounds", "type": shape_type}
+        if shape_type == "bounding_box":
+            primitive.update(lower_bound=[0.0, 0.0], upper_bound=[0.2, 0.1])
+        else:
+            primitive.update(
+                half_size=[0.1, 0.05],
+                transform={"translation": [0.1, 0.05], "rotation_angle": 0.0},
+            )
+        cfg["geometries"]["primitives"] = [primitive]
+        cfg["geometries"]["shapes"][0] = {
+            "name": shape["name"], "type": shape_type, "primitive": "InitialBounds"
+        }
+
+        sanitized = sanitize_config_dict(cfg)
+
+        assert sanitized["geometries"]["shapes"][0]["primitive"] == "InitialBounds"
+        assert sanitized["geometries"]["primitives"] == cfg["geometries"]["primitives"]
+
     def test_stl_file_name_does_not_drive_material_intent(self):
         description = "Create a 3D case from ./input/Landslide.stl and ./input/Channel.stl."
 

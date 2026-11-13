@@ -184,11 +184,13 @@ class ConfigVisualizer:
         *,
         config_path: Path | None = None,
         off_screen: bool = False,
+        output_root: Path | None = None,
     ) -> None:
         self.config = config
         self.project_root = Path(project_root)
         self.config_path = Path(config_path) if config_path is not None else None
         self.off_screen = off_screen
+        self.output_root = Path(output_root) if output_root is not None else None
 
         self._vtp_dir: Path | None = None
         self._shape_bounds_cache: dict[str, Any] | None = None
@@ -230,6 +232,14 @@ class ConfigVisualizer:
             # triangle_mesh: translation field is 3-D only (min_length=3).
             if shape.translation is not None:
                 return len(shape.translation)
+
+        # Referenced shapes can carry all dimension evidence in primitives.
+        for primitive in geo.primitives:
+            for vec in (primitive.lower_bound, primitive.upper_bound, primitive.half_size):
+                if vec is not None:
+                    return len(vec)
+            if primitive.transform is not None:
+                return len(primitive.transform.translation)
 
         # Walk oriented boxes: center / normal / half_size.
         for ob in geo.oriented_boxes:
@@ -352,6 +362,21 @@ class ConfigVisualizer:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def populate_existing_run(self, plotter: Any, output_dir: Path) -> None:
+        """Draw an existing Run using Preview's layout without invoking C++."""
+        root = Path(output_dir)
+        vtp_dir = root / "output" if (root / "output").is_dir() else root
+        self._vtp_dir = vtp_dir
+        plotter.clear()
+        self._configure_layout(plotter)
+        self._draw_preview_sidebar(plotter)
+        self._populate_plotter(plotter, vtp_dir, {})
+        self._configure_layout(plotter)
+        self._configure_default_view(plotter, self._spatial_dim())
+        plotter.add_axes()
+        plotter.show_grid(font_size=10, color=PREVIEW_AXIS_COLOUR, bold=False)
+        self._configure_layout(plotter)
+
     def _configure_layout(self, plotter: Any) -> bool:
         """Configure the existing two-renderer preview layout, if available."""
         renderers = getattr(plotter, "renderers", None)
@@ -359,6 +384,9 @@ class ConfigVisualizer:
             return False
         try:
             if len(renderers) < 2:
+                renderers[0].SetBackground(PREVIEW_MAIN_BACKGROUND)
+                renderers[0].SetViewport(0.0, 0.0, 1.0, 1.0)
+                plotter.subplot(0, 0)
                 return False
             try:
                 plotter.set_background(PREVIEW_MAIN_BACKGROUND)
@@ -491,6 +519,14 @@ class ConfigVisualizer:
     def _configure_default_view(self, plotter: Any, ndim: int) -> None:
         """Set a sensible initial camera and interaction style."""
         if ndim != 2:
+            # A shared canvas can previously have displayed a 2-D case. Restore
+            # perspective, rotation and framing when switching back to 3-D.
+            try:
+                plotter.enable_trackball_style()
+                plotter.disable_parallel_projection()
+                plotter.view_isometric()
+            except AttributeError:
+                pass
             return
 
         # Keep 2-D previews in an orthographic XY view to avoid 3-D feel.
@@ -550,7 +586,7 @@ class ConfigVisualizer:
         except ImportError as exc:
             raise ImportError(str(exc)) from None
 
-        vtp_output_dir = self.project_root / ".build-temp" / "test_simulation"
+        vtp_output_dir = self.output_root or self.project_root / ".build-temp" / "test_simulation"
         vtp_output_dir.mkdir(parents=True, exist_ok=True)
         output_subdir = vtp_output_dir / "output"
         for stale_dir in (vtp_output_dir, output_subdir):
@@ -638,36 +674,12 @@ class ConfigVisualizer:
         file per configured particle-generation body with the highest sequence
         number.
         """
-        if vtp_dir is None or not vtp_dir.is_dir():
+        from sphinxsim.results import ResultCatalog
+        if vtp_dir is None:
             return {}
-
-        body_names = self._particle_generation_body_names()
-        if not body_names:
-            return {}
-
-        latest: dict[str, tuple[int, Path]] = {}
-        for path in vtp_dir.glob("*.vtp"):
-            stem = path.stem
-
-            for body_name in body_names:
-                prefix = f"{body_name}_"
-                if not stem.startswith(prefix):
-                    continue
-
-                suffix = stem[len(prefix):]
-                if suffix.startswith("ite_"):
-                    suffix = suffix[len("ite_"):]
-                try:
-                    sequence = float(suffix)
-                except ValueError:
-                    continue
-
-                previous = latest.get(body_name)
-                if previous is None or sequence >= previous[0]:
-                    latest[body_name] = (sequence, path)
-                break
-
-        return {body_name: item[1] for body_name, item in latest.items()}
+        frames = ResultCatalog().latest(vtp_dir, self._particle_generation_body_names(),
+                                        include_generation=True)
+        return {body: frame.path for body, frame in frames.items()}
 
     def _populate_plotter(
         self,
@@ -856,6 +868,7 @@ class ConfigVisualizer:
 
                 plotter.add_mesh(
                     mesh,
+                    name=f"preview-shape-{shape.name}",
                     color=colour,
                     opacity=opacity,
                     style=style,

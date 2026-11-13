@@ -9,11 +9,11 @@ from sphinxsim.commands import register as register_structured_commands
 from .common import __version__
 from .explore import cmd_explore
 from .generate import cmd_generate
+from .preview import cmd_preview
 from .run import cmd_run
 from .shell import cmd_shell
 from .update import cmd_update
 from .validate import cmd_validate
-from .main import cmd_preview
 
 
 COMPLETION_SCRIPTS = {

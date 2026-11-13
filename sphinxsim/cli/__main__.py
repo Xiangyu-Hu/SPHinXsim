@@ -1,5 +1,5 @@
 """Run the SPHinXsim CLI package as a module."""
 
-from .main import main
+from . import main as cli_main
 
-raise SystemExit(main())
+raise SystemExit(cli_main.main())

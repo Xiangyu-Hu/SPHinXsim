@@ -16,6 +16,8 @@ and round-tripping behavior, or code that integrates with the editor.
   floating-point formatting.
 - `sphinxsim/json_editor/__init__.py` — package exports.
 - `sphinxsim/cli.py` — `_ShellPreviewRuntime` integration.
+- `sphinxsim/visualization/preview_runtime.py` — persistent preview window,
+  live particle playback, and shell preview lifecycle.
 - `sphinxsim/desktop/` — desktop session and presentation integration.
 - `tests/test_cli.py`, `tests/runtime/test_desktop.py`, and relevant
   visualization tests.

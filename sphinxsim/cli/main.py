@@ -32,25 +32,26 @@ from pathlib import Path
 from threading import Thread
 from typing import Any, Tuple
 
+from .common import (
+    PROJECT_ROOT,
+    __version__,
+    _apply_payload_diff,
+    _collect_change_lines,
+    _load_config,
+    _short_repr,
+    _write_validated_config,
+)
+
 try:
     import readline
 except ImportError:
     readline = None
 
-# Set up sys.path FIRST, before any sphinxsim imports
-def _find_project_root(start=None):
-    start = start or str(Path(__file__).resolve().parent)
-    current = start
-    while current != os.path.dirname(current):  # Not at root
-        if os.path.exists(os.path.join(current, "pyproject.toml")) and os.path.isfile(os.path.join(current, "sphinxsim", "cli.py")):
-            return current
-        current = os.path.dirname(current)
-    return os.getcwd()
-
-PROJECT_ROOT = _find_project_root()
-sys.path.insert(0, PROJECT_ROOT)
-sys.path.insert(0, os.path.join(PROJECT_ROOT, "build-integrated"))
-sys.path.insert(0, os.path.join(PROJECT_ROOT, "sphinxsim", "bindings", "native"))
+# Set up sys.path BEFORE any sphinxsim imports.
+PROJECT_ROOT = Path(PROJECT_ROOT)
+sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / "build-integrated"))
+sys.path.insert(0, str(PROJECT_ROOT / "sphinxsim" / "bindings" / "native"))
 
 from pydantic import ValidationError
 
@@ -66,134 +67,11 @@ from sphinxsim.json_format import (
 from sphinxsim.llm import get_llm
 from sphinxsim.llm.common import LLMRepairWarning, dump_simulation_config_json
 
-# Convert PROJECT_ROOT to Path after imports
-PROJECT_ROOT = Path(PROJECT_ROOT)
 _LIVE_PREVIEW_MAX_FPS = 25
-
-__version__ = "0.1.0"  # Keep in sync with sphinxsim/__init__.py
 
 # ---------------------------------------------------------------------------
 # Shared helper
 # ---------------------------------------------------------------------------
-
-
-def _load_config(path: Path) -> Tuple[SimulationConfig | None, int]:
-    """Load and validate a SimulationConfig from *path*.
-
-    Returns ``(config, 0)`` on success or ``(None, 1)`` after printing an
-    error message to stderr.
-    """
-    # Prefer user-provided relative paths from the current working directory.
-    # Fall back to .build-temp for backward compatibility with existing workflows.
-    if not path.is_absolute():
-        cwd_path = Path.cwd() / path
-        build_temp_path = PROJECT_ROOT / ".build-temp" / path
-        path = cwd_path if cwd_path.exists() else build_temp_path
-    
-    if not path.exists():
-        print(f"File not found: {path}", file=sys.stderr)
-        return None, 1
-    try:
-        data = json.loads(path.read_text())
-        from sphinxsim.runtime.physics import check_config
-        normalized, _ = check_config(data)
-        return SimulationConfig(**normalized), 0
-    except json.JSONDecodeError as exc:
-        print(f"Invalid JSON: {exc}", file=sys.stderr)
-        return None, 1
-    except (ValidationError, ValueError) as exc:
-        print(f"Config validation failed:\n{exc}", file=sys.stderr)
-        return None, 1
-
-
-def _apply_payload_diff(raw: Any, base: Any, edited: Any) -> Any:
-    """Return *raw* with only the differences between *base* and *edited* applied."""
-    if base == edited:
-        return raw
-    if isinstance(raw, dict) and isinstance(base, dict) and isinstance(edited, dict):
-        result = dict(raw)
-        for key, value in edited.items():
-            if key not in base:
-                result[key] = value
-            elif key not in raw:
-                if value != base[key]:
-                    result[key] = value
-            else:
-                result[key] = _apply_payload_diff(raw[key], base[key], value)
-        for key in base:
-            if key not in edited:
-                result.pop(key, None)
-        return result
-    if (
-        isinstance(raw, list)
-        and isinstance(base, list)
-        and isinstance(edited, list)
-        and len(raw) == len(base) == len(edited)
-    ):
-        return [_apply_payload_diff(r, b, e) for r, b, e in zip(raw, base, edited)]
-    return edited
-
-
-def _write_validated_config(
-    path: Path, config: SimulationConfig, content: str | None = None
-) -> str:
-    """Atomically replace *path* with *content* (default: canonical validated JSON)."""
-    if content is None:
-        content = dump_simulation_config_json(config, indent=2)
-    temporary_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            newline="",
-            suffix=".json",
-            prefix=f".{path.stem}.",
-            dir=path.parent,
-            delete=False,
-        ) as temporary_file:
-            temporary_file.write(content)
-            temporary_path = Path(temporary_file.name)
-        os.replace(temporary_path, path)
-    except Exception:
-        if temporary_path is not None:
-            try:
-                temporary_path.unlink(missing_ok=True)
-            except OSError:
-                pass
-        raise
-    return content
-
-
-def _short_repr(value: Any, max_len: int = 80) -> str:
-    text = repr(value)
-    if len(text) <= max_len:
-        return text
-    return text[: max_len - 3] + "..."
-
-
-def _collect_change_lines(before: Any, after: Any, path: str = "") -> list[str]:
-    if isinstance(before, dict) and isinstance(after, dict):
-        lines: list[str] = []
-        keys = sorted(set(before.keys()) | set(after.keys()))
-        for key in keys:
-            key_path = f"{path}.{key}" if path else key
-            if key not in before:
-                lines.append(f"{key_path}: added {_short_repr(after[key])}")
-                continue
-            if key not in after:
-                lines.append(f"{key_path}: removed")
-                continue
-            lines.extend(_collect_change_lines(before[key], after[key], key_path))
-        return lines
-
-    if isinstance(before, list) and isinstance(after, list):
-        if before == after:
-            return []
-        return [f"{path or '<root>'}: list changed (size {len(before)} -> {len(after)})"]
-
-    if before != after:
-        return [f"{path or '<root>'}: {_short_repr(before)} -> {_short_repr(after)}"]
-    return []
 
 
 def _print_update_summary(before_cfg: SimulationConfig, after_cfg: SimulationConfig) -> None:
@@ -2835,179 +2713,6 @@ def cmd_shell(args: argparse.Namespace) -> int:
 # Argument parser
 # ---------------------------------------------------------------------------
 
-COMPLETION_SCRIPTS = {
-    "bash": """_sphinxsim_completion() {
-    local cur opts
-    COMPREPLY=()
-    cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="generate validate update run preview explore shell capabilities compile geometry project job desktop mcp --help --version --generate-completion"
-    COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
-    return 0
-}
-complete -F _sphinxsim_completion sphinxsim""",
-
-    "zsh": """#compdef sphinxsim
-_sphinxsim() {
-    local -a subcmds
-    subcmds=(
-        'generate:Generate a simulation config from a natural-language description'
-        'validate:Validate a JSON simulation config against the schema'
-        'update:Update an existing simulation config from an instruction'
-        'run:Run a simulation from a JSON config file'
-        'preview:Render an interactive geometry/BC preview of a JSON config file'
-        'explore:Ask schema/functionality questions using LLM'
-        'shell:Interactive shell for config workflow'
-        'capabilities:Inspect schema and native routing evidence'
-        'compile:Compile quantities into native configuration'
-        'geometry:Generate verified CAD geometry'
-        'project:Inspect project inputs'
-        'job:Query or control an explicit job'
-        'desktop:Serve or operate the native application'
-        'mcp:Serve native operations over MCP stdio'
-    )
-    _describe 'sphinxsim commands' subcmds
-}
-_sphinxsim "$@" """,
-
-    "fish": """complete -c sphinxsim -f -a "generate" -d "Generate simulation config"
-complete -c sphinxsim -f -a "validate" -d "Validate JSON simulation config"
-complete -c sphinxsim -f -a "update" -d "Update existing simulation config"
-complete -c sphinxsim -f -a "run" -d "Run simulation from JSON config"
-complete -c sphinxsim -f -a "preview" -d "Render interactive geometry/BC preview"
-complete -c sphinxsim -f -a "explore" -d "Ask schema/functionality questions"
-complete -c sphinxsim -f -a "shell" -d "Interactive shell workflow"
-complete -c sphinxsim -f -a "capabilities compile geometry project job desktop mcp" -d "Native application operations" """
-}
-
-
-class GenerateCompletionAction(argparse.Action):
-    """Custom argparse action to print shell auto-completion scripts and exit."""
-    def __call__(self, parser, namespace, values, option_string=None):
-        shell = values.lower()
-        if shell in COMPLETION_SCRIPTS:
-            print(COMPLETION_SCRIPTS[shell].strip())
-        parser.exit(0)
-
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="sphinxsim",
-        description="Python UI for the SPHinXsys multi-physics C++ library.",
-    )
-    parser.add_argument("--version", action="version", version=f"sphinxsim {__version__}")
-
-    parser.add_argument(
-        "--generate-completion",
-        choices=["bash", "zsh", "fish"],
-        action=GenerateCompletionAction,
-        help="Generate shell auto-completion script for bash, zsh, or fish.",
-    )
-
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    # generate
-    gen = subparsers.add_parser(
-        "generate",
-        help="Generate a simulation config from a natural-language description.",
-    )
-    gen.add_argument("description", help="Natural-language simulation description.")
-    gen.add_argument(
-        "-o", "--output", metavar="FILE", default=None, help="Write JSON config to FILE instead of stdout."
-    )
-    gen.set_defaults(func=cmd_generate)
-
-    # validate
-    val = subparsers.add_parser(
-        "validate", help="Validate a JSON simulation config against the schema."
-    )
-    val.add_argument("config_file", nargs='?', default="config.json", help="Path to JSON config file.")
-    val.set_defaults(func=cmd_validate)
-
-    # update
-    upd = subparsers.add_parser(
-        "update",
-        help="Update an existing simulation config from a natural-language instruction.",
-    )
-    upd.add_argument("config_file", help="Path to an existing JSON config file.")
-    upd.add_argument("description", help="Natural-language update instruction.")
-    upd.add_argument(
-        "-o",
-        "--output",
-        metavar="FILE",
-        default=None,
-        help="Write updated JSON to FILE instead of updating in place.",
-    )
-    upd.add_argument(
-        "--patch-mode",
-        action="store_true",
-        help="Use operation-based patch updates (provider must support update_patch()).",
-    )
-    upd.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Preview patch-mode results without writing output file.",
-    )
-    upd.add_argument(
-        "--strict",
-        choices=["true", "false"],
-        default="true",
-        help="Strict patch application behavior for --patch-mode (default: true).",
-    )
-    upd.set_defaults(func=cmd_update)
-
-    # run
-    run = subparsers.add_parser("run", help="Run a simulation from a JSON config file.")
-    run.add_argument("config_file", nargs='?', default="config.json", help="Path to JSON config file.")
-    run.set_defaults(func=cmd_run)
-
-    # preview
-    prev = subparsers.add_parser(
-        "preview",
-        help="Render an interactive geometry/BC preview of a JSON config file.",
-    )
-    prev.add_argument(
-        "config_file",
-        nargs="?",
-        default="config.json",
-        help="Path to JSON config file.",
-    )
-    prev.add_argument(
-        "--with-particles",
-        action="store_true",
-        help="Also run particle generation and overlay the latest generated particles per body.",
-    )
-    prev.add_argument(
-        "--off-screen",
-        action="store_true",
-        help="Render off-screen (no window). Useful for automated testing.",
-    )
-    prev.add_argument(
-        "--screenshot",
-        "-s",
-        default=None,
-        help="Save a screenshot to this file path instead of opening an interactive window.",
-    )
-    prev.set_defaults(func=cmd_preview)
-
-    # explore
-    exp = subparsers.add_parser(
-        "explore",
-        help="Ask schema/functionality questions using the configured LLM provider.",
-    )
-    exp.add_argument("question", help="Question about the simulator schema or functionality.")
-    exp.set_defaults(func=cmd_explore)
-
-    # shell
-    shell = subparsers.add_parser(
-        "shell",
-        help="Interactive shell for config load/modify/validate workflow.",
-    )
-    shell.set_defaults(func=cmd_shell)
-
-    from sphinxsim.commands import register
-    register(subparsers)
-    return parser
-
-
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -3070,6 +2775,8 @@ def main(argv: list[str] | None = None, *, publish_json=None) -> int:
         return execute(args)
     return args.func(args)
 
+
+from .parser import _build_parser
 
 if __name__ == "__main__":  # pragma: no cover
     sys.exit(main())

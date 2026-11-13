@@ -30,6 +30,14 @@ def _has_native_extension() -> bool:
     return True
 
 
+def test_cli_shell_and_preview_modules_are_importable():
+    import sphinxsim.cli.shell as cli_shell
+    from sphinxsim.cli.preview import _ShellPreviewRuntime
+
+    assert hasattr(cli_shell, "cmd_shell")
+    assert _ShellPreviewRuntime is not None
+
+
 def _valid_data() -> dict:
     return {
         "simulation_type": "fluid_dynamics",

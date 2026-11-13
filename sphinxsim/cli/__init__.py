@@ -21,6 +21,8 @@ for _module_name in (
     ".run",
     ".explore",
     ".shell",
+    ".preview",
+    ".preview_runtime",
     ".main",
 ):
     _module = import_module(_module_name, __name__)

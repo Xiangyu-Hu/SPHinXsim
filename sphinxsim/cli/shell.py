@@ -11,6 +11,12 @@ import time
 from pathlib import Path
 
 from .common import PROJECT_ROOT, _load_config
+from .explore import cmd_explore
+from .generate import _generate_with_physical_correction_feedback
+from .preview import _ShellPreviewRuntime, cmd_preview
+from .run import cmd_run
+from .update import cmd_update
+from .validate import cmd_validate
 
 try:
     import readline
@@ -152,15 +158,6 @@ def cmd_shell(args: argparse.Namespace) -> int:
     """Interactive shell for load/generate/update/validate/run workflow."""
     import argparse
 
-    from .main import (
-        _ShellPreviewRuntime,
-        cmd_explore,
-        cmd_preview,
-        cmd_run,
-        cmd_update,
-        cmd_validate,
-    )
-
     if sys.stdin.isatty():
         _configure_shell_readline()
 
@@ -290,8 +287,6 @@ def cmd_shell(args: argparse.Namespace) -> int:
             continue
 
         if cmd == "update":
-            from .main import _generate_with_physical_correction_feedback
-
             patch_mode = False
             dry_run = False
             strict = "true"

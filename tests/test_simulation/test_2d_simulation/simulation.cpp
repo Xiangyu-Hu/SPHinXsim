@@ -3,9 +3,10 @@
  * @brief 2D simulation examples driven by a JSON configuration file.
  * @details All simulation parameters (domain, fluid, wall, gravity, solver,
  *          end time) are loaded from data/config.json via the SPHSimulation
- *          facade. Cases with restart settings run once from the beginning
- *          and again from the first saved checkpoint. Restart output is
- *          written to the case's restart_output directory.
+ *          facade. Cases with restart settings and restore_step zero run
+ *          from the beginning and again from the first saved checkpoint.
+ *          A nonzero restore_step runs only from that checkpoint. Restart
+ *          output is written to the case's restart_output directory.
  * @author Xiangyu Hu
  */
 #include "sph_simulation.h"
@@ -167,6 +168,13 @@ void runSimulation(const fs::path &config, const fs::path &input_dir,
     sim.initializeSimulation();
     sim.run();
 }
+
+fs::path checkpointPath(const fs::path &output_root, int step)
+{
+    std::ostringstream name;
+    name << "Restart_" << std::setfill('0') << std::setw(10) << step << ".xml";
+    return output_root / "restart" / name.str();
+}
 } // namespace
 
 class Json : public ::testing::TestWithParam<fs::path>
@@ -199,7 +207,23 @@ TEST_P(Json, run)
 
     auto &restart = settings.at("restart");
     const int save_interval = restart.value("save_interval", SPH::RestartConfig{}.save_interval_);
+    const int restore_step = restart.value("restore_step", 0);
     ASSERT_GT(save_interval, 0) << "restart.save_interval must be positive";
+    ASSERT_GE(restore_step, 0) << "restart.restore_step must be nonnegative";
+
+    if (restore_step > 0)
+    {
+        ASSERT_TRUE(fs::exists(checkpointPath(output_root, restore_step)))
+            << "Missing restart checkpoint: " << checkpointPath(output_root, restore_step);
+
+        auto &io = SPH::IO::initEnvironment();
+        io.resetOutputFolder((output_root / "restart_output").string(), true);
+        io.resetRestartFolder((output_root / "restart").string(), true);
+        io.resetReloadFolder((output_root / "reload").string(), true);
+        std::cout << "Running restart simulation from step " << restore_step << ": " << config << std::endl;
+        runSimulation(config, input_dir, output_root, false);
+        return;
+    }
 
     TemporaryConfig temporary_config(output_root);
     restart["restore_step"] = 0;
@@ -207,9 +231,7 @@ TEST_P(Json, run)
     std::cout << "Running direct simulation: " << config << std::endl;
     runSimulation(temporary_config.path(), input_dir, output_root, true);
 
-    std::ostringstream checkpoint_name;
-    checkpoint_name << "Restart_" << std::setfill('0') << std::setw(10) << save_interval << ".xml";
-    ASSERT_TRUE(fs::exists(output_root / "restart" / checkpoint_name.str()))
+    ASSERT_TRUE(fs::exists(checkpointPath(output_root, save_interval)))
         << "Direct run did not reach restart save interval " << save_interval;
 
     restart["restore_step"] = save_interval;

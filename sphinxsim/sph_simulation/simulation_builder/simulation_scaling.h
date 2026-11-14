@@ -39,7 +39,7 @@ namespace SPH
 struct UnitMetrics
 {
     // SI base units: length, mass, time, temperature,
-    // amount of substance, electric current, luminous intensity
+    // electric current, amount of substance, luminous intensity
     // learned from openFOAM's unit handling.
     std::array<int, 7> exp = {0, 0, 0, 0, 0, 0, 0};
 

@@ -1698,3 +1698,18 @@ class TestSimulationConfig:
         assert cfg.solid_bodies[0].is_moving is True
         assert cfg.body_constraints[0].mobilized_body == "pin"
         assert cfg.body_constraints[0].velocity is None
+
+    def test_3d_t_micromixer_flowrate_fixture_accepts_inflow_rate(self):
+        fixture_path = (
+            Path(__file__).parent.parent
+            / "project"
+            / "simulation"
+            / "3d_cases"
+            / "t_micromixer_flowrate.json"
+        )
+        cfg = SimulationConfig.model_validate(json.loads(fixture_path.read_text()))
+
+        inlet = cfg.fluid_boundary_conditions[0]
+        assert inlet.type.value == "bi_directional"
+        assert inlet.inflow_rate == pytest.approx(2.0e-8)
+        assert inlet.inflow_area == pytest.approx(math.pi * 0.00025**2, rel=1e-4)

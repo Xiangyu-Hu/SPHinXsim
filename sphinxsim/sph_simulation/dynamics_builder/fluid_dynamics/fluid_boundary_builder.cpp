@@ -4,6 +4,10 @@
 #include "near_wall_boundary_ck.hpp"
 #include "sph_simulation.h"
 
+#ifdef SPHINXSIM_PROJECT
+#include "sphinxsim_project.h"
+#endif
+
 namespace SPH
 {
 //=================================================================================================//
@@ -131,6 +135,10 @@ void FluidDynamicsBuilder::addBoundaryCondition(
         auto &oriented_box_by_cell = fluid_body.addBodyPart<OrientedBoxByCell>(oriented_box);
         auto &bi_directional_bd = createBiDirectionBoundary(
             oriented_box_by_cell, config_manager, main_methods, config);
+#ifdef SPHINXSIM_PROJECT
+        addExtraBiDirectionBoundaryHooks(
+            config_manager, initialization_pipeline, simulation_pipeline, time_stepper, config);
+#endif
 
         auto &supplementary_conditions = main_methods.addParticleDynamicsGroup();
         assignSupplementaryConditions(
@@ -280,6 +288,14 @@ AbstractBidirectionalBoundary &FluidDynamicsBuilder::createBiDirectionBoundary(
         return createVelocityBiDirectionBoundary(
             oriented_box_by_cell, config_manager, main_methods, config);
     }
+
+#ifdef SPHINXSIM_PROJECT
+    if (AbstractBidirectionalBoundary *bi_directional_bd = createExtraBiDirectionBoundary(
+            oriented_box_by_cell, config_manager, main_methods, config))
+    {
+        return *bi_directional_bd;
+    }
+#endif
 
     throw std::runtime_error(
         "FluidDynamicsBuilder::createBiDirectionBoundary: unsupported boundary condition type");

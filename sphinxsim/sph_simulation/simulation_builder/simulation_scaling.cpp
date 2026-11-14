@@ -1,5 +1,7 @@
 #include "simulation_scaling.h"
 
+#include <cmath>
+
 namespace SPH
 {
 //=================================================================================================//
@@ -235,6 +237,8 @@ UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name, bool is_require
     // for continuum mechanics
     if (unit_name == "Velocity" || unit_name == "Speed")
         return UnitMetrics{1, 0, -1, 0, 0, 0, 0};
+    if (unit_name == "VolumetricFlowRate")
+        return UnitMetrics{3, 0, -1, 0, 0, 0, 0};
     if (unit_name == "AngularVelocity")
         return UnitMetrics{0, 0, -1, 0, 0, 0, 0};
     if (unit_name == "Acceleration" || unit_name == "Gravity")
@@ -267,13 +271,13 @@ CharacteristicDimension ScalingConfig::parseCharacteristicDimension(
 {
     CharacteristicDimension character_dim;
     character_dim.value_ = config.at("value").get<Real>();
-    if (character_dim.value_ < Eps)
+    character_dim.name_ = config.at("name").get<std::string>();
+    if (!std::isfinite(character_dim.value_) || character_dim.value_ <= Real(0))
     {
         throw std::runtime_error(
             "ScalingConfig::parseCharacteristicDimension: value of '" + character_dim.name_ +
-            "' must be positive and sufficient.");
+            "' must be positive and finite.");
     }
-    character_dim.name_ = config.at("name").get<std::string>();
     character_dim.unit_metrics_ = getUnitMetrics(character_dim.name_);
     if (!config.contains("hint"))
     {

@@ -13,11 +13,6 @@
   ],
 
   "geometries": {
-    "system_domain": {
-      "upper_bound": [0.16, 0.08],
-      "lower_bound": [-0.16, -0.16]
-    },
-
     "global_resolution": {
       "particle_spacing": 0.0008
     },

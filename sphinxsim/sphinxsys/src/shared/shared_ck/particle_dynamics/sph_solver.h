@@ -99,9 +99,9 @@ class TimeStepper
         while (interval - integrated_time_ > TIME_STEP_SAFETY_FACTOR * dt)
         {
             integrator(dt);
-            dt = step_evaluator.exec();
             integrated_time_ += dt;
             sub_step_count++;
+            dt = step_evaluator.exec();
         }
 
         if (interval - integrated_time_ > dt)

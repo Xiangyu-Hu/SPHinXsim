@@ -2,11 +2,42 @@
 #define SOLID_CONSTRAINT_HPP
 
 #include "solid_constraint.h"
+#include "general_constraint_ck.hpp"
 
 namespace SPH
 {
 namespace solid_dynamics
 {
+//=================================================================================================//
+template <class DynamicsIdentifier>
+SpringConstrainCK<DynamicsIdentifier>::SpringConstrainCK(
+    DynamicsIdentifier &identifier, Real stiffness)
+    : MotionConstraintCK<DynamicsIdentifier>(identifier),
+      dv_mass_(this->particles_->template getVariableByName<Real>("Mass")),
+      stiffness_(stiffness)
+{
+    this->particles_->template addEvolvingVariable<Vecd>("Velocity");
+}
+//=================================================================================================//
+template <class DynamicsIdentifier>
+template <class ExecutionPolicy, class EncloserType>
+SpringConstrainCK<DynamicsIdentifier>::UpdateKernel::UpdateKernel(
+    const ExecutionPolicy &ex_policy, EncloserType &encloser)
+    : pos_(encloser.dv_pos_->DelegatedData(ex_policy)),
+      pos0_(encloser.dv_pos0_->DelegatedData(ex_policy)),
+      vel_(encloser.dv_vel_->DelegatedData(ex_policy)),
+      mass_(encloser.dv_mass_->DelegatedData(ex_policy)),
+      stiffness_(encloser.stiffness_) {}
+//=================================================================================================//
+template <class DynamicsIdentifier>
+void SpringConstrainCK<DynamicsIdentifier>::UpdateKernel::update(
+    size_t index_i, Real dt)
+{
+    const Vecd displacement = pos_[index_i] - pos0_[index_i];
+    vel_[index_i] -= (dt * stiffness_ / mass_[index_i]) * displacement;
+}
+//=================================================================================================//
+
 //=================================================================================================//
 template <class DynamicsIdentifier>
 ConstraintBySimBodyCK<DynamicsIdentifier>::

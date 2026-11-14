@@ -61,39 +61,36 @@
   },
 
   "particle_generation": {
-    "build_and_run": true,
-    "settings": {
-      "bodies": [
-        {
-          "name": "BloodBody",
-          "relaxation": { "dependent_bodies": ["WallBoundary"] }
-        },
-        {
-          "name": "WallBoundary",
-          "relaxation": { "level_set": {} },
-          "solid_body": {}
-        }
-      ],
-      "relaxation_constraints": [
-        {
-          "body_name": "BloodBody",
-          "oriented_box": "Inlet",
-          "type": "normal"
-        },
-        {
-          "body_name": "BloodBody",
-          "oriented_box": "UpperOutlet",
-          "type": "normal"
-        },
-        {
-          "body_name": "BloodBody",
-          "oriented_box": "LowerOutlet",
-          "type": "normal"
-        }
-      ],
-      "relaxation_parameters": {
-        "total_iterations": 1000
+    "bodies": [
+      {
+        "name": "BloodBody",
+        "relaxation": { "dependent_bodies": ["WallBoundary"] }
+      },
+      {
+        "name": "WallBoundary",
+        "relaxation": { "level_set": {} },
+        "solid_body": {}
       }
+    ],
+    "relaxation_constraints": [
+      {
+        "body_name": "BloodBody",
+        "oriented_box": "Inlet",
+        "type": "normal"
+      },
+      {
+        "body_name": "BloodBody",
+        "oriented_box": "UpperOutlet",
+        "type": "normal"
+      },
+      {
+        "body_name": "BloodBody",
+        "oriented_box": "LowerOutlet",
+        "type": "normal"
+      }
+    ],
+    "relaxation_parameters": {
+      "total_iterations": 1000
     }
   },
 

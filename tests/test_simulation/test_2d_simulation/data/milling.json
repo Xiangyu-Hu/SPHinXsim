@@ -1,4 +1,4 @@
-{  
+{
   "characteristic_dimensions": [
     {
       "value": 0.02,
@@ -76,27 +76,24 @@
   },
 
   "particle_generation": {
-    "build_and_run": true,
-    "settings": {
-      "bodies": [
-        {
-          "name": "ProcessingPiece"
-        },
+    "bodies": [
+      {
+        "name": "ProcessingPiece"
+      },
 
-        {
-          "name": "MillingTool",
-          "solid_body": {},
-          "relaxation": { "level_set": {} }
-        },
-        {
-          "name": "WallBoundary",
-          "solid_body": {}
-        }
-      ],
-
-      "relaxation_parameters": {
-        "total_iterations": 1000
+      {
+        "name": "MillingTool",
+        "solid_body": {},
+        "relaxation": { "level_set": {} }
+      },
+      {
+        "name": "WallBoundary",
+        "solid_body": {}
       }
+    ],
+
+    "relaxation_parameters": {
+      "total_iterations": 1000
     }
   },
 

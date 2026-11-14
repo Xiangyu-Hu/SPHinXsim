@@ -56,9 +56,9 @@ SimulationConfig
 │   ├── shapes: List[ShapeConfig]
 │   └── oriented_boxes: List[OrientedBoxConfig]
 ├── particle_generation: ParticleGenerationConfig
-│   └── settings: ParticleGenerationSettingsConfig
-│       ├── bodies: List[ParticleBodyConfig]
-│       └── relaxation_constraints: List[RelaxationConstraintConfig]
+│   ├── bodies: List[ParticleGenerationBodyConfig]
+│   ├── relaxation_constraints: List[RelaxationConstraintConfig]
+│   └── relaxation_parameters: RelaxationParametersConfig
 ├── fluid_bodies: List[FluidBodyConfig]
 ├── continuum_bodies: List[ContinuumBodyConfig]
 ├── solid_bodies: List[SolidBodyConfig]

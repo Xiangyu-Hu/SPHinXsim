@@ -492,7 +492,7 @@ class RelaxationConstraintConfig(BaseModel):
     type: str = Field(..., min_length=1)
 
 
-class ParticleGenerationSettingsConfig(BaseModel):
+class ParticleGenerationConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     bodies: List[ParticleGenerationBodyConfig] = Field(..., min_length=1)
@@ -500,26 +500,15 @@ class ParticleGenerationSettingsConfig(BaseModel):
     relaxation_parameters: RelaxationParametersConfig = Field(default_factory=RelaxationParametersConfig)
 
     @model_validator(mode="after")
-    def _warn_unknown_fields(self) -> "ParticleGenerationSettingsConfig":
+    def _warn_unknown_fields(self) -> "ParticleGenerationConfig":
         extra = getattr(self, "__pydantic_extra__", None)
         if extra:
             warnings.warn(
-                "particle_generation.settings contains unknown keys that are preserved: "
+                "particle_generation contains unknown keys that are preserved: "
                 + ", ".join(sorted(extra.keys())),
                 UserWarning,
                 stacklevel=2,
             )
-        return self
-
-
-class ParticleGenerationConfig(BaseModel):
-    build_and_run: bool
-    settings: Optional[ParticleGenerationSettingsConfig] = None
-
-    @model_validator(mode="after")
-    def _validate_settings(self) -> "ParticleGenerationConfig":
-        if self.build_and_run and self.settings is None:
-            raise ValueError("particle_generation.settings is required when build_and_run is true")
         return self
 
 
@@ -1165,14 +1154,11 @@ class SimulationConfig(BaseModel):
             if len(body_names) != len(set(body_names)):
                 raise ValueError(f"{section_name} must use unique body names")
 
-        if self.particle_generation.settings is not None:
-            particle_body_names = [
-                body.name for body in self.particle_generation.settings.bodies
-            ]
-            if len(particle_body_names) != len(set(particle_body_names)):
-                raise ValueError(
-                    "particle_generation.settings.bodies must use unique body names"
-                )
+        particle_body_names = [body.name for body in self.particle_generation.bodies]
+        if len(particle_body_names) != len(set(particle_body_names)):
+            raise ValueError(
+                "particle_generation.bodies must use unique body names"
+            )
 
         # Scaling: if characteristic_dimensions provided, Length must be among them
         if self.characteristic_dimensions is not None:
@@ -1219,59 +1205,58 @@ class SimulationConfig(BaseModel):
                         )
 
         # Particle generation body names must exist as shapes
-        if self.particle_generation.settings is not None:
-            for body in self.particle_generation.settings.bodies:
-                if body.name not in shape_names:
+        for body in self.particle_generation.bodies:
+            if body.name not in shape_names:
+                raise ValueError(
+                    f"particle_generation body '{body.name}' must match a shape name in geometries.shapes"
+                )
+            level_set = body.relaxation.level_set if body.relaxation is not None else None
+            if level_set and level_set.get("shape") is not None and level_set["shape"] not in shape_names:
+                raise ValueError(
+                    f"particle_generation body '{body.name}' relaxation level_set shape "
+                    f"'{level_set['shape']}' must match a shape name in geometries.shapes"
+                )
+            for blocker_name in body.blockers:
+                if blocker_name not in oriented_box_names:
                     raise ValueError(
-                        f"particle_generation body '{body.name}' must match a shape name in geometries.shapes"
+                        "particle_generation body blockers entries must reference existing "
+                        "geometries.oriented_boxes names"
                     )
-                level_set = body.relaxation.level_set if body.relaxation is not None else None
-                if level_set and level_set.get("shape") is not None and level_set["shape"] not in shape_names:
+            for insert_name in body.box_shape_inserts:
+                if insert_name not in shape_names:
                     raise ValueError(
-                        f"particle_generation body '{body.name}' relaxation level_set shape "
-                        f"'{level_set['shape']}' must match a shape name in geometries.shapes"
+                        "particle_generation body box_shape_inserts entries must reference existing "
+                        "geometries.shapes names"
                     )
-                for blocker_name in body.blockers:
-                    if blocker_name not in oriented_box_names:
-                        raise ValueError(
-                            "particle_generation body blockers entries must reference existing "
-                            "geometries.oriented_boxes names"
-                        )
-                for insert_name in body.box_shape_inserts:
-                    if insert_name not in shape_names:
-                        raise ValueError(
-                            "particle_generation body box_shape_inserts entries must reference existing "
-                            "geometries.shapes names"
-                        )
-                    if shape_types_by_name[insert_name] not in (
-                        BodyShapeType.BOX,
-                        BodyShapeType.BOUNDING_BOX,
-                        BodyShapeType.EXPANDED_BOX,
-                    ):
-                        raise ValueError(
-                            "particle_generation body box_shape_inserts entries must reference "
-                            "box-compatible shapes (box, bounding_box, expanded_box)"
-                        )
-                for insert_name in body.cylinder_shape_inserts:
-                    if insert_name not in shape_names:
-                        raise ValueError(
-                            "particle_generation body cylinder_shape_inserts entries must reference existing "
-                            "geometries.shapes names"
-                        )
-                    if shape_types_by_name[insert_name] != BodyShapeType.CYLINDER:
-                        raise ValueError(
-                            "particle_generation body cylinder_shape_inserts entries must reference "
-                            "cylinder shapes"
-                        )
-            for c in self.particle_generation.settings.relaxation_constraints:
-                if c.body_name not in shape_names:
+                if shape_types_by_name[insert_name] not in (
+                    BodyShapeType.BOX,
+                    BodyShapeType.BOUNDING_BOX,
+                    BodyShapeType.EXPANDED_BOX,
+                ):
                     raise ValueError(
-                        f"relaxation constraint body '{c.body_name}' must match a shape name in geometries.shapes"
+                        "particle_generation body box_shape_inserts entries must reference "
+                        "box-compatible shapes (box, bounding_box, expanded_box)"
                     )
-                if c.oriented_box not in oriented_box_names:
+            for insert_name in body.cylinder_shape_inserts:
+                if insert_name not in shape_names:
                     raise ValueError(
-                        f"relaxation constraint oriented_box '{c.oriented_box}' must exist in geometries.oriented_boxes"
+                        "particle_generation body cylinder_shape_inserts entries must reference existing "
+                        "geometries.shapes names"
                     )
+                if shape_types_by_name[insert_name] != BodyShapeType.CYLINDER:
+                    raise ValueError(
+                        "particle_generation body cylinder_shape_inserts entries must reference "
+                        "cylinder shapes"
+                    )
+        for c in self.particle_generation.relaxation_constraints:
+            if c.body_name not in shape_names:
+                raise ValueError(
+                    f"relaxation constraint body '{c.body_name}' must match a shape name in geometries.shapes"
+                )
+            if c.oriented_box not in oriented_box_names:
+                raise ValueError(
+                    f"relaxation constraint oriented_box '{c.oriented_box}' must exist in geometries.oriented_boxes"
+                )
 
         # Boundary condition references
         fluid_names = {body.name for body in self.fluid_bodies}

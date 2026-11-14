@@ -85,24 +85,21 @@
     "oriented_boxes": []
   },
   "particle_generation": {
-    "build_and_run": true,
-    "settings": {
-      "bodies": [
-        {
-          "name": "WaterBody"
-        },
-        {
-          "name": "WallBoundary",
-          "solid_body": {}
-        },
-        {
-          "name": "BoatHull",
-          "solid_body": {}
-        }
-      ],
-      "relaxation_parameters": {
-        "total_iterations": 1000
+    "bodies": [
+      {
+        "name": "WaterBody"
+      },
+      {
+        "name": "WallBoundary",
+        "solid_body": {}
+      },
+      {
+        "name": "BoatHull",
+        "solid_body": {}
       }
+    ],
+    "relaxation_parameters": {
+      "total_iterations": 1000
     }
   },
   "fluid_bodies": [

@@ -51,14 +51,11 @@ _FLUID_TEMPLATE: Dict[str, Any] = {
         ],
     },
     "particle_generation": {
-        "build_and_run": True,
-        "settings": {
-            "bodies": [
-                {"name": "WaterBody"},
-                {"name": "WallBoundary", "solid_body": {}},
-            ],
-            "relaxation_parameters": {"total_iterations": 1},
-        },
+        "bodies": [
+            {"name": "WaterBody"},
+            {"name": "WallBoundary", "solid_body": {}},
+        ],
+        "relaxation_parameters": {"total_iterations": 1},
     },
     "fluid_bodies": [
         {
@@ -117,14 +114,11 @@ _SOLID_TEMPLATE: Dict[str, Any] = {
         ],
     },
     "particle_generation": {
-        "build_and_run": True,
-        "settings": {
-            "bodies": [
-                {"name": "ProcessingPiece"},
-                {"name": "WallBoundary", "solid_body": {}},
-            ],
-            "relaxation_parameters": {"total_iterations": 1},
-        },
+        "bodies": [
+            {"name": "ProcessingPiece"},
+            {"name": "WallBoundary", "solid_body": {}},
+        ],
+        "relaxation_parameters": {"total_iterations": 1},
     },
     "continuum_bodies": [
         {
@@ -187,14 +181,11 @@ _FSI_TEMPLATE: Dict[str, Any] = {
         ],
     },
     "particle_generation": {
-        "build_and_run": True,
-        "settings": {
-            "bodies": [
-                {"name": "WaterBody"},
-                {"name": "WallBoundary", "solid_body": {}},
-            ],
-            "relaxation_parameters": {"total_iterations": 1},
-        },
+        "bodies": [
+            {"name": "WaterBody"},
+            {"name": "WallBoundary", "solid_body": {}},
+        ],
+        "relaxation_parameters": {"total_iterations": 1},
     },
     "fluid_bodies": [
         {

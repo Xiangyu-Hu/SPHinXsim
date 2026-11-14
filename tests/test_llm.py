@@ -243,7 +243,7 @@ class TestExampleConfig:
             [0.588, 0.16, 0.588]
         )
         assert example["geometries"]["shapes"][0]["type"] == "cylinder"
-        assert "relaxation_parameters" not in example["particle_generation"]["settings"]
+        assert "relaxation_parameters" not in example["particle_generation"]
 
 
 class TestSTLGeometryOverrides:
@@ -305,7 +305,7 @@ class TestSTLGeometryOverrides:
         assert "WallOuterBox" not in shapes
         particle_bodies = {
             body["name"]: body
-            for body in updated["particle_generation"]["settings"]["bodies"]
+            for body in updated["particle_generation"]["bodies"]
         }
         assert particle_bodies["GranularBody"]["relaxation"]["level_set"] == {}
         assert particle_bodies["WallBoundary"]["relaxation"]["level_set"] == {}

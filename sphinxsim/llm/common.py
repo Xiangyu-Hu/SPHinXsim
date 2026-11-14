@@ -882,7 +882,7 @@ def sanitize_config_dict(cfg: Dict[str, Any]) -> Dict[str, Any]:
         candidates = get_close_matches(name, [n for n in all_body_names if isinstance(n, str)], n=1, cutoff=0.6)
         return candidates[0] if candidates else name
 
-    for entry in updated.get("particle_generation", {}).get("settings", {}).get("bodies", []):
+    for entry in updated.get("particle_generation", {}).get("bodies", []):
         if isinstance(entry, dict):
             entry["name"] = _canonical_body_name(entry.get("name"))
 

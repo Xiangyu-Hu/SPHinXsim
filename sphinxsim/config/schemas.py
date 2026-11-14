@@ -474,7 +474,7 @@ class ParticleGenerationBodyConfig(BaseModel):
         extra = getattr(self, "__pydantic_extra__", None)
         if extra:
             warnings.warn(
-                "particle_generation.settings.bodies contains unknown keys that are preserved: "
+                "particle_generation.bodies contains unknown keys that are preserved: "
                 + ", ".join(sorted(extra.keys())),
                 UserWarning,
                 stacklevel=2,

@@ -588,7 +588,7 @@ class ConfigVisualizer:
 
             # Optionally generate particles so preview can overlay the latest
             # body particle clouds if particle_generation is enabled.
-            if with_particles and self.config.particle_generation.build_and_run:
+            if with_particles and self.config.particle_generation.bodies:
                 sim = sph.SPHSimulation(str(runtime_config_path))
                 sim.resetOutputRoot(str(vtp_output_dir), True)
                 sim.buildGeometries()
@@ -625,10 +625,7 @@ class ConfigVisualizer:
 
     def _particle_generation_body_names(self) -> set[str]:
         """Return body names that are expected to have generated particle VTPs."""
-        settings = self.config.particle_generation.settings
-        if settings is None:
-            return set()
-        return {body.name for body in settings.bodies}
+        return {body.name for body in self.config.particle_generation.bodies}
 
     def _discover_latest_particle_vtps(self, vtp_dir: Path | None) -> dict[str, Path]:
         """Resolve the latest particle VTP file per body.

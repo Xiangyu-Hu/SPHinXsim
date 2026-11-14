@@ -55,23 +55,20 @@
   },
 
   "particle_generation": {
-    "build_and_run": true,
-    "settings": {
-      "bodies": [
-        {
-          "name": "FuelBody",
-          "blockers": ["FillLevel"],
-          "relaxation": { "dependent_bodies": ["FuelTank"] }
-        },
-        {
-          "name": "FuelTank",
-          "solid_body": {},
-          "relaxation": { "level_set": {} }
-        }
-      ],
-      "relaxation_parameters": {
-        "total_iterations": 1000
+    "bodies": [
+      {
+        "name": "FuelBody",
+        "blockers": ["FillLevel"],
+        "relaxation": { "dependent_bodies": ["FuelTank"] }
+      },
+      {
+        "name": "FuelTank",
+        "solid_body": {},
+        "relaxation": { "level_set": {} }
       }
+    ],
+    "relaxation_parameters": {
+      "total_iterations": 1000
     }
   },
 
@@ -116,5 +113,11 @@
       "advection_cfl": 0.25,
       "particle_sort_frequency": 100
     }
+  },
+
+  "restart": {
+    "save_interval": 500,
+    "restore_step": 0,
+    "summary_enabled": true
   }
 }

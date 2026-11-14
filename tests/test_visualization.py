@@ -62,14 +62,11 @@ def _minimal_fluid_config() -> dict:
             ],
         },
         "particle_generation": {
-            "build_and_run": True,
-            "settings": {
-                "bodies": [
-                    {"name": "WaterBody"},
-                    {"name": "WallBoundary", "solid_body": {}},
-                ],
-                "relaxation_parameters": {"total_iterations": 1},
-            },
+            "bodies": [
+                {"name": "WaterBody"},
+                {"name": "WallBoundary", "solid_body": {}},
+            ],
+            "relaxation_parameters": {"total_iterations": 1},
         },
         "fluid_bodies": [
             {
@@ -312,7 +309,7 @@ class TestPreviewLegend:
                 "upper_bound": [0.9, 0.4],
             }
         )
-        data["particle_generation"]["settings"]["bodies"].append({"name": "AirBody"})
+        data["particle_generation"]["bodies"].append({"name": "AirBody"})
         config = SimulationConfig.model_validate(data)
 
         water_colour = _body_colour("WaterBody", config)
@@ -368,7 +365,7 @@ class TestPreviewLegend:
                     "upper_bound": [float(index) + 0.5, 0.5],
                 }
             )
-            data["particle_generation"]["settings"]["bodies"].append({"name": name})
+            data["particle_generation"]["bodies"].append({"name": name})
 
         config = SimulationConfig.model_validate(data)
         colours = [_body_colour(body.name, config) for body in config.fluid_bodies]
@@ -419,7 +416,7 @@ class TestOrientedBoxLabel:
         from sphinxsim.visualization.annotations import oriented_box_label
 
         data = copy.deepcopy(fluid_config.model_dump(exclude_none=True))
-        data["particle_generation"]["settings"]["relaxation_constraints"] = [
+        data["particle_generation"]["relaxation_constraints"] = [
             {
                 "body_name": "WaterBody",
                 "oriented_box": "Inlet",

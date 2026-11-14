@@ -70,7 +70,7 @@ enum class ReloadIOHookPoint
 class ParticleGeneration
 {
   public:
-    ParticleGeneration();
+    ParticleGeneration(SPHSimulation &sim, const json &config);
     ~ParticleGeneration();
     void buildParticleGeneration(SPHSimulation &sim, const json &config);
     // skip_relaxation: on restart-resume, reuse existing Reload.xml as-is
@@ -87,7 +87,8 @@ class ParticleGeneration
     RelaxationSystem &defineRelaxationSystem(EntityManager &config_manager, const json &config);
     SPHSolver &defineSPHSolver(RelaxationSystem &relaxation_system, const json &config);
     RelaxationParameters parseRelaxationParameters(const json &config);
-    void addAllBodies(RelaxationSystem &relaxation_system, EntityManager &config_manager, const json &config);
+    void defineGenerationAndRelaxationConfig(EntityManager &config_manager, const json &config);
+    void addAllBodies(RelaxationSystem &relaxation_system, EntityManager &config_manager);
     RelaxationBodyConfig parseRelaxationBodyConfig(std::string body_name, const json &config);
     void defineBodyRelations(RelaxationSystem &relaxation_system, EntityManager &config_manager);
 

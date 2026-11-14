@@ -243,7 +243,7 @@ class TestExampleConfig:
             [0.588, 0.16, 0.588]
         )
         assert example["geometries"]["shapes"][0]["type"] == "cylinder"
-        assert "relaxation_parameters" not in example["particle_generation"]["settings"]
+        assert "relaxation_parameters" not in example["particle_generation"]
 
 
 class TestSTLGeometryOverrides:
@@ -267,7 +267,7 @@ class TestSTLGeometryOverrides:
 
     def test_nonplastic_stl_override_keeps_default_transform(self):
         base = example_config("elastic solid milling")
-        expected_domain = json.loads(json.dumps(base["geometries"]["system_domain"]))
+        assert "system_domain" not in base["geometries"]
 
         updated = apply_stl_geometry_overrides(
             base,
@@ -283,7 +283,7 @@ class TestSTLGeometryOverrides:
         assert shape["file_name"] == "milling.stl"
         assert shape["translation"] == [0.0, 0.0, 0.0]
         assert shape["scale"] == pytest.approx(1.0)
-        assert updated["geometries"]["system_domain"] == expected_domain
+        assert "system_domain" not in updated["geometries"]
 
     def test_landslide_stl_files_replace_body_and_boundary_shapes(self):
         cfg = example_config("3d landslide case")
@@ -305,7 +305,7 @@ class TestSTLGeometryOverrides:
         assert "WallOuterBox" not in shapes
         particle_bodies = {
             body["name"]: body
-            for body in updated["particle_generation"]["settings"]["bodies"]
+            for body in updated["particle_generation"]["bodies"]
         }
         assert particle_bodies["GranularBody"]["relaxation"]["level_set"] == {}
         assert particle_bodies["WallBoundary"]["relaxation"]["level_set"] == {}

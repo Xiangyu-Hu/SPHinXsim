@@ -26,7 +26,7 @@
         "name": "WaterBody",
         "type": "bounding_box",
         "lower_bound": [0.0, 0.0],
-        "upper_bound": [2.0, 2.0]
+        "upper_bound": [2.0, 1.0]
       },
       {
         "name": "WallBoundary",
@@ -46,20 +46,17 @@
     ]
   },
   "particle_generation": {
-    "build_and_run": true,
-    "settings": {
-      "bodies": [
-        {
-          "name": "WaterBody"
-        },
-        {
-          "name": "WallBoundary",
-          "solid_body": {}
-        }
-      ],
-      "relaxation_parameters": {
-        "total_iterations": 1000
+    "bodies": [
+      {
+        "name": "WaterBody"
+      },
+      {
+        "name": "WallBoundary",
+        "solid_body": {}
       }
+    ],
+    "relaxation_parameters": {
+      "total_iterations": 1000
     }
   },
   "fluid_bodies": [

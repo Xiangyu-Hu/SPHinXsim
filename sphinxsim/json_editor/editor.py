@@ -126,8 +126,8 @@ def _new_json_editor_list_item(path: tuple[Any, ...], spatial_dim: int) -> Any:
             "half_size": unit_vector,
             "transform": transform,
         },
-        ("particle_generation", "settings", "bodies"): {"name": "New body"},
-        ("particle_generation", "settings", "relaxation_constraints"): {
+        ("particle_generation", "bodies"): {"name": "New body"},
+        ("particle_generation", "relaxation_constraints"): {
             "body_name": "",
             "oriented_box": "",
             "type": "",

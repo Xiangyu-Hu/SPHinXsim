@@ -81,12 +81,10 @@ void SPHSimulation::generateParticles()
         restart_config = SimulationBuilder::parseRestartConfig(config.at("restart"));
     }
 
-    json particle_generation_config = config.at("particle_generation");
-    if (particle_generation_config.at("build_and_run").get<bool>() &&
-        restart_config.restore_step_ == 0)
+    ParticleGeneration particle_generation(*this, config.at("particle_generation"));
+    if (restart_config.restore_step_ == 0)
     {
-        ParticleGeneration particle_generation;
-        particle_generation.buildParticleGeneration(*this, particle_generation_config.at("settings"));
+        particle_generation.buildParticleGeneration(*this, config.at("particle_generation"));
         particle_generation.runRelaxation(config_manager_);
     }
     particles_generated_ = true;

@@ -78,7 +78,7 @@
       "name": "SoilObserver",
       "observed_body": "GranularBody",
       "variable": { "real_type": "Pressure" },
-      "positions": [[0.5, 0.2]]
+      "positions": [[0.0, 0.05]]
     }
   ],
 

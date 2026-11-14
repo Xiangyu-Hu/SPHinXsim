@@ -150,11 +150,18 @@ def reject_unknown(value, schema, definitions, path="$", depth=0):
         if schema.get("type") != "object" and "properties" not in schema:
             raise ValueError(f"Expected a scalar or list at {path}")
         props = schema.get("properties", {})
+        additional = schema.get("additionalProperties", False)
         unknown = set(value) - set(props)
-        if unknown and not isinstance(schema.get("additionalProperties"), dict):
+        if unknown and additional is not True and not isinstance(additional, dict):
             raise ValueError(f"Unknown fields at {path}: {sorted(unknown)}")
         for key, child in value.items():
-            reject_unknown(child, props.get(key, schema.get("additionalProperties", {})), definitions, path + "." + key, depth + 1)
+            if key in props:
+                child_schema = props[key]
+            elif isinstance(additional, dict):
+                child_schema = additional
+            else:
+                continue
+            reject_unknown(child, child_schema, definitions, path + "." + key, depth + 1)
     elif isinstance(value, list) and "items" in schema:
         for index, child in enumerate(value):
             reject_unknown(child, schema["items"], definitions, f"{path}[{index}]", depth + 1)

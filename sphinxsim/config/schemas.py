@@ -903,6 +903,7 @@ class FluidBoundaryConditionConfig(BaseModel):
     oriented_box: Optional[str] = Field(default=None, min_length=1)
     type: FluidBoundaryConditionType
     inflow_speed: Optional[float] = Field(default=None, gt=0)
+    temperature: Optional[float] = None
     pressure: Optional[float] = None
     velocity: Optional[ParabolicVelocityConfig] = None
     mass_fractions: Optional[List[float]] = None

@@ -60,10 +60,24 @@ def reject_inactive_fields(payload):
         admit(box, {"name", "type", *fields.split()}, f"geometries.oriented_boxes[{index}]")
         if box.get("radius") is not None and box.get("surface_half_size") is not None:
             raise ValueError("Boundary radius and surface_half_size are mutually exclusive")
+    fluid_materials = {
+        body.get("name"): body.get("material", {})
+        for body in payload.get("fluid_bodies", [])
+    }
     for index, boundary in enumerate(payload.get("fluid_boundary_conditions", [])):
+        boundary_type = boundary.get("type")
         fields = {"emitter": "inflow_speed on_schedule multi_species_phases volume_fractions",
                   "bi_directional": "pressure velocity mass_fractions",
-                  "free_stream": "buffer_box disposer_box target_speed t_ref"}.get(boundary.get("type"), "")
+                  "free_stream": "buffer_box disposer_box target_speed t_ref"}.get(boundary_type, "")
+        if boundary_type in ("emitter", "bi_directional"):
+            material = fluid_materials.get(boundary.get("body_name"), {})
+            thermal = material.get("thermal_properties", {})
+            if (
+                thermal.get("thermal_boundary") is None
+                and thermal.get("thermal_conductivity") is not None
+                and thermal.get("volumetric_heat_capacity") is not None
+            ):
+                fields += " temperature"
         admit(boundary, {"body_name", "oriented_box", "type", *fields.split()}, f"fluid_boundary_conditions[{index}]")
     for index, constraint in enumerate(payload.get("body_constraints", [])):
         if constraint.get("type") == "fixed":

@@ -78,3 +78,21 @@ def test_declared_but_inactive_material_fields_do_not_silently_pass():
     config["solid_bodies"][0]["material"]["youngs_modulus"] = 1000
     with pytest.raises(ValueError, match="Fields not consumed"):
         check_config(config)
+
+
+def test_thermal_emitter_temperature_is_accepted_by_shared_admission():
+    source = (
+        Path(__file__).parents[1]
+        / "test_simulation"
+        / "test_2d_simulation"
+        / "data"
+        / "multi_phase_mixing.json"
+    )
+    config = json.loads(source.read_text())
+    normalized, _ = check_config(config)
+    assert normalized["fluid_boundary_conditions"][0]["temperature"] == 20.0
+
+    non_thermal_config = deepcopy(config)
+    del non_thermal_config["fluid_bodies"][0]["material"]["thermal_properties"]
+    with pytest.raises(ValueError, match="Fields not consumed"):
+        check_config(non_thermal_config)

@@ -82,6 +82,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._pending_runtime_config_path: Path | None = None
         self._live_run_thread: Thread | None = None
         self._live_refresh_timer: Any | None = None
+        self._live_run_finished = False
+        self._live_run_completion_woken = False
         self._live_output_dir: Path | None = None
         self._live_particle_body_names: set[str] = set()
         self._live_particle_colours: dict[str, Any] = {}
@@ -153,6 +155,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             except Exception:
                 pass
         self._live_output_dir = None
+        self._live_run_finished = False
+        self._live_run_completion_woken = False
         self._live_particle_body_names = set()
         self._live_particle_colours = {}
         self._live_particle_versions = {}
@@ -198,7 +202,11 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                     except OSError:
                         break
                     file_state = (stat.st_size, stat.st_mtime_ns)
-                    if self._live_particle_file_states.get(vtp_path) != file_state:
+                    if (
+                        not self._live_run_finished
+                        and self._live_particle_file_states.get(vtp_path)
+                        != file_state
+                    ):
                         self._live_particle_file_states[vtp_path] = file_state
                         has_unstable_snapshot = True
                         break
@@ -269,6 +277,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._live_particle_file_states = {}
         self._live_playback_queue = []
         self._live_replay_mode = False
+        self._live_run_finished = False
+        self._live_run_completion_woken = False
         self._live_refresh_interval_ms = round(refresh_interval * 1000)
         if not self._using_background_plotter or self.plotter is None:
             return
@@ -409,6 +419,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 except Exception as exc:
                     print(f"❌ Continued run failed: {exc}", file=sys.stderr)
                 finally:
+                    self._live_run_finished = True
                     if runtime_config_path is not None:
                         try:
                             runtime_config_path.unlink(missing_ok=True)
@@ -445,6 +456,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 app = getattr(self.plotter, "app", None)
                 if app is not None and hasattr(app, "processEvents"):
                     app.processEvents()
+                    self._wake_live_refresh_after_run()
                     return
 
                 try:
@@ -459,12 +471,24 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                     app = QApplication.instance()
                     if app is not None:
                         app.processEvents()
+                        self._wake_live_refresh_after_run()
                         return
 
             if hasattr(self.plotter, "render"):
                 self.plotter.render()
         except Exception:
             pass
+
+    def _wake_live_refresh_after_run(self) -> None:
+        """Poll completed-run snapshots promptly while the shell awaits input."""
+        timer = self._live_refresh_timer
+        if (
+            self._live_run_finished
+            and timer is not None
+            and not self._live_run_completion_woken
+        ):
+            timer.setInterval(round(1000 / _LIVE_PREVIEW_MAX_FPS))
+            self._live_run_completion_woken = True
 
     @staticmethod
     def _set_label_font_size(actor: Any, size: int) -> bool:

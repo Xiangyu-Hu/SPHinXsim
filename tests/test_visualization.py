@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import math
 import sys
+import threading
 from pathlib import Path
 
 from typing import Any
@@ -1201,6 +1202,26 @@ class TestShellPreview:
         rel = f"pytest-temp/{path.name}/config.json"
         return p, rel
 
+    def test_shell_input_pumps_preview_events_while_waiting(self):
+        from sphinxsim import cli as cli_mod
+
+        input_can_return = threading.Event()
+        pump_calls = []
+
+        def fake_input(_prompt):
+            assert input_can_return.wait(timeout=2)
+            return "exit"
+
+        runtime = SimpleNamespace(
+            plotter=object(),
+            _using_background_plotter=True,
+            pump_ui_events=lambda: (pump_calls.append(True), input_can_return.set()),
+        )
+        with patch("builtins.input", side_effect=fake_input):
+            assert cli_mod._read_shell_input("sphinxsim> ", runtime) == "exit"
+
+        assert pump_calls
+
     def test_shell_preview_no_pyvista_prints_error(self, build_temp_path, capsys):
         _, rel = self._write_config(build_temp_path)
         inputs = [f"load {rel}", "preview", "exit"]
@@ -1306,6 +1327,78 @@ class TestShellPreview:
         assert calls == ["build", "initialize", "run"]
         assert runtime._pending_simulation is None
         assert not runtime_config_path.exists()
+
+    def test_shell_runtime_plays_final_snapshots_when_run_finishes_before_refresh(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        class FakeTimer:
+            def __init__(self):
+                self.timeout = MagicMock()
+                self.interval = None
+                self.interval_updates = 0
+
+            def setInterval(self, interval):
+                self.interval = interval
+                self.interval_updates += 1
+
+            def start(self):
+                pass
+
+            def stop(self):
+                pass
+
+        class FakePlotter:
+            def __init__(self):
+                self.meshes = []
+                self.app = SimpleNamespace(processEvents=lambda: None)
+
+            def add_mesh(self, mesh, **_kwargs):
+                self.meshes.append(mesh)
+
+        class FakeSimulation:
+            def buildSimulation(self):
+                pass
+
+            def initializeSimulation(self):
+                pass
+
+            def run(self):
+                for step in (1, 2):
+                    (tmp_path / f"WaterBody_{step}.vtp").touch()
+
+        timer = FakeTimer()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._pending_simulation = FakeSimulation()
+        runtime._using_background_plotter = True
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_body_names = {"WaterBody"}
+        runtime.plotter = FakePlotter()
+
+        with patch.dict(
+            sys.modules,
+            {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))},
+        ):
+            assert runtime.continue_to_run(refresh_interval=30.0) == 0
+            runtime._live_run_thread.join()
+            assert timer.interval == 30_000
+            runtime.pump_ui_events()
+            runtime.pump_ui_events()
+            assert timer.interval == 40
+            assert timer.interval_updates == 2
+
+            with patch.dict(
+                sys.modules,
+                {"pyvista": SimpleNamespace(read=lambda path: path)},
+            ):
+                runtime._refresh_live_particles()
+                runtime._refresh_live_particles()
+                runtime._refresh_live_particles()
+
+        assert runtime.plotter.meshes == [
+            str(tmp_path / "WaterBody_1.vtp"),
+            str(tmp_path / "WaterBody_2.vtp"),
+        ]
+        assert runtime._live_refresh_timer is None
 
     def test_shell_runtime_plays_particle_snapshots_in_sequence(self, tmp_path):
         from sphinxsim import cli as cli_mod

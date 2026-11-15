@@ -192,6 +192,7 @@ class ConfigVisualizer:
 
         self._vtp_dir: Path | None = None
         self._shape_bounds_cache: dict[str, Any] | None = None
+        self._missing_shape_geometry: list[str] = []
         self._annotation_label_actors: list[dict[str, Any]] = []
         self._particle_simulation: Any | None = None
         self._particle_runtime_config_path: Path | None = None
@@ -310,6 +311,11 @@ class ConfigVisualizer:
         if with_particles:
             latest_particle_vtps = self._discover_latest_particle_vtps(vtp_dir)
         self._vtp_dir = vtp_dir
+        if self.config_path is not None:
+            self._ensure_shape_geometry_available(
+                vtp_dir,
+                hide_shapes=bool(latest_particle_vtps),
+            )
 
         # Screenshot mode implies off-screen rendering.
         off_screen = self.off_screen or screenshot_path is not None
@@ -323,6 +329,8 @@ class ConfigVisualizer:
         self._configure_layout(plotter)
         self._draw_preview_sidebar(plotter)
         self._populate_plotter(plotter, vtp_dir, latest_particle_vtps)
+        if self.config_path is not None:
+            self._ensure_shapes_rendered()
         self._configure_layout(plotter)
         self._configure_default_view(plotter, ndim)
         plotter.add_axes()
@@ -600,11 +608,15 @@ class ConfigVisualizer:
                     self._shape_bounds_cache = None               
                 self._particle_simulation = sim
                 self._particle_runtime_config_path = runtime_config_path
-        except Exception:
+        except Exception as exc:
             self._shape_bounds_cache = None
             self._particle_simulation = None
             self._particle_runtime_config_path = None
-            return None
+            raise RuntimeError(
+                "C++ geometry generation failed. The installed SPHinXsim Python "
+                "binding may be out of date; rebuild or update the binding "
+                f"library and try again. Details: {exc}"
+            ) from exc
         finally:
             if (
                 runtime_config_path is not None
@@ -685,6 +697,7 @@ class ConfigVisualizer:
         config = self.config
         self._select_subplot(plotter, 0)
         self._annotation_label_actors = []
+        self._missing_shape_geometry = []
         hide_shapes = bool(latest_particle_vtps)
 
         def _add_annotation_label(
@@ -869,6 +882,14 @@ class ConfigVisualizer:
                 )
                 rendered_shapes.add(shape.name)
 
+            missing_shapes = [
+                shape.name
+                for shape in config.geometries.shapes
+                if shape.type.value not in {"extrude_shape", "complex_shape"}
+                and shape.name not in rendered_shapes
+            ]
+            self._missing_shape_geometry = missing_shapes
+
         # --- Overlay latest generated particles (one VTP per body) ---
         particle_vtps = latest_particle_vtps or {}
         for body_name in sorted(particle_vtps):
@@ -901,6 +922,7 @@ class ConfigVisualizer:
         for ob in config.geometries.oriented_boxes:
             mesh = self._load_oriented_box_mesh(ob, vtp_dir)
             if mesh is None:
+                self._missing_shape_geometry.append(ob.name)
                 continue
 
             colour = _INLET_OUTLET_COLOUR if ob.type.value == "boundary" else _REGION_COLOUR
@@ -1216,6 +1238,48 @@ class ConfigVisualizer:
             upper[i] += pad
 
         return lower, upper
+
+    def _ensure_shapes_rendered(self) -> None:
+        """Fail if a configured shape could not be populated from native geometry."""
+        if not self._missing_shape_geometry:
+            return
+        names = ", ".join(self._missing_shape_geometry)
+        raise RuntimeError(
+            f"Preview could not render configured geometry: {names}. "
+            "Required VTP meshes or C++ bounds were unavailable. Rebuild or update "
+            "the SPHinXsim Python binding library (not only the C++ "
+            "libraries) and try again."
+        )
+
+    def _ensure_shape_geometry_available(
+        self,
+        vtp_dir: Path | None,
+        *,
+        hide_shapes: bool = False,
+    ) -> None:
+        """Fail before opening a window when no native source exists for a shape."""
+        if hide_shapes:
+            return
+        self._missing_shape_geometry = [
+            shape.name
+            for shape in self.config.geometries.shapes
+            if shape.type.value not in {"extrude_shape", "complex_shape"}
+            and not (
+                vtp_dir is not None
+                and (vtp_dir / f"Shape{shape.name}.vtp").is_file()
+            )
+            and not (
+                self._shape_bounds_cache is not None
+                and shape.name in self._shape_bounds_cache
+            )
+        ]
+        self._missing_shape_geometry.extend(
+            ob.name
+            for ob in self.config.geometries.oriented_boxes
+            if vtp_dir is None
+            or not (vtp_dir / f"Shape{ob.name}.vtp").is_file()
+        )
+        self._ensure_shapes_rendered()
 
     def _load_shape_mesh(
         self,

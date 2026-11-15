@@ -373,6 +373,83 @@ class TestPreviewLegend:
         assert len(set(colours)) == len(colours)
 
 
+class TestPreviewGeometryFailure:
+    def test_preview_fails_when_configured_shapes_have_no_native_geometry(
+        self, fluid_config, tmp_path
+    ):
+        from sphinxsim.visualization.preview import ConfigVisualizer
+
+        visualizer = ConfigVisualizer(fluid_config, tmp_path, off_screen=True)
+        with pytest.raises(RuntimeError, match="WaterBody, WallBoundary"):
+            visualizer._ensure_shape_geometry_available(vtp_dir=None)
+
+        with patch.dict(sys.modules, {"pyvista": _FakePyVista}):
+            visualizer._populate_plotter(_FakePlotter(), vtp_dir=None)
+
+        with pytest.raises(RuntimeError, match="WaterBody, WallBoundary") as exc_info:
+            visualizer._ensure_shapes_rendered()
+
+        assert "Python binding library" in str(exc_info.value)
+
+    def test_geometry_build_failure_identifies_outdated_binding(
+        self, fluid_config, tmp_path, monkeypatch
+    ):
+        import sphinxsim.visualization.preview as preview_mod
+
+        visualizer = preview_mod.ConfigVisualizer(
+            fluid_config,
+            tmp_path,
+            config_path=tmp_path / "config.json",
+        )
+        monkeypatch.setattr(
+            preview_mod,
+            "load_sphinxsys_core_nd",
+            lambda _ndim: SimpleNamespace(),
+        )
+
+        with pytest.raises(RuntimeError, match="binding may be out of date") as exc_info:
+            visualizer._try_build_geometries(2)
+
+        assert isinstance(exc_info.value.__cause__, AttributeError)
+
+    def test_persistent_preview_reports_geometry_build_failure(
+        self, fluid_config, tmp_path, monkeypatch, capsys
+    ):
+        from sphinxsim.visualization.preview_runtime import _ShellPreviewRuntime
+
+        class FailingVisualizer:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def _spatial_dim(self):
+                return 2
+
+            def _try_build_geometries(self, ndim, with_particles=False):
+                raise RuntimeError(
+                    "C++ geometry generation failed; update the Python binding."
+                )
+
+        runtime = _ShellPreviewRuntime()
+        monkeypatch.setattr(
+            "sphinxsim.visualization.preview.ConfigVisualizer",
+            FailingVisualizer,
+        )
+        with patch.dict(sys.modules, {"pyvista": MagicMock()}):
+            rc = runtime.show_or_update(
+                fluid_config,
+                resolved_config_path=tmp_path / "config.json",
+                with_particles=False,
+                force=True,
+            )
+
+        assert rc == 1
+        assert (
+            "Preview failed: C++ geometry generation failed"
+            in capsys.readouterr().err
+        )
+        assert runtime.last_signature is None
+
+
 class TestOrientedBoxLabel:
     def test_label_includes_name_and_type(self, fluid_config):
         from sphinxsim.visualization.annotations import oriented_box_label

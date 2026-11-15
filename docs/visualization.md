@@ -185,7 +185,8 @@ sphinxsim> replay
 
 If needed, replay opens the regular configuration preview, preserving the
 correct 2D/3D camera (including the orthographic XY view for 2D). Wait until
-`continue-to-run` has finished before starting replay.
+`continue-to-run` has finished before starting replay. Replay keeps the current
+camera framing fixed while the particle snapshots animate.
 
 `preview` requires a config to be loaded first (via `load` or `generate`).
 

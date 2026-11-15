@@ -72,6 +72,16 @@ def edit_spacing(runtime, value):
     return field
 
 
+def test_json_editor_tree_columns_share_width_equally(editor):
+    app, runtime, _, _ = editor
+    app.processEvents()
+    tree = runtime._json_editor["tree"]
+    header = tree.header()
+    assert header.sectionResizeMode(0) == QtWidgets.QHeaderView.ResizeMode.Stretch
+    assert header.sectionResizeMode(1) == QtWidgets.QHeaderView.ResizeMode.Stretch
+    assert abs(header.sectionSize(0) - header.sectionSize(1)) <= 1
+
+
 def test_human_edits_invalidate_old_commands_and_native_save_really_persists(editor):
     app, runtime, session, path = editor
     observed = session.handle({"operation": "status"})

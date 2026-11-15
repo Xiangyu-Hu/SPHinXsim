@@ -22,6 +22,7 @@ import copy
 import glob
 import json
 import os
+import queue
 import shlex
 import subprocess
 import sys
@@ -29,6 +30,7 @@ import tempfile
 import time
 import warnings
 from pathlib import Path
+from threading import Thread
 from typing import Any, Tuple
 
 try:
@@ -107,6 +109,34 @@ def _load_config(path: Path) -> Tuple[SimulationConfig | None, int]:
         return None, 1
 
 
+def _read_shell_input(prompt: str, preview_runtime: _ShellPreviewRuntime) -> str:
+    """Read shell input while servicing Qt events for a persistent preview."""
+    if (
+        preview_runtime.plotter is None
+        or not preview_runtime._using_background_plotter
+    ):
+        return input(prompt)
+
+    result: queue.Queue[tuple[str | None, Exception | None]] = queue.Queue(maxsize=1)
+
+    def read_input() -> None:
+        try:
+            result.put((input(prompt), None))
+        except Exception as exc:
+            result.put((None, exc))
+
+    Thread(target=read_input, daemon=True).start()
+    while True:
+        try:
+            line, error = result.get(timeout=0.01)
+        except queue.Empty:
+            preview_runtime.pump_ui_events()
+            continue
+        if error is not None:
+            raise error
+        if line is None:
+            raise RuntimeError("Shell input returned no command.")
+        return line
 
 
 def _short_repr(value: Any, max_len: int = 80) -> str:
@@ -691,7 +721,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
 
     while True:
         try:
-            line = input("sphinxsim> ").strip()
+            line = _read_shell_input("sphinxsim> ", preview_runtime).strip()
         except (EOFError, KeyboardInterrupt):
             preview_runtime.close()
             print()

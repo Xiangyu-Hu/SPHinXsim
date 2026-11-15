@@ -393,8 +393,13 @@ class JsonEditorMixin:
         tree.setAlternatingRowColors(True)
         tree.setUniformRowHeights(True)
         tree.setIndentation(16)
-        tree.setColumnWidth(0, 145)
-        tree.header().setStretchLastSection(True)
+        tree.header().setStretchLastSection(False)
+        tree.header().setSectionResizeMode(
+            0, QtWidgets.QHeaderView.ResizeMode.Stretch
+        )
+        tree.header().setSectionResizeMode(
+            1, QtWidgets.QHeaderView.ResizeMode.Stretch
+        )
         tree.setStyleSheet(
             "QTreeWidget { border: 1px solid #454b55; border-radius: 3px; background: #202329; color: #e1e4e8; }"
             "QHeaderView::section { padding: 5px 7px; border: 0; border-bottom: 1px solid #454b55; "

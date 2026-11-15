@@ -1163,6 +1163,7 @@ class TestSimulationConfig:
                     "oriented_box": "Inlet",
                     "type": "emitter",
                     "inflow_speed": 1.5,
+                    "temperature": 20.0,
                     "multi_species_phases": [
                         {
                             "phase_name": "SpeciesPhaseA",
@@ -1175,6 +1176,7 @@ class TestSimulationConfig:
         )
 
         bc = cfg.fluid_boundary_conditions[0]
+        assert bc.temperature == 20.0
         assert bc.multi_species_phases is not None
         assert bc.multi_species_phases[0].phase_name == "SpeciesPhaseA"
         assert bc.multi_species_phases[0].mass_fractions == pytest.approx([0.4, 0.6])

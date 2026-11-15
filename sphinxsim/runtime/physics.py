@@ -60,10 +60,24 @@ def reject_inactive_fields(payload):
         admit(box, {"name", "type", *fields.split()}, f"geometries.oriented_boxes[{index}]")
         if box.get("radius") is not None and box.get("surface_half_size") is not None:
             raise ValueError("Boundary radius and surface_half_size are mutually exclusive")
+    fluid_materials = {
+        body.get("name"): body.get("material", {})
+        for body in payload.get("fluid_bodies", [])
+    }
     for index, boundary in enumerate(payload.get("fluid_boundary_conditions", [])):
+        boundary_type = boundary.get("type")
         fields = {"emitter": "inflow_speed on_schedule multi_species_phases volume_fractions",
                   "bi_directional": "pressure velocity mass_fractions",
-                  "free_stream": "buffer_box disposer_box target_speed t_ref"}.get(boundary.get("type"), "")
+                  "free_stream": "buffer_box disposer_box target_speed t_ref"}.get(boundary_type, "")
+        if boundary_type in ("emitter", "bi_directional"):
+            material = fluid_materials.get(boundary.get("body_name"), {})
+            thermal = material.get("thermal_properties", {})
+            if (
+                thermal.get("thermal_boundary") is None
+                and thermal.get("thermal_conductivity") is not None
+                and thermal.get("volumetric_heat_capacity") is not None
+            ):
+                fields += " temperature"
         admit(boundary, {"body_name", "oriented_box", "type", *fields.split()}, f"fluid_boundary_conditions[{index}]")
     for index, constraint in enumerate(payload.get("body_constraints", [])):
         if constraint.get("type") == "fixed":
@@ -136,11 +150,18 @@ def reject_unknown(value, schema, definitions, path="$", depth=0):
         if schema.get("type") != "object" and "properties" not in schema:
             raise ValueError(f"Expected a scalar or list at {path}")
         props = schema.get("properties", {})
+        additional = schema.get("additionalProperties", False)
         unknown = set(value) - set(props)
-        if unknown and not isinstance(schema.get("additionalProperties"), dict):
+        if unknown and additional is not True and not isinstance(additional, dict):
             raise ValueError(f"Unknown fields at {path}: {sorted(unknown)}")
         for key, child in value.items():
-            reject_unknown(child, props.get(key, schema.get("additionalProperties", {})), definitions, path + "." + key, depth + 1)
+            if key in props:
+                child_schema = props[key]
+            elif isinstance(additional, dict):
+                child_schema = additional
+            else:
+                continue
+            reject_unknown(child, child_schema, definitions, path + "." + key, depth + 1)
     elif isinstance(value, list) and "items" in schema:
         for index, child in enumerate(value):
             reject_unknown(child, schema["items"], definitions, f"{path}[{index}]", depth + 1)

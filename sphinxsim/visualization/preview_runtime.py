@@ -732,13 +732,21 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         vtp_dir: Path | None = None
         latest_particle_vtps: dict[str, Path] = {}
 
-        # Always rebuild geometry; if VTPs are unavailable the preview falls back
-        # to cached bounds and still renders the scene.
-        vtp_dir = visualizer._try_build_geometries(ndim, with_particles=with_particles)
-        if with_particles:
-            latest_particle_vtps = visualizer._discover_latest_particle_vtps(vtp_dir)
-
         try:
+            # Always rebuild geometry; if VTPs are unavailable the preview
+            # falls back to cached bounds and still renders the scene.
+            vtp_dir = visualizer._try_build_geometries(ndim, with_particles=with_particles)
+            if with_particles:
+                latest_particle_vtps = visualizer._discover_latest_particle_vtps(vtp_dir)
+            ensure_geometry_available = getattr(
+                visualizer, "_ensure_shape_geometry_available", None
+            )
+            if ensure_geometry_available is not None:
+                ensure_geometry_available(
+                    vtp_dir,
+                    hide_shapes=bool(latest_particle_vtps),
+                )
+
             if sys.platform.startswith("linux"):
                 os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
             import pyvista as pv
@@ -799,6 +807,9 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             if draw_sidebar is not None:
                 draw_sidebar(self.plotter)
             visualizer._populate_plotter(self.plotter, vtp_dir, latest_particle_vtps)
+            ensure_shapes_rendered = getattr(visualizer, "_ensure_shapes_rendered", None)
+            if ensure_shapes_rendered is not None:
+                ensure_shapes_rendered()
             if with_particles:
                 self._animation_run_completed = False
                 pending_simulation = visualizer.take_particle_simulation()
@@ -858,8 +869,10 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 pass
             return 0
         except ImportError as exc:
+            self.last_signature = None
             print(f"❌ {exc}", file=sys.stderr)
             return 1
         except Exception as exc:
+            self.last_signature = None
             print(f"❌ Preview failed: {exc}", file=sys.stderr)
             return 1

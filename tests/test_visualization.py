@@ -1436,6 +1436,10 @@ class TestShellPreview:
             runtime._refresh_live_particles()
 
         assert runtime.plotter.add_mesh.call_count == 2
+        assert all(
+            call.kwargs["reset_camera"] is False
+            for call in runtime.plotter.add_mesh.call_args_list
+        )
         assert runtime._live_replay_mode is False
         assert runtime._live_refresh_timer is None
 

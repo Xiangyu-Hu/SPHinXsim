@@ -241,6 +241,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 style="points",
                 point_size=_PARTICLE_POINT_SIZE,
                 label=_particle_label(body_name),
+                reset_camera=False,
             )
 
         if self._live_replay_mode and not self._live_playback_queue:

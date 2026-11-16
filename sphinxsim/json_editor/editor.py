@@ -307,47 +307,17 @@ class JsonEditorMixin:
             "min-height: 27px; padding: 1px 7px; border: 1px solid #454b55; border-radius: 3px; "
             "background: #24272d; color: #e6e8ec; selection-background-color: #315f8c;"
         )
-        tools_grid = QtWidgets.QGridLayout()
-        tools_grid.setHorizontalSpacing(4)
-        tools_grid.setVerticalSpacing(4)
-        tools_grid.setContentsMargins(0, 0, 0, 0)
-        expand_button = QtWidgets.QToolButton(content)
-        expand_button.setText("Expand")
-        collapse_button = QtWidgets.QToolButton(content)
-        collapse_button.setText("Collapse")
-        revert_button = QtWidgets.QToolButton(content)
-        revert_button.setText("Revert")
-        reload_button = QtWidgets.QToolButton(content)
-        reload_button.setText("Reload")
-        tool_buttons = (
-            expand_button,
-            collapse_button,
-            revert_button,
-            reload_button,
-        )
-        for index, button in enumerate(tool_buttons):
-            button.setToolButtonStyle(
-                QtCore.Qt.ToolButtonStyle.ToolButtonTextOnly
-            )
-            button.setMinimumWidth(0)
-            button.setSizePolicy(
-                QtWidgets.QSizePolicy.Policy.Expanding,
-                QtWidgets.QSizePolicy.Policy.Fixed,
-            )
-            tools_grid.addWidget(button, 0, index)
-            button.setVisible(True)
-
-        for column in range(len(tool_buttons)):
-            tools_grid.setColumnStretch(column, 1)
         tree = QtWidgets.QTreeWidget(content)
         tree.setObjectName("sphinxsim-json-editor-tree")
         tree.setColumnCount(2)
-        tree.setHeaderLabels(["Setting", "Value"])
+        tree.setHeaderLabels(["Setting ▾", "Value"])
         tree.setRootIsDecorated(True)
         tree.setAlternatingRowColors(True)
         tree.setUniformRowHeights(True)
         tree.setIndentation(16)
         tree.header().setStretchLastSection(False)
+        tree.header().setSectionsClickable(True)
+        tree.header().setSortIndicatorShown(False)
         tree.header().setSectionResizeMode(
             0, QtWidgets.QHeaderView.ResizeMode.Stretch
         )
@@ -378,7 +348,6 @@ class JsonEditorMixin:
             "background: #1f3042; color: #d9e8f5;"
         )
         layout.addWidget(filter_box)
-        layout.addLayout(tools_grid)
         layout.addWidget(tree, 1)
         layout.addWidget(status)
         dock.setWidget(content)
@@ -466,6 +435,20 @@ class JsonEditorMixin:
             action = context_menu.addAction(label)
             action.setObjectName(f"sphinxsim-json-editor-list-{operation}")
             context_actions[operation] = action
+        settings_menu = QtWidgets.QMenu(tree.header())
+        settings_menu.setObjectName("sphinxsim-json-editor-settings-menu")
+        settings_menu.setStyleSheet(context_menu.styleSheet())
+        settings_actions = {
+            operation: settings_menu.addAction(label)
+            for operation, label in (
+                ("expand", "Expand"),
+                ("collapse", "Collapse"),
+                ("revert", "Revert"),
+                ("reload", "Reload"),
+            )
+        }
+        for operation, action in settings_actions.items():
+            action.setObjectName(f"sphinxsim-json-editor-{operation}")
 
         def _new_tree_item(
             parent: Any | None,
@@ -524,7 +507,7 @@ class JsonEditorMixin:
 
         def _mark_dirty(item: Any | None = None) -> None:
             editor_state["dirty"] = True
-            revert_button.setEnabled(True)
+            settings_actions["revert"].setEnabled(True)
             if item is not None:
                 item.setBackground(0, QtGui.QColor("#594a24"))
             status.setText("Unsaved changes. Press Ctrl+S to validate, save, and refresh.")
@@ -598,7 +581,7 @@ class JsonEditorMixin:
                 editor_state["baseline_payload"] = copy.deepcopy(payload)
                 editor_state["undo_stack"] = []
             editor_state["dirty"] = False
-            revert_button.setEnabled(bool(editor_state["undo_stack"]))
+            settings_actions["revert"].setEnabled(bool(editor_state["undo_stack"]))
             tree.clear()
 
             def add_value(parent: Any | None, label: str, value: Any, path: tuple[Any, ...], depth: int) -> None:
@@ -721,7 +704,7 @@ class JsonEditorMixin:
                 reset_to_json(editor_state["original_json"], "Restored the last saved configuration.")
                 return
             reset_to_json(editor_state["undo_stack"].pop(), "Reverted the latest local edit.")
-            revert_button.setEnabled(bool(editor_state["undo_stack"]))
+            settings_actions["revert"].setEnabled(bool(editor_state["undo_stack"]))
 
         def confirm_discard_changes(message: str) -> bool:
             if not editor_state["dirty"]:
@@ -857,9 +840,27 @@ class JsonEditorMixin:
                 return
             tree.setCurrentItem(item)
             update_array_actions()
-            if not any(action.isEnabled() for action in context_actions.values()):
-                return
             context_menu.popup(tree.viewport().mapToGlobal(position))
+
+        def show_settings_menu(section: int) -> None:
+            if section != 0:
+                return
+            update_settings_actions()
+            header = tree.header()
+            left = header.sectionViewportPosition(section)
+            bottom = header.viewport().height()
+            settings_menu.popup(
+                header.viewport().mapToGlobal(QtCore.QPoint(left, bottom))
+            )
+
+        def update_settings_actions() -> None:
+            has_items = tree.topLevelItemCount() > 0
+            settings_actions["expand"].setEnabled(has_items)
+            settings_actions["collapse"].setEnabled(has_items)
+            settings_actions["revert"].setEnabled(
+                bool(editor_state["dirty"] or editor_state["undo_stack"])
+            )
+            settings_actions["reload"].setEnabled(True)
 
         def apply_changes() -> None:
             active_config_path = editor_state["config_path"]
@@ -947,19 +948,22 @@ class JsonEditorMixin:
         shortcut.activated.connect(apply_changes)
         undo_shortcut = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Undo, content)
         undo_shortcut.activated.connect(undo_changes)
-        expand_button.clicked.connect(tree.expandAll)
-        collapse_button.clicked.connect(tree.collapseAll)
-        revert_button.clicked.connect(undo_changes)
-        reload_button.clicked.connect(reload_from_disk)
+        settings_actions["expand"].triggered.connect(tree.expandAll)
+        settings_actions["collapse"].triggered.connect(tree.collapseAll)
+        settings_actions["revert"].triggered.connect(undo_changes)
+        settings_actions["reload"].triggered.connect(reload_from_disk)
         tree.currentItemChanged.connect(lambda *_args: update_array_actions())
         tree.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
         tree.customContextMenuRequested.connect(show_list_context_menu)
+        tree.header().setToolTip("Click Setting for editor actions")
+        tree.header().sectionClicked.connect(show_settings_menu)
         for operation, action in context_actions.items():
             action.triggered.connect(
                 lambda _checked=False, selected_operation=operation: edit_array(
                     selected_operation
                 )
             )
+        update_settings_actions()
         filter_box.textChanged.connect(filter_items)
         def refresh_editor(
             current_config: SimulationConfig,
@@ -1018,5 +1022,7 @@ class JsonEditorMixin:
             "discard": lambda: populate_editor(editor_state["original_json"], reset_history=True),
             "reveal_path": reveal_path,
             "context_actions": context_actions,
+            "settings_actions": settings_actions,
+            "settings_menu": settings_menu,
         }
         return True

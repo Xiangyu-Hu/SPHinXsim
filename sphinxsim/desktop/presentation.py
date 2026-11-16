@@ -25,16 +25,16 @@ FIELDS = {
     "continuum_bodies": ("连续体物体", "Continuum bodies"), "geometry": ("几何", "Geometry"),
     "material": ("材料", "Material"), "boundary_conditions": ("边界条件", "Boundary conditions"),
 }
-BUTTONS = {
-    "Expand": ("expand", "展开", "Expand"), "Collapse": ("collapse", "折叠", "Collapse"),
-    "Revert": ("revert", "恢复", "Revert"), "Reload": ("reload", "重新载入", "Reload"),
-}
-LIST_CONTEXT_ACTIONS = {
+EDITOR_ACTIONS = {
     "add": ("添加", "Add"),
     "duplicate": ("复制", "Duplicate"),
     "remove": ("删除", "Remove"),
     "up": ("上移", "Move up"),
     "down": ("下移", "Move down"),
+    "expand": ("展开", "Expand"),
+    "collapse": ("折叠", "Collapse"),
+    "revert": ("恢复", "Revert"),
+    "reload": ("重新载入", "Reload"),
 }
 
 
@@ -54,22 +54,20 @@ class Presentation(QtCore.QObject):
         self.dock.setMinimumWidth(260)
         self.dock.installEventFilter(self)
         self.buttons = {}
-        for button in self.dock.findChildren(QtWidgets.QToolButton):
-            if button.text() in BUTTONS:
-                info = BUTTONS[button.text()]
-                button.setObjectName("sphinxsim-editor-" + info[0])
-                self.buttons[info[0]] = (button, info)
-        if any(key not in self.buttons for key in ("reload", "revert", "expand", "collapse")):
-            raise ValueError("Native editor action hooks are incompatible")
+        self.settings_actions = self.editor.get("settings_actions", {})
+        self.context_actions = self.editor.get("context_actions", {})
+        if any(key not in self.settings_actions for key in ("expand", "collapse", "revert", "reload")):
+            raise ValueError("Native editor settings actions are incompatible")
         self.labels = []
         menu_bar = self.window.menuBar()
         original = list(menu_bar.actions())
         for action in original:
             menu_bar.removeAction(action)  # Keep original QAction owners/callbacks alive.
-        for key, action in self.editor.get("context_actions", {}).items():
-            if key in LIST_CONTEXT_ACTIONS:
-                chinese, english = LIST_CONTEXT_ACTIONS[key]
-                self.labels.append((action, chinese, english))
+        for action_group in (self.context_actions, self.settings_actions):
+            for key, action in action_group.items():
+                if key in EDITOR_ACTIONS:
+                    chinese, english = EDITOR_ACTIONS[key]
+                    self.labels.append((action, chinese, english))
         def menu(key, zh, en):
             value = menu_bar.addMenu(en)
             value.setObjectName("sphinxsim-menu-" + key)
@@ -83,19 +81,16 @@ class Presentation(QtCore.QObject):
             return value
         files = menu("file", "文件", "File")
         action(files, "save", "保存配置", "Save configuration", self.editor["shortcut"].activated.emit)
-        action(files, "reload", "重新载入", "Reload", self.buttons["reload"][0].click)
+        action(files, "reload", "重新载入", "Reload", self.settings_actions["reload"].trigger)
         action(files, "screenshot", "保存窗口截图…", "Save window screenshot…", self.screenshot)
         edit = menu("edit", "编辑", "Edit")
         action(edit, "undo", "撤销", "Undo", self.editor["undo_shortcut"].activated.emit)
-        button, info = self.buttons["revert"]
-        value = action(edit, "revert", info[1], info[2], button.click)
-        edit.aboutToShow.connect(lambda b=button, a=value: a.setEnabled(b.isEnabled()))
+        action(edit, "revert", "恢复", "Revert", self.settings_actions["revert"].trigger)
         view = menu("view", "视图", "View")
         view.addAction(self.dock.toggleViewAction())
         action(view, "fit", "适应模型", "Fit model", runtime.plotter.reset_camera)
-        for key in ("expand", "collapse"):
-            button, info = self.buttons[key]
-            action(view, key, info[1], info[2], button.click)
+        action(view, "expand", "展开", "Expand", self.settings_actions["expand"].trigger)
+        action(view, "collapse", "折叠", "Collapse", self.settings_actions["collapse"].trigger)
         advanced = view.addMenu("Native view tools")
         self.labels.append((advanced, "原生视图工具", "Native view tools"))
         for original_action in original:
@@ -148,7 +143,7 @@ class Presentation(QtCore.QObject):
     def relabel(self):
         tree = self.editor["tree"]
         blocker = QtCore.QSignalBlocker(tree)
-        tree.setHeaderLabels(["参数", "值"] if self.locale == "zh" else ["Setting", "Value"])
+        tree.setHeaderLabels(["参数 ▾", "值"] if self.locale == "zh" else ["Setting ▾", "Value"])
         for item in self.items():
             path = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
             if not isinstance(path, str):
@@ -171,8 +166,6 @@ class Presentation(QtCore.QObject):
         self.dock.setWindowTitle("实验配置" if zh else "Experiment configuration")
         self.dock.toggleViewAction().setText("属性面板" if zh else "Properties")
         self.editor["filter"].setPlaceholderText("搜索参数…" if zh else "Search settings…")
-        for button, info in self.buttons.values():
-            button.setText(info[1 if zh else 2])
         self.relabel()
         self.editor["status"].setStyleSheet("")
         dark = theme == "dark"

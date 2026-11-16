@@ -28,9 +28,13 @@ FIELDS = {
 BUTTONS = {
     "Expand": ("expand", "展开", "Expand"), "Collapse": ("collapse", "折叠", "Collapse"),
     "Revert": ("revert", "恢复", "Revert"), "Reload": ("reload", "重新载入", "Reload"),
-    "Add": ("add", "添加", "Add"), "Duplicate": ("duplicate", "复制", "Duplicate"),
-    "Remove": ("remove", "删除", "Remove"), "Move up": ("move-up", "上移", "Move up"),
-    "Move down": ("move-down", "下移", "Move down"),
+}
+LIST_CONTEXT_ACTIONS = {
+    "add": ("添加", "Add"),
+    "duplicate": ("复制", "Duplicate"),
+    "remove": ("删除", "Remove"),
+    "up": ("上移", "Move up"),
+    "down": ("下移", "Move down"),
 }
 
 
@@ -62,6 +66,10 @@ class Presentation(QtCore.QObject):
         original = list(menu_bar.actions())
         for action in original:
             menu_bar.removeAction(action)  # Keep original QAction owners/callbacks alive.
+        for key, action in self.editor.get("context_actions", {}).items():
+            if key in LIST_CONTEXT_ACTIONS:
+                chinese, english = LIST_CONTEXT_ACTIONS[key]
+                self.labels.append((action, chinese, english))
         def menu(key, zh, en):
             value = menu_bar.addMenu(en)
             value.setObjectName("sphinxsim-menu-" + key)
@@ -79,12 +87,9 @@ class Presentation(QtCore.QObject):
         action(files, "screenshot", "保存窗口截图…", "Save window screenshot…", self.screenshot)
         edit = menu("edit", "编辑", "Edit")
         action(edit, "undo", "撤销", "Undo", self.editor["undo_shortcut"].activated.emit)
-        for key in ("revert", "add", "duplicate", "remove", "move-up", "move-down"):
-            if key in self.buttons:
-                button, info = self.buttons[key]
-                value = action(edit, key, info[1], info[2], button.click)
-                # The original buttons remain the authority for structural action eligibility.
-                edit.aboutToShow.connect(lambda b=button, a=value: a.setEnabled(b.isEnabled()))
+        button, info = self.buttons["revert"]
+        value = action(edit, "revert", info[1], info[2], button.click)
+        edit.aboutToShow.connect(lambda b=button, a=value: a.setEnabled(b.isEnabled()))
         view = menu("view", "视图", "View")
         view.addAction(self.dock.toggleViewAction())
         action(view, "fit", "适应模型", "Fit model", runtime.plotter.reset_camera)

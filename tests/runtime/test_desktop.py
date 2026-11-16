@@ -108,6 +108,13 @@ def test_list_context_menu_adds_to_the_right_clicked_list(editor):
     app.processEvents()
     hooks = runtime._json_editor
     tree = hooks["tree"]
+    toolbar_texts = {
+        button.text()
+        for button in hooks["dock"].findChildren(QtWidgets.QToolButton)
+    }
+    assert toolbar_texts.isdisjoint(
+        {"Add", "Duplicate", "Remove", "Move up", "Move down"}
+    )
     list_item = None
     iterator = QtWidgets.QTreeWidgetItemIterator(tree)
     while iterator.value():
@@ -190,6 +197,8 @@ def test_translated_native_menus_keep_field_paths_and_trigger_original_actions(e
     adapter = Presentation(runtime, [("particles", "生成粒子", "Particles", action)])
     adapter.apply("zh", "light")
     app.processEvents()
+    context_actions = runtime._json_editor["context_actions"]
+    assert context_actions["add"].text() == "添加"
     assert [a.text() for a in runtime.plotter.app_window.menuBar().actions()] == ["文件", "编辑", "视图", "仿真", "帮助"]
     assert not runtime._json_editor["is_dirty"]()
     item = next(item for item in adapter.items() if item.data(0, QtCore.Qt.ItemDataRole.UserRole) == "geometries.global_resolution.particle_spacing")
@@ -200,6 +209,7 @@ def test_translated_native_menus_keep_field_paths_and_trigger_original_actions(e
     QtTest.QTest.mouseClick(menu, QtCore.Qt.MouseButton.LeftButton, pos=menu.actionGeometry(action).center())
     assert intents == ["particles"]
     adapter.apply("en", "dark")
+    assert context_actions["add"].text() == "Add"
     assert item.text(0) == "Particle spacing [m]"
     assert not runtime._json_editor["is_dirty"]()
 

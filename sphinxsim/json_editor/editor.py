@@ -785,6 +785,32 @@ class JsonEditorMixin:
                 target = target[part]
             return target
 
+        def reveal_path(path_key: str) -> bool:
+            """Expand and select the tree entry identified by its payload path."""
+            item = None
+            iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+            while iterator.value() is not None:
+                candidate = iterator.value()
+                if candidate.data(0, QtCore.Qt.ItemDataRole.UserRole) == path_key:
+                    item = candidate
+                    break
+                iterator += 1
+            if item is None:
+                return False
+
+            if item.isHidden():
+                filter_box.clear()
+
+            ancestor = item.parent()
+            while ancestor is not None:
+                ancestor.setExpanded(True)
+                ancestor = ancestor.parent()
+            item.setExpanded(True)
+            tree.setCurrentItem(item)
+            item.setSelected(True)
+            tree.scrollToItem(item)
+            return True
+
         def update_array_actions() -> None:
             item = tree.currentItem()
             path = editor_state["item_paths"].get(id(item)) if item is not None else None
@@ -998,5 +1024,6 @@ class JsonEditorMixin:
             "is_dirty": lambda: bool(editor_state["dirty"]),
             "payload": lambda: copy.deepcopy(collect_payload()),
             "discard": lambda: populate_editor(editor_state["original_json"], reset_history=True),
+            "reveal_path": reveal_path,
         }
         return True

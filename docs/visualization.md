@@ -48,6 +48,11 @@ Each shape and oriented box is labelled with an annotation that includes:
 - **Oriented boxes**: BC type (emitter, bi-directional), inflow speed or pressure, and particle-relaxation constraints targeting that oriented box.
 - **Gravity**: shown in the lower-left corner when a gravity vector is defined.
 
+In an interactive preview window with the JSON editor open, hovering an
+annotation enlarges it. Clicking an annotation reveals and selects its
+corresponding configuration entry in the editor; this expands the entry's
+ancestors and clears the editor filter if needed to make the entry visible.
+
 ## CLI usage
 
 ### Basic preview (direct command)

@@ -82,6 +82,27 @@ def test_json_editor_tree_columns_share_width_equally(editor):
     assert abs(header.sectionSize(0) - header.sectionSize(1)) <= 1
 
 
+def test_annotation_reveal_expands_selects_and_filters_json_path(editor):
+    app, runtime, _, _ = editor
+    app.processEvents()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    filter_box = hooks["filter"]
+    path = "geometries.global_resolution.particle_spacing"
+
+    filter_box.setText("not a matching setting")
+    assert hooks["reveal_path"](path)
+    app.processEvents()
+
+    item = tree.currentItem()
+    assert item is not None
+    assert item.data(0, QtCore.Qt.ItemDataRole.UserRole) == path
+    assert item.isSelected()
+    assert item.parent().isExpanded()
+    assert item.parent().parent().isExpanded()
+    assert filter_box.text() == ""
+
+
 def test_human_edits_invalidate_old_commands_and_native_save_really_persists(editor):
     app, runtime, session, path = editor
     observed = session.handle({"operation": "status"})

@@ -40,7 +40,7 @@ only the C++ projects may leave the Python binding out of date.
 | Inlet/Outlet oriented boxes | Wireframe | Red |
 | Constraint region oriented boxes | Wireframe | Yellow |
 | System domain bounding box | Wireframe | White (10 % opacity) |
-| Generated particles (`--with-particles`) | Points | White (per-body colour) |
+| Generated particles (`--with-particles`) | Shaded sphere splats | Per-body colour |
 
 Each shape and oriented box is labelled with an annotation that includes:
 
@@ -81,6 +81,12 @@ When particles are shown:
 - Oriented boxes, constraints, observers, gravity, and all annotations remain visible.
 - One particle cloud is rendered per body, using the highest step VTP file
   (`BodyName_<step>.vtp` or `BodyName_ite_<step>.vtp`).
+- Particles use VTK's Sphere-style splat shader, scaled to half of the
+  configured particle spacing (or an estimate from the point cloud when spacing
+  is not explicit). It uses the same circular cutoff and radial shading as
+  ParaView's Sphere preset, without constructing a separate sphere mesh for each
+  particle. Rendering cost still depends on particle count, particle spacing,
+  and graphics hardware.
 - A small label shows the body name and step number for each particle cloud.
 
 This is useful for verifying particle distribution and spacing before running

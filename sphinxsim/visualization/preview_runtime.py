@@ -170,7 +170,10 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         if self.plotter is None or self._live_output_dir is None:
             return
 
-        from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE, _particle_label
+        from sphinxsim.visualization.preview import (
+            _add_particle_sphere_splats,
+            _particle_label,
+        )
 
         try:
             import pyvista as pv
@@ -242,14 +245,13 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 continue
             if getattr(mesh, "n_points", None) == 0:
                 continue
-            self.plotter.add_mesh(
+            _add_particle_sphere_splats(
+                self.plotter,
                 mesh,
                 name=f"particle-preview-{body_name}",
                 color=self._live_particle_colours.get(body_name),
-                opacity=0.95,
-                style="points",
-                point_size=_PARTICLE_POINT_SIZE,
                 label=_particle_label(body_name),
+                config=self._animation_config,
                 reset_camera=False,
             )
 

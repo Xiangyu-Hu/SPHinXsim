@@ -29,6 +29,8 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 from sphinxsim.bindings.loader import load_sphinxsys_core_nd
 
 
@@ -73,11 +75,77 @@ _REGION_COLOUR = (0.85, 0.70, 0.10)        # yellow
 _OBSERVER_COLOUR = (0.93, 0.13, 0.93)      # magenta — observer positions
 _CONSTRAINT_COLOUR = (0.93, 0.55, 0.13)     # orange — body constraint regions
 _GRAVITY_COLOUR = (0.00, 0.48, 0.50)        # dark cyan — gravity direction arrow
-_PARTICLE_POINT_SIZE = 5
+_PARTICLE_SPHERE_RADIUS_RATIO = 0.5
+_PARTICLE_SPHERE_SPLAT_SHADER = (
+    "//VTK::Color::Impl\n"
+    "float dist = dot(offsetVCVSOutput.xy,offsetVCVSOutput.xy);\n"
+    "if (dist > 1.0) {\n"
+    "  discard;\n"
+    "} else {\n"
+    "  float scale = (1.0 - dist);\n"
+    "  ambientColor *= scale;\n"
+    "  diffuseColor *= scale;\n"
+    "}\n"
+)
 
 
 def _particle_label(body_name: str) -> str:
     return f"{body_name} Particles"
+
+
+def _particle_sphere_radius(mesh: Any, config: Any | None = None) -> float:
+    if config is not None:
+        geometry = getattr(config, "geometries", None)
+        resolution = getattr(geometry, "global_resolution", None)
+        spacing = getattr(resolution, "particle_spacing", None)
+        if spacing is not None:
+            return float(spacing) * _PARTICLE_SPHERE_RADIUS_RATIO
+
+    bounds = mesh.bounds
+    extents = [abs(float(bounds[i + 1]) - float(bounds[i])) for i in (0, 2, 4)]
+    largest_extent = max(extents, default=0.0)
+    active_extents = [
+        extent for extent in extents
+        if extent > largest_extent * 1e-8
+    ]
+    point_count = int(getattr(mesh, "n_points", 0))
+    if not active_extents or point_count <= 0:
+        raise ValueError("Cannot estimate sphere-splat radius from an empty point cloud")
+
+    spacing = (
+        float(np.prod(active_extents) / point_count)
+        ** (1.0 / len(active_extents))
+    )
+    return spacing * _PARTICLE_SPHERE_RADIUS_RATIO
+
+
+def _add_particle_sphere_splats(
+    plotter: Any,
+    mesh: Any,
+    *,
+    name: str,
+    label: str,
+    color: Any,
+    config: Any | None = None,
+    reset_camera: bool = False,
+) -> None:
+    """Render a point cloud with ParaView's Sphere-style Gaussian splat shader."""
+    radius = _particle_sphere_radius(mesh, config)
+    actor = plotter.add_mesh(
+        mesh,
+        name=name,
+        color=color,
+        opacity=0.95,
+        style="points_gaussian",
+        render_points_as_spheres=False,
+        emissive=False,
+        label=label,
+        reset_camera=reset_camera,
+    )
+    if actor is not None:
+        actor.mapper.scale_factor = radius
+        actor.mapper.SetBoundScale(1.0)
+        actor.mapper.SetSplatShaderCode(_PARTICLE_SPHERE_SPLAT_SHADER)
 
 
 def _body_colour(body_name: str, config: "SimulationConfig") -> tuple[float, float, float]:
@@ -904,15 +972,16 @@ class ConfigVisualizer:
                 particle_mesh = pv.read(str(vtp_path))
             except Exception:
                 continue
+            if getattr(particle_mesh, "n_points", None) == 0:
+                continue
 
-            plotter.add_mesh(
+            _add_particle_sphere_splats(
+                plotter,
                 particle_mesh,
                 name=f"particle-preview-{body_name}",
                 color=_body_colour(body_name, config),
-                opacity=0.95,
-                style="points",
-                point_size=_PARTICLE_POINT_SIZE,
                 label=_particle_label(body_name),
+                config=config,
             )
 
             _update_scene_bounds(particle_mesh)

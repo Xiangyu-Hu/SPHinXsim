@@ -760,6 +760,8 @@ class TestPreviewGeneratedParticles:
             def __init__(self, center):
                 self.center = center
                 self.bounds = [0.0, 1.0, 0.0, 1.0, -0.01, 0.01]
+                self.n_points = 400
+                self.point_data = {}
 
         class FakePlotter:
             def __init__(self):
@@ -768,6 +770,13 @@ class TestPreviewGeneratedParticles:
 
             def add_mesh(self, mesh, **kwargs):
                 self.mesh_calls.append({"mesh": mesh, **kwargs})
+                return SimpleNamespace(
+                    mapper=SimpleNamespace(
+                        scale_factor=None,
+                        SetBoundScale=MagicMock(),
+                        SetSplatShaderCode=MagicMock(),
+                    )
+                )
 
             def add_point_labels(self, points, labels, **kwargs):
                 self.point_label_calls.append({"points": points, "labels": labels, **kwargs})
@@ -815,9 +824,11 @@ class TestPreviewGeneratedParticles:
             "WaterBody Particles",
             "WallBoundary Particles",
         }
-        assert all(call.get("style") == "points" for call in particle_mesh_calls)
-        assert all(call.get("point_size") == 5 for call in particle_mesh_calls)
-
+        assert all(call.get("style") == "points_gaussian" for call in particle_mesh_calls)
+        assert all(
+            call.get("render_points_as_spheres") is False
+            for call in particle_mesh_calls
+        )
         particle_label_calls = [
             call
             for call in fake_plotter.point_label_calls
@@ -826,6 +837,60 @@ class TestPreviewGeneratedParticles:
             in {"WaterBody Particles", "WallBoundary Particles"}
         ]
         assert particle_label_calls == []
+
+    def test_particle_cloud_uses_paraview_sphere_splat(self, fluid_config):
+        from sphinxsim.visualization.preview import (
+            _PARTICLE_SPHERE_SPLAT_SHADER,
+            _add_particle_sphere_splats,
+        )
+
+        class FakePlotter:
+            def add_mesh(self, mesh, **kwargs):
+                self.mesh = mesh
+                self.mesh_options = kwargs
+                self.actor = SimpleNamespace(
+                    mapper=SimpleNamespace(
+                        scale_factor=None,
+                        SetBoundScale=MagicMock(),
+                        SetSplatShaderCode=MagicMock(),
+                    )
+                )
+                return self.actor
+
+        class FakeMesh:
+            bounds = [0.0, 1.0, 0.0, 1.0, 0.0, 0.0]
+            n_points = 400
+            point_data = {}
+
+        fake_plotter = FakePlotter()
+
+        _add_particle_sphere_splats(
+            fake_plotter,
+            FakeMesh(),
+            name="particle-cloud",
+            label="Water Particles",
+            color=(0.2, 0.5, 0.8),
+            config=fluid_config,
+        )
+
+        assert fake_plotter.mesh.n_points == 400
+        assert fake_plotter.mesh.point_data == {}
+        assert fake_plotter.mesh_options["style"] == "points_gaussian"
+        assert fake_plotter.mesh_options["emissive"] is False
+        assert fake_plotter.mesh_options["render_points_as_spheres"] is False
+        assert fake_plotter.mesh_options["name"] == "particle-cloud"
+        assert fake_plotter.mesh_options["label"] == "Water Particles"
+        assert fake_plotter.mesh_options["reset_camera"] is False
+        assert fake_plotter.mesh_options["color"] == (0.2, 0.5, 0.8)
+        assert fake_plotter.mesh_options["opacity"] == 0.95
+        assert fake_plotter.actor.mapper.scale_factor == pytest.approx(0.025)
+        fake_plotter.actor.mapper.SetBoundScale.assert_called_once_with(1.0)
+        fake_plotter.actor.mapper.SetSplatShaderCode.assert_called_once_with(
+            _PARTICLE_SPHERE_SPLAT_SHADER
+        )
+        assert "if (dist > 1.0)" in _PARTICLE_SPHERE_SPLAT_SHADER
+        assert "ambientColor *= scale;" in _PARTICLE_SPHERE_SPLAT_SHADER
+        assert "diffuseColor *= scale;" in _PARTICLE_SPHERE_SPLAT_SHADER
 
     def test_populate_plotter_hides_shapes_when_particles_present(self, fluid_config, tmp_path):
         from sphinxsim.visualization.preview import ConfigVisualizer
@@ -839,6 +904,8 @@ class TestPreviewGeneratedParticles:
             def __init__(self, center):
                 self.center = center
                 self.bounds = [0.0, 1.0, 0.0, 1.0, -0.01, 0.01]
+                self.n_points = 400
+                self.point_data = {}
 
         class FakePlotter:
             def __init__(self):
@@ -1352,8 +1419,25 @@ class TestShellPreview:
                 self.meshes = []
                 self.app = SimpleNamespace(processEvents=lambda: None)
 
-            def add_mesh(self, mesh, **_kwargs):
+            def add_mesh(self, mesh, **kwargs):
                 self.meshes.append(mesh)
+                self.mesh_calls = getattr(self, "mesh_calls", [])
+                self.mesh_calls.append(kwargs)
+                return SimpleNamespace(
+                    mapper=SimpleNamespace(
+                        scale_factor=None,
+                        SetBoundScale=MagicMock(),
+                        SetSplatShaderCode=MagicMock(),
+                    )
+                )
+
+        class FakeMesh(str):
+            def __new__(cls, path):
+                mesh = super().__new__(cls, path)
+                mesh.bounds = [0.0, 1.0, 0.0, 1.0, 0.0, 0.0]
+                mesh.n_points = 10
+                mesh.point_data = {}
+                return mesh
 
         class FakeSimulation:
             def buildSimulation(self):
@@ -1388,7 +1472,7 @@ class TestShellPreview:
 
             with patch.dict(
                 sys.modules,
-                {"pyvista": SimpleNamespace(read=lambda path: path)},
+                {"pyvista": SimpleNamespace(read=FakeMesh)},
             ):
                 runtime._refresh_live_particles()
                 runtime._refresh_live_particles()
@@ -1398,6 +1482,10 @@ class TestShellPreview:
             str(tmp_path / "WaterBody_1.vtp"),
             str(tmp_path / "WaterBody_2.vtp"),
         ]
+        assert all(
+            call["style"] == "points_gaussian"
+            for call in runtime.plotter.mesh_calls
+        )
         assert runtime._live_refresh_timer is None
 
     def test_shell_runtime_plays_particle_snapshots_in_sequence(self, tmp_path):
@@ -1406,9 +1494,26 @@ class TestShellPreview:
         class FakePlotter:
             def __init__(self):
                 self.meshes = []
+                self.mesh_calls = []
 
             def add_mesh(self, mesh, **kwargs):
                 self.meshes.append(mesh)
+                self.mesh_calls.append(kwargs)
+                return SimpleNamespace(
+                    mapper=SimpleNamespace(
+                        scale_factor=None,
+                        SetBoundScale=MagicMock(),
+                        SetSplatShaderCode=MagicMock(),
+                    )
+                )
+
+        class FakeMesh(str):
+            def __new__(cls, path):
+                mesh = super().__new__(cls, path)
+                mesh.bounds = [0.0, 1.0, 0.0, 1.0, 0.0, 0.0]
+                mesh.n_points = 10
+                mesh.point_data = {}
+                return mesh
 
         runtime = cli_mod._ShellPreviewRuntime()
         runtime.plotter = FakePlotter()
@@ -1419,11 +1524,19 @@ class TestShellPreview:
         for snapshot in snapshots:
             snapshot.touch()
 
-        with patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=str)}):
+        with patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=FakeMesh)}):
             for _ in range(6):
                 runtime._refresh_live_particles()
 
         assert runtime.plotter.meshes == [str(path) for path in snapshots]
+        assert all(
+            call.get("style") == "points_gaussian"
+            for call in runtime.plotter.mesh_calls
+        )
+        assert all(
+            call.get("render_points_as_spheres") is False
+            for call in runtime.plotter.mesh_calls
+        )
 
     def test_shell_runtime_caps_live_refresh_at_25_fps(self):
         from sphinxsim import cli as cli_mod
@@ -1447,10 +1560,15 @@ class TestShellPreview:
         runtime._live_run_thread = SimpleNamespace(is_alive=lambda: True)
         runtime._using_background_plotter = True
         snapshot_paths = [Path(f"WaterBody_{step}.vtp") for step in (1, 2)]
+        fake_mesh = SimpleNamespace(
+            bounds=[0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
+            n_points=10,
+            point_data={},
+        )
         with patch.dict(
             sys.modules,
             {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))},
-        ), patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=str)}), patch.object(
+        ), patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=lambda _path: fake_mesh)}), patch.object(
             Path, "glob", return_value=snapshot_paths
         ), patch.object(Path, "stat", return_value=SimpleNamespace(st_size=1, st_mtime_ns=1)):
             runtime._start_live_refresh(10.0)
@@ -1517,11 +1635,21 @@ class TestShellPreview:
         assert timer.interval == 40
         assert len(runtime._live_playback_queue) == 2
         assert runtime._live_replay_mode is True
+        fake_mesh = SimpleNamespace(
+            n_points=10,
+            bounds=[0.0, 1.0, 0.0, 1.0, 0.0, 0.0],
+            point_data={},
+        )
         with patch.dict(
             sys.modules,
             {
                 "pyvista": SimpleNamespace(
-                    read=lambda path: SimpleNamespace(n_points=10, path=path)
+                    read=lambda path: SimpleNamespace(
+                        n_points=fake_mesh.n_points,
+                        bounds=fake_mesh.bounds,
+                        point_data={},
+                        path=path,
+                    )
                 )
             },
         ):

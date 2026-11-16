@@ -103,6 +103,47 @@ def test_annotation_reveal_expands_selects_and_filters_json_path(editor):
     assert filter_box.text() == ""
 
 
+def test_list_context_menu_adds_to_the_right_clicked_list(editor):
+    app, runtime, _, _ = editor
+    app.processEvents()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    list_item = None
+    iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+    while iterator.value():
+        candidate = iterator.value()
+        if candidate.data(0, QtCore.Qt.ItemDataRole.UserRole) == "solid_bodies":
+            list_item = candidate
+            break
+        iterator += 1
+    assert list_item is not None
+    tree.scrollToItem(list_item)
+    app.processEvents()
+
+    menu = tree.findChild(QtWidgets.QMenu, "sphinxsim-json-editor-list-context-menu")
+    assert menu is not None
+    position = tree.visualItemRect(list_item).center()
+    tree.customContextMenuRequested.emit(position)
+    app.processEvents()
+
+    assert tree.currentItem() is list_item
+    assert menu.isVisible()
+    add_action = next(action for action in menu.actions() if action.text() == "Add")
+    assert add_action.isEnabled()
+    duplicate_action = next(
+        action for action in menu.actions() if action.text() == "Duplicate"
+    )
+    assert not duplicate_action.isEnabled()
+    assert "QMenu::item:enabled" in menu.styleSheet()
+    assert "QMenu::item:disabled" in menu.styleSheet()
+    add_action.trigger()
+    app.processEvents()
+
+    assert len(hooks["payload"]()["solid_bodies"]) == 3
+    assert hooks["is_dirty"]()
+    menu.hide()
+
+
 def test_human_edits_invalidate_old_commands_and_native_save_really_persists(editor):
     app, runtime, session, path = editor
     observed = session.handle({"operation": "status"})

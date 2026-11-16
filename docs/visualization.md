@@ -135,7 +135,9 @@ Notes:
 - In the Qt-backed persistent window, the full-height dark configuration editor on the right
   presents JSON fields as a searchable property tree: setting names on the
   left and editable value boxes on the right. It uses type-appropriate controls
-  for booleans, numbers, and common enumerations. A change is saved only when
+  for booleans, numbers, and common enumerations. Right-click a list or list
+  entry to add, duplicate, remove, or reorder entries; the available actions
+  depend on the selected row. A change is saved only when
   you press `Ctrl+S`; it validates and atomically saves the currently loaded
   JSON file before rebuilding the preview. Running `preview` asks for
   confirmation before discarding unapplied editor changes. Loading a different

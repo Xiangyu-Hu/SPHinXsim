@@ -489,6 +489,28 @@ class JsonEditorMixin:
             "item_paths": {},
             "list_paths": set(),
         }
+        context_menu = QtWidgets.QMenu(tree)
+        context_menu.setObjectName("sphinxsim-json-editor-list-context-menu")
+        context_menu.setStyleSheet(
+            "QMenu { background: #24272d; color: #e6e8ec; border: 1px solid #454b55; }"
+            "QMenu::item { padding: 6px 24px 6px 10px; }"
+            "QMenu::item:enabled { color: #9ac7ef; font-weight: 600; }"
+            "QMenu::item:enabled:selected { background: #315f8c; color: #ffffff; }"
+            "QMenu::item:disabled { color: #686e79; }"
+        )
+        context_actions: dict[str, Any] = {}
+        context_action_buttons = {
+            "add": add_item_button,
+            "duplicate": duplicate_item_button,
+            "remove": remove_item_button,
+            "up": move_up_button,
+            "down": move_down_button,
+        }
+        for operation, button in context_action_buttons.items():
+            if operation == "up":
+                context_menu.addSeparator()
+            action = context_menu.addAction(button.text())
+            context_actions[operation] = action
 
         def _new_tree_item(
             parent: Any | None,
@@ -827,6 +849,10 @@ class JsonEditorMixin:
                     move_down_button.setEnabled(False)
             else:
                 move_down_button.setEnabled(False)
+            for operation, action in context_actions.items():
+                button = context_action_buttons[operation]
+                action.setText(button.text())
+                action.setEnabled(button.isEnabled())
 
         def edit_array(operation: str) -> None:
             item = tree.currentItem()
@@ -871,6 +897,16 @@ class JsonEditorMixin:
             )
             _mark_dirty()
             update_array_actions()
+
+        def show_list_context_menu(position: Any) -> None:
+            item = tree.itemAt(position)
+            if item is None:
+                return
+            tree.setCurrentItem(item)
+            update_array_actions()
+            if not any(action.isEnabled() for action in context_actions.values()):
+                return
+            context_menu.popup(tree.viewport().mapToGlobal(position))
 
         def apply_changes() -> None:
             active_config_path = editor_state["config_path"]
@@ -968,6 +1004,14 @@ class JsonEditorMixin:
         move_up_button.clicked.connect(lambda: edit_array("up"))
         move_down_button.clicked.connect(lambda: edit_array("down"))
         tree.currentItemChanged.connect(lambda *_args: update_array_actions())
+        tree.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
+        tree.customContextMenuRequested.connect(show_list_context_menu)
+        for operation, action in context_actions.items():
+            action.triggered.connect(
+                lambda _checked=False, selected_operation=operation: edit_array(
+                    selected_operation
+                )
+            )
         filter_box.textChanged.connect(filter_items)
         def refresh_editor(
             current_config: SimulationConfig,

@@ -1,7 +1,7 @@
 # Simulating dambreak flows with SPHinXsim
 
 This is the first example use to learn how to setting up a flow simulation using SPHinXsim.
-Note that, dambreak flow is a classical benchmark case for free-surface flow simulation using SPH method, 
+Note that, dambreak flow is a classical benchmark case for free-surface flow simulation using SPH method,
 and it has been widely used in the literature to validate the accuracy of SPH solvers.
 
 The 2d and 3d dambreak examples demonstrate the basic usage of SPHinXsim for simulating free-surface flows. The examples are located in the `tests/test_simulation/test_2d_simulation/dambreak.json` for the 2d case and `tests/test_simulation/test_3d_simulation/dambreak.json` for the 3d case.
@@ -59,20 +59,17 @@ Here, I show (2d) simulation setting json file to illustrate the basic usage.
     ]
   },
   "particle_generation": {
-    "build_and_run": true,
-    "settings": {
-      "bodies": [
-        {
-          "name": "WaterBody"
-        },
-        {
-          "name": "WallBoundary",
-          "solid_body": {}
-        }
-      ],
-      "relaxation_parameters": {
-        "total_iterations": 1000
+    "bodies": [
+      {
+        "name": "WaterBody"
+      },
+      {
+        "name": "WallBoundary",
+        "solid_body": {}
       }
+    ],
+    "relaxation_parameters": {
+      "total_iterations": 1000
     }
   },
   "fluid_bodies": [
@@ -138,21 +135,21 @@ Here, I show (2d) simulation setting json file to illustrate the basic usage.
 
 ### 1. Characteristic_dimensions
 
-The `characteristic_dimensions` section defines the characteristic length, gravity, and density for the simulation. 
+The `characteristic_dimensions` section defines the characteristic length, gravity, and density for the simulation.
 These values are used to non-dimensionalize the governing equations and set the scale of the simulation.
 If the `characteristic_dimensions` section is not provided, the unity scaling reference is set.
 If this section is provided, the `Length` reference is set as the first characteristic dimension in the list,
-and one must provide at least two characteristic dimensions. 
-In the dambreak case, three scaling reference, i.e.  `Length` and `Gravity` and `Density` are provided.
+and one must provide at least two characteristic dimensions.
+In the dambreak case, three scaling reference, i.e. `Length` and `Gravity` and `Density` are provided.
 
 Note that the `hint` field, pointing to a specific JSON entry of the setting,
 is obligated and is used to provide additional information about the characteristic dimension.
 
 ### 2. Simulation type
 
-The `simulation_type` field specifies the type of simulation being performed. 
+The `simulation_type` field specifies the type of simulation being performed.
 In this case, it is set to `"fluid_dynamics"`, indicating that the simulation is characterized by fluid flow,
-or the dynamics of the simulation is centered around the behavior of fluids. 
+or the dynamics of the simulation is centered around the behavior of fluids.
 Other dynamics, such as solid dynamics, are considered as secondary dynamics in the simulation
 where the fluid-structure interaction is involved.
 
@@ -163,7 +160,7 @@ Each geometry is defined by its type, name, and relevant parameters.
 The name of the geometry is used to reference it in other parts of the simulation settings,
 such as in the `fluid_bodies`, `solid_bodies`, and `observers`.
 
-We first define the `global_resolution` for the simulation, 
+We first define the `global_resolution` for the simulation,
 which specifies the particle spacing used to discretize the geometries.
 
 Then we define the main geometric components of the simulation, which include the `shapes` and the `oriented_boxes`.
@@ -171,18 +168,18 @@ In dambreak case, we only define the `shapes` for the simulation, which include 
 We will learn more about the `oriented_boxes` in other cases.
 
 As this is a 2d simulation, the `WaterBody` is defined as a bounding box with lower and upper bounds,
-while the `WallBoundary` is defined as a multipolygon. 
+while the `WallBoundary` is defined as a multipolygon.
 For multipolygon, the components are added one-by-one with a polygon and a binary operation.
 In this case, we define the `WallBoundary` as a union of a container box with inner lower and upper bounds and a thickness.
 
-Note that for 3d simulations, the definition of the `WaterBody` and `WallBoundary` will be similar, 
+Note that for 3d simulations, the definition of the `WaterBody` and `WallBoundary` will be similar,
 but using 3d geometrical building blocks.
 
 ### 4. Particle generation
 
 This section defines the particle generation settings for the simulation.
 The `build_and_run` field is set to `true`, indicating that the particle generation process should
-be executed before the simulation starts. 
+be executed before the simulation starts.
 It can be set to `false` if the particle generation is already done and the generated particles are saved in a particle reload file.
 A typical case for the latter is when the simulation is restarted from a previous simulation.
 
@@ -190,15 +187,15 @@ The `settings` field contains the parameters for particle generation,
 including the bodies to be generated and the relaxation parameters.
 Note that the `bodies` field references the geometries defined in the `geometries` section,
 and the `relaxation_parameters` field specifies the number of iterations for particle relaxation.
-Also, if the body is a solid body, the `solid_body` field 
+Also, if the body is a solid body, the `solid_body` field
 should be provided to indicate that the body is a solid.
 
 ### 5. Fluid bodies
 
 Here, we define the fluid bodies in the simulation.
-In this case, we have one fluid body named `WaterBody`, 
+In this case, we have one fluid body named `WaterBody`,
 which is associated with a material of type `weakly_compressible_fluid` and a density of 1.0.
-Note that `weakly_compressible_fluid` is the default fluid type in SPHinXsim, 
+Note that `weakly_compressible_fluid` is the default fluid type in SPHinXsim,
 and it is used to simulate incompressible fluids with a small compressibility.
 
 ### 6. Solid bodies
@@ -223,11 +220,11 @@ The observer's data can be used for analysis and visualization of the simulation
 ### 9. Extra state recording
 
 Besides the observers, SPHinXsim also records state variables for all bodies.
-The `extra_state_recording` section specifies, beyond default variables setting, 
+The `extra_state_recording` section specifies, beyond default variables setting,
 the extra variables to be recorded for each body.
-In this case, we record the `Pressure` variable for the `WaterBody` 
+In this case, we record the `Pressure` variable for the `WaterBody`
 and the `NormalDirection` variable for the `WallBoundary`.
-Note that we need to specify the `real_type` 
+Note that we need to specify the `real_type`
 or `vector_type` for the variables to be recorded.
 
 ### 10. Solver parameters
@@ -239,7 +236,7 @@ and the `screen_interval` field specifies the number of time steps between scree
 The `fluid_dynamics` field contains parameters specific to the fluid dynamics solver,
 including the `acoustic_cfl`, `advection_cfl`, `surface_type`, and `particle_sort_frequency`.
 The `acoustic_cfl` and `advection_cfl` fields specify the CFL conditions for the acoustic and advection time steps, respectively.
-The `surface_type` field specifies the type of free surface treatment used in the simulation, 
+The `surface_type` field specifies the type of free surface treatment used in the simulation,
 and the `particle_sort_frequency` field specifies how often the particles are sorted to improve computational efficiency.
 
 Note except for the `end_time` and `output_interval` have physical units
@@ -250,31 +247,31 @@ the other parameters are dimensionless.
 
 The 3d dambreak simulation setting JSON file is similar to the 2d case,
 with the main difference being the definition of the geometries and the particle spacing.
-In the 3d case, the `WaterBody` is defined as a bounding box with lower and upper bounds in 3d space, 
+In the 3d case, the `WaterBody` is defined as a bounding box with lower and upper bounds in 3d space,
 and the `WallBoundary` is defined as a multipolygon with 3d boxes.
 The particle spacing is also adjusted to account for the additional dimension, and the simulation parameters are scaled accordingly.
 
-One more things in the 3d case, we have included an cylindrical emitter in the `geometries` section, 
+One more things in the 3d case, we have included an cylindrical emitter in the `geometries` section,
 which is used to generate particles for the fluid body.
-To make emitter work, we define an oriented box in the `oriented_boxes` section, 
+To make emitter work, we define an oriented box in the `oriented_boxes` section,
 which specifies the position and orientation of the emitting behavior.
-The `oriented_boxes` is defined so that its size can cover the emitter and its `x` 
+The `oriented_boxes` is defined so that its size can cover the emitter and its `x`
 direction is aligned with axis direction of the cylinder and facing the fluid domain.
 
 Note that we need generate the particles for the emitter too.
 The emitter is defined as an entry in `cylinder_shape_inserts` in the settings of the fluid body.
 
-Still, one need define a fluid boundary condition for the emitter, which is done by defining 
+Still, one need define a fluid boundary condition for the emitter, which is done by defining
 the `fluid_boundary_condition` section.
-Here, we define a `fluid_boundary_condition` 
+Here, we define a `fluid_boundary_condition`
 for the `WaterBody` with a `Emitter` that references the name of the oriented box.
-In the boundary condition, we specify the `inflow_velocity` for the emitter 
-and scheduled emitting with `switch_on_time` at 1.0 and  `duration` of 5.
+In the boundary condition, we specify the `inflow_velocity` for the emitter
+and scheduled emitting with `switch_on_time` at 1.0 and `duration` of 5.
 
 ## Try to modify the JSON file for your own simulation
 
 There are many parameters in the simulation setting JSON file that can be modified to create different simulation scenarios.
-For example, you can change the `particle_spacing` in the `global_resolution` section to adjust the resolution of the simulation, 
+For example, you can change the `particle_spacing` in the `global_resolution` section to adjust the resolution of the simulation,
 or modify the `end_time` and `output_interval` in the `solver_parameters` section to change the duration and frequency of the simulation output.
 You can also add or remove observers in the `observers` section to monitor different variables or positions in the simulation domain.
 
@@ -282,12 +279,12 @@ Another example is to modify the `WaterBody` geometry to change the initial shap
 or adjust the `WallBoundary` geometry to create different boundary conditions for the simulation.
 You can also add solid bodies to the simulation by defining them in the `solid_bodies` section.
 
-For 3d simulations, you can modify the `geometries` section 
+For 3d simulations, you can modify the `geometries` section
 to change the position and orientation of the emitter.
 
 ## Feedback and suggestions
 
 Please feel free to provide feedback and suggestions (in Issue of the SPHinXsim repository )
 to improve the simulation setting JSON file and the documentation.
-Especially, if you feel something which may be confusing or unclear, 
+Especially, if you feel something which may be confusing or unclear,
 please let us know so that we can make the necessary improvements.

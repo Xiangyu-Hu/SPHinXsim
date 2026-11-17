@@ -928,6 +928,12 @@ class JsonEditorMixin:
                     return original_value, widget, item
             return None
 
+        def _object_at_path(path: tuple[Any, ...]) -> bool:
+            return (
+                _schema_model_for_path(path) is not None
+                and isinstance(_payload_at(path), dict)
+            )
+
         def collect_payload() -> dict[str, Any]:
             payload = editor_state["payload"]
             for path, original_value, widget, _ in editor_state["fields"]:
@@ -943,10 +949,15 @@ class JsonEditorMixin:
             item = tree.currentItem()
             path = editor_state["item_paths"].get(id(item)) if item is not None else None
             field = _field_at_path(path) if path is not None else None
-            if field is None:
+            if field is None and (path is None or not _object_at_path(path)):
                 return
             try:
-                value = _field_value(field[0], field[1])
+                collect_payload()
+                value = (
+                    _field_value(field[0], field[1])
+                    if field is not None
+                    else copy.deepcopy(_payload_at(path))
+                )
                 text = json.dumps(value, ensure_ascii=False)
             except (TypeError, ValueError, json.JSONDecodeError) as exc:
                 status.setText(f"Could not copy field value: {exc}")
@@ -958,7 +969,8 @@ class JsonEditorMixin:
             item = tree.currentItem()
             path = editor_state["item_paths"].get(id(item)) if item is not None else None
             field = _field_at_path(path) if path is not None else None
-            if field is None:
+            is_object = path is not None and _object_at_path(path)
+            if field is None and not is_object:
                 return
 
             clipboard_text = QtWidgets.QApplication.clipboard().text()
@@ -975,11 +987,18 @@ class JsonEditorMixin:
                 annotation = _unwrap_schema_type(_schema_type_at_path(path))
                 if isinstance(annotation, type) and issubclass(annotation, Enum):
                     value = annotation(value).value
+                elif isinstance(annotation, type) and issubclass(annotation, BaseModel):
+                    validated = TypeAdapter(annotation).validate_python(value)
+                    value = validated.model_dump(exclude_unset=True)
                 else:
                     value = TypeAdapter(_schema_type_at_path(path)).validate_python(
                         value, strict=True
                     )
-                if _schema_is_fixed_vector(path) and len(value) != len(field[0]):
+                if (
+                    field is not None
+                    and _schema_is_fixed_vector(path)
+                    and len(value) != len(field[0])
+                ):
                     raise ValueError(
                         f"expected a vector with {len(field[0])} components"
                     )
@@ -1178,9 +1197,11 @@ class JsonEditorMixin:
                 and isinstance(_payload_at(path[:-1]), dict)
                 and path[-1] in _payload_at(path[:-1])
             )
-            value_actions["copy"].setEnabled(is_field)
+            is_object = path is not None and _object_at_path(path)
+            value_actions["copy"].setEnabled(is_field or is_object)
             value_actions["paste"].setEnabled(
-                is_field and bool(QtWidgets.QApplication.clipboard().text())
+                (is_field or is_object)
+                and bool(QtWidgets.QApplication.clipboard().text())
             )
             context_actions["add"].setEnabled(is_list)
             property_menu.clear()

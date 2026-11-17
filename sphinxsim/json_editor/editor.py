@@ -296,26 +296,6 @@ class JsonEditorMixin:
             "    border: 1px solid #343a43;"
             "    color: #686e79;"
             "}"
-            "QToolButton#sphinxsim-json-editor-list-action {"
-            "    min-height: 28px;"
-            "    font-weight: 600;"
-            "    background: #2f6f9f;"
-            "    border: 1px solid #235a84;"
-            "    color: #ffffff;"
-            "}"
-            "QToolButton#sphinxsim-json-editor-list-action:hover {"
-            "    background: #245d88;"
-            "    border-color: #164969;"
-            "}"
-            "QToolButton#sphinxsim-json-editor-list-action:pressed {"
-            "    background: #1c4c70;"
-            "    border-color: #123b59;"
-            "}"
-            "QToolButton#sphinxsim-json-editor-list-action:disabled {"
-            "    background: #25313b;"
-            "    border: 1px solid #374956;"
-            "    color: #788895;"
-            "}"
         )
         layout = QtWidgets.QVBoxLayout(content)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -327,73 +307,17 @@ class JsonEditorMixin:
             "min-height: 27px; padding: 1px 7px; border: 1px solid #454b55; border-radius: 3px; "
             "background: #24272d; color: #e6e8ec; selection-background-color: #315f8c;"
         )
-        tools_grid = QtWidgets.QGridLayout()
-        tools_grid.setHorizontalSpacing(4)
-        tools_grid.setVerticalSpacing(4)
-        tools_grid.setContentsMargins(0, 0, 0, 0)
-        expand_button = QtWidgets.QToolButton(content)
-        expand_button.setText("Expand")
-        collapse_button = QtWidgets.QToolButton(content)
-        collapse_button.setText("Collapse")
-        revert_button = QtWidgets.QToolButton(content)
-        revert_button.setText("Revert")
-        reload_button = QtWidgets.QToolButton(content)
-        reload_button.setText("Reload")
-        add_item_button = QtWidgets.QToolButton(content)
-        add_item_button.setText("Add")
-        duplicate_item_button = QtWidgets.QToolButton(content)
-        duplicate_item_button.setText("Duplicate")
-        remove_item_button = QtWidgets.QToolButton(content)
-        remove_item_button.setText("Remove")
-        move_up_button = QtWidgets.QToolButton(content)
-        move_up_button.setText("Move up")
-        move_down_button = QtWidgets.QToolButton(content)
-        move_down_button.setText("Move down")
-        list_action_buttons = (
-            add_item_button,
-            duplicate_item_button,
-            remove_item_button,
-            move_up_button,
-            move_down_button,
-        )
-        for button in list_action_buttons:
-            button.setObjectName("sphinxsim-json-editor-list-action")
-        tool_buttons = (
-            expand_button,
-            collapse_button,
-            revert_button,
-            reload_button,
-            add_item_button,
-            duplicate_item_button,
-            remove_item_button,
-            move_up_button,
-            move_down_button,
-        )
-        for index, button in enumerate(tool_buttons):
-            button.setToolButtonStyle(
-                QtCore.Qt.ToolButtonStyle.ToolButtonTextOnly
-            )
-            button.setMinimumWidth(0)
-            button.setSizePolicy(
-                QtWidgets.QSizePolicy.Policy.Expanding,
-                QtWidgets.QSizePolicy.Policy.Fixed,
-            )
-            row = 0 if index < 5 else 1
-            column = index if index < 5 else index - 5
-            tools_grid.addWidget(button, row, column)
-            button.setVisible(True)
-
-        for column in range(5):
-            tools_grid.setColumnStretch(column, 1)
         tree = QtWidgets.QTreeWidget(content)
         tree.setObjectName("sphinxsim-json-editor-tree")
         tree.setColumnCount(2)
-        tree.setHeaderLabels(["Setting", "Value"])
+        tree.setHeaderLabels(["Setting ▾", "Value"])
         tree.setRootIsDecorated(True)
         tree.setAlternatingRowColors(True)
         tree.setUniformRowHeights(True)
         tree.setIndentation(16)
         tree.header().setStretchLastSection(False)
+        tree.header().setSectionsClickable(True)
+        tree.header().setSortIndicatorShown(False)
         tree.header().setSectionResizeMode(
             0, QtWidgets.QHeaderView.ResizeMode.Stretch
         )
@@ -424,7 +348,6 @@ class JsonEditorMixin:
             "background: #1f3042; color: #d9e8f5;"
         )
         layout.addWidget(filter_box)
-        layout.addLayout(tools_grid)
         layout.addWidget(tree, 1)
         layout.addWidget(status)
         dock.setWidget(content)
@@ -489,6 +412,43 @@ class JsonEditorMixin:
             "item_paths": {},
             "list_paths": set(),
         }
+        context_menu = QtWidgets.QMenu(tree)
+        context_menu.setObjectName("sphinxsim-json-editor-list-context-menu")
+        context_menu.setStyleSheet(
+            "QMenu { background: #24272d; color: #e6e8ec; border: 1px solid #454b55; }"
+            "QMenu::item { padding: 6px 24px 6px 10px; }"
+            "QMenu::item:enabled { color: #9ac7ef; font-weight: 600; }"
+            "QMenu::item:enabled:selected { background: #315f8c; color: #ffffff; }"
+            "QMenu::item:disabled { color: #686e79; }"
+        )
+        context_actions: dict[str, Any] = {}
+        context_action_labels = {
+            "add": "Add",
+            "duplicate": "Duplicate",
+            "remove": "Remove",
+            "up": "Move up",
+            "down": "Move down",
+        }
+        for operation, label in context_action_labels.items():
+            if operation == "up":
+                context_menu.addSeparator()
+            action = context_menu.addAction(label)
+            action.setObjectName(f"sphinxsim-json-editor-list-{operation}")
+            context_actions[operation] = action
+        settings_menu = QtWidgets.QMenu(tree.header())
+        settings_menu.setObjectName("sphinxsim-json-editor-settings-menu")
+        settings_menu.setStyleSheet(context_menu.styleSheet())
+        settings_actions = {
+            operation: settings_menu.addAction(label)
+            for operation, label in (
+                ("expand", "Expand"),
+                ("collapse", "Collapse"),
+                ("revert", "Revert"),
+                ("reload", "Reload"),
+            )
+        }
+        for operation, action in settings_actions.items():
+            action.setObjectName(f"sphinxsim-json-editor-{operation}")
 
         def _new_tree_item(
             parent: Any | None,
@@ -547,7 +507,7 @@ class JsonEditorMixin:
 
         def _mark_dirty(item: Any | None = None) -> None:
             editor_state["dirty"] = True
-            revert_button.setEnabled(True)
+            settings_actions["revert"].setEnabled(True)
             if item is not None:
                 item.setBackground(0, QtGui.QColor("#594a24"))
             status.setText("Unsaved changes. Press Ctrl+S to validate, save, and refresh.")
@@ -621,7 +581,7 @@ class JsonEditorMixin:
                 editor_state["baseline_payload"] = copy.deepcopy(payload)
                 editor_state["undo_stack"] = []
             editor_state["dirty"] = False
-            revert_button.setEnabled(bool(editor_state["undo_stack"]))
+            settings_actions["revert"].setEnabled(bool(editor_state["undo_stack"]))
             tree.clear()
 
             def add_value(parent: Any | None, label: str, value: Any, path: tuple[Any, ...], depth: int) -> None:
@@ -744,7 +704,7 @@ class JsonEditorMixin:
                 reset_to_json(editor_state["original_json"], "Restored the last saved configuration.")
                 return
             reset_to_json(editor_state["undo_stack"].pop(), "Reverted the latest local edit.")
-            revert_button.setEnabled(bool(editor_state["undo_stack"]))
+            settings_actions["revert"].setEnabled(bool(editor_state["undo_stack"]))
 
         def confirm_discard_changes(message: str) -> bool:
             if not editor_state["dirty"]:
@@ -785,22 +745,50 @@ class JsonEditorMixin:
                 target = target[part]
             return target
 
+        def reveal_path(path_key: str) -> bool:
+            """Expand and select the tree entry identified by its payload path."""
+            item = None
+            iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+            while iterator.value() is not None:
+                candidate = iterator.value()
+                if candidate.data(0, QtCore.Qt.ItemDataRole.UserRole) == path_key:
+                    item = candidate
+                    break
+                iterator += 1
+            if item is None:
+                return False
+
+            if item.isHidden():
+                filter_box.clear()
+
+            ancestor = item.parent()
+            while ancestor is not None:
+                ancestor.setExpanded(True)
+                ancestor = ancestor.parent()
+            item.setExpanded(True)
+            tree.setCurrentItem(item)
+            item.setSelected(True)
+            tree.scrollToItem(item)
+            return True
+
         def update_array_actions() -> None:
             item = tree.currentItem()
             path = editor_state["item_paths"].get(id(item)) if item is not None else None
             is_list = path in editor_state["list_paths"] if path is not None else False
             is_list_entry = bool(path) and path[:-1] in editor_state["list_paths"] and isinstance(path[-1], int)
-            add_item_button.setEnabled(is_list)
-            duplicate_item_button.setEnabled(is_list_entry)
-            remove_item_button.setEnabled(is_list_entry)
-            move_up_button.setEnabled(is_list_entry and path[-1] > 0)
+            context_actions["add"].setEnabled(is_list)
+            context_actions["duplicate"].setEnabled(is_list_entry)
+            context_actions["remove"].setEnabled(is_list_entry)
+            context_actions["up"].setEnabled(is_list_entry and path[-1] > 0)
             if is_list_entry:
                 try:
-                    move_down_button.setEnabled(path[-1] < len(_payload_at(path[:-1])) - 1)
+                    context_actions["down"].setEnabled(
+                        path[-1] < len(_payload_at(path[:-1])) - 1
+                    )
                 except (KeyError, IndexError, TypeError):
-                    move_down_button.setEnabled(False)
+                    context_actions["down"].setEnabled(False)
             else:
-                move_down_button.setEnabled(False)
+                context_actions["down"].setEnabled(False)
 
         def edit_array(operation: str) -> None:
             item = tree.currentItem()
@@ -845,6 +833,34 @@ class JsonEditorMixin:
             )
             _mark_dirty()
             update_array_actions()
+
+        def show_list_context_menu(position: Any) -> None:
+            item = tree.itemAt(position)
+            if item is None:
+                return
+            tree.setCurrentItem(item)
+            update_array_actions()
+            context_menu.popup(tree.viewport().mapToGlobal(position))
+
+        def show_settings_menu(section: int) -> None:
+            if section != 0:
+                return
+            update_settings_actions()
+            header = tree.header()
+            left = header.sectionViewportPosition(section)
+            bottom = header.viewport().height()
+            settings_menu.popup(
+                header.viewport().mapToGlobal(QtCore.QPoint(left, bottom))
+            )
+
+        def update_settings_actions() -> None:
+            has_items = tree.topLevelItemCount() > 0
+            settings_actions["expand"].setEnabled(has_items)
+            settings_actions["collapse"].setEnabled(has_items)
+            settings_actions["revert"].setEnabled(
+                bool(editor_state["dirty"] or editor_state["undo_stack"])
+            )
+            settings_actions["reload"].setEnabled(True)
 
         def apply_changes() -> None:
             active_config_path = editor_state["config_path"]
@@ -932,16 +948,22 @@ class JsonEditorMixin:
         shortcut.activated.connect(apply_changes)
         undo_shortcut = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Undo, content)
         undo_shortcut.activated.connect(undo_changes)
-        expand_button.clicked.connect(tree.expandAll)
-        collapse_button.clicked.connect(tree.collapseAll)
-        revert_button.clicked.connect(undo_changes)
-        reload_button.clicked.connect(reload_from_disk)
-        add_item_button.clicked.connect(lambda: edit_array("add"))
-        duplicate_item_button.clicked.connect(lambda: edit_array("duplicate"))
-        remove_item_button.clicked.connect(lambda: edit_array("remove"))
-        move_up_button.clicked.connect(lambda: edit_array("up"))
-        move_down_button.clicked.connect(lambda: edit_array("down"))
+        settings_actions["expand"].triggered.connect(tree.expandAll)
+        settings_actions["collapse"].triggered.connect(tree.collapseAll)
+        settings_actions["revert"].triggered.connect(undo_changes)
+        settings_actions["reload"].triggered.connect(reload_from_disk)
         tree.currentItemChanged.connect(lambda *_args: update_array_actions())
+        tree.setContextMenuPolicy(QtCore.Qt.ContextMenuPolicy.CustomContextMenu)
+        tree.customContextMenuRequested.connect(show_list_context_menu)
+        tree.header().setToolTip("Click Setting for editor actions")
+        tree.header().sectionClicked.connect(show_settings_menu)
+        for operation, action in context_actions.items():
+            action.triggered.connect(
+                lambda _checked=False, selected_operation=operation: edit_array(
+                    selected_operation
+                )
+            )
+        update_settings_actions()
         filter_box.textChanged.connect(filter_items)
         def refresh_editor(
             current_config: SimulationConfig,
@@ -998,5 +1020,9 @@ class JsonEditorMixin:
             "is_dirty": lambda: bool(editor_state["dirty"]),
             "payload": lambda: copy.deepcopy(collect_payload()),
             "discard": lambda: populate_editor(editor_state["original_json"], reset_history=True),
+            "reveal_path": reveal_path,
+            "context_actions": context_actions,
+            "settings_actions": settings_actions,
+            "settings_menu": settings_menu,
         }
         return True

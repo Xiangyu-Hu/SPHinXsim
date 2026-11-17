@@ -48,6 +48,11 @@ Each shape and oriented box is labelled with an annotation that includes:
 - **Oriented boxes**: BC type (emitter, bi-directional), inflow speed or pressure, and particle-relaxation constraints targeting that oriented box.
 - **Gravity**: shown in the lower-left corner when a gravity vector is defined.
 
+In an interactive preview window with the JSON editor open, hovering an
+annotation enlarges it. Clicking an annotation reveals and selects its
+corresponding configuration entry in the editor; this expands the entry's
+ancestors and clears the editor filter if needed to make the entry visible.
+
 ## CLI usage
 
 ### Basic preview (direct command)
@@ -130,7 +135,12 @@ Notes:
 - In the Qt-backed persistent window, the full-height dark configuration editor on the right
   presents JSON fields as a searchable property tree: setting names on the
   left and editable value boxes on the right. It uses type-appropriate controls
-  for booleans, numbers, and common enumerations. A change is saved only when
+  for booleans, numbers, and common enumerations. Click the **Setting ▾**
+  column header to open the editor menu with **Expand**, **Collapse**,
+  **Revert**, and **Reload**. To modify a list, right-click its row and choose
+  **Add**, or right-click an entry to **Duplicate**, **Remove**, or **Move
+  up/Move down**. Only actions available for that row are highlighted;
+  unavailable actions are dimmed. A change is saved only when
   you press `Ctrl+S`; it validates and atomically saves the currently loaded
   JSON file before rebuilding the preview. Running `preview` asks for
   confirmation before discarding unapplied editor changes. Loading a different

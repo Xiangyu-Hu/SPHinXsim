@@ -77,6 +77,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._using_background_plotter = False
         self._hover_interactor: Any | None = None
         self._hover_observer_tag: Any | None = None
+        self._annotation_click_observer_tag: Any | None = None
         self._json_editor: Any | None = None
         self._pending_simulation: Any | None = None
         self._pending_runtime_config_path: Path | None = None
@@ -542,13 +543,20 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         return new_actor
 
     def _remove_hover_observer(self) -> None:
-        if self._hover_interactor is not None and self._hover_observer_tag is not None:
-            try:
-                self._hover_interactor.RemoveObserver(self._hover_observer_tag)
-            except Exception:
-                pass
+        if self._hover_interactor is not None:
+            for tag in (
+                self._hover_observer_tag,
+                self._annotation_click_observer_tag,
+            ):
+                if tag is None:
+                    continue
+                try:
+                    self._hover_interactor.RemoveObserver(tag)
+                except Exception:
+                    pass
         self._hover_interactor = None
         self._hover_observer_tag = None
+        self._annotation_click_observer_tag = None
 
     def _install_annotation_hover(self, visualizer: Any) -> None:
         self._remove_hover_observer()
@@ -623,13 +631,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             pad = 6.0
             return (dx - pad, dy - pad, dx + width + pad, dy + height + pad)
 
-        def _on_mouse_move(caller: Any, event: Any) -> None:
-            nonlocal active_spec_index
-            try:
-                x, y = interactor.GetEventPosition()
-            except Exception:
-                return
-
+        def _annotation_at_position(x: float, y: float) -> int | None:
             new_spec_index: int | None = None
             best_inside_score = float("inf")
             best_anchor_distance_sq = float(16 * 16)
@@ -649,10 +651,10 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                     continue
 
                 left, bottom, right, top = _estimate_label_bounds(entry, float(dx), float(dy))
-                if left <= float(x) <= right and bottom <= float(y) <= top:
+                if left <= x <= right and bottom <= y <= top:
                     center_x = 0.5 * (left + right)
                     center_y = 0.5 * (bottom + top)
-                    inside_score = (center_x - float(x)) ** 2 + (center_y - float(y)) ** 2
+                    inside_score = (center_x - x) ** 2 + (center_y - y) ** 2
                     if inside_score < best_inside_score:
                         best_inside_score = inside_score
                         new_spec_index = idx
@@ -661,11 +663,20 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 if new_spec_index is not None:
                     continue
 
-                # Fallback around anchor when cursor is close but outside text box.
-                distance_sq = (float(dx) - float(x)) ** 2 + (float(dy) - float(y)) ** 2
+                distance_sq = (float(dx) - x) ** 2 + (float(dy) - y) ** 2
                 if distance_sq <= best_anchor_distance_sq:
                     best_anchor_distance_sq = distance_sq
                     new_spec_index = idx
+            return new_spec_index
+
+        def _on_mouse_move(caller: Any, event: Any) -> None:
+            nonlocal active_spec_index
+            try:
+                x, y = interactor.GetEventPosition()
+            except Exception:
+                return
+
+            new_spec_index = _annotation_at_position(float(x), float(y))
 
             if new_spec_index == active_spec_index:
                 return
@@ -680,13 +691,34 @@ class _ShellPreviewRuntime(JsonEditorMixin):
 
             active_spec_index = new_spec_index
 
+        def _on_left_button_press(caller: Any, event: Any) -> None:
+            try:
+                x, y = interactor.GetEventPosition()
+            except Exception:
+                return
+
+            spec_index = _annotation_at_position(float(x), float(y))
+            if spec_index is None:
+                return
+            config_path = spec_entries[spec_index].get("config_path")
+            editor = self._json_editor
+            reveal_path = editor.get("reveal_path") if isinstance(editor, dict) else None
+            if config_path and callable(reveal_path):
+                reveal_path(config_path)
+
         try:
             tag = interactor.AddObserver("MouseMoveEvent", _on_mouse_move)
         except Exception:
             return
 
+        try:
+            click_tag = interactor.AddObserver("LeftButtonPressEvent", _on_left_button_press)
+        except Exception:
+            click_tag = None
+
         self._hover_interactor = interactor
         self._hover_observer_tag = tag
+        self._annotation_click_observer_tag = click_tag
 
     def _is_unchanged(
         self,

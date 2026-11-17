@@ -1898,12 +1898,15 @@ class TestShellPreview:
 
         class FakeInteractor:
             def __init__(self):
-                self._observer = None
+                self._observers = {}
+                self._next_tag = 1
                 self._pos = (0, 0)
 
             def AddObserver(self, event_name, callback):
-                self._observer = callback
-                return 1
+                tag = self._next_tag
+                self._next_tag += 1
+                self._observers[event_name] = callback
+                return tag
 
             def RemoveObserver(self, tag):
                 return None
@@ -1913,8 +1916,15 @@ class TestShellPreview:
 
             def trigger_mouse_move(self, x, y):
                 self._pos = (x, y)
-                if self._observer is not None:
-                    self._observer(self, "MouseMoveEvent")
+                callback = self._observers.get("MouseMoveEvent")
+                if callback is not None:
+                    callback(self, "MouseMoveEvent")
+
+            def trigger_left_click(self, x, y):
+                self._pos = (x, y)
+                callback = self._observers.get("LeftButtonPressEvent")
+                if callback is not None:
+                    callback(self, "LeftButtonPressEvent")
 
         class FakeCoordinate:
             def __init__(self):
@@ -1964,14 +1974,19 @@ class TestShellPreview:
                     "points": [(20.0, 20.0, 0.0)],
                     "labels": ["demo annotation"],
                     "text_color": "white",
+                    "config_path": "geometries.oriented_boxes.0",
                 }]
 
+        revealed_paths = []
+        runtime._json_editor = {"reveal_path": revealed_paths.append}
         with patch.dict(sys.modules, {"vtk": FakeVtkModule(actor)}):
             runtime._install_annotation_hover(FakeVisualizer())
 
         assert actor.prop.size == 8
         interactor.trigger_mouse_move(55, 24)
         assert actor.prop.size == 12
+        interactor.trigger_left_click(55, 24)
+        assert revealed_paths == ["geometries.oriented_boxes.0"]
         interactor.trigger_mouse_move(1, 1)
         assert actor.prop.size == 8
 

@@ -706,6 +706,7 @@ class ConfigVisualizer:
             *,
             font_size: int,
             text_color: Any,
+            config_path: tuple[str | int, ...] | None = None,
             background_color: Any = (0.88, 0.88, 0.88),
             background_opacity: float = 0.0,
         ) -> None:
@@ -811,6 +812,11 @@ class ConfigVisualizer:
                         "points": normalized_points,
                         "labels": text_values,
                         "text_color": text_color,
+                        "config_path": (
+                            ".".join(str(part) for part in config_path)
+                            if config_path is not None
+                            else None
+                        ),
                     }
                 )
 
@@ -919,7 +925,7 @@ class ConfigVisualizer:
             )
 
         # --- Render oriented boxes (in/outlets and constraint regions) ---
-        for ob in config.geometries.oriented_boxes:
+        for box_index, ob in enumerate(config.geometries.oriented_boxes):
             mesh = self._load_oriented_box_mesh(ob, vtp_dir)
             if mesh is None:
                 self._missing_shape_geometry.append(ob.name)
@@ -941,6 +947,7 @@ class ConfigVisualizer:
                 [label_text],
                 font_size=7,
                 text_color=(0.45, 0.25, 0.0),
+                config_path=("geometries", "oriented_boxes", box_index),
             )
             occupied_points.append(
                 (
@@ -958,7 +965,7 @@ class ConfigVisualizer:
         oriented_box_lookup = {
             ob.name: ob for ob in config.geometries.oriented_boxes
         }
-        for constraint in config.body_constraints:
+        for constraint_index, constraint in enumerate(config.body_constraints):
             label_text = body_constraint_label(constraint)
 
             if constraint.region is not None and constraint.region in oriented_box_lookup:
@@ -978,6 +985,7 @@ class ConfigVisualizer:
                         [label_text],
                         font_size=7,
                         text_color=(0.55, 0.20, 0.0),
+                        config_path=("body_constraints", constraint_index),
                     )
             else:
                 # No region — try to label at the body shape centroid.
@@ -990,6 +998,7 @@ class ConfigVisualizer:
                             [label_text],
                             font_size=7,
                             text_color=(0.55, 0.20, 0.0),
+                            config_path=("body_constraints", constraint_index),
                         )
 
         # --- Domain bounding box ---
@@ -1044,6 +1053,7 @@ class ConfigVisualizer:
                 text_color=(0.55, 0.0, 0.45),
                 background_color=PREVIEW_SIDEBAR_BACKGROUND,
                 background_opacity=0.96,
+                config_path=("observers", observer_index - 1),
             )
 
         # --- Legend ---
@@ -1208,6 +1218,7 @@ class ConfigVisualizer:
                         "points": [label_pos],
                         "labels": [g_label],
                         "text_color": PREVIEW_GRAVITY_TEXT_COLOUR,
+                        "config_path": "gravity",
                     }
                 )
         except Exception:

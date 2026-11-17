@@ -10,7 +10,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, Union, get_args, get_origin
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.json_editor.json_format import (
@@ -350,6 +350,34 @@ def _schema_model_for_path(path: tuple[Any, ...]) -> type[BaseModel] | None:
     return None
 
 
+def _schema_is_fixed_vector(path: tuple[Any, ...]) -> bool:
+    """Whether a field is a bounded numeric vector rather than an entry list."""
+    parent_model = _schema_model_for_path(path[:-1])
+    if parent_model is None:
+        return False
+    field = parent_model.model_fields.get(str(path[-1]))
+    if field is None or not any(
+        getattr(metadata, "max_length", None) is not None
+        for metadata in field.metadata
+    ):
+        return False
+    annotation = _unwrap_schema_type(field.annotation)
+    if get_origin(annotation) is not list:
+        return False
+    item_type = _unwrap_schema_type((get_args(annotation) or (Any,))[0])
+    return item_type in (int, float)
+
+
+def _schema_field_is_removable(path: tuple[Any, ...]) -> bool:
+    if not path or isinstance(path[-1], int):
+        return False
+    parent_model = _schema_model_for_path(path[:-1])
+    if parent_model is None:
+        return False
+    field = parent_model.model_fields.get(str(path[-1]))
+    return field is not None and not field.is_required()
+
+
 def _schema_list_variants(path: tuple[Any, ...]) -> list[str]:
     item_type = _unwrap_schema_type(_schema_type_at_path((*path, 0)))
     if isinstance(item_type, type) and issubclass(item_type, BaseModel):
@@ -599,6 +627,18 @@ class JsonEditorMixin:
             "QMenu::item:enabled:selected { background: #315f8c; color: #ffffff; }"
             "QMenu::item:disabled { color: #686e79; }"
         )
+        value_actions = {
+            "copy": context_menu.addAction("Copy value"),
+            "paste": context_menu.addAction("Paste value"),
+        }
+        for operation, action in value_actions.items():
+            action.setObjectName(f"sphinxsim-json-editor-value-{operation}")
+        context_menu.addSeparator()
+        remove_property_action = context_menu.addAction("Remove property")
+        remove_property_action.setObjectName(
+            "sphinxsim-json-editor-remove-property"
+        )
+        context_menu.addSeparator()
         context_actions: dict[str, Any] = {}
         context_action_labels = {
             "add": "Add",
@@ -789,6 +829,19 @@ class JsonEditorMixin:
                     for child_key, child_value in value.items():
                         add_value(item, str(child_key), child_value, (*path, child_key), depth + 1)
                     return
+                if isinstance(value, list) and _schema_is_fixed_vector(path):
+                    item = _new_tree_item(parent, _display_label(label), f"Vector · {len(value)}")
+                    item.setData(0, QtCore.Qt.ItemDataRole.UserRole, path_key)
+                    editor_state["item_paths"][id(item)] = path
+                    widget = _value_widget(value, label)
+                    tree.setItemWidget(item, 1, widget)
+                    item.setToolTip(0, path_key)
+                    widget.setToolTip(path_key)
+                    widget.textChanged.connect(
+                        lambda *_args, entry=item: _mark_dirty(entry)
+                    )
+                    editor_state["fields"].append((path, value, widget, item))
+                    return
                 if isinstance(value, list) and value:
                     item = _new_tree_item(parent, _display_label(label), f"List · {len(value)}")
                     item.setData(0, QtCore.Qt.ItemDataRole.UserRole, path_key)
@@ -858,27 +911,100 @@ class JsonEditorMixin:
             for index in range(tree.topLevelItemCount()):
                 visit(tree.topLevelItem(index))
 
+        def _field_value(original_value: Any, widget: Any) -> Any:
+            if isinstance(original_value, bool):
+                return widget.isChecked()
+            if isinstance(original_value, str):
+                return widget.currentText() if isinstance(widget, QtWidgets.QComboBox) else widget.text()
+            if isinstance(original_value, int):
+                return int(widget.text())
+            if isinstance(original_value, float):
+                return float(widget.text())
+            return json.loads(widget.text())
+
+        def _field_at_path(path: tuple[Any, ...]) -> tuple[Any, Any, Any] | None:
+            for field_path, original_value, widget, item in editor_state["fields"]:
+                if field_path == path:
+                    return original_value, widget, item
+            return None
+
         def collect_payload() -> dict[str, Any]:
             payload = editor_state["payload"]
             for path, original_value, widget, _ in editor_state["fields"]:
-                if isinstance(original_value, bool):
-                    value = widget.isChecked()
-                else:
-                    if isinstance(original_value, str):
-                        value = widget.currentText() if isinstance(widget, QtWidgets.QComboBox) else widget.text()
-                    elif isinstance(original_value, int):
-                        value = int(widget.text())
-                    elif isinstance(original_value, float):
-                        value = float(widget.text())
-                    else:
-                        value = json.loads(widget.text())
-
+                value = _field_value(original_value, widget)
                 target = payload
                 for part in path[:-1]:
                     target = target[part]
                 if path:
                     target[path[-1]] = value
             return payload
+
+        def copy_field_value() -> None:
+            item = tree.currentItem()
+            path = editor_state["item_paths"].get(id(item)) if item is not None else None
+            field = _field_at_path(path) if path is not None else None
+            if field is None:
+                return
+            try:
+                value = _field_value(field[0], field[1])
+                text = json.dumps(value, ensure_ascii=False)
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                status.setText(f"Could not copy field value: {exc}")
+                return
+            QtWidgets.QApplication.clipboard().setText(text)
+            status.setText(f"Copied value from {'.'.join(str(part) for part in path)}.")
+
+        def paste_field_value() -> None:
+            item = tree.currentItem()
+            path = editor_state["item_paths"].get(id(item)) if item is not None else None
+            field = _field_at_path(path) if path is not None else None
+            if field is None:
+                return
+
+            clipboard_text = QtWidgets.QApplication.clipboard().text()
+            try:
+                try:
+                    value = json.loads(clipboard_text)
+                except json.JSONDecodeError:
+                    annotation = _unwrap_schema_type(_schema_type_at_path(path))
+                    if annotation is str:
+                        value = clipboard_text
+                    else:
+                        raise ValueError("clipboard does not contain a JSON value")
+
+                annotation = _unwrap_schema_type(_schema_type_at_path(path))
+                if isinstance(annotation, type) and issubclass(annotation, Enum):
+                    value = annotation(value).value
+                else:
+                    value = TypeAdapter(_schema_type_at_path(path)).validate_python(
+                        value, strict=True
+                    )
+                if _schema_is_fixed_vector(path) and len(value) != len(field[0]):
+                    raise ValueError(
+                        f"expected a vector with {len(field[0])} components"
+                    )
+            except (TypeError, ValueError, ValidationError) as exc:
+                status.setText(
+                    f"Cannot paste value into {'.'.join(str(part) for part in path)}: {exc}"
+                )
+                return
+
+            try:
+                collect_payload()
+                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                status.setText(f"Cannot paste value while another field is invalid: {exc}")
+                return
+
+            target = editor_state["payload"]
+            for part in path[:-1]:
+                target = target[part]
+            target[path[-1]] = value
+            editor_state["undo_stack"].append(before_edit)
+            _mark_dirty()
+            _refresh_after_structural_edit(
+                {".".join(str(part) for part in path[:-1])}
+            )
 
         def reset_to_json(text: str, message: str) -> None:
             editor_state["expanded_paths"] = set()
@@ -1024,11 +1150,38 @@ class JsonEditorMixin:
             tree.scrollToItem(item)
             return True
 
+        def _refresh_after_structural_edit(
+            additional_expanded_paths: set[str]
+        ) -> None:
+            text = json.dumps(editor_state["payload"], indent=2, ensure_ascii=False)
+
+            def rebuild() -> None:
+                populate_editor(
+                    text,
+                    expand_defaults=False,
+                    additional_expanded_paths=additional_expanded_paths,
+                )
+                _mark_dirty()
+                update_array_actions()
+
+            QtCore.QTimer.singleShot(0, rebuild)
+
         def update_array_actions() -> None:
             item = tree.currentItem()
             path = editor_state["item_paths"].get(id(item)) if item is not None else None
             is_list = path in editor_state["list_paths"] if path is not None else False
             is_list_entry = bool(path) and path[:-1] in editor_state["list_paths"] and isinstance(path[-1], int)
+            is_field = path is not None and _field_at_path(path) is not None
+            remove_property_action.setEnabled(
+                path is not None
+                and _schema_field_is_removable(path)
+                and isinstance(_payload_at(path[:-1]), dict)
+                and path[-1] in _payload_at(path[:-1])
+            )
+            value_actions["copy"].setEnabled(is_field)
+            value_actions["paste"].setEnabled(
+                is_field and bool(QtWidgets.QApplication.clipboard().text())
+            )
             context_actions["add"].setEnabled(is_list)
             property_menu.clear()
             variant_menu.clear()
@@ -1104,14 +1257,10 @@ class JsonEditorMixin:
                 return
 
             editor_state["undo_stack"].append(before_edit)
-            populate_editor(
-                json.dumps(editor_state["payload"], indent=2, ensure_ascii=False),
-                expand_defaults=False,
-                additional_expanded_paths={".".join(str(part) for part in path)},
-            )
             _mark_dirty()
-            reveal_path(".".join(str(part) for part in path))
-            update_array_actions()
+            _refresh_after_structural_edit(
+                {".".join(str(part) for part in path)}
+            )
 
         def add_property(parent_path: tuple[Any, ...], key: str) -> None:
             try:
@@ -1126,14 +1275,36 @@ class JsonEditorMixin:
                 return
 
             editor_state["undo_stack"].append(before_edit)
-            populate_editor(
-                json.dumps(editor_state["payload"], indent=2, ensure_ascii=False),
-                expand_defaults=False,
-                additional_expanded_paths={".".join(str(part) for part in parent_path)},
-            )
             _mark_dirty()
-            reveal_path(".".join(str(part) for part in parent_path))
-            update_array_actions()
+            _refresh_after_structural_edit(
+                {".".join(str(part) for part in parent_path)}
+            )
+
+        def remove_property() -> None:
+            item = tree.currentItem()
+            path = editor_state["item_paths"].get(id(item)) if item is not None else None
+            if (
+                path is None
+                or not _schema_field_is_removable(path)
+                or not path
+            ):
+                return
+            try:
+                collect_payload()
+                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                parent = _payload_at(path[:-1])
+                if not isinstance(parent, dict) or path[-1] not in parent:
+                    return
+                del parent[path[-1]]
+            except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                status.setText(f"Could not remove property: {exc}")
+                return
+
+            editor_state["undo_stack"].append(before_edit)
+            _mark_dirty()
+            _refresh_after_structural_edit(
+                {".".join(str(part) for part in path[:-1])}
+            )
 
         def show_list_context_menu(position: Any) -> None:
             item = tree.itemAt(position)
@@ -1264,6 +1435,10 @@ class JsonEditorMixin:
                     selected_operation
                 )
             )
+        value_actions["copy"].triggered.connect(copy_field_value)
+        value_actions["paste"].triggered.connect(paste_field_value)
+        remove_property_action.triggered.connect(remove_property)
+        QtWidgets.QApplication.clipboard().dataChanged.connect(update_array_actions)
         update_settings_actions()
         filter_box.textChanged.connect(filter_items)
         def refresh_editor(
@@ -1323,6 +1498,8 @@ class JsonEditorMixin:
             "discard": lambda: populate_editor(editor_state["original_json"], reset_history=True),
             "reveal_path": reveal_path,
             "context_actions": context_actions,
+            "value_actions": value_actions,
+            "remove_property_action": remove_property_action,
             "property_menu": property_menu,
             "variant_menu": variant_menu,
             "settings_actions": settings_actions,

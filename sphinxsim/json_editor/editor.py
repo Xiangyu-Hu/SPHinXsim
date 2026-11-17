@@ -5,10 +5,12 @@ from __future__ import annotations
 import copy
 import json
 import sys
+import types
+from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, Union, get_args, get_origin
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.json_editor.json_format import (
@@ -84,7 +86,9 @@ def _config_spatial_dim(config: SimulationConfig) -> int:
     return 3
 
 
-def _new_json_editor_list_item(path: tuple[Any, ...], spatial_dim: int) -> Any:
+def _new_json_editor_list_item(
+    path: tuple[Any, ...], spatial_dim: int, variant: str | None = None
+) -> Any:
     """Return an editable starter value for an empty JSON editor list."""
     normalized_path = tuple(part for part in path if not isinstance(part, int))
     vector = [0.0] * spatial_dim
@@ -104,27 +108,78 @@ def _new_json_editor_list_item(path: tuple[Any, ...], spatial_dim: int) -> Any:
         },
         ("geometries", "primitives"): {
             "name": "New primitive",
-            "type": "box",
-            "half_size": unit_vector,
-            "transform": transform,
+            "type": variant or "box",
+            **(
+                {"half_size": unit_vector, "transform": transform}
+                if variant != "bounding_box"
+                else {"lower_bound": vector, "upper_bound": unit_vector}
+            ),
         },
         ("geometries", "shapes"): {
             "name": "New shape",
-            "type": "bounding_box",
-            "lower_bound": vector,
-            "upper_bound": unit_vector,
+            "type": variant or "bounding_box",
+            **{
+                "box": {"half_size": unit_vector, "transform": transform},
+                "bounding_box": {"lower_bound": vector, "upper_bound": unit_vector},
+                "expanded_box": {"original": "", "expansion": 0.1},
+                "extrude_shape": {"original": "", "thickness": 0.1},
+                "complex_shape": {"sub_shapes": [], "operations": []},
+                "multipolygon": {
+                    "polygons": [
+                        {
+                            "operation": "union",
+                            "type": "container_box",
+                            "inner_box": {
+                                "lower_bound": vector,
+                                "upper_bound": unit_vector,
+                            },
+                            "thickness": 0.1,
+                        }
+                    ]
+                },
+                "cylinder": {
+                    "radius": 1.0,
+                    "half_height": 1.0,
+                    "transform": transform,
+                },
+                "triangle_mesh": {"file_name": "mesh.stl"},
+            }.get(variant or "bounding_box", {}),
         },
         ("geometries", "shapes", "polygons"): {
             "operation": "union",
-            "type": "bounding_box",
-            "lower_bound": vector,
-            "upper_bound": unit_vector,
+            "type": variant or "bounding_box",
+            **{
+                "box": {"half_size": unit_vector, "transform": transform},
+                "bounding_box": {"lower_bound": vector, "upper_bound": unit_vector},
+                "container_box": {
+                    "inner_box": {
+                        "lower_bound": vector,
+                        "upper_bound": unit_vector,
+                    },
+                    "thickness": 0.1,
+                },
+                "circle": {"center": vector, "radius": 1.0, "resolution": 32},
+                "triangle": {"half_size": unit_vector, "transform": transform},
+                "clockwise_points": {
+                    "points": [vector, unit_vector, [0.0] * spatial_dim]
+                },
+                "data_file": {"file_name": "polygon.dat"},
+            }.get(variant or "bounding_box", {}),
         },
         ("geometries", "oriented_boxes"): {
             "name": "New region",
-            "type": "region",
-            "half_size": unit_vector,
-            "transform": transform,
+            "type": variant or "region",
+            **(
+                {"half_size": unit_vector, "transform": transform}
+                if variant != "boundary"
+                else {
+                    "center": vector,
+                    "normal": [0.0, 0.0, 1.0]
+                    if spatial_dim == 3
+                    else [0.0, 1.0],
+                    "radius": 1.0,
+                }
+            ),
         },
         ("particle_generation", "bodies"): {"name": "New body"},
         ("particle_generation", "relaxation_constraints"): {
@@ -159,10 +214,29 @@ def _new_json_editor_list_item(path: tuple[Any, ...], spatial_dim: int) -> Any:
         ("fluid_boundary_conditions",): {
             "body_name": "",
             "oriented_box": "",
-            "type": "emitter",
-            "inflow_speed": 1.0,
+            "type": variant or "emitter",
+            **{
+                "emitter": {"inflow_speed": 1.0},
+                "bi_directional": {"pressure": 0.0},
+                "free_stream": {
+                    "buffer_box": "",
+                    "disposer_box": "",
+                    "target_speed": 1.0,
+                    "t_ref": 1.0,
+                },
+                "disposer": {},
+                "wall_bounding": {},
+            }.get(variant or "emitter", {}),
         },
-        ("body_constraints",): {"body_name": "", "type": "fixed"},
+        ("body_constraints",): {
+            "body_name": "",
+            "type": variant or "fixed",
+            **(
+                {"mobilized_body": "pin", "angular_velocity": 0.0}
+                if variant == "simbody"
+                else {}
+            ),
+        },
         ("initial_conditions",): {
             "body_name": "",
             "assignments": [{"variable": {"real_type": "Pressure"}, "value": 0.0}],
@@ -179,6 +253,110 @@ def _new_json_editor_list_item(path: tuple[Any, ...], spatial_dim: int) -> Any:
         ("energy_recording",): {"name": "New energy recording", "body": ""},
     }
     return copy.deepcopy(templates.get(normalized_path, {}))
+
+
+def _unwrap_schema_type(annotation: Any) -> Any:
+    """Unwrap optional and single-model unions used by the configuration schema."""
+    origin = get_origin(annotation)
+    if origin in (Union, types.UnionType):
+        candidates = [arg for arg in get_args(annotation) if arg is not type(None)]
+        if len(candidates) == 1:
+            return _unwrap_schema_type(candidates[0])
+        model_candidates = [
+            candidate
+            for candidate in candidates
+            if isinstance(candidate, type) and issubclass(candidate, BaseModel)
+        ]
+        if len(model_candidates) == 1:
+            return model_candidates[0]
+    return annotation
+
+
+def _schema_type_at_path(path: tuple[Any, ...]) -> Any:
+    """Resolve a JSON payload path to its declared Pydantic field type."""
+    current: Any = SimulationConfig
+    for part in path:
+        current = _unwrap_schema_type(current)
+        if isinstance(part, int):
+            args = get_args(current)
+            current = args[0] if get_origin(current) is list and args else Any
+        elif isinstance(current, type) and issubclass(current, BaseModel):
+            field = current.model_fields.get(str(part))
+            current = field.annotation if field is not None else Any
+        else:
+            return Any
+    return _unwrap_schema_type(current)
+
+
+def _schema_enum_values(annotation: Any) -> list[str]:
+    annotation = _unwrap_schema_type(annotation)
+    if get_origin(annotation) is Literal:
+        return [str(value) for value in get_args(annotation)]
+    if isinstance(annotation, type) and issubclass(annotation, Enum):
+        return [str(value.value) for value in annotation]
+    return []
+
+
+def _schema_default_value(
+    annotation: Any, path: tuple[Any, ...], spatial_dim: int
+) -> Any:
+    """Build a simple starter value for an absent schema property."""
+    annotation = _unwrap_schema_type(annotation)
+    normalized_path = tuple(part for part in path if not isinstance(part, int))
+
+    if normalized_path == ("geometries", "system_domain"):
+        return {
+            "lower_bound": [0.0] * spatial_dim,
+            "upper_bound": [1.0] * spatial_dim,
+        }
+    if normalized_path == ("geometries", "global_resolution"):
+        return {"particle_spacing": 0.1}
+    if normalized_path and get_origin(annotation) is list:
+        item_type = (get_args(annotation) or (Any,))[0]
+        if isinstance(item_type, type) and issubclass(item_type, BaseModel):
+            return [_new_json_editor_list_item(normalized_path, spatial_dim)]
+        return []
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        result: dict[str, Any] = {}
+        for name, field in annotation.model_fields.items():
+            default = field.get_default(call_default_factory=True)
+            if default is not None and not field.is_required():
+                result[name] = default
+            elif field.is_required():
+                result[name] = _schema_default_value(
+                    field.annotation, (*path, name), spatial_dim
+                )
+        return result
+    values = _schema_enum_values(annotation)
+    if values:
+        return values[0]
+    if annotation is bool:
+        return False
+    if annotation is int:
+        return 1
+    if annotation is float:
+        return 1.0
+    if annotation is str:
+        return ""
+    if get_origin(annotation) is list:
+        return []
+    return {}
+
+
+def _schema_model_for_path(path: tuple[Any, ...]) -> type[BaseModel] | None:
+    annotation = _unwrap_schema_type(_schema_type_at_path(path))
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return annotation
+    return None
+
+
+def _schema_list_variants(path: tuple[Any, ...]) -> list[str]:
+    item_type = _unwrap_schema_type(_schema_type_at_path((*path, 0)))
+    if isinstance(item_type, type) and issubclass(item_type, BaseModel):
+        type_field = item_type.model_fields.get("type")
+        if type_field is not None:
+            return _schema_enum_values(type_field.annotation)
+    return []
 
 
 def _set_windows_dark_title_bar(window: Any) -> None:
@@ -435,6 +613,14 @@ class JsonEditorMixin:
             action = context_menu.addAction(label)
             action.setObjectName(f"sphinxsim-json-editor-list-{operation}")
             context_actions[operation] = action
+        property_menu = context_menu.addMenu("Add property")
+        property_menu.setObjectName("sphinxsim-json-editor-add-property-menu")
+        variant_menu = context_menu.addMenu("Add as")
+        variant_menu.setObjectName("sphinxsim-json-editor-add-variant-menu")
+        context_menu.insertMenu(context_actions["duplicate"], property_menu)
+        context_menu.insertMenu(context_actions["duplicate"], variant_menu)
+        property_menu.menuAction().setVisible(False)
+        variant_menu.menuAction().setVisible(False)
         settings_menu = QtWidgets.QMenu(tree.header())
         settings_menu.setObjectName("sphinxsim-json-editor-settings-menu")
         settings_menu.setStyleSheet(context_menu.styleSheet())
@@ -589,7 +775,7 @@ class JsonEditorMixin:
                     return
 
                 path_key = ".".join(str(part) for part in path)
-                if isinstance(value, dict) and value:
+                if isinstance(value, dict):
                     item = _new_tree_item(parent, _display_label(label), f"Object · {len(value)}")
                     item.setData(0, QtCore.Qt.ItemDataRole.UserRole, path_key)
                     editor_state["item_paths"][id(item)] = path
@@ -745,6 +931,73 @@ class JsonEditorMixin:
                 target = target[part]
             return target
 
+        def _new_list_entry(path: tuple[Any, ...], variant: str | None = None) -> Any:
+            spatial_dim = _config_spatial_dim(config)
+            item_path = (*path, 0)
+            item_type = _schema_type_at_path(item_path)
+            starter = _new_json_editor_list_item(path, spatial_dim, variant)
+            schema_default = _schema_default_value(item_type, item_path, spatial_dim)
+            if isinstance(schema_default, dict) and isinstance(starter, dict):
+                schema_default.update(starter)
+                starter = schema_default
+            elif starter == {}:
+                starter = schema_default
+
+            if not isinstance(starter, dict):
+                return starter
+
+            if variant is not None:
+                starter["type"] = variant
+            current_items = _payload_at(path) if path in editor_state["list_paths"] else []
+            existing_names = {
+                entry.get("name")
+                for entry in current_items
+                if isinstance(entry, dict) and isinstance(entry.get("name"), str)
+            }
+            if isinstance(starter.get("name"), str):
+                base_name = starter["name"] or "New entry"
+                name = base_name
+                suffix = 2
+                while name in existing_names:
+                    name = f"{base_name} {suffix}"
+                    suffix += 1
+                starter["name"] = name
+
+            if path == ("geometries", "shapes"):
+                names = [
+                    entry.get("name")
+                    for entry in current_items
+                    if isinstance(entry, dict) and entry.get("name")
+                ]
+                if starter.get("type") in ("expanded_box", "extrude_shape") and names:
+                    starter["original"] = names[0]
+                elif starter.get("type") == "complex_shape" and names:
+                    starter["sub_shapes"] = [names[0]]
+                    starter["operations"] = ["union"]
+            elif path == ("fluid_boundary_conditions",):
+                body_names = editor_state["payload"].get("particle_generation", {}).get(
+                    "bodies", []
+                )
+                oriented_boxes = editor_state["payload"].get("geometries", {}).get(
+                    "oriented_boxes", []
+                )
+                if body_names and isinstance(body_names[0], dict):
+                    starter["body_name"] = body_names[0].get("name", "")
+                if oriented_boxes and isinstance(oriented_boxes[0], dict):
+                    starter["oriented_box"] = oriented_boxes[0].get("name", "")
+            return starter
+
+        def _new_property_value(parent_path: tuple[Any, ...], key: str) -> Any:
+            field_type = _schema_type_at_path((*parent_path, key))
+            normalized_type = _unwrap_schema_type(field_type)
+            if get_origin(normalized_type) is list:
+                item_type = _unwrap_schema_type(_schema_type_at_path((*parent_path, key, 0)))
+                if isinstance(item_type, type) and issubclass(item_type, BaseModel):
+                    return [_new_list_entry((*parent_path, key))]
+            return _schema_default_value(
+                field_type, (*parent_path, key), _config_spatial_dim(config)
+            )
+
         def reveal_path(path_key: str) -> bool:
             """Expand and select the tree entry identified by its payload path."""
             item = None
@@ -777,6 +1030,33 @@ class JsonEditorMixin:
             is_list = path in editor_state["list_paths"] if path is not None else False
             is_list_entry = bool(path) and path[:-1] in editor_state["list_paths"] and isinstance(path[-1], int)
             context_actions["add"].setEnabled(is_list)
+            property_menu.clear()
+            variant_menu.clear()
+            model = _schema_model_for_path(path) if path is not None else None
+            missing_fields = (
+                [name for name in model.model_fields if name not in _payload_at(path)]
+                if model is not None and isinstance(_payload_at(path), dict)
+                else []
+            )
+            for name in missing_fields:
+                action = property_menu.addAction(_display_label(name))
+                action.setData(name)
+                action.triggered.connect(
+                    lambda _checked=False, field_name=name, parent_path=path: add_property(
+                        parent_path, field_name
+                    )
+                )
+            property_menu.menuAction().setVisible(bool(missing_fields))
+            variants = _schema_list_variants(path) if is_list else []
+            for variant in variants:
+                action = variant_menu.addAction(variant.replace("_", " ").capitalize())
+                action.setData(variant)
+                action.triggered.connect(
+                    lambda _checked=False, selected_variant=variant, list_path=path: edit_array(
+                        "add", selected_variant
+                    )
+                )
+            variant_menu.menuAction().setVisible(is_list and len(variants) > 1)
             context_actions["duplicate"].setEnabled(is_list_entry)
             context_actions["remove"].setEnabled(is_list_entry)
             context_actions["up"].setEnabled(is_list_entry and path[-1] > 0)
@@ -790,7 +1070,7 @@ class JsonEditorMixin:
             else:
                 context_actions["down"].setEnabled(False)
 
-        def edit_array(operation: str) -> None:
+        def edit_array(operation: str, variant: str | None = None) -> None:
             item = tree.currentItem()
             path = editor_state["item_paths"].get(id(item)) if item is not None else None
             if path is None:
@@ -800,12 +1080,10 @@ class JsonEditorMixin:
                 before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
                 if operation == "add" and path in editor_state["list_paths"]:
                     target_list = _payload_at(path)
-                    if not target_list:
-                        target_list.append(
-                            _new_json_editor_list_item(path, _config_spatial_dim(config))
-                        )
-                    else:
-                        target_list.append(copy.deepcopy(target_list[-1]))
+                    if variant is None and target_list:
+                        last = target_list[-1]
+                        variant = last.get("type") if isinstance(last, dict) else None
+                    target_list.append(_new_list_entry(path, variant))
                 elif path[:-1] in editor_state["list_paths"] and isinstance(path[-1], int):
                     target_list = _payload_at(path[:-1])
                     index = path[-1]
@@ -832,6 +1110,29 @@ class JsonEditorMixin:
                 additional_expanded_paths={".".join(str(part) for part in path)},
             )
             _mark_dirty()
+            reveal_path(".".join(str(part) for part in path))
+            update_array_actions()
+
+        def add_property(parent_path: tuple[Any, ...], key: str) -> None:
+            try:
+                collect_payload()
+                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                target = _payload_at(parent_path)
+                if not isinstance(target, dict) or key in target:
+                    return
+                target[key] = _new_property_value(parent_path, key)
+            except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                status.setText(f"Could not add property: {exc}")
+                return
+
+            editor_state["undo_stack"].append(before_edit)
+            populate_editor(
+                json.dumps(editor_state["payload"], indent=2, ensure_ascii=False),
+                expand_defaults=False,
+                additional_expanded_paths={".".join(str(part) for part in parent_path)},
+            )
+            _mark_dirty()
+            reveal_path(".".join(str(part) for part in parent_path))
             update_array_actions()
 
         def show_list_context_menu(position: Any) -> None:
@@ -1022,6 +1323,8 @@ class JsonEditorMixin:
             "discard": lambda: populate_editor(editor_state["original_json"], reset_history=True),
             "reveal_path": reveal_path,
             "context_actions": context_actions,
+            "property_menu": property_menu,
+            "variant_menu": variant_menu,
             "settings_actions": settings_actions,
             "settings_menu": settings_menu,
         }

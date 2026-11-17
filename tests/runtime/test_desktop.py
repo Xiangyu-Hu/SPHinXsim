@@ -155,6 +155,82 @@ def test_list_context_menu_adds_to_the_right_clicked_list(editor):
     menu.hide()
 
 
+def test_geometry_context_menu_offers_only_missing_properties(editor):
+    app, runtime, _, _ = editor
+    app.processEvents()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    geometry = next(
+        item
+        for item in _tree_items(tree)
+        if item.data(0, QtCore.Qt.ItemDataRole.UserRole) == "geometries"
+    )
+    menu = tree.findChild(QtWidgets.QMenu, "sphinxsim-json-editor-list-context-menu")
+    assert menu is not None
+    tree.customContextMenuRequested.emit(tree.visualItemRect(geometry).center())
+    app.processEvents()
+
+    property_menu = hooks["property_menu"]
+    property_actions = {action.data(): action for action in property_menu.actions()}
+    assert "primitives" in property_actions
+    assert "shapes" not in property_actions
+    property_actions["primitives"].trigger()
+    app.processEvents()
+
+    payload = hooks["payload"]()
+    assert payload["geometries"]["primitives"] == [
+        {
+            "name": "New primitive",
+            "type": "box",
+            "half_size": [1.0, 1.0, 1.0],
+            "transform": {
+                "translation": [0.0, 0.0, 0.0],
+                "rotation_angle": 0.0,
+                "rotation_axis": [0.0, 0.0, 1.0],
+            },
+        }
+    ]
+    SimulationConfig.model_validate(payload)
+    assert hooks["is_dirty"]()
+    menu.hide()
+
+
+def test_shape_list_context_menu_adds_selected_shape_variant(editor):
+    app, runtime, _, _ = editor
+    app.processEvents()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    shapes = next(
+        item
+        for item in _tree_items(tree)
+        if item.data(0, QtCore.Qt.ItemDataRole.UserRole) == "geometries.shapes"
+    )
+    menu = tree.findChild(QtWidgets.QMenu, "sphinxsim-json-editor-list-context-menu")
+    assert menu is not None
+    tree.customContextMenuRequested.emit(tree.visualItemRect(shapes).center())
+    app.processEvents()
+
+    variant_menu = hooks["variant_menu"]
+    cylinder = next(
+        action
+        for action in variant_menu.actions()
+        if action.data() == "cylinder"
+    )
+    cylinder.trigger()
+    app.processEvents()
+
+    payload = hooks["payload"]()
+    added_shape = payload["geometries"]["shapes"][-1]
+    assert added_shape["name"] == "New shape"
+    assert added_shape["type"] == "cylinder"
+    assert added_shape["radius"] == 1.0
+    assert added_shape["half_height"] == 1.0
+    assert added_shape["transform"]["translation"] == [0.0, 0.0, 0.0]
+    SimulationConfig.model_validate(payload)
+    assert hooks["is_dirty"]()
+    menu.hide()
+
+
 def test_setting_header_menu_expands_and_collapses_tree(editor):
     app, runtime, _, _ = editor
     app.processEvents()

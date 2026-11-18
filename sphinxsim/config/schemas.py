@@ -57,6 +57,7 @@ class GeometricOperationType(str, Enum):
 
 
 class BodyShapeType(str, Enum):
+    DEFAULT = "default"
     BOX = "box"
     BOUNDING_BOX = "bounding_box"
     EXPANDED_BOX = "expanded_box"

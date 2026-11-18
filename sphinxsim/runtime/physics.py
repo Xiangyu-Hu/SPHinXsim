@@ -25,6 +25,7 @@ MATERIAL_FIELDS = {
     "composite_solid": "density poisson_ratio youngs_modulus_active youngs_modulus_1 youngs_modulus_2 material_id_regions active_strain",
 }
 SHAPE_FIELDS = {
+    "default": "",
     "box": "primitive half_size transform", "bounding_box": "primitive lower_bound upper_bound",
     "expanded_box": "original expansion", "extrude_shape": "original thickness",
     "complex_shape": "sub_shapes operations", "multipolygon": "polygons",

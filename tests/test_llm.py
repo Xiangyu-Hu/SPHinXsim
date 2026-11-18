@@ -462,6 +462,22 @@ class TestSTLGeometryOverrides:
         assert "file_name" not in granular
         assert "scale" not in granular
 
+    def test_sanitize_default_shape_removes_geometry_fields(self):
+        cfg = {
+            "geometries": {
+                "shapes": [
+                    {"name": "EmptyShape", "type": "default", "half_size": [1.0, 1.0]}
+                ]
+            }
+        }
+
+        sanitized = sanitize_config_dict(cfg)
+
+        assert sanitized["geometries"]["shapes"][0] == {
+            "name": "EmptyShape",
+            "type": "default",
+        }
+
     def test_stl_file_name_does_not_drive_material_intent(self):
         description = "Create a 3D case from ./input/Landslide.stl and ./input/Channel.stl."
 

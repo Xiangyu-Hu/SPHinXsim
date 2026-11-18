@@ -956,6 +956,7 @@ class TestSimulationConfig:
         payload = json.loads(fixture_path.read_text())
         cfg = SimulationConfig.model_validate(payload)
 
+        assert cfg.geometries.shapes[0].type.value == "default"
         schedule = cfg.fluid_boundary_conditions[0].on_schedule
         assert schedule is not None
         assert schedule.switch_on_time == pytest.approx(1.0)

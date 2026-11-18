@@ -69,14 +69,11 @@ def _valid_data() -> dict:
             ],
         },
         "particle_generation": {
-            "build_and_run": True,
-            "settings": {
-                "bodies": [
-                    {"name": "WaterBody"},
-                    {"name": "WallBoundary", "solid_body": {}},
-                ],
-                "relaxation_parameters": {"total_iterations": 1},
-            },
+            "bodies": [
+                {"name": "WaterBody"},
+                {"name": "WallBoundary", "solid_body": {}},
+            ],
+            "relaxation_parameters": {"total_iterations": 1},
         },
         "fluid_bodies": [
             {

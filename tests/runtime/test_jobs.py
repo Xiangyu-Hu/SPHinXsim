@@ -28,7 +28,7 @@ def configuration():
     config = json.loads(source.read_text())
     config.pop("characteristic_dimensions", None)
     config["geometries"]["global_resolution"]["particle_spacing"] = .1
-    config["particle_generation"]["settings"]["relaxation_parameters"]["total_iterations"] = 1
+    config["particle_generation"]["relaxation_parameters"]["total_iterations"] = 1
     config["solver_parameters"].update(end_time=.002, output_interval=.001)
     return config
 
@@ -158,7 +158,7 @@ def test_j2_damage_reaches_the_real_native_material_builder(tmp_path):
     config["geometries"]["global_resolution"]["particle_spacing"] = .025
     config["geometries"]["shapes"][1]["polygons"][0]["thickness"] = .05
     config["geometries"]["system_domain"] = {"lower_bound": [-.05, -.05], "upper_bound": [.55, .2]}
-    config["particle_generation"]["settings"]["relaxation_parameters"]["total_iterations"] = 1
+    config["particle_generation"]["relaxation_parameters"]["total_iterations"] = 1
     # Continuum frames are recorded at advection boundaries, not every acoustic
     # step. Advance beyond an advection interval at this coarse resolution so
     # the test verifies evolved output rather than only the initial frame.

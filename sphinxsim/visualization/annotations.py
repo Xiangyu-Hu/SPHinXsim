@@ -262,13 +262,11 @@ def oriented_box_label(ob: "OrientedBoxConfig", config: "SimulationConfig") -> s
             parts.append(" ".join(bc_parts))
 
     # Particle-relaxation constraints reference oriented boxes directly.
-    pg_settings = config.particle_generation.settings
-    if pg_settings is not None:
-        for constraint in pg_settings.relaxation_constraints:
-            if constraint.oriented_box == ob.name:
-                parts.append(
-                    f"Relaxation constraint → {constraint.body_name}: {constraint.type}"
-                )
+    for constraint in config.particle_generation.relaxation_constraints:
+        if constraint.oriented_box == ob.name:
+            parts.append(
+                f"Relaxation constraint → {constraint.body_name}: {constraint.type}"
+            )
 
     return "\n".join(parts)
 

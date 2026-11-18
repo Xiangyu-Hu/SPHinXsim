@@ -59,18 +59,15 @@
   },
 
   "particle_generation": {
-    "build_and_run": true,
-    "settings": {
-      "bodies": [
-        {
-          "name": "GranularBody"
-        },
-        {
-          "name": "WallBoundary",
-          "solid_body": {}
-        }
-      ]
-    }
+    "bodies": [
+      {
+        "name": "GranularBody"
+      },
+      {
+        "name": "WallBoundary",
+        "solid_body": {}
+      }
+    ]
   },
 
   "continuum_bodies": [

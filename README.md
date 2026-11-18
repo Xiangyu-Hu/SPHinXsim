@@ -8,6 +8,13 @@
 ![ci workflow](https://github.com/Xiangyu-Hu/SPHinXsim/actions/workflows/ci.yml/badge.svg?event=push)
 [![Heterogeneous Computing](https://img.shields.io/badge/Heterogeneous-Computing-orange)](https://shields.io/)
 [![UI CLI Interface](https://img.shields.io/badge/UI-CLI_Interface-orange)](https://shields.io/)
+[![AI Native](https://img.shields.io/badge/AI-native-green)](https://shields.io/)
+
+
+## Weakly open Q&A on-line session
+
+You are welcome to join our weekly 30min+ [open Q&A session](https://teams.microsoft.com/meet/364917695711033?p=beQ12Ie0Hxrll1W5ND) every Friday at 12:00 PM (UTC+1) to discuss SPHinXsim, SPHinXsys, and related topics.
+If you post your question on https://github.com/Xiangyu-Hu/SPHinXsim/discussions, we will prioritize answering it during the session. Note that  each question gets a soft limit (e.g., 5–7 minutes). If a topic needs more depth, your are suggested moving it to a dedicated GitHub issue.
 
 ## Repository Description
 

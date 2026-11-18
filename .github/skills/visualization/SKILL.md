@@ -20,6 +20,7 @@ Do not skip this skill for visualization-path changes, even if the user request 
 Covers:
 - Rendering pipeline and fallback behavior
 - `ConfigVisualizer` rendering flow
+- Persistent interactive preview runtime and particle playback
 - Annotation/label conventions
 - Body constraints and observer visualization
 - 2D vs 3D preview behavior
@@ -50,8 +51,26 @@ Design rule:
 
 ## Core files
 - `sphinxsim/visualization/preview.py`
+- `sphinxsim/visualization/preview_runtime.py`
 - `sphinxsim/visualization/annotations.py`
 - `tests/test_visualization.py`
+- `tests/runtime/test_desktop.py`
+
+### Preview responsibilities
+- `preview.py` owns `ConfigVisualizer`: geometry preparation, plotter
+  population, rendering modes, camera setup, labels, and screenshots.
+- `preview_runtime.py` owns `_ShellPreviewRuntime`: persistent window lifecycle,
+  preview refresh, annotation hover interaction, retained particle simulations,
+  and live/replayed particle snapshots.
+- The runtime is imported and re-exported by `sphinxsim.cli` for CLI and existing
+  callers. Keep runtime lifecycle logic in `preview_runtime.py`; keep rendering
+  and scene-population logic in `preview.py`.
+- The runtime uses `JsonEditorMixin` for the preview configuration dock. See the
+  `json-editor` skill for editor UI and JSON round-tripping details.
+- When changing runtime behavior, inspect the CLI, desktop session, and
+  visualization test call sites. Prefer focused tests in
+  `tests/test_visualization.py` and `tests/runtime/test_desktop.py` as
+  appropriate.
 
 ## Key conventions
 
@@ -72,6 +91,16 @@ Design rule:
   be positive.
 - Any other shell command must release the retained simulation and delete its
   temporary runtime config.
+
+### Persistent preview runtime responsibilities
+- `_ShellPreviewRuntime` is implemented in
+  `sphinxsim/visualization/preview_runtime.py` and manages the interactive
+  preview across shell commands.
+- Keep plotter/window state, preview refresh decisions, hover observers, and
+  particle animation/playback lifecycle in the runtime; keep scene construction
+  in `ConfigVisualizer`.
+- Preserve its CLI re-export from `sphinxsim.cli` unless all callers and tests
+  are deliberately migrated together.
 
 ### Annotation functions
 Keep annotation formatting centralized in `annotations.py`:

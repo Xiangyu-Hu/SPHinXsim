@@ -72,6 +72,130 @@ def edit_spacing(runtime, value):
     return field
 
 
+def test_json_editor_tree_columns_share_width_equally(editor):
+    app, runtime, _, _ = editor
+    app.processEvents()
+    tree = runtime._json_editor["tree"]
+    header = tree.header()
+    assert header.sectionResizeMode(0) == QtWidgets.QHeaderView.ResizeMode.Stretch
+    assert header.sectionResizeMode(1) == QtWidgets.QHeaderView.ResizeMode.Stretch
+    assert abs(header.sectionSize(0) - header.sectionSize(1)) <= 1
+
+
+def test_annotation_reveal_expands_selects_and_filters_json_path(editor):
+    app, runtime, _, _ = editor
+    app.processEvents()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    filter_box = hooks["filter"]
+    path = "geometries.global_resolution.particle_spacing"
+
+    filter_box.setText("not a matching setting")
+    assert hooks["reveal_path"](path)
+    app.processEvents()
+
+    item = tree.currentItem()
+    assert item is not None
+    assert item.data(0, QtCore.Qt.ItemDataRole.UserRole) == path
+    assert item.isSelected()
+    assert item.parent().isExpanded()
+    assert item.parent().parent().isExpanded()
+    assert filter_box.text() == ""
+
+
+def test_list_context_menu_adds_to_the_right_clicked_list(editor):
+    app, runtime, _, _ = editor
+    app.processEvents()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    toolbar_texts = {
+        button.text()
+        for button in hooks["dock"].findChildren(QtWidgets.QToolButton)
+    }
+    assert toolbar_texts.isdisjoint(
+        {"Add", "Duplicate", "Remove", "Move up", "Move down",
+         "Expand", "Collapse", "Revert", "Reload"}
+    )
+    assert set(hooks["context_actions"]) == {
+        "add", "duplicate", "remove", "up", "down"
+    }
+    list_item = None
+    iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+    while iterator.value():
+        candidate = iterator.value()
+        if candidate.data(0, QtCore.Qt.ItemDataRole.UserRole) == "solid_bodies":
+            list_item = candidate
+            break
+        iterator += 1
+    assert list_item is not None
+    tree.scrollToItem(list_item)
+    app.processEvents()
+
+    menu = tree.findChild(QtWidgets.QMenu, "sphinxsim-json-editor-list-context-menu")
+    assert menu is not None
+    position = tree.visualItemRect(list_item).center()
+    tree.customContextMenuRequested.emit(position)
+    app.processEvents()
+
+    assert tree.currentItem() is list_item
+    assert menu.isVisible()
+    add_action = next(action for action in menu.actions() if action.text() == "Add")
+    assert add_action.isEnabled()
+    duplicate_action = next(
+        action for action in menu.actions() if action.text() == "Duplicate"
+    )
+    assert not duplicate_action.isEnabled()
+    assert "QMenu::item:enabled" in menu.styleSheet()
+    assert "QMenu::item:disabled" in menu.styleSheet()
+    add_action.trigger()
+    app.processEvents()
+
+    assert len(hooks["payload"]()["solid_bodies"]) == 3
+    assert hooks["is_dirty"]()
+    menu.hide()
+
+
+def test_setting_header_menu_expands_and_collapses_tree(editor):
+    app, runtime, _, _ = editor
+    app.processEvents()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    header = tree.header()
+    menu = hooks["settings_menu"]
+    assert menu.objectName() == "sphinxsim-json-editor-settings-menu"
+    assert header.model().headerData(0, QtCore.Qt.Orientation.Horizontal) == "Setting ▾"
+    position = QtCore.QPoint(
+        header.sectionViewportPosition(0) + 10,
+        header.viewport().height() // 2,
+    )
+    QtTest.QTest.mouseClick(
+        header.viewport(), QtCore.Qt.MouseButton.LeftButton, pos=position
+    )
+    app.processEvents()
+
+    actions = hooks["settings_actions"]
+    assert menu.isVisible()
+    assert actions["expand"].isEnabled()
+    assert actions["collapse"].isEnabled()
+    assert not actions["revert"].isEnabled()
+    assert actions["reload"].isEnabled()
+
+    actions["expand"].trigger()
+    app.processEvents()
+    assert all(item.isExpanded() for item in _tree_items(tree) if item.childCount())
+    actions["collapse"].trigger()
+    app.processEvents()
+    assert all(not item.isExpanded() for item in _tree_items(tree) if item.childCount())
+    menu.hide()
+
+
+def _tree_items(tree):
+    iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+    while iterator.value():
+        yield iterator.value()
+        iterator += 1
+
+
 def test_human_edits_invalidate_old_commands_and_native_save_really_persists(editor):
     app, runtime, session, path = editor
     observed = session.handle({"operation": "status"})
@@ -118,6 +242,11 @@ def test_translated_native_menus_keep_field_paths_and_trigger_original_actions(e
     adapter = Presentation(runtime, [("particles", "生成粒子", "Particles", action)])
     adapter.apply("zh", "light")
     app.processEvents()
+    context_actions = runtime._json_editor["context_actions"]
+    settings_actions = runtime._json_editor["settings_actions"]
+    assert context_actions["add"].text() == "添加"
+    assert settings_actions["expand"].text() == "展开"
+    assert settings_actions["reload"].text() == "重新载入"
     assert [a.text() for a in runtime.plotter.app_window.menuBar().actions()] == ["文件", "编辑", "视图", "仿真", "帮助"]
     assert not runtime._json_editor["is_dirty"]()
     item = next(item for item in adapter.items() if item.data(0, QtCore.Qt.ItemDataRole.UserRole) == "geometries.global_resolution.particle_spacing")
@@ -128,6 +257,9 @@ def test_translated_native_menus_keep_field_paths_and_trigger_original_actions(e
     QtTest.QTest.mouseClick(menu, QtCore.Qt.MouseButton.LeftButton, pos=menu.actionGeometry(action).center())
     assert intents == ["particles"]
     adapter.apply("en", "dark")
+    assert context_actions["add"].text() == "Add"
+    assert settings_actions["expand"].text() == "Expand"
+    assert settings_actions["reload"].text() == "Reload"
     assert item.text(0) == "Particle spacing [m]"
     assert not runtime._json_editor["is_dirty"]()
 

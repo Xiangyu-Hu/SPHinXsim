@@ -66,18 +66,35 @@ def reject_inactive_fields(payload):
     geometries = payload.get("geometries", {})
     for index, shape in enumerate(geometries.get("shapes", [])):
         fields = {"name", "type", *SHAPE_FIELDS.get(shape.get("type"), "").split()}
-        if shape.get("primitive") and shape.get("type") == "box":
-            fields -= {"half_size", "transform"}
+        if shape.get("primitive"):
+            if shape.get("type") == "box":
+                fields -= {"half_size", "transform"}
+            elif shape.get("type") == "bounding_box":
+                fields -= {"lower_bound", "upper_bound"}
         admit(shape, fields, f"geometries.shapes[{index}]")
     for index, box in enumerate(geometries.get("oriented_boxes", [])):
         fields = "center normal radius surface_half_size" if box.get("type") == "boundary" else "primitive" if box.get("primitive") else "half_size transform"
         admit(box, {"name", "type", *fields.split()}, f"geometries.oriented_boxes[{index}]")
         if box.get("radius") is not None and box.get("surface_half_size") is not None:
             raise ValueError("Boundary radius and surface_half_size are mutually exclusive")
+    fluid_materials = {
+        body.get("name"): body.get("material", {})
+        for body in payload.get("fluid_bodies", [])
+    }
     for index, boundary in enumerate(payload.get("fluid_boundary_conditions", [])):
+        boundary_type = boundary.get("type")
         fields = {"emitter": "inflow_speed on_schedule multi_species_phases volume_fractions",
                   "bi_directional": "pressure velocity mass_fractions",
-                  "free_stream": "buffer_box disposer_box target_speed t_ref"}.get(boundary.get("type"), "")
+                  "free_stream": "buffer_box disposer_box target_speed t_ref"}.get(boundary_type, "")
+        if boundary_type in ("emitter", "bi_directional"):
+            material = fluid_materials.get(boundary.get("body_name"), {})
+            thermal = material.get("thermal_properties", {})
+            if (
+                thermal.get("thermal_boundary") is None
+                and thermal.get("thermal_conductivity") is not None
+                and thermal.get("volumetric_heat_capacity") is not None
+            ):
+                fields += " temperature"
         admit(boundary, {"body_name", "oriented_box", "type", *fields.split()}, f"fluid_boundary_conditions[{index}]")
     for index, constraint in enumerate(payload.get("body_constraints", [])):
         if constraint.get("type") == "fixed":
@@ -152,16 +169,18 @@ def reject_unknown(value, schema, definitions, path="$", depth=0):
         if schema.get("type") != "object" and "properties" not in schema:
             raise ValueError(f"Expected a scalar or list at {path}")
         props = schema.get("properties", {})
-        unknown = set(value) - set(props)
         additional = schema.get("additionalProperties", False)
-        # Declared dictionaries carry native options such as level_set.shape.
-        # Named model fields still use the strict application admission policy.
-        if "properties" in schema and additional is True:
-            additional = False
+        unknown = set(value) - set(props)
         if unknown and additional is not True and not isinstance(additional, dict):
             raise ValueError(f"Unknown fields at {path}: {sorted(unknown)}")
         for key, child in value.items():
-            reject_unknown(child, props.get(key, additional), definitions, path + "." + key, depth + 1)
+            if key in props:
+                child_schema = props[key]
+            elif isinstance(additional, dict):
+                child_schema = additional
+            else:
+                continue
+            reject_unknown(child, child_schema, definitions, path + "." + key, depth + 1)
     elif isinstance(value, list) and "items" in schema:
         for index, child in enumerate(value):
             reject_unknown(child, schema["items"], definitions, f"{path}[{index}]", depth + 1)
@@ -228,9 +247,8 @@ def check_config(payload):
     if spacing:
         primitives = {primitive["name"]: primitive for primitive in normalized["geometries"]["primitives"]}
         for shape in normalized["geometries"]["shapes"]:
-            if shape.get("type") == "bounding_box":
-                bounds = primitives[shape["primitive"]] if shape.get("primitive") else shape
-                lengths = [b-a for a, b in zip(bounds["lower_bound"], bounds["upper_bound"])]
+            if shape.get("type") == "bounding_box" and "lower_bound" in shape:
+                lengths = [b-a for a, b in zip(shape["lower_bound"], shape["upper_bound"])]
                 if min(lengths) < 3 * spacing:
                     notes.append({"code": "thin_geometry", "severity": "warning", "body": shape["name"],
                                   "message": "A shape dimension spans fewer than three particle spacings; inspect particle coverage."})

@@ -715,8 +715,7 @@ def apply_stl_geometry_overrides(cfg: Dict[str, Any], description: str) -> Dict[
         for body in updated.get(section, []):
             if isinstance(body, dict) and isinstance(body.get("name"), str):
                 body_names.add(body["name"])
-    settings = updated.get("particle_generation", {}).get("settings", {})
-    for body in settings.get("bodies", []):
+    for body in updated.get("particle_generation", {}).get("bodies", []):
         if isinstance(body, dict) and isinstance(body.get("name"), str):
             body_names.add(body["name"])
             if is_plastic_stl_case and body["name"] in replacements:
@@ -883,7 +882,7 @@ def sanitize_config_dict(cfg: Dict[str, Any]) -> Dict[str, Any]:
         candidates = get_close_matches(name, [n for n in all_body_names if isinstance(n, str)], n=1, cutoff=0.6)
         return candidates[0] if candidates else name
 
-    for entry in updated.get("particle_generation", {}).get("settings", {}).get("bodies", []):
+    for entry in updated.get("particle_generation", {}).get("bodies", []):
         if isinstance(entry, dict):
             entry["name"] = _canonical_body_name(entry.get("name"))
 
@@ -911,8 +910,7 @@ def sanitize_config_dict(cfg: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(variable.get("vector_type"), str):
                 variable["vector_type"] = [variable["vector_type"]]
 
-    settings = updated.get("particle_generation", {}).get("settings", {})
-    bodies = settings.get("bodies", [])
+    bodies = updated.get("particle_generation", {}).get("bodies", [])
     fluid_names = {body.get("name") for body in updated.get("fluid_bodies", [])}
     solid_names = {body.get("name") for body in updated.get("solid_bodies", [])}
 
@@ -1098,11 +1096,10 @@ def apply_shape_rename(config_dict: Dict[str, Any], old_name: str, new_name: str
             if isinstance(body, dict) and body.get("name") == old_name:
                 body["name"] = new_name
 
-    settings = updated.get("particle_generation", {}).get("settings", {})
-    for body in settings.get("bodies", []):
+    for body in updated.get("particle_generation", {}).get("bodies", []):
         if isinstance(body, dict) and body.get("name") == old_name:
             body["name"] = new_name
-    for constraint in settings.get("relaxation_constraints", []):
+    for constraint in updated.get("particle_generation", {}).get("relaxation_constraints", []):
         if isinstance(constraint, dict) and constraint.get("body_name") == old_name:
             constraint["body_name"] = new_name
 

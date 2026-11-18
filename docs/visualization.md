@@ -24,7 +24,10 @@ pip install pyvistaqt PySide6
 The compiled C++ extension (`_sphinxsys_core_2d` or `_sphinxsys_core_3d`) is
 required for preview geometry generation. The preview always attempts to build
 VTP meshes first and automatically falls back to cached shape bounds when VTP
-files are not produced.
+files are not produced. If neither source can provide a configured shape, the
+preview stops with an error instead of opening an empty scene. Rebuild or update
+the SPHinXsim Python binding library if the native geometry is missing; rebuilding
+only the C++ projects may leave the Python binding out of date.
 
 ## What it shows
 
@@ -44,6 +47,11 @@ Each shape and oriented box is labelled with an annotation that includes:
 - **Body shapes**: material type, density, sound speed, thermal boundary type (when applicable).
 - **Oriented boxes**: BC type (emitter, bi-directional), inflow speed or pressure, and particle-relaxation constraints targeting that oriented box.
 - **Gravity**: shown in the lower-left corner when a gravity vector is defined.
+
+In an interactive preview window with the JSON editor open, hovering an
+annotation enlarges it. Clicking an annotation reveals and selects its
+corresponding configuration entry in the editor; this expands the entry's
+ancestors and clears the editor filter if needed to make the entry visible.
 
 ## CLI usage
 
@@ -127,7 +135,12 @@ Notes:
 - In the Qt-backed persistent window, the full-height dark configuration editor on the right
   presents JSON fields as a searchable property tree: setting names on the
   left and editable value boxes on the right. It uses type-appropriate controls
-  for booleans, numbers, and common enumerations. A change is saved only when
+  for booleans, numbers, and common enumerations. Click the **Setting ▾**
+  column header to open the editor menu with **Expand**, **Collapse**,
+  **Revert**, and **Reload**. To modify a list, right-click its row and choose
+  **Add**, or right-click an entry to **Duplicate**, **Remove**, or **Move
+  up/Move down**. Only actions available for that row are highlighted;
+  unavailable actions are dimmed. A change is saved only when
   you press `Ctrl+S`; it validates and atomically saves the currently loaded
   JSON file before rebuilding the preview. Running `preview` asks for
   confirmation before discarding unapplied editor changes. Loading a different
@@ -182,7 +195,8 @@ sphinxsim> replay
 
 If needed, replay opens the regular configuration preview, preserving the
 correct 2D/3D camera (including the orthographic XY view for 2D). Wait until
-`continue-to-run` has finished before starting replay.
+`continue-to-run` has finished before starting replay. Replay keeps the current
+camera framing fixed while the particle snapshots animate.
 
 `preview` requires a config to be loaded first (via `load` or `generate`).
 
@@ -276,8 +290,11 @@ When VTP files are not produced, the visualizer queries `getShapeBounds()` from
 the geometry builder and renders axis-aligned bounding boxes from the cached
 shape bounds.
 
-Both paths require the C++ extension.  If it is not installed, an `ImportError`
-is raised with an install hint.
+Both paths require the C++ extension. If geometry generation fails, or a shape
+has neither a readable VTP mesh nor cached bounds, the preview reports an error
+and does not show a partial/empty scene. If the extension is missing or
+incompatible, rebuild and reinstall the SPHinXsim Python binding as well as the
+C++ libraries.
 
 ## Shape types and VTP availability
 

@@ -79,23 +79,20 @@
     ]
   },
   "particle_generation": {
-    "build_and_run": true,
-    "settings": {
-      "bodies": [
-        {
-          "name": "MultiPhaseBody",
-          "blockers": ["FillLevel"],
-          "box_shape_inserts": ["EmitterInsert"],
-          "relaxation": { "dependent_bodies": ["WallBoundary"] }
-        },
-        {
-          "name": "WallBoundary",
-          "solid_body": {}
-        }
-      ],
-      "relaxation_parameters": {
-        "total_iterations": 1000
+    "bodies": [
+      {
+        "name": "MultiPhaseBody",
+        "blockers": ["FillLevel"],
+        "box_shape_inserts": ["EmitterInsert"],
+        "relaxation": { "dependent_bodies": ["WallBoundary"] }
+      },
+      {
+        "name": "WallBoundary",
+        "solid_body": {}
       }
+    ],
+    "relaxation_parameters": {
+      "total_iterations": 1000
     }
   },
   "fluid_bodies": [

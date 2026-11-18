@@ -84,20 +84,17 @@
   },
 
   "particle_generation": {
-    "build_and_run": true,
-    "settings": {
-      "bodies": [
-        {
-          "name": "WaterBody"
-        },
-        {
-          "name": "WallBoundary",
-          "solid_body": {}
-        }
-      ],
-      "relaxation_parameters": {
-        "total_iterations": 1000
+    "bodies": [
+      {
+        "name": "WaterBody"
+      },
+      {
+        "name": "WallBoundary",
+        "solid_body": {}
       }
+    ],
+    "relaxation_parameters": {
+      "total_iterations": 1000
     }
   },
 
@@ -133,28 +130,28 @@
   ],
 
   "fluid_boundary_conditions": [
-  {
-    "body_name": "WaterBody",
-    "oriented_box": "Inlet",
-    "type": "bi_directional",
-    "velocity": {
-      "profile": "parabolic",
-      "relaxation_rate": 0.3,
-      "max_speed": 1.0,
-      "channel_height": 0.4,
-      "startup": {
-        "type": "exponential",
-        "time_constant": 0.2
+    {
+      "body_name": "WaterBody",
+      "oriented_box": "Inlet",
+      "type": "bi_directional",
+      "velocity": {
+        "profile": "parabolic",
+        "relaxation_rate": 0.3,
+        "max_speed": 1.0,
+        "channel_height": 0.4,
+        "startup": {
+          "type": "exponential",
+          "time_constant": 0.2
+        }
       }
+    },
+    {
+      "body_name": "WaterBody",
+      "oriented_box": "Outlet",
+      "type": "bi_directional",
+      "pressure": 0.0
     }
-  },
-  {
-    "body_name": "WaterBody",
-    "oriented_box": "Outlet",
-    "type": "bi_directional",
-    "pressure": 0.0
-  }
-],
+  ],
 
   "startup_acceleration": {
     "body_name": "WaterBody",

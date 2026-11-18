@@ -106,18 +106,15 @@
   },
 
   "particle_generation": {
-    "build_and_run": true,
-    "settings": {
-      "bodies": [
-        {
-          "name": "WaterBody"
-        },
-        {
-          "name": "WallBoundary",
-          "solid_body": {}
-        }
-      ]
-    }
+    "bodies": [
+      {
+        "name": "WaterBody"
+      },
+      {
+        "name": "WallBoundary",
+        "solid_body": {}
+      }
+    ]
   },
 
   "fluid_bodies": [

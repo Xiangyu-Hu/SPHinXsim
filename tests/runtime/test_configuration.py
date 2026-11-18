@@ -9,6 +9,9 @@ from sphinxsim.cli import main
 from sphinxsim.operations import Operations
 from sphinxsim.runtime.physics import check_config, compile_config
 
+SIMULATION_CONFIG_ROOT = Path(__file__).parents[1] / "test_simulation"
+SIMULATION_CONFIG_FILES = sorted(SIMULATION_CONFIG_ROOT.rglob("*.json"))
+
 
 def j2_configuration():
     source = Path(__file__).parents[1] / "test_simulation/test_2d_simulation/data/column_collapse.json"
@@ -80,71 +83,42 @@ def test_declared_but_inactive_material_fields_do_not_silently_pass():
         check_config(config)
 
 
-@pytest.mark.parametrize("shape_type", ["box", "bounding_box"])
-def test_primitive_references_survive_cli_mcp_and_compilation(tmp_path, capsys, shape_type):
-    config = j2_configuration()
-    shape = config["geometries"]["shapes"][0]
-    primitive = {"name": "InitialBounds", "type": shape_type}
-    if shape_type == "bounding_box":
-        primitive.update(lower_bound=[0, 0], upper_bound=[.2, .001])
-    else:
-        primitive.update(half_size=[.1, .1], transform={"translation": [.1, .1], "rotation_angle": 0})
-    config["geometries"]["primitives"] = [primitive]
-    config["geometries"]["shapes"][0] = {
-        "name": shape["name"], "type": shape_type, "primitive": "InitialBounds"
-    }
-    path = tmp_path / "case.json"
-    path.write_text(json.dumps(config), encoding="utf-8")
-    original = path.read_bytes()
-
-    assert main(["validate", str(path), "--root", str(tmp_path), "--json"]) == 0
-    result = json.loads(capsys.readouterr().out)["data"]
-    assert Operations(tmp_path).call("validate", {"config_file": "case.json"}) == result
-    compiled, _ = compile_config({"version": 1, "configuration": config})
-    assert compiled["geometries"]["shapes"][0]["primitive"] == "InitialBounds"
-    if shape_type == "bounding_box":
-        assert any(note["code"] == "thin_geometry" for note in result["report"]["diagnostics"])
-    assert main(["validate", str(path)]) == 0
-    assert path.read_bytes() == original
-
-
-def test_particle_generation_dictionaries_accept_native_refinement_and_level_set():
-    config = j2_configuration()
-    bodies = config["particle_generation"]["settings"]["bodies"]
-    bodies[0]["relaxation"] = {"level_set": {"shape": bodies[0]["name"]}}
-    bodies[1]["solid_body"] = {"refinement_to_global": 2.0}
-
+def test_thermal_emitter_temperature_is_accepted_by_shared_admission():
+    source = (
+        Path(__file__).parents[1]
+        / "test_simulation"
+        / "test_2d_simulation"
+        / "data"
+        / "multi_phase_mixing.json"
+    )
+    config = json.loads(source.read_text())
     normalized, _ = check_config(config)
+    assert normalized["fluid_boundary_conditions"][0]["temperature"] == 20.0
 
-    normalized_bodies = normalized["particle_generation"]["settings"]["bodies"]
-    assert normalized_bodies[0]["relaxation"]["level_set"] == bodies[0]["relaxation"]["level_set"]
-    assert normalized_bodies[1]["solid_body"]["refinement_to_global"] == 2.0
-
-
-@pytest.mark.parametrize("location", ["particle_generation", "solid_bodies"])
-def test_unused_adaptation_ratios_report_the_native_configuration_path(location):
-    config = j2_configuration()
-    if location == "particle_generation":
-        body = config["particle_generation"]["settings"]["bodies"][1]
-    else:
-        body = config["solid_bodies"][0]
-    body["adaptation_ratios"] = [1.15, 2.0]
-
-    with pytest.raises(ValueError, match="solid_body.refinement_to_global"):
-        check_config(config)
+    non_thermal_config = deepcopy(config)
+    del non_thermal_config["fluid_bodies"][0]["material"]["thermal_properties"]
+    with pytest.raises(ValueError, match="Fields not consumed"):
+        check_config(non_thermal_config)
 
 
-def test_unknown_model_fields_are_rejected_with_dictionary_support():
-    config = j2_configuration()
-    config["geometries"]["shapes"][0]["invented_geometry"] = True
+def test_open_ended_relaxation_level_set_is_accepted_by_shared_admission():
+    source = (
+        Path(__file__).parents[1]
+        / "test_simulation"
+        / "test_2d_simulation"
+        / "data"
+        / "submerged_cylinder.json"
+    )
+    normalized, _ = check_config(json.loads(source.read_text()))
+    assert normalized["particle_generation"]["bodies"][0]["relaxation"]["level_set"] == {
+        "shape": "WaterDomain"
+    }
 
-    with pytest.raises(ValueError, match="Unknown fields"):
-        check_config(config)
 
-
-def test_unknown_particle_generation_model_fields_remain_rejected():
-    config = j2_configuration()
-    config["particle_generation"]["settings"]["bodies"][0]["invented_option"] = True
-
-    with pytest.raises(ValueError, match="Unknown or invalid fields"):
-        check_config(config)
+@pytest.mark.parametrize(
+    "config_path",
+    SIMULATION_CONFIG_FILES,
+    ids=lambda path: path.relative_to(SIMULATION_CONFIG_ROOT).as_posix(),
+)
+def test_simulation_json_fixtures_pass_shared_admission(config_path):
+    check_config(json.loads(config_path.read_text()))

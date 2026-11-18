@@ -3,10 +3,13 @@
  * @brief 2D simulation examples driven by a JSON configuration file.
  * @details All simulation parameters (domain, fluid, wall, gravity, solver,
  *          end time) are loaded from data/config.json via the SPHSimulation
- *          facade.  No hard-coded physics constants appear in this file.
+ *          facade. Cases with restart settings and restore_step zero run
+ *          from the beginning and again from the first saved checkpoint.
+ *          A nonzero restore_step runs only from that checkpoint. Restart
+ *          output is written to the case's restart_output directory.
  * @author Xiangyu Hu
  */
-#include "sph_simulation.h"
+#include "../json_simulation_runner.h"
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
@@ -106,6 +109,7 @@ std::string sanitizeCaseName(const std::string &name)
     }
     return sanitized;
 }
+
 } // namespace
 
 class Json : public ::testing::TestWithParam<fs::path>
@@ -120,16 +124,7 @@ TEST(simulations, has_json)
 
 TEST_P(Json, run)
 {
-    const fs::path config = GetParam();
-    ASSERT_TRUE(fs::exists(config)) << "Missing config file: " << config.string();
-
-    SPH::SPHSimulation sim(config);
-    sim.resetOutputRoot(fs::path("./") / config.stem(), true);
-    sim.buildGeometries();
-    sim.generateParticles();
-    sim.buildSimulation();
-    sim.initializeSimulation();
-    sim.run();
+    simulation_test::runJsonSimulation(GetParam());
 }
 
 INSTANTIATE_TEST_SUITE_P(

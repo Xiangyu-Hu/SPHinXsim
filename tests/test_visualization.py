@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import math
 import sys
+import threading
 from pathlib import Path
 
 from typing import Any
@@ -62,14 +63,11 @@ def _minimal_fluid_config() -> dict:
             ],
         },
         "particle_generation": {
-            "build_and_run": True,
-            "settings": {
-                "bodies": [
-                    {"name": "WaterBody"},
-                    {"name": "WallBoundary", "solid_body": {}},
-                ],
-                "relaxation_parameters": {"total_iterations": 1},
-            },
+            "bodies": [
+                {"name": "WaterBody"},
+                {"name": "WallBoundary", "solid_body": {}},
+            ],
+            "relaxation_parameters": {"total_iterations": 1},
         },
         "fluid_bodies": [
             {
@@ -312,7 +310,7 @@ class TestPreviewLegend:
                 "upper_bound": [0.9, 0.4],
             }
         )
-        data["particle_generation"]["settings"]["bodies"].append({"name": "AirBody"})
+        data["particle_generation"]["bodies"].append({"name": "AirBody"})
         config = SimulationConfig.model_validate(data)
 
         water_colour = _body_colour("WaterBody", config)
@@ -368,12 +366,89 @@ class TestPreviewLegend:
                     "upper_bound": [float(index) + 0.5, 0.5],
                 }
             )
-            data["particle_generation"]["settings"]["bodies"].append({"name": name})
+            data["particle_generation"]["bodies"].append({"name": name})
 
         config = SimulationConfig.model_validate(data)
         colours = [_body_colour(body.name, config) for body in config.fluid_bodies]
 
         assert len(set(colours)) == len(colours)
+
+
+class TestPreviewGeometryFailure:
+    def test_preview_fails_when_configured_shapes_have_no_native_geometry(
+        self, fluid_config, tmp_path
+    ):
+        from sphinxsim.visualization.preview import ConfigVisualizer
+
+        visualizer = ConfigVisualizer(fluid_config, tmp_path, off_screen=True)
+        with pytest.raises(RuntimeError, match="WaterBody, WallBoundary"):
+            visualizer._ensure_shape_geometry_available(vtp_dir=None)
+
+        with patch.dict(sys.modules, {"pyvista": _FakePyVista}):
+            visualizer._populate_plotter(_FakePlotter(), vtp_dir=None)
+
+        with pytest.raises(RuntimeError, match="WaterBody, WallBoundary") as exc_info:
+            visualizer._ensure_shapes_rendered()
+
+        assert "Python binding library" in str(exc_info.value)
+
+    def test_geometry_build_failure_identifies_outdated_binding(
+        self, fluid_config, tmp_path, monkeypatch
+    ):
+        import sphinxsim.visualization.preview as preview_mod
+
+        visualizer = preview_mod.ConfigVisualizer(
+            fluid_config,
+            tmp_path,
+            config_path=tmp_path / "config.json",
+        )
+        monkeypatch.setattr(
+            preview_mod,
+            "load_sphinxsys_core_nd",
+            lambda _ndim: SimpleNamespace(),
+        )
+
+        with pytest.raises(RuntimeError, match="binding may be out of date") as exc_info:
+            visualizer._try_build_geometries(2)
+
+        assert isinstance(exc_info.value.__cause__, AttributeError)
+
+    def test_persistent_preview_reports_geometry_build_failure(
+        self, fluid_config, tmp_path, monkeypatch, capsys
+    ):
+        from sphinxsim.visualization.preview_runtime import _ShellPreviewRuntime
+
+        class FailingVisualizer:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def _spatial_dim(self):
+                return 2
+
+            def _try_build_geometries(self, ndim, with_particles=False):
+                raise RuntimeError(
+                    "C++ geometry generation failed; update the Python binding."
+                )
+
+        runtime = _ShellPreviewRuntime()
+        monkeypatch.setattr(
+            "sphinxsim.visualization.preview.ConfigVisualizer",
+            FailingVisualizer,
+        )
+        with patch.dict(sys.modules, {"pyvista": MagicMock()}):
+            rc = runtime.show_or_update(
+                fluid_config,
+                resolved_config_path=tmp_path / "config.json",
+                with_particles=False,
+                force=True,
+            )
+
+        assert rc == 1
+        assert (
+            "Preview failed: C++ geometry generation failed"
+            in capsys.readouterr().err
+        )
+        assert runtime.last_signature is None
 
 
 class TestOrientedBoxLabel:
@@ -419,7 +494,7 @@ class TestOrientedBoxLabel:
         from sphinxsim.visualization.annotations import oriented_box_label
 
         data = copy.deepcopy(fluid_config.model_dump(exclude_none=True))
-        data["particle_generation"]["settings"]["relaxation_constraints"] = [
+        data["particle_generation"]["relaxation_constraints"] = [
             {
                 "body_name": "WaterBody",
                 "oriented_box": "Inlet",
@@ -1156,6 +1231,26 @@ class TestShellPreview:
         rel = f"pytest-temp/{path.name}/config.json"
         return p, rel
 
+    def test_shell_input_pumps_preview_events_while_waiting(self):
+        from sphinxsim import cli as cli_mod
+
+        input_can_return = threading.Event()
+        pump_calls = []
+
+        def fake_input(_prompt):
+            assert input_can_return.wait(timeout=2)
+            return "exit"
+
+        runtime = SimpleNamespace(
+            plotter=object(),
+            _using_background_plotter=True,
+            pump_ui_events=lambda: (pump_calls.append(True), input_can_return.set()),
+        )
+        with patch("builtins.input", side_effect=fake_input):
+            assert cli_mod._read_shell_input("sphinxsim> ", runtime) == "exit"
+
+        assert pump_calls
+
     def test_shell_preview_no_pyvista_prints_error(self, build_temp_path, capsys):
         _, rel = self._write_config(build_temp_path)
         inputs = [f"load {rel}", "preview", "exit"]
@@ -1261,6 +1356,78 @@ class TestShellPreview:
         assert calls == ["build", "initialize", "run"]
         assert runtime._pending_simulation is None
         assert not runtime_config_path.exists()
+
+    def test_shell_runtime_plays_final_snapshots_when_run_finishes_before_refresh(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        class FakeTimer:
+            def __init__(self):
+                self.timeout = MagicMock()
+                self.interval = None
+                self.interval_updates = 0
+
+            def setInterval(self, interval):
+                self.interval = interval
+                self.interval_updates += 1
+
+            def start(self):
+                pass
+
+            def stop(self):
+                pass
+
+        class FakePlotter:
+            def __init__(self):
+                self.meshes = []
+                self.app = SimpleNamespace(processEvents=lambda: None)
+
+            def add_mesh(self, mesh, **_kwargs):
+                self.meshes.append(mesh)
+
+        class FakeSimulation:
+            def buildSimulation(self):
+                pass
+
+            def initializeSimulation(self):
+                pass
+
+            def run(self):
+                for step in (1, 2):
+                    (tmp_path / f"WaterBody_{step}.vtp").touch()
+
+        timer = FakeTimer()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._pending_simulation = FakeSimulation()
+        runtime._using_background_plotter = True
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_body_names = {"WaterBody"}
+        runtime.plotter = FakePlotter()
+
+        with patch.dict(
+            sys.modules,
+            {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))},
+        ):
+            assert runtime.continue_to_run(refresh_interval=30.0) == 0
+            runtime._live_run_thread.join()
+            assert timer.interval == 30_000
+            runtime.pump_ui_events()
+            runtime.pump_ui_events()
+            assert timer.interval == 40
+            assert timer.interval_updates == 2
+
+            with patch.dict(
+                sys.modules,
+                {"pyvista": SimpleNamespace(read=lambda path: path)},
+            ):
+                runtime._refresh_live_particles()
+                runtime._refresh_live_particles()
+                runtime._refresh_live_particles()
+
+        assert runtime.plotter.meshes == [
+            str(tmp_path / "WaterBody_1.vtp"),
+            str(tmp_path / "WaterBody_2.vtp"),
+        ]
+        assert runtime._live_refresh_timer is None
 
     def test_shell_runtime_plays_particle_snapshots_in_sequence(self, tmp_path):
         from sphinxsim import cli as cli_mod
@@ -1391,6 +1558,10 @@ class TestShellPreview:
             runtime._refresh_live_particles()
 
         assert runtime.plotter.add_mesh.call_count == 2
+        assert all(
+            call.kwargs["reset_camera"] is False
+            for call in runtime.plotter.add_mesh.call_args_list
+        )
         assert runtime._live_replay_mode is False
         assert runtime._live_refresh_timer is None
 
@@ -1756,12 +1927,15 @@ class TestShellPreview:
 
         class FakeInteractor:
             def __init__(self):
-                self._observer = None
+                self._observers = {}
+                self._next_tag = 1
                 self._pos = (0, 0)
 
             def AddObserver(self, event_name, callback):
-                self._observer = callback
-                return 1
+                tag = self._next_tag
+                self._next_tag += 1
+                self._observers[event_name] = callback
+                return tag
 
             def RemoveObserver(self, tag):
                 return None
@@ -1771,8 +1945,15 @@ class TestShellPreview:
 
             def trigger_mouse_move(self, x, y):
                 self._pos = (x, y)
-                if self._observer is not None:
-                    self._observer(self, "MouseMoveEvent")
+                callback = self._observers.get("MouseMoveEvent")
+                if callback is not None:
+                    callback(self, "MouseMoveEvent")
+
+            def trigger_left_click(self, x, y):
+                self._pos = (x, y)
+                callback = self._observers.get("LeftButtonPressEvent")
+                if callback is not None:
+                    callback(self, "LeftButtonPressEvent")
 
         class FakeCoordinate:
             def __init__(self):
@@ -1822,14 +2003,19 @@ class TestShellPreview:
                     "points": [(20.0, 20.0, 0.0)],
                     "labels": ["demo annotation"],
                     "text_color": "white",
+                    "config_path": "geometries.oriented_boxes.0",
                 }]
 
+        revealed_paths = []
+        runtime._json_editor = {"reveal_path": revealed_paths.append}
         with patch.dict(sys.modules, {"vtk": FakeVtkModule(actor)}):
             runtime._install_annotation_hover(FakeVisualizer())
 
         assert actor.prop.size == 8
         interactor.trigger_mouse_move(55, 24)
         assert actor.prop.size == 12
+        interactor.trigger_left_click(55, 24)
+        assert revealed_paths == ["geometries.oriented_boxes.0"]
         interactor.trigger_mouse_move(1, 1)
         assert actor.prop.size == 8
 

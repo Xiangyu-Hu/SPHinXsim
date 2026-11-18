@@ -161,7 +161,7 @@ class TestNvidiaNIMLLMGenerate:
         generated_shapes = {shape.name: shape for shape in config.geometries.shapes}
         assert generated_shapes["GranularBody"].file_name == "landslides.stl"
         assert generated_shapes["WallBoundary"].file_name == "boundary.stl"
-        particle_bodies = {body.name: body for body in config.particle_generation.settings.bodies}
+        particle_bodies = {body.name: body for body in config.particle_generation.bodies}
         assert particle_bodies["GranularBody"].relaxation.level_set == {}
         assert particle_bodies["WallBoundary"].relaxation.level_set == {}
 
@@ -377,7 +377,7 @@ class TestNvidiaNIMLLMUpdate:
         assert any(shape.name == "RockBoundary" for shape in updated.geometries.shapes)
         assert all(body.name != "WallBoundary" for body in updated.solid_bodies)
         assert any(body.name == "RockBoundary" for body in updated.solid_bodies)
-        pg_bodies = updated.particle_generation.settings.bodies if updated.particle_generation.settings else []
+        pg_bodies = updated.particle_generation.bodies
         assert any(body.name == "RockBoundary" for body in pg_bodies)
 
 

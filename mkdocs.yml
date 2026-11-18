@@ -9,9 +9,9 @@ nav:
       - macOS: installation-macos.md
   - CLI Usage: cli-usage.md
   - Learning Resources:
-      - Dambreak flow: dambreak.md
-      - Filling a tank: filling-tank.md
-      - Milling: milling.md
+      - Dambreak flow: learning/dambreak.md
+      - Filling a tank: learning/filling-tank.md
+      - Milling: learning/milling.md
   - External Agents:
       - Native Workflows: agent-workflows.md
       - MCP Setup: mcp.md

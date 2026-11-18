@@ -20,7 +20,9 @@
         "CMAKE_CXX_COMPILER": "icpx",
         "SPHINXSYS_BUILD_TESTS": "OFF",
         "SPHINXSYS_DEVELOPER_MODE": "OFF",
-        "SPHINXSYS_USE_SYCL": "ON"
+        "SPHINXSYS_USE_SYCL": "ON",
+        "SPHINXSIM_COPY_BINDINGS_AFTER_BUILD": "ON",
+        "SPHINXSIM_BINDINGS_OUTPUT_DIR": "${sourceDir}/sphinxsim/bindings/native"
       }
     },
     {
@@ -37,9 +39,7 @@
         "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
         "SPHINXSYS_BUILD_TESTS": "OFF",
         "SPHINXSYS_DEVELOPER_MODE": "ON",
-        "SPHINXSYS_USE_SYCL": "OFF",
-        "SPHINXSIM_COPY_BINDINGS_AFTER_BUILD": "ON",
-        "SPHINXSIM_BINDINGS_OUTPUT_DIR": "${sourceDir}/sphinxsim/bindings/native"
+        "SPHINXSYS_USE_SYCL": "OFF"
       }
     },
     {
@@ -62,7 +62,9 @@
         "SPHINXSYS_BUILD_TESTS": "OFF",
         "SPHINXSYS_DEVELOPER_MODE": "OFF",
         "SPHINXSYS_USE_SYCL": "ON",
-        "SPHINXSYS_SYCL_TARGETS": "nvptx64-nvidia-cuda"
+        "SPHINXSYS_SYCL_TARGETS": "nvptx64-nvidia-cuda",
+        "SPHINXSIM_COPY_BINDINGS_AFTER_BUILD": "ON",
+        "SPHINXSIM_BINDINGS_OUTPUT_DIR": "${sourceDir}/sphinxsim/bindings/native"
       }
     },
     {
@@ -131,9 +133,7 @@
         "CMAKE_CXX_COMPILER_LAUNCHER": "",
         "SPHINXSYS_BUILD_TESTS": "OFF",
         "SPHINXSYS_DEVELOPER_MODE": "ON",
-        "SPHINXSYS_USE_SYCL": "OFF",
-        "SPHINXSIM_COPY_BINDINGS_AFTER_BUILD": "ON",
-        "SPHINXSIM_BINDINGS_OUTPUT_DIR": "${sourceDir}/sphinxsim/bindings/native"
+        "SPHINXSYS_USE_SYCL": "OFF"
       }
     }
   ],

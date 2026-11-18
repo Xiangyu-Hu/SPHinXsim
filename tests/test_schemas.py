@@ -40,14 +40,11 @@ def _make_minimal_fluid_config(**overrides) -> SimulationConfig:
             ],
         },
         "particle_generation": {
-            "build_and_run": False,
-            "settings": {
-                "bodies": [
-                    {"name": "WaterBody"},
-                    {"name": "WallBoundary", "solid_body": {}},
-                ],
-                "relaxation_parameters": {"total_iterations": 1000},
-            },
+            "bodies": [
+                {"name": "WaterBody"},
+                {"name": "WallBoundary", "solid_body": {}},
+            ],
+            "relaxation_parameters": {"total_iterations": 1000},
         },
         "fluid_bodies": [
             {
@@ -114,14 +111,11 @@ def _make_minimal_continuum_config(**overrides) -> SimulationConfig:
             ],
         },
         "particle_generation": {
-            "build_and_run": False,
-            "settings": {
-                "bodies": [
-                    {"name": "ContinuumBody"},
-                    {"name": "WallBoundary", "solid_body": {}},
-                ],
-                "relaxation_parameters": {"total_iterations": 1000},
-            },
+            "bodies": [
+                {"name": "ContinuumBody"},
+                {"name": "WallBoundary", "solid_body": {}},
+            ],
+            "relaxation_parameters": {"total_iterations": 1000},
         },
         "continuum_bodies": [
             {
@@ -551,14 +545,11 @@ class TestSimulationConfig:
         ]
 
         particle_generation = {
-            "build_and_run": False,
-            "settings": {
-                "bodies": [
-                    {"name": "TetraBody"},
-                    {"name": "WallBoundary", "solid_body": {}},
-                ],
-                "relaxation_parameters": {"total_iterations": 1000},
-            },
+            "bodies": [
+                {"name": "TetraBody"},
+                {"name": "WallBoundary", "solid_body": {}},
+            ],
+            "relaxation_parameters": {"total_iterations": 1000},
         }
 
         cfg = _make_minimal_continuum_config(
@@ -675,10 +666,10 @@ class TestSimulationConfig:
     def test_duplicate_particle_generation_body_name_rejected(self):
         cfg = _make_minimal_fluid_config()
         data = cfg.model_dump(mode="json", exclude_none=True)
-        duplicate = json.loads(json.dumps(data["particle_generation"]["settings"]["bodies"][0]))
-        data["particle_generation"]["settings"]["bodies"].append(duplicate)
+        duplicate = json.loads(json.dumps(data["particle_generation"]["bodies"][0]))
+        data["particle_generation"]["bodies"].append(duplicate)
 
-        with pytest.raises(ValidationError, match="settings.bodies must use unique body names"):
+        with pytest.raises(ValidationError, match="bodies must use unique body names"):
             SimulationConfig.model_validate(data)
 
     @pytest.mark.parametrize("non_finite", [math.nan, math.inf, -math.inf])
@@ -781,69 +772,55 @@ class TestSimulationConfig:
     def test_particle_generation_blockers_accept_existing_oriented_box(self):
         cfg = _make_minimal_fluid_config(
             particle_generation={
-                "build_and_run": False,
-                "settings": {
-                    "bodies": [
-                        {"name": "WaterBody", "blockers": ["Inlet"]},
-                        {"name": "WallBoundary", "solid_body": {}},
-                    ],
-                    "relaxation_parameters": {"total_iterations": 1000},
-                },
+                "bodies": [
+                    {"name": "WaterBody", "blockers": ["Inlet"]},
+                    {"name": "WallBoundary", "solid_body": {}},
+                ],
+                "relaxation_parameters": {"total_iterations": 1000},
             }
         )
-        assert cfg.particle_generation.settings is not None
-        assert cfg.particle_generation.settings.bodies[0].blockers == ["Inlet"]
+        assert cfg.particle_generation.bodies[0].blockers == ["Inlet"]
 
     def test_particle_generation_blockers_reject_unknown_oriented_box(self):
         with pytest.raises(ValidationError, match="blockers entries must reference existing"):
             _make_minimal_fluid_config(
                 particle_generation={
-                    "build_and_run": False,
-                    "settings": {
-                        "bodies": [
-                            {"name": "WaterBody", "blockers": ["MissingBox"]},
-                            {"name": "WallBoundary", "solid_body": {}},
-                        ],
-                        "relaxation_parameters": {"total_iterations": 1000},
-                    },
+                    "bodies": [
+                        {"name": "WaterBody", "blockers": ["MissingBox"]},
+                        {"name": "WallBoundary", "solid_body": {}},
+                    ],
+                    "relaxation_parameters": {"total_iterations": 1000},
                 }
             )
 
     def test_particle_generation_box_shape_inserts_accept_existing_shape(self):
         cfg = _make_minimal_fluid_config(
             particle_generation={
-                "build_and_run": False,
-                "settings": {
-                    "bodies": [
-                        {"name": "WaterBody", "box_shape_inserts": ["WallBoundary"]},
-                        {"name": "WallBoundary", "solid_body": {}},
-                    ],
-                    "relaxation_parameters": {"total_iterations": 1000},
-                },
+                "bodies": [
+                    {"name": "WaterBody", "box_shape_inserts": ["WallBoundary"]},
+                    {"name": "WallBoundary", "solid_body": {}},
+                ],
+                "relaxation_parameters": {"total_iterations": 1000},
             }
         )
-        assert cfg.particle_generation.settings is not None
-        assert cfg.particle_generation.settings.bodies[0].box_shape_inserts == ["WallBoundary"]
+        assert cfg.particle_generation.bodies[0].box_shape_inserts == ["WallBoundary"]
 
     def test_particle_generation_box_shape_inserts_reject_unknown_shape(self):
         with pytest.raises(ValidationError, match="box_shape_inserts entries must reference existing"):
             _make_minimal_fluid_config(
                 particle_generation={
-                    "build_and_run": False,
-                    "settings": {
-                        "bodies": [
-                            {"name": "WaterBody", "box_shape_inserts": ["MissingShape"]},
-                            {"name": "WallBoundary", "solid_body": {}},
-                        ],
-                        "relaxation_parameters": {"total_iterations": 1000},
-                    },
+                    "bodies": [
+                        {"name": "WaterBody", "box_shape_inserts": ["MissingShape"]},
+                        {"name": "WallBoundary", "solid_body": {}},
+                    ],
+                    "relaxation_parameters": {"total_iterations": 1000},
                 }
             )
 
     def test_particle_generation_box_shape_inserts_reject_non_box_shape(self):
         data_path = Path("tests/test_simulation/test_3d_simulation/data/dambreak.json")
         data = json.loads(data_path.read_text())
-        data["particle_generation"]["settings"]["bodies"][0]["box_shape_inserts"] = ["WallBoundary"]
+        data["particle_generation"]["bodies"][0]["box_shape_inserts"] = ["WallBoundary"]
 
         with pytest.raises(ValidationError, match="box-compatible shapes"):
             SimulationConfig.model_validate(data)
@@ -854,13 +831,12 @@ class TestSimulationConfig:
 
         cfg = SimulationConfig.model_validate(data)
 
-        assert cfg.particle_generation.settings is not None
-        assert cfg.particle_generation.settings.bodies[0].cylinder_shape_inserts == ["EmitterCylinder"]
+        assert cfg.particle_generation.bodies[0].cylinder_shape_inserts == ["EmitterCylinder"]
 
     def test_particle_generation_cylinder_shape_inserts_reject_unknown_shape(self):
         data_path = Path("tests/test_simulation/test_3d_simulation/data/dambreak.json")
         data = json.loads(data_path.read_text())
-        data["particle_generation"]["settings"]["bodies"][0]["cylinder_shape_inserts"] = ["MissingShape"]
+        data["particle_generation"]["bodies"][0]["cylinder_shape_inserts"] = ["MissingShape"]
 
         with pytest.raises(ValidationError, match="cylinder_shape_inserts entries must reference existing"):
             SimulationConfig.model_validate(data)
@@ -868,7 +844,7 @@ class TestSimulationConfig:
     def test_particle_generation_cylinder_shape_inserts_reject_non_cylinder_shape(self):
         data_path = Path("tests/test_simulation/test_3d_simulation/data/dambreak.json")
         data = json.loads(data_path.read_text())
-        data["particle_generation"]["settings"]["bodies"][0]["cylinder_shape_inserts"] = ["WallInnerBox"]
+        data["particle_generation"]["bodies"][0]["cylinder_shape_inserts"] = ["WallInnerBox"]
 
         with pytest.raises(ValidationError, match="must reference cylinder shapes"):
             SimulationConfig.model_validate(data)
@@ -877,20 +853,17 @@ class TestSimulationConfig:
         with pytest.warns(UserWarning, match="contains unknown keys that are preserved"):
             cfg = _make_minimal_fluid_config(
                 particle_generation={
-                    "build_and_run": False,
-                    "settings": {
-                        "bodies": [
-                            {"name": "WaterBody", "unknown_key": ["Inlet"]},
-                            {"name": "WallBoundary", "solid_body": {}},
-                        ],
-                        "relaxation_parameters": {"total_iterations": 1000},
-                    },
+                    "bodies": [
+                        {"name": "WaterBody", "unknown_key": ["Inlet"]},
+                        {"name": "WallBoundary", "solid_body": {}},
+                    ],
+                    "relaxation_parameters": {"total_iterations": 1000},
                 }
             )
 
         dumped = cfg.model_dump(mode="json")
-        assert "unknown_key" in dumped["particle_generation"]["settings"]["bodies"][0]
-        assert dumped["particle_generation"]["settings"]["bodies"][0]["unknown_key"] == ["Inlet"]
+        assert "unknown_key" in dumped["particle_generation"]["bodies"][0]
+        assert dumped["particle_generation"]["bodies"][0]["unknown_key"] == ["Inlet"]
 
     def test_global_resolution_is_required(self):
         data = _make_minimal_fluid_config().model_dump(mode="json")
@@ -1052,7 +1025,7 @@ class TestSimulationConfig:
                 "upper_bound": [0.8, 0.2],
             }
         )
-        data["particle_generation"]["settings"]["bodies"].append({"name": "WaterBody2"})
+        data["particle_generation"]["bodies"].append({"name": "WaterBody2"})
         data["fluid_bodies"].append(extra_body)
 
         config = SimulationConfig.model_validate(data)
@@ -1089,7 +1062,7 @@ class TestSimulationConfig:
                 "upper_bound": [0.8, 0.2],
             }
         )
-        data["particle_generation"]["settings"]["bodies"].append({"name": "ContinuumBody2"})
+        data["particle_generation"]["bodies"].append({"name": "ContinuumBody2"})
         data["continuum_bodies"].append(extra_body)
 
         with pytest.raises(ValidationError, match="exactly one continuum body"):
@@ -1190,6 +1163,7 @@ class TestSimulationConfig:
                     "oriented_box": "Inlet",
                     "type": "emitter",
                     "inflow_speed": 1.5,
+                    "temperature": 20.0,
                     "multi_species_phases": [
                         {
                             "phase_name": "SpeciesPhaseA",
@@ -1202,6 +1176,7 @@ class TestSimulationConfig:
         )
 
         bc = cfg.fluid_boundary_conditions[0]
+        assert bc.temperature == 20.0
         assert bc.multi_species_phases is not None
         assert bc.multi_species_phases[0].phase_name == "SpeciesPhaseA"
         assert bc.multi_species_phases[0].mass_fractions == pytest.approx([0.4, 0.6])

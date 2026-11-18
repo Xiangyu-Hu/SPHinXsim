@@ -33,20 +33,17 @@
   },
 
   "particle_generation": {
-    "build_and_run": true,
-    "settings": {
-      "bodies": [
-        {
-          "name": "GranularBody"
-        },
-        {
-          "name": "WallBoundary",
-          "solid_body": {}
-        }
-      ],
-      "relaxation_parameters": {
-        "total_iterations": 1000
+    "bodies": [
+      {
+        "name": "GranularBody"
+      },
+      {
+        "name": "WallBoundary",
+        "solid_body": {}
       }
+    ],
+    "relaxation_parameters": {
+      "total_iterations": 1000
     }
   },
 
@@ -81,7 +78,7 @@
       "name": "SoilObserver",
       "observed_body": "GranularBody",
       "variable": { "real_type": "Pressure" },
-      "positions": [[0.5, 0.2]]
+      "positions": [[0.0, 0.05]]
     }
   ],
 

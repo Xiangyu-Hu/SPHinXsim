@@ -108,12 +108,12 @@ void MaterialBuilder::addMatterMaterial(
         Real poisson_ratio = scaling_config.jsonToReal(config.at("poisson_ratio"), "Dimensionless");
         Real yield_stress = scaling_config.jsonToReal(config.at("yield_stress"), "Stress");
         Real hardening_modulus = scaling_config.jsonToReal(config.at("hardening_modulus"), "Stress");
-        
+
         DuctileDamageParameters damage_parameters;
         if (config.contains("ductile_damage"))
         {
             const auto &damage_config = config.at("ductile_damage");
-            
+
             if (damage_config.contains("enabled"))
                 damage_parameters.enabled_ =
                     damage_config.at("enabled").get<bool>();
@@ -205,10 +205,11 @@ void MaterialBuilder::addViscosity(EntityManager &config_manager, SPHBody &sph_b
 {
     Real mu_ref = 0.0;
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
+    Real denisty = sph_body.getMatterMaterial().ReferenceDensity();
 
     if (config.contains("Reynolds_number"))
     {
-        mu_ref = 1.0 / scaling_config.jsonToReal(config.at("Reynolds_number"), "Dimensionless");
+        mu_ref = denisty / scaling_config.jsonToReal(config.at("Reynolds_number"), "Dimensionless");
     }
     else
     {

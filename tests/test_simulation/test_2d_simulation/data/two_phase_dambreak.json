@@ -74,23 +74,20 @@
     ]
   },
   "particle_generation": {
-    "build_and_run": true,
-    "settings": {
-      "bodies": [
-        {
-          "name": "WaterBody"
-        },
-        {
-          "name": "AirBody"
-        },
-        {
-          "name": "WallBoundary",
-          "solid_body": {}
-        }
-      ],
-      "relaxation_parameters": {
-        "total_iterations": 1000
+    "bodies": [
+      {
+        "name": "WaterBody"
+      },
+      {
+        "name": "AirBody"
+      },
+      {
+        "name": "WallBoundary",
+        "solid_body": {}
       }
+    ],
+    "relaxation_parameters": {
+      "total_iterations": 1000
     }
   },
   "fluid_bodies": [
@@ -98,7 +95,10 @@
       "name": "WaterBody",
       "material": {
         "type": "weakly_compressible_fluid",
-        "density": 1.0
+        "density": 1.0,
+        "viscosity": {
+          "Reynolds_number": 1000.0
+        }
       }
     },
     {
@@ -106,7 +106,10 @@
       "surface_type": "confined",
       "material": {
         "type": "weakly_compressible_fluid",
-        "density": 0.001
+        "density": 0.001,
+        "viscosity": {
+          "Reynolds_number": 100000.0
+        }
       }
     }
   ],

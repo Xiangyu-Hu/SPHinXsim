@@ -226,6 +226,19 @@ void FluidDynamicsBuilder::addBoundaryCondition(
 
         return;
     }
+    if (type == "disposer")
+    {
+        auto &disposer = fluid_body.addBodyPart<OrientedBoxByCell>(oriented_box);
+        auto &disposer_indication = main_methods.template addStateDynamics<WithinDisposerIndication>(disposer);
+
+        fluid_solver_config.particle_deletion_ = true;
+
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::ParticleDeletionTagging, [&]()
+            { disposer_indication.exec(); });
+
+        return;
+    }
     throw std::runtime_error(
         "FluidDynamicsBuilder::buildBoundaryConditionsIfPresent: unsupported: " + type);
 }

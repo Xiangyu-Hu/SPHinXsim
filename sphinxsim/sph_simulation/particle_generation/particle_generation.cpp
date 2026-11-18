@@ -7,9 +7,77 @@
 namespace SPH
 {
 //=================================================================================================//
-ParticleGeneration::ParticleGeneration() {}
+ParticleGeneration::ParticleGeneration(SPHSimulation &sim, const json &config)
+{
+    EntityManager &config_manager = sim.getConfigManager();
+    defineGenerationAndRelaxationConfig(config_manager, config);
+}
 //=================================================================================================//
 ParticleGeneration::~ParticleGeneration() = default;
+//=================================================================================================//
+void ParticleGeneration::defineGenerationAndRelaxationConfig(
+    EntityManager &config_manager, const json &config)
+{
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
+
+    for (const auto &bd : config.at("bodies"))
+    {
+        std::string body_name = bd.at("name").get<std::string>();
+        SPHBodyConfig &sph_body_config = *config_manager.emplaceEntity<SPHBodyConfig>(body_name);
+        sph_body_config.name_ = body_name;
+
+        if (bd.contains("solid_body"))
+        {
+            sph_body_config.is_solid_body_ = true;
+            sph_body_config.h_spacing_ratio_ = 1.15;
+
+            auto sb_config = bd.at("solid_body");
+            if (sb_config.contains("refinement_to_global"))
+            {
+                Real ratio = scaling_config.jsonToReal(sb_config.at("refinement_to_global"), "Dimensionless");
+                sph_body_config.refinement_to_global_ = ratio;
+            }
+        }
+
+        if (bd.contains("relaxation"))
+        {
+            config_manager.emplaceEntity<RelaxationBodyConfig>(
+                body_name, parseRelaxationBodyConfig(body_name, bd.at("relaxation")));
+        }
+
+        StdVec<OrientedBox *> &blockers = *config_manager.emplaceEntity<
+            StdVec<OrientedBox *>>(body_name + "Blockers", StdVec<OrientedBox *>{});
+
+        if (bd.contains("blockers"))
+        {
+            for (const auto &blocker : bd.at("blockers"))
+            {
+                blockers.push_back(&config_manager.getEntity<OrientedBox>(blocker.get<std::string>()));
+            }
+        }
+
+        StdVec<Shape *> &inserts = *config_manager.emplaceEntity<
+            StdVec<Shape *>>(body_name + "Inserts", StdVec<Shape *>{});
+
+        if (bd.contains("box_shape_inserts"))
+        {
+            for (const auto &insert : bd.at("box_shape_inserts"))
+            {
+                inserts.push_back(&config_manager.getEntity<GeometricShapeBox>(insert.get<std::string>()));
+            }
+        }
+
+#ifdef SPHINXSYS_3D
+        if (bd.contains("cylinder_shape_inserts"))
+        {
+            for (const auto &insert : bd.at("cylinder_shape_inserts"))
+            {
+                inserts.push_back(&config_manager.getEntity<GeometricShapeCylinder>(insert.get<std::string>()));
+            }
+        }
+#endif
+    }
+}
 //=================================================================================================//
 void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json &config)
 {
@@ -19,7 +87,7 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     EntityManager &config_manager = sim.getConfigManager();
     RelaxationSystem &relaxation_system = defineRelaxationSystem(config_manager, config);
     //----------------------------------------------------------------------
-    addAllBodies(relaxation_system, config_manager, config.at("bodies"));
+    addAllBodies(relaxation_system, config_manager);
     defineBodyRelations(relaxation_system, config_manager);
     //----------------------------------------------------------------------
     // Define SPH solver with particle methods and execution policies.
@@ -158,42 +226,20 @@ RelaxationParameters ParticleGeneration::parseRelaxationParameters(const json &c
     return parameters;
 }
 //=================================================================================================//
-void ParticleGeneration ::addAllBodies(
-    RelaxationSystem &relaxation_system, EntityManager &config_manager, const json &config)
+void ParticleGeneration::addAllBodies(
+    RelaxationSystem &relaxation_system, EntityManager &config_manager)
 {
-    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
-
-    for (const auto &bd : config)
+    for (const auto &sph_body_config : config_manager.entitiesWith<SPHBodyConfig>())
     {
-        std::string body_name = bd.at("name").get<std::string>();
-
-        SPHBodyConfig &sph_body_config = *config_manager.emplaceEntity<SPHBodyConfig>(body_name);
-        sph_body_config.name_ = body_name;
+        std::string body_name = sph_body_config->name_;
         Shape &shape = config_manager.getEntity<Shape>(body_name);
         auto &real_body = relaxation_system.addBody<RealBody>(shape, body_name);
-
-        if (bd.contains("solid_body"))
-        {
-            sph_body_config.is_solid_body_ = true;
-            sph_body_config.h_spacing_ratio_ = 1.15;
-
-            auto sb_config = bd.at("solid_body");
-            if (sb_config.contains("refinement_to_global"))
-            {
-                Real ratio = scaling_config.jsonToReal(sb_config.at("refinement_to_global"), "Dimensionless");
-                sph_body_config.refinement_to_global_ = ratio;
-            }
-        }
-
         real_body.defineAdaptationRatios(
-            sph_body_config.h_spacing_ratio_, sph_body_config.refinement_to_global_);
+            sph_body_config->h_spacing_ratio_, sph_body_config->refinement_to_global_);
 
-        if (bd.contains("relaxation"))
+        if (config_manager.hasEntity<RelaxationBodyConfig>(body_name))
         {
-            RelaxationBodyConfig &relax_body_config =
-                *config_manager.emplaceEntity<RelaxationBodyConfig>(
-                    body_name, parseRelaxationBodyConfig(body_name, bd.at("relaxation")));
-
+            auto &relax_body_config = config_manager.getEntity<RelaxationBodyConfig>(body_name);
             if (relax_body_config.with_level_set_ && relax_body_config.level_set_shape_.empty())
             {
                 LevelSetShape &level_set_shape =
@@ -210,38 +256,8 @@ void ParticleGeneration ::addAllBodies(
             }
         }
 
-        StdVec<OrientedBox *> &blockers = *config_manager.emplaceEntity<
-            StdVec<OrientedBox *>>(body_name + "Blockers", StdVec<OrientedBox *>{});
-
-        if (bd.contains("blockers"))
-        {
-            for (const auto &blocker : bd.at("blockers"))
-            {
-                blockers.push_back(&config_manager.getEntity<OrientedBox>(blocker.get<std::string>()));
-            }
-        }
-
-        StdVec<Shape *> &inserts = *config_manager.emplaceEntity<
-            StdVec<Shape *>>(body_name + "Inserts", StdVec<Shape *>{});
-
-        if (bd.contains("box_shape_inserts"))
-        {
-            for (const auto &insert : bd.at("box_shape_inserts"))
-            {
-                inserts.push_back(&config_manager.getEntity<GeometricShapeBox>(insert.get<std::string>()));
-            }
-        }
-
-#ifdef SPHINXSYS_3D
-        if (bd.contains("cylinder_shape_inserts"))
-        {
-            for (const auto &insert : bd.at("cylinder_shape_inserts"))
-            {
-                inserts.push_back(&config_manager.getEntity<GeometricShapeCylinder>(insert.get<std::string>()));
-            }
-        }
-#endif
-
+        StdVec<OrientedBox *> &blockers = config_manager.getEntity<StdVec<OrientedBox *>>(body_name + "Blockers");
+        StdVec<Shape *> &inserts = config_manager.getEntity<StdVec<Shape *>>(body_name + "Inserts");
         real_body.generateParticles<BaseParticles, Lattice>(blockers, inserts);
     }
 }

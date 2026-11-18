@@ -102,5 +102,51 @@ void ViscousForceCK<Contact<Wall, ViscosityType, KernelCorrectionType, Parameter
     viscous_force_[index_i] += force * Vol_[index_i];
 }
 //=================================================================================================//
+template <typename ViscosityType, class KernelCorrectionType, typename... Parameters>
+ViscousForceCK<Contact<ViscosityType, KernelCorrectionType, Parameters...>>::
+    ViscousForceCK(Contact<Parameters...> &contact_relation)
+    : BaseViscousForceType(contact_relation),
+      contact_viscosity_model_(this->contact_body_->template getMaterialProperty<ViscosityType>()),
+      contact_kernel_correction_(this->contact_particles_),
+      dv_contact_vel_(this->contact_particles_->template getVariableByName<Vecd>("Velocity")) {}
+//=================================================================================================//
+template <typename ViscosityType, class KernelCorrectionType, typename... Parameters>
+template <class ExecutionPolicy, class EncloserType>
+ViscousForceCK<Contact<ViscosityType, KernelCorrectionType, Parameters...>>::InteractKernel::
+    InteractKernel(const ExecutionPolicy &ex_policy, EncloserType &encloser)
+    : BaseViscousForceType::InteractKernel(ex_policy, encloser),
+      inter_particle_viscosity_(
+          encloser.viscosity_model_.getInterParticleViscosity(
+              ex_policy, encloser.contact_viscosity_model_)),
+      correction_(ex_policy, encloser.kernel_correction_),
+      contact_correction_(ex_policy, encloser.contact_kernel_correction_),
+      Vol_(encloser.dv_Vol_->DelegatedData(ex_policy)),
+      contact_Vol_(encloser.dv_contact_Vol_->DelegatedData(ex_policy)),
+      vel_(encloser.dv_vel_->DelegatedData(ex_policy)),
+      contact_vel_(encloser.dv_contact_vel_->DelegatedData(ex_policy)),
+      viscous_force_(encloser.dv_viscous_force_->DelegatedData(ex_policy)),
+      smoothing_length_sq_(encloser.smoothing_length_sq_) {}
+//=================================================================================================//
+template <typename ViscosityType, class KernelCorrectionType, typename... Parameters>
+void ViscousForceCK<Contact<ViscosityType, KernelCorrectionType, Parameters...>>::
+    InteractKernel::interact(size_t index_i, Real dt)
+{
+    Vecd force = Vecd::Zero();
+    for (UnsignedInt n = this->FirstNeighbor(index_i); n != this->LastNeighbor(index_i); ++n)
+    {
+        UnsignedInt index_j = this->neighbor_index_[n];
+        Vecd e_ij = this->e_ij(index_i, index_j);
+        Real dW_ijV_j = this->dW_ij(index_i, index_j) * contact_Vol_[index_j];
+        Vecd vec_r_ij = this->vec_r_ij(index_i, index_j);
+
+        Vecd vel_derivative = (vel_[index_i] - contact_vel_[index_j]) /
+                              (vec_r_ij.squaredNorm() + 0.01 * smoothing_length_sq_);
+
+        force += vec_r_ij.dot((correction_(index_i) + contact_correction_(index_j)) * e_ij) *
+                 inter_particle_viscosity_(index_i, index_j) * vel_derivative * dW_ijV_j;
+    }
+    viscous_force_[index_i] += force * Vol_[index_i];
+}
+//=================================================================================================//
 } // namespace fluid_dynamics
 } // namespace SPH

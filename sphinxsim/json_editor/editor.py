@@ -786,14 +786,18 @@ class JsonEditorMixin:
             expand_defaults: bool = True,
             additional_expanded_paths: set[str] | None = None,
         ) -> None:
-            expanded_paths: set[str] = set()
-            iterator = QtWidgets.QTreeWidgetItemIterator(tree)
-            while iterator.value() is not None:
-                previous_item = iterator.value()
-                path_key = previous_item.data(0, QtCore.Qt.ItemDataRole.UserRole)
-                if path_key is not None and previous_item.isExpanded():
-                    expanded_paths.add(path_key)
-                iterator += 1
+            def expanded_tree_paths() -> set[str]:
+                paths: set[str] = set()
+                iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+                while iterator.value() is not None:
+                    item = iterator.value()
+                    path_key = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+                    if path_key is not None and item.isExpanded():
+                        paths.add(path_key)
+                    iterator += 1
+                return paths
+
+            expanded_paths = expanded_tree_paths()
             expanded_paths.update(additional_expanded_paths or set())
             editor_state["expanded_paths"] = expanded_paths
 
@@ -816,6 +820,7 @@ class JsonEditorMixin:
                     for column in range(tree.columnCount()):
                         widget = tree.itemWidget(item, column)
                         if widget is not None:
+                            QtCore.QObject.disconnect(widget, None, None, None)
                             tree.removeItemWidget(item, column)
                             widget.setParent(None)
                             widget.deleteLater()

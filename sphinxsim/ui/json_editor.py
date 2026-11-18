@@ -12,7 +12,7 @@ from pathlib import Path
 from qtpy import QtCore, QtGui, QtWidgets
 
 from sphinxsim.config.schemas import SimulationConfig
-from sphinxsim.json_format import format_json_like_source, load_json_preserving_floats
+from sphinxsim.json_editor import format_json_like_source, load_json_preserving_floats
 
 
 FIELD_LABELS = {
@@ -319,7 +319,7 @@ class JsonPropertyEditor(QtWidgets.QWidget):
                 value = copy.deepcopy(target[-1])
             else:
                 # Reuse the existing dimension-aware templates from Preview.
-                from sphinxsim.cli import _config_spatial_dim, _new_json_editor_list_item
+                from sphinxsim.json_editor import _config_spatial_dim, _new_json_editor_list_item
                 value = _new_json_editor_list_item(path, _config_spatial_dim(self.validate_config()))
             target.append(value)
         elif path and path[:-1] in self._lists:

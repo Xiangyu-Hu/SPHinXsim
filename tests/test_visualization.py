@@ -581,6 +581,7 @@ class TestConfigVisualizerNoPyvista:
 
 class TestSpatialDimensionInference:
     def test_named_primitives_supply_2d_dimension_without_domain_or_gravity(self, tmp_path):
+        from sphinxsim.json_editor import _config_spatial_dim
         from sphinxsim.visualization.preview import ConfigVisualizer
 
         data = _minimal_fluid_config()
@@ -603,6 +604,7 @@ class TestSpatialDimensionInference:
         config = SimulationConfig(**data)
 
         assert ConfigVisualizer(config, tmp_path, off_screen=True)._spatial_dim() == 2
+        assert _config_spatial_dim(config) == 2
 
     def test_planar_simbody_constraint_is_inferred_as_2d(self, tmp_path):
         from sphinxsim.visualization.preview import ConfigVisualizer

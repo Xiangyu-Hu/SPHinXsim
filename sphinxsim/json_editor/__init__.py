@@ -10,6 +10,7 @@ from sphinxsim.json_editor.json_format import (
     RawFloat,
     find_prettier_options,
     format_json,
+    format_json_like_source,
     load_json_preserving_floats,
     object_layout,
 )
@@ -19,6 +20,7 @@ __all__ = [
     "RawFloat",
     "find_prettier_options",
     "format_json",
+    "format_json_like_source",
     "load_json_preserving_floats",
     "object_layout",
 ]

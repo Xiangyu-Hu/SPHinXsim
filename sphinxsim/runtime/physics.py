@@ -44,7 +44,7 @@ def reject_inactive_fields(payload):
             if body.get("adaptation_ratios") is not None:
                 raise ValueError(
                     f"{group}[{index}].adaptation_ratios is not consumed by the native builder; "
-                    "set particle_generation.settings.bodies[].solid_body.refinement_to_global for solid refinement"
+                    "set particle_generation.bodies[].solid_body.refinement_to_global for solid refinement"
                 )
             item = body.get("material", {})
             kind = item.get("type")
@@ -54,13 +54,10 @@ def reject_inactive_fields(payload):
     generation = payload.get("particle_generation") or {}
     if not isinstance(generation, dict):
         raise ValueError("particle_generation must be an object")
-    settings = generation.get("settings") or {}
-    if not isinstance(settings, dict):
-        raise ValueError("particle_generation.settings must be an object")
-    for index, body in enumerate(settings.get("bodies", [])):
+    for index, body in enumerate(generation.get("bodies", [])):
         if body.get("adaptation_ratios") is not None:
             raise ValueError(
-                f"particle_generation.settings.bodies[{index}].adaptation_ratios is not consumed by the native builder; "
+                f"particle_generation.bodies[{index}].adaptation_ratios is not consumed by the native builder; "
                 "set solid_body.refinement_to_global for solid refinement"
             )
     geometries = payload.get("geometries", {})
@@ -170,6 +167,9 @@ def reject_unknown(value, schema, definitions, path="$", depth=0):
             raise ValueError(f"Expected a scalar or list at {path}")
         props = schema.get("properties", {})
         additional = schema.get("additionalProperties", False)
+        # Model fields remain strict; explicitly declared dictionaries stay open.
+        if "properties" in schema and additional is True:
+            additional = False
         unknown = set(value) - set(props)
         if unknown and additional is not True and not isinstance(additional, dict):
             raise ValueError(f"Unknown fields at {path}: {sorted(unknown)}")
@@ -247,8 +247,9 @@ def check_config(payload):
     if spacing:
         primitives = {primitive["name"]: primitive for primitive in normalized["geometries"]["primitives"]}
         for shape in normalized["geometries"]["shapes"]:
-            if shape.get("type") == "bounding_box" and "lower_bound" in shape:
-                lengths = [b-a for a, b in zip(shape["lower_bound"], shape["upper_bound"])]
+            if shape.get("type") == "bounding_box":
+                bounds = primitives[shape["primitive"]] if shape.get("primitive") else shape
+                lengths = [b-a for a, b in zip(bounds["lower_bound"], bounds["upper_bound"])]
                 if min(lengths) < 3 * spacing:
                     notes.append({"code": "thin_geometry", "severity": "warning", "body": shape["name"],
                                   "message": "A shape dimension spans fewer than three particle spacings; inspect particle coverage."})

@@ -84,6 +84,44 @@ def test_ambiguous_legacy_container_bounds_report_an_error_without_writing(tmp_p
     assert path.read_bytes() == original
 
 
+@pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_legacy_particle_generation_opens_as_a_reviewable_draft(tmp_path, newline):
+    source = Path(__file__).parent / "test_simulation/test_2d_simulation/data/column_collapse.json"
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    generation = payload["particle_generation"]
+    payload["particle_generation"] = {"build_and_run": True, "settings": generation}
+    path = tmp_path / "case.json"
+    original = (json.dumps(payload, indent=2) + "\n").replace("\n", newline).encode("utf-8")
+    path.write_bytes(original)
+
+    document = WorkbenchDocument(path)
+
+    assert json.loads(document.text)["particle_generation"] == generation
+    assert document.snapshot()["dirty"]
+    assert path.read_bytes() == original
+    assert ("\r\n" in document.text) == (newline == "\r\n")
+    document.save()
+    assert not WorkbenchDocument(path).snapshot()["dirty"]
+
+
+@pytest.mark.parametrize("problem", ["mixed", "disabled"])
+def test_ambiguous_legacy_generation_preserves_the_saved_file(tmp_path, problem):
+    source = Path(__file__).parent / "test_simulation/test_2d_simulation/data/column_collapse.json"
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    generation = payload["particle_generation"]
+    payload["particle_generation"] = {"build_and_run": problem != "disabled", "settings": generation}
+    if problem == "mixed":
+        payload["particle_generation"]["bodies"] = generation["bodies"]
+    path = tmp_path / "case.json"
+    original = json.dumps(payload).encode("utf-8")
+    path.write_bytes(original)
+
+    with pytest.raises(ValueError, match="legacy"):
+        WorkbenchDocument(path)
+
+    assert path.read_bytes() == original
+
+
 def test_proposal_is_reviewed_before_application_and_saved_explicitly(document, connection):
     _, client = connection
     original = document.path.read_bytes().decode("utf-8")
@@ -167,6 +205,8 @@ def test_asset_paths_follow_the_source_case_without_rewriting_other_fields(tmp_p
 
 
 def test_shared_property_editor_edits_lists_validates_and_preserves_source_format(tmp_path):
+    pytest.importorskip("PySide6")
+    pytest.importorskip("qtpy")
     root = Path(__file__).resolve().parents[1]
     result = subprocess.run([sys.executable, str(root / "tests/json_editor_probe.py"), str(tmp_path)],
                             cwd=root, capture_output=True, timeout=30)

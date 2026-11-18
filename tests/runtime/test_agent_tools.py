@@ -256,6 +256,24 @@ def test_case_preparation_stages_relative_resources_for_native_project_inventory
     assert (tmp_path / "case.json").read_bytes() == original
 
 
+def test_case_preparation_migrates_legacy_generation_without_rewriting_source(tmp_path):
+    from sphinxsim.operations import Operations
+    source = Path(__file__).parents[1] / "test_simulation/test_2d_simulation/data/column_collapse.json"
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    generation = payload["particle_generation"]
+    payload["particle_generation"] = {"build_and_run": True, "settings": generation}
+    original = json.dumps(payload).encode("utf-8")
+    (tmp_path / "case.json").write_bytes(original)
+    operations = Operations(tmp_path)
+
+    operations.call("case_prepare", {"config_file": "case.json", "output": "working/case.json"})
+
+    candidate = json.loads((tmp_path / "working/case.json").read_text(encoding="utf-8"))
+    assert candidate["particle_generation"] == generation
+    assert (tmp_path / "case.json").read_bytes() == original
+    operations.call("validate", {"config_file": "working/case.json"})
+
+
 def test_atomic_job_status_retries_a_windows_reader_sharing_violation(tmp_path, monkeypatch):
     from sphinxsim.runtime import export_vtp
     path = tmp_path / "job.json"

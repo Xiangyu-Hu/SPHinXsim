@@ -94,15 +94,16 @@ def call(service, name, arguments):
 
 
 def prepare_case(service, source, output):
+    from sphinxsim.config.migrations import migrate_legacy_configuration
     from sphinxsim.agent.store import AgentTaskStore
-    from sphinxsim.json_format import format_json_like_source
+    from sphinxsim.json_editor import format_json_like_source
 
     if source == output:
         raise ValueError("Select a working case file different from its source")
     if source.suffix.lower() != ".json" or output.suffix.lower() != ".json":
         raise ValueError("Case preparation requires JSON source and output files")
     original = source.read_bytes().decode("utf-8")
-    payload = json.loads(original)
+    payload = migrate_legacy_configuration(json.loads(original))
     check_config(payload)
 
     def resources(value):

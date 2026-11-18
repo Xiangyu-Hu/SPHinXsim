@@ -9,7 +9,7 @@ os.environ["QT_API"] = "pyside6"
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from PySide6 import QtWidgets
+from PySide6 import QtCore, QtWidgets
 from sphinxsim.ui.json_editor import JsonPropertyEditor
 from sphinxsim.ui.workbench.document import WorkbenchDocument
 
@@ -96,7 +96,7 @@ editor.revert()
 assert json.loads(document.text)["simulation_type"] == "continuum_dynamics"
 editor.close()
 
-# The original shell Preview must host the same editor and retain its save path.
+# The upstream shell editor must retain its save path and source formatting.
 from types import SimpleNamespace
 from sphinxsim.cli import _ShellPreviewRuntime
 from sphinxsim.config.schemas import SimulationConfig
@@ -108,10 +108,17 @@ runtime.plotter = SimpleNamespace(app_window=shell_window)
 updates = []
 runtime.show_or_update = lambda config, **kwargs: updates.append((config, kwargs)) or 0
 assert runtime._install_json_editor(SimulationConfig.model_validate_json(source), config_path=shell_case, with_particles=False)
-shared = runtime._json_editor["widget"]
-assert isinstance(shared, JsonPropertyEditor)
-shared._fields[path].setText("0.12")
-shared.saveRequested.emit()
+shell_editor = runtime._json_editor
+iterator = QtWidgets.QTreeWidgetItemIterator(shell_editor["tree"])
+while iterator.value():
+    item = iterator.value()
+    if item.data(0, QtCore.Qt.ItemDataRole.UserRole) == "solver_parameters.end_time":
+        shell_editor["tree"].itemWidget(item, 1).setText("0.12")
+        break
+    iterator += 1
+else:
+    raise AssertionError("The native editor is missing the end-time field")
+shell_editor["shortcut"].activated.emit()
 assert json.loads(shell_case.read_bytes())["solver_parameters"]["end_time"] == 0.12
 assert '"gravity": [0.0, -9.800e+00]' in shell_case.read_bytes().decode("utf-8")
 assert len(updates) == 1

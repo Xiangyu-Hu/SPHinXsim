@@ -81,8 +81,12 @@ def test_source_marks_orphaned_worker_interrupted(tmp_path):
 
 
 def test_launch_reuses_live_viewer_and_never_submits_solver(tmp_path, monkeypatch):
+    import importlib.util
     import sphinxsim.services.process_control as processes
     import sphinxsim.visualization.agent_preview as viewer
+    find_spec = importlib.util.find_spec
+    monkeypatch.setattr(importlib.util, "find_spec", lambda name: (
+        SimpleNamespace() if name in {"pyvistaqt", "PySide6"} else find_spec(name)))
     monkeypatch.setattr(viewer.subprocess, "Popen", lambda *a, **k: SimpleNamespace(pid=123))
     monkeypatch.setattr(processes, "identity", lambda pid: dict(pid=pid, created=42))
     monkeypatch.setattr(processes, "alive", lambda record: True)
@@ -93,6 +97,8 @@ def test_launch_reuses_live_viewer_and_never_submits_solver(tmp_path, monkeypatc
     assert not (tmp_path / "execution/demo/cancel.request").exists()
 
 
+@pytest.mark.skipif(os.environ.get("SPHINXSIM_DESKTOP_TESTS") != "1",
+                    reason="Real rendering requires a display; Linux CI runs this under Xvfb")
 def test_qt_preview_process_opens_and_closes_without_controlling_worker(tmp_path):
     pytest.importorskip("pyvistaqt")
     pytest.importorskip("PySide6")
@@ -118,6 +124,8 @@ def test_qt_preview_process_opens_and_closes_without_controlling_worker(tmp_path
     assert not (tmp_path / "execution/demo/cancel.request").exists()
 
 
+@pytest.mark.skipif(os.environ.get("SPHINXSIM_DESKTOP_TESTS") != "1",
+                    reason="Real rendering requires a display; Linux CI runs this under Xvfb")
 def test_real_preview_observer_switches_run_and_preserves_camera(tmp_path, monkeypatch):
     pv = pytest.importorskip("pyvista")
     from sphinxsim.visualization.preview import ConfigVisualizer

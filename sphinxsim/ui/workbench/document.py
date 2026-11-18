@@ -11,6 +11,7 @@ import tempfile
 import threading
 
 from sphinxsim.config.schemas import SimulationConfig
+from sphinxsim.config.migrations import migrate_legacy_configuration
 from sphinxsim.runtime.physics import check_config
 
 
@@ -45,25 +46,9 @@ class WorkbenchDocument:
         payload = json.loads(text)
         if not isinstance(payload, dict):
             raise ValueError("Configuration must be a JSON object")
-        for shape in payload.get("geometries", {}).get("shapes", []):
-            if shape.get("type") != "multipolygon":
-                continue
-            for polygon in shape.get("polygons") or []:
-                if polygon.get("type") != "container_box":
-                    continue
-                legacy_keys = ("inner_lower_bound", "inner_upper_bound")
-                if not any(key in polygon for key in legacy_keys):
-                    continue
-                if polygon.get("inner_box") is not None:
-                    raise ValueError("container_box contains both inner_box and legacy inner bounds")
-                if not all(key in polygon for key in legacy_keys):
-                    raise ValueError("Legacy container_box requires inner_lower_bound and inner_upper_bound")
-                polygon["inner_box"] = {
-                    "lower_bound": polygon.pop("inner_lower_bound"),
-                    "upper_bound": polygon.pop("inner_upper_bound"),
-                }
+        payload = migrate_legacy_configuration(payload)
         check_config(payload)
-        from sphinxsim.json_format import format_json_like_source
+        from sphinxsim.json_editor import format_json_like_source
         draft = format_json_like_source(payload, text, path)
         with self.lock:
             self.path = path
@@ -110,7 +95,7 @@ class WorkbenchDocument:
         with self.lock:
             if self.snapshot()["revision"] != base_revision:
                 raise ValueError("The draft changed during the LLM request. Ask again using the current draft.")
-            from sphinxsim.json_format import format_json_like_source
+            from sphinxsim.json_editor import format_json_like_source
             text = format_json_like_source(payload, self.text, self.path)
             diff = "".join(difflib.unified_diff(self.text.splitlines(True), text.splitlines(True),
                                             fromfile="Current draft", tofile="LLM proposal"))

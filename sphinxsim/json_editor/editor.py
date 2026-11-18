@@ -50,6 +50,9 @@ def _apply_payload_diff(raw: Any, base: Any, edited: Any) -> Any:
 
 def _config_spatial_dim(config: SimulationConfig) -> int:
     """Infer whether a validated config should use the 2-D or 3-D native module."""
+    dimension = config._infer_spatial_dim()
+    if dimension is not None:
+        return dimension
     geo = config.geometries
 
     if geo.system_domain is not None:

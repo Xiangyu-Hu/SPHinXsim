@@ -808,6 +808,20 @@ class JsonEditorMixin:
                 editor_state["undo_stack"] = []
             editor_state["dirty"] = False
             settings_actions["revert"].setEnabled(bool(editor_state["undo_stack"]))
+
+            def detach_item_widgets() -> None:
+                iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+                while iterator.value() is not None:
+                    item = iterator.value()
+                    for column in range(tree.columnCount()):
+                        widget = tree.itemWidget(item, column)
+                        if widget is not None:
+                            tree.removeItemWidget(item, column)
+                            widget.setParent(None)
+                            widget.deleteLater()
+                    iterator += 1
+
+            detach_item_widgets()
             tree.clear()
 
             def add_value(parent: Any | None, label: str, value: Any, path: tuple[Any, ...], depth: int) -> None:
@@ -894,6 +908,7 @@ class JsonEditorMixin:
                     add_value(None, str(key), value, (key,), 0)
             else:
                 add_value(None, "Configuration", payload, (), 0)
+            update_array_actions()
 
         def filter_items(query: str) -> None:
             query = query.strip().lower()

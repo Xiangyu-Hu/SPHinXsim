@@ -11,9 +11,12 @@
     "shapes": [
       {
         "name": "WaterBody",
-        "type": "bounding_box",
-        "lower_bound": [-0.1, 1.0],
-        "upper_bound": [0.2, 1.125]
+        "type": "default"
+      },
+      {
+        "name": "EmitterInsert",
+        "type": "box",
+        "primitive": "EmitterBox"
       },
       {
         "name": "WallBoundary",
@@ -30,9 +33,8 @@
           },
           {
             "operation": "subtraction",
-            "type": "bounding_box",
-            "lower_bound": [-0.1, 1.0],
-            "upper_bound": [0.2, 1.125]
+            "type": "box",
+            "primitive": "EmitterBox"
           }
         ]
       }
@@ -41,10 +43,17 @@
       {
         "name": "Emitter",
         "type": "region",
+        "primitive": "EmitterBox"
+      }
+    ],
+    "primitives": [
+      {
+        "name": "EmitterBox",
+        "type": "box",
         "half_size": [0.15, 0.0625],
         "transform": {
-          "translation": [0.05, 1.0625],
-          "rotation_angle": 0.0
+          "translation": [0.5, 1.0625],
+          "rotation_angle": 0.5
         }
       }
     ]
@@ -52,7 +61,8 @@
   "particle_generation": {
     "bodies": [
       {
-        "name": "WaterBody"
+        "name": "WaterBody",
+        "box_shape_inserts": ["EmitterInsert"]
       },
       {
         "name": "WallBoundary",

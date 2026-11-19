@@ -355,6 +355,12 @@ Shape *GeometryBuilder::addShape(
     const std::string name = config.at("name").get<std::string>();
     const std::string type = config.at("type").get<std::string>();
 
+    if (type == "default")
+    {
+        DefaultShape *shape = config_manager.emplaceEntity<DefaultShape>(name, name);
+        return shape;
+    }
+    
     if (type == "box")
     {
         TransformGeometryBox box = fetch_or_parseBox(scaling_config, config_manager, config);

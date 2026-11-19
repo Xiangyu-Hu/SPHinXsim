@@ -19,6 +19,11 @@ def _clear_settings(monkeypatch) -> None:
         "OPENAI_MODEL",
         "OPENAI_BASE_URL",
         "OPENAI_API_KEY",
+        "NVIDIA_NIM_MODEL",
+        "NVIDIA_NIM_BASE_URL",
+        "NVIDIA_NIM_API_KEY",
+        "NVIDIA_API_KEY",
+        "NVIDIA_NIM_FALLBACK_MODELS",
         "OLLAMA_MODEL",
         "OLLAMA_BASE_URL",
         "OLLAMA_TIMEOUT",
@@ -60,3 +65,23 @@ def test_openai_compatible_base_url_is_forwarded_to_openai_client() -> None:
         base_url="https://integrate.api.nvidia.com/v1",
     )
     assert llm.client is client
+
+
+def test_upstream_nvidia_setup_variables_remain_supported(monkeypatch) -> None:
+    _clear_settings(monkeypatch)
+    monkeypatch.setenv("NVIDIA_NIM_MODEL", "upstream-model")
+    monkeypatch.setenv("NVIDIA_NIM_BASE_URL", "https://example.test/nvidia/v1")
+    monkeypatch.setenv("NVIDIA_NIM_API_KEY", "upstream-key")
+    monkeypatch.setenv("NVIDIA_NIM_FALLBACK_MODELS", "fallback-a, fallback-b")
+
+    settings = get_llm_settings("nvidia_nim")
+
+    assert settings["model"] == "upstream-model"
+    assert settings["base_url"] == "https://example.test/nvidia/v1"
+    assert settings["api_key"] == "upstream-key"
+    assert settings["fallback_models"] == ("fallback-a", "fallback-b")
+
+    monkeypatch.setenv("SPHINXSIM_LLM_MODEL", "generic-model")
+    monkeypatch.setenv("SPHINXSIM_LLM_API_KEY", "generic-key")
+    assert get_llm_settings("nvidia_nim")["model"] == "generic-model"
+    assert get_llm_settings("nvidia_nim")["api_key"] == "generic-key"

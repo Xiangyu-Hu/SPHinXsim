@@ -43,26 +43,30 @@ def get_llm_settings(provider: str | None = None) -> dict[str, Any]:
     """Resolve shared LLM settings with generic and legacy aliases.
 
     ``SPHINXSIM_LLM_*`` is the canonical interface shared by Shell, Agent, and
-    Chatbot. Provider-specific OpenAI/Ollama aliases remain only where they are
-    already part of those providers' existing Shell setup.
+    Chatbot. Provider-specific aliases keep existing Shell setup scripts usable.
     """
     canonical = normalize_llm_provider(provider)
     if canonical == "nvidia_nim":
         model = _first_env(
             "SPHINXSIM_LLM_MODEL",
+            "NVIDIA_NIM_MODEL",
             default="z-ai/glm-5.2",
         )
         base_url = _first_env(
             "SPHINXSIM_LLM_BASE_URL",
+            "NVIDIA_NIM_BASE_URL",
             "OPENAI_BASE_URL",
             default="https://integrate.api.nvidia.com/v1",
         )
         api_key = _first_env(
             "SPHINXSIM_LLM_API_KEY",
+            "NVIDIA_NIM_API_KEY",
+            "NVIDIA_API_KEY",
             "OPENAI_API_KEY",
         )
         fallback_text = _first_env(
             "SPHINXSIM_LLM_FALLBACK_MODELS",
+            "NVIDIA_NIM_FALLBACK_MODELS",
             default="",
         )
     elif canonical == "openai":

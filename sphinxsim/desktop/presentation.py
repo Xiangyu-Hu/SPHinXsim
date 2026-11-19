@@ -26,6 +26,9 @@ FIELDS = {
     "material": ("材料", "Material"), "boundary_conditions": ("边界条件", "Boundary conditions"),
 }
 EDITOR_ACTIONS = {
+    "copy": ("复制值", "Copy value"),
+    "paste": ("粘贴值", "Paste value"),
+    "remove_property": ("删除属性", "Remove property"),
     "add": ("添加", "Add"),
     "duplicate": ("复制", "Duplicate"),
     "remove": ("删除", "Remove"),
@@ -63,7 +66,14 @@ class Presentation(QtCore.QObject):
         original = list(menu_bar.actions())
         for action in original:
             menu_bar.removeAction(action)  # Keep original QAction owners/callbacks alive.
-        for action_group in (self.context_actions, self.settings_actions):
+        for action_group in (
+            self.editor.get("value_actions", {}),
+            {"remove_property": self.editor["remove_property_action"]}
+            if "remove_property_action" in self.editor
+            else {},
+            self.context_actions,
+            self.settings_actions,
+        ):
             for key, action in action_group.items():
                 if key in EDITOR_ACTIONS:
                     chinese, english = EDITOR_ACTIONS[key]

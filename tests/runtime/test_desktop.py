@@ -155,6 +155,332 @@ def test_list_context_menu_adds_to_the_right_clicked_list(editor):
     menu.hide()
 
 
+def test_geometry_context_menu_offers_only_missing_properties(editor):
+    app, runtime, _, _ = editor
+    app.processEvents()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    geometry = next(
+        item
+        for item in _tree_items(tree)
+        if item.data(0, QtCore.Qt.ItemDataRole.UserRole) == "geometries"
+    )
+    menu = tree.findChild(QtWidgets.QMenu, "sphinxsim-json-editor-list-context-menu")
+    assert menu is not None
+    tree.customContextMenuRequested.emit(tree.visualItemRect(geometry).center())
+    app.processEvents()
+
+    property_menu = hooks["property_menu"]
+    property_actions = {action.data(): action for action in property_menu.actions()}
+    assert "primitives" in property_actions
+    assert "shapes" not in property_actions
+    property_actions["primitives"].trigger()
+    app.processEvents()
+
+    payload = hooks["payload"]()
+    assert payload["geometries"]["primitives"] == [
+        {
+            "name": "New primitive",
+            "type": "box",
+            "half_size": [1.0, 1.0, 1.0],
+            "transform": {
+                "translation": [0.0, 0.0, 0.0],
+                "rotation_angle": 0.0,
+                "rotation_axis": [0.0, 0.0, 1.0],
+            },
+        }
+    ]
+    SimulationConfig.model_validate(payload)
+    assert hooks["is_dirty"]()
+    menu.hide()
+
+
+def test_geometry_context_menu_adds_missing_property_without_crashing(editor):
+    app, runtime, _, _ = editor
+    app.processEvents()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    geometry = next(
+        item
+        for item in _tree_items(tree)
+        if item.data(0, QtCore.Qt.ItemDataRole.UserRole) == "geometries"
+    )
+    menu = tree.findChild(QtWidgets.QMenu, "sphinxsim-json-editor-list-context-menu")
+    assert menu is not None
+    tree.customContextMenuRequested.emit(tree.visualItemRect(geometry).center())
+    app.processEvents()
+
+    action = next(
+        action
+        for action in hooks["property_menu"].actions()
+        if action.data() == "primitives"
+    )
+    menu.hide()
+    action.trigger()
+    app.processEvents()
+
+    payload = hooks["payload"]()
+    assert payload["geometries"]["primitives"][0]["type"] == "box"
+    assert hooks["is_dirty"]()
+
+
+def test_shape_list_context_menu_adds_selected_shape_variant(editor):
+    app, runtime, _, _ = editor
+    app.processEvents()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    shapes = next(
+        item
+        for item in _tree_items(tree)
+        if item.data(0, QtCore.Qt.ItemDataRole.UserRole) == "geometries.shapes"
+    )
+    menu = tree.findChild(QtWidgets.QMenu, "sphinxsim-json-editor-list-context-menu")
+    assert menu is not None
+    tree.customContextMenuRequested.emit(tree.visualItemRect(shapes).center())
+    app.processEvents()
+
+    variant_menu = hooks["variant_menu"]
+    cylinder = next(
+        action
+        for action in variant_menu.actions()
+        if action.data() == "cylinder"
+    )
+    cylinder.trigger()
+    app.processEvents()
+
+    payload = hooks["payload"]()
+    added_shape = payload["geometries"]["shapes"][-1]
+    assert added_shape["name"] == "New shape"
+    assert added_shape["type"] == "cylinder"
+    assert added_shape["radius"] == 1.0
+    assert added_shape["half_height"] == 1.0
+    assert added_shape["transform"]["translation"] == [0.0, 0.0, 0.0]
+    SimulationConfig.model_validate(payload)
+    assert hooks["is_dirty"]()
+    menu.hide()
+
+
+def test_field_context_menu_copies_and_pastes_values(editor):
+    app, runtime, _, path = editor
+    app.processEvents()
+    QtWidgets.QApplication.clipboard().clear()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    payload = json.loads(path.read_text())
+    payload["geometries"]["oriented_boxes"] = [
+        {
+            "name": "RegionA",
+            "type": "region",
+            "half_size": [1.0, 1.0, 1.0],
+            "transform": {
+                "translation": [0.0, 0.0, 0.0],
+                "rotation_angle": 0.0,
+                "rotation_axis": [0.0, 0.0, 1.0],
+            },
+        },
+        {
+            "name": "RegionB",
+            "type": "region",
+            "half_size": [1.0, 1.0, 1.0],
+            "transform": {
+                "translation": [0.0, 0.0, 0.0],
+                "rotation_angle": 0.0,
+                "rotation_axis": [0.0, 0.0, 1.0],
+            },
+        },
+    ]
+    config = SimulationConfig.model_validate(payload)
+    path.write_text(json.dumps(payload))
+    assert hooks["refresh"](config, path, False)
+    app.processEvents()
+
+    def field_item(path):
+        return next(
+            item
+            for item in _tree_items(tree)
+            if item.data(0, QtCore.Qt.ItemDataRole.UserRole) == path
+        )
+
+    source_path = "geometries.oriented_boxes.0.half_size"
+    target_path = "geometries.oriented_boxes.1.half_size"
+    assert hooks["reveal_path"](source_path)
+    app.processEvents()
+    source_item = field_item(source_path)
+    source_widget = tree.itemWidget(source_item, 1)
+    source_widget.setText("[0.2, 0.3, 0.4]")
+    app.processEvents()
+
+    value_actions = hooks["value_actions"]
+    tree.customContextMenuRequested.emit(tree.visualItemRect(source_item).center())
+    app.processEvents()
+    assert value_actions["copy"].isEnabled()
+    assert not value_actions["paste"].isEnabled()
+    menu = tree.findChild(
+        QtWidgets.QMenu, "sphinxsim-json-editor-list-context-menu"
+    )
+    assert menu is not None
+    menu.hide()
+    value_actions["copy"].trigger()
+    app.processEvents()
+    assert QtWidgets.QApplication.clipboard().text() == "[0.2, 0.3, 0.4]"
+
+    assert hooks["reveal_path"](target_path)
+    app.processEvents()
+    target_item = field_item(target_path)
+    tree.customContextMenuRequested.emit(tree.visualItemRect(target_item).center())
+    app.processEvents()
+    assert value_actions["paste"].isEnabled()
+    menu.hide()
+    value_actions["paste"].trigger()
+    app.processEvents()
+    assert hooks["payload"]()["geometries"]["oriented_boxes"][1]["half_size"] == [
+        0.2,
+        0.3,
+        0.4,
+    ]
+    assert hooks["is_dirty"]()
+    assert hooks["settings_actions"]["revert"].isEnabled()
+
+
+def test_object_context_menu_copies_and_pastes_transform(editor):
+    app, runtime, _, path = editor
+    app.processEvents()
+    QtWidgets.QApplication.clipboard().clear()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    payload = json.loads(path.read_text())
+    payload["geometries"]["oriented_boxes"] = [
+        {
+            "name": "RegionA",
+            "type": "region",
+            "half_size": [1.0, 1.0, 1.0],
+            "transform": {
+                "translation": [0.2, 0.3, 0.4],
+                "rotation_angle": 0.5,
+                "rotation_axis": [0.0, 0.0, 1.0],
+            },
+        },
+        {
+            "name": "RegionB",
+            "type": "region",
+            "half_size": [2.0, 2.0, 2.0],
+            "transform": {
+                "translation": [0.0, 0.0, 0.0],
+                "rotation_angle": 0.0,
+                "rotation_axis": [1.0, 0.0, 0.0],
+            },
+        },
+    ]
+    config = SimulationConfig.model_validate(payload)
+    path.write_text(json.dumps(payload))
+    assert hooks["refresh"](config, path, False)
+    app.processEvents()
+
+    def select_path(path_key):
+        assert hooks["reveal_path"](path_key)
+        app.processEvents()
+        item = tree.currentItem()
+        assert item is not None
+        assert item.data(0, QtCore.Qt.ItemDataRole.UserRole) == path_key
+        tree.customContextMenuRequested.emit(tree.visualItemRect(item).center())
+        app.processEvents()
+        return item
+
+    menu = tree.findChild(
+        QtWidgets.QMenu, "sphinxsim-json-editor-list-context-menu"
+    )
+    assert menu is not None
+    value_actions = hooks["value_actions"]
+    select_path("geometries.oriented_boxes.0.transform")
+    assert value_actions["copy"].isEnabled()
+    menu.hide()
+    value_actions["copy"].trigger()
+    app.processEvents()
+    assert json.loads(QtWidgets.QApplication.clipboard().text()) == payload[
+        "geometries"
+    ]["oriented_boxes"][0]["transform"]
+
+    select_path("geometries.oriented_boxes.1.transform")
+    assert value_actions["paste"].isEnabled()
+    menu.hide()
+    value_actions["paste"].trigger()
+    app.processEvents()
+
+    updated = hooks["payload"]()["geometries"]["oriented_boxes"]
+    assert updated[1]["transform"] == updated[0]["transform"]
+    SimulationConfig.model_validate(hooks["payload"]())
+    assert hooks["is_dirty"]()
+
+
+def test_field_context_menu_rejects_incompatible_paste(editor):
+    app, runtime, _, _ = editor
+    app.processEvents()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    vector_item = next(
+        item
+        for item in _tree_items(tree)
+        if item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+        == "geometries.system_domain.lower_bound"
+    )
+    QtWidgets.QApplication.clipboard().setText("1")
+    tree.customContextMenuRequested.emit(tree.visualItemRect(vector_item).center())
+    app.processEvents()
+    hooks["value_actions"]["paste"].trigger()
+    app.processEvents()
+
+    assert hooks["payload"]()["geometries"]["system_domain"]["lower_bound"] == [
+        0,
+        0,
+        0,
+    ]
+    assert "Cannot paste value" in hooks["status"].text()
+
+
+def test_field_context_menu_removes_optional_geometry_properties(editor):
+    app, runtime, _, path = editor
+    app.processEvents()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    payload = json.loads(path.read_text())
+    payload["geometries"]["oriented_boxes"] = [
+        {
+            "name": "Emitter",
+            "type": "region",
+            "half_size": [0.1, 0.1, 0.1],
+            "transform": {
+                "translation": [0.0, 0.0, 0.0],
+                "rotation_angle": 0.0,
+                "rotation_axis": [0.0, 0.0, 1.0],
+            },
+        }
+    ]
+    config = SimulationConfig.model_validate(payload)
+    path.write_text(json.dumps(payload))
+    assert hooks["refresh"](config, path, False)
+    app.processEvents()
+
+    menu = tree.findChild(QtWidgets.QMenu, "sphinxsim-json-editor-list-context-menu")
+    assert menu is not None
+    remove_action = hooks["remove_property_action"]
+    for field_name in ("half_size", "transform"):
+        field_path = f"geometries.oriented_boxes.0.{field_name}"
+        assert hooks["reveal_path"](field_path)
+        app.processEvents()
+        field_item = tree.currentItem()
+        tree.customContextMenuRequested.emit(tree.visualItemRect(field_item).center())
+        app.processEvents()
+        assert remove_action.isEnabled()
+        menu.hide()
+        remove_action.trigger()
+        app.processEvents()
+
+    oriented_box = hooks["payload"]()["geometries"]["oriented_boxes"][0]
+    assert "half_size" not in oriented_box
+    assert "transform" not in oriented_box
+    assert hooks["is_dirty"]()
+
+
 def test_setting_header_menu_expands_and_collapses_tree(editor):
     app, runtime, _, _ = editor
     app.processEvents()

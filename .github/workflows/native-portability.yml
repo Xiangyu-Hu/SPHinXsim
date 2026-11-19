@@ -1,0 +1,100 @@
+name: Native portability diagnostics
+'on':
+  pull_request:
+    paths:
+    - .github/workflows/native-portability.yml
+  workflow_dispatch: {}
+env:
+  VCPKG_VERSION: 2026.04.27
+jobs:
+  native-portability:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    env:
+      VCPKG_DEFAULT_TRIPLET: x64-linux
+      SPHINXSIM_LLM_PROVIDER: mock
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+    - name: Checkout repository (with submodules)
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Set up CMake
+      run: python -m pip install cmake==4.2.3
+    - name: Install system dependencies
+      run: |
+        python .github/scripts/install-apt-packages.py \
+          apt-utils \
+          build-essential \
+          curl zip unzip tar \
+          pkg-config \
+          gdb qemu-user \
+          git \
+          ninja-build \
+          python3-dev \
+          autoconf automake autoconf-archive \
+          libxmu-dev libxi-dev libgl-dev libxt-dev \
+          libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 \
+          libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-shape0 \
+          xvfb xauth libgl1-mesa-dri libegl1 libopengl0
+    - name: Set up ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: build-and-test-linux-Linux
+    - name: Set up vcpkg
+      uses: friendlyanon/setup-vcpkg@v1
+      with:
+        committish: ${{ env.VCPKG_VERSION }}
+        cache-version: ${{ env.VCPKG_VERSION }}
+    - name: Install C++ dependencies via vcpkg
+      run: |
+        python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
+          eigen3 \
+          tbb \
+          boost-program-options \
+          boost-geometry \
+          simbody \
+          spdlog \
+          gtest \
+          pybind11 \
+          nlohmann-json
+    - name: Configure CMake (integrated build)
+      run: |
+        cmake --preset integrated-build-release \
+          -D CMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" \
+          -D CMAKE_C_COMPILER_LAUNCHER=ccache \
+          -D CMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -D Python3_EXECUTABLE=$(which python3)
+    - name: Build
+      run: |
+        cmake --build --preset integrated-build-release --target test_3d_simulation --parallel $(nproc)
+    - name: Check 3D initialization on the host and an older x86 CPU
+      working-directory: build-integrated/tests/test_simulation/test_3d_simulation/bin
+      run: |
+        lscpu
+        python - <<'PYCODE'
+        import json
+        from pathlib import Path
+        for path in Path('input').glob('*.json'):
+            data = json.loads(path.read_text())
+            data['solver_parameters']['end_time'] = 0.0
+            data.pop('restart', None)
+            path.write_text(json.dumps(data))
+        PYCODE
+        gdb --batch --return-child-result \
+          -ex 'set pagination off' \
+          -ex run \
+          -ex 'python if gdb.selected_thread(): gdb.execute("thread apply all bt"); gdb.execute("x/i $pc"); gdb.execute("x/12i $pc-16"); gdb.execute("info registers"); gdb.execute("info sharedlibrary")' \
+          --args ./test_3d_simulation --gtest_filter=json/Json.run/dambreak
+        status=0
+        qemu-x86_64 -cpu Nehalem -d in_asm -D qemu-instructions.log \
+          ./test_3d_simulation --gtest_filter=json/Json.run/dambreak || status=$?
+        if [ "$status" -ne 0 ]; then
+          tail -n 180 qemu-instructions.log
+        fi
+        exit "$status"

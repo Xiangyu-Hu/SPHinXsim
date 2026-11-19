@@ -55,12 +55,12 @@ jobs:
 
       - name: Install system dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          python .github/scripts/install-apt-packages.py \
             apt-utils \
             build-essential \
             curl zip unzip tar \
             pkg-config \
+            qemu-user \
             git \
             ninja-build \
             python3-dev \
@@ -92,7 +92,9 @@ jobs:
 
       - name: Install C++ dependencies via vcpkg
         run: |
+          # Cached BLAS libraries must support runners with different CPUs.
           python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
+            "openblas[dynamic-arch]" \
             eigen3 \
             tbb \
             boost-program-options \
@@ -115,6 +117,15 @@ jobs:
         run: |
           cmake --build --preset integrated-build-release \
             --parallel $(nproc)
+
+      - name: Check 3D geometry portability on an older x86 CPU
+        working-directory: build-integrated/tests/test_simulation/test_3d_simulation/bin
+        env:
+          OPENBLAS_VERBOSE: "2"
+        run: |
+          lscpu
+          qemu-x86_64 -cpu Nehalem ./test_3d_simulation \
+            '--gtest_filter=json/Json.build_geometries/*'
 
       - name: Run C++ simulation class tests (ctest)
         run: |
@@ -140,7 +151,7 @@ jobs:
           QT_QPA_PLATFORM: xcb
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
-          xvfb-run -a -s "-screen 0 1600x1000x24" pytest tests/runtime/test_desktop.py -v -s
+          xvfb-run -a -s "-screen 0 1600x1000x24" pytest tests/runtime/test_desktop.py tests/test_agent_preview.py tests/test_workbench.py -v -s
 
       - name: Run example tests (examples/)
         run: |
@@ -371,8 +382,7 @@ jobs:
 
       - name: Install system dependencies and Intel oneAPI
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          python .github/scripts/install-apt-packages.py \
             apt-utils \
             build-essential \
             curl zip unzip tar \
@@ -387,8 +397,8 @@ jobs:
             | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
           echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
             | sudo tee /etc/apt/sources.list.d/oneAPI.list
-          sudo apt-get update
-          sudo apt-get install -y intel-cpp-essentials
+          sudo apt-get -o Acquire::Retries=2 -o APT::Update::Error-Mode=any update
+          sudo apt-get -o Acquire::Retries=2 install -y intel-cpp-essentials
 
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -494,8 +504,7 @@ jobs:
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          python .github/scripts/install-apt-packages.py \
             apt-utils \
             build-essential \
             curl zip unzip tar \
@@ -531,7 +540,12 @@ jobs:
       - name: Install C++ dependencies via vcpkg (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
+          blas=()
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            blas+=("openblas[dynamic-arch]")
+          fi
           python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
+            "${blas[@]}" \
             eigen3 \
             tbb \
             boost-program-options \

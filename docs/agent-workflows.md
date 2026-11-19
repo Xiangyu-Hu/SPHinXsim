@@ -27,9 +27,9 @@ installs the official MCP Python SDK. `visualization` supplies the native Qt
 window. These extras do not replace the compiled SPHinXsim bindings. Basic
 CLI/schema use does not import CAD, MCP or Qt until requested.
 
-The native simulator retains its platform support. Detached local jobs currently
-require POSIX process supervision; on Windows use native synchronous `run`
-and `preview`. A remote desktop, GPU runtime, display/input provider, authentication
+Detached local jobs use native process supervision on Windows and POSIX.
+Windows workers use hidden console processes and process-identity checks for
+cancellation. A remote desktop, GPU runtime, display/input provider, authentication
 gateway and container packaging are the deployment owner's responsibility and
 are not shipped in this change.
 

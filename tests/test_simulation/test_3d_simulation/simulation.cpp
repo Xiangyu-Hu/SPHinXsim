@@ -126,6 +126,14 @@ TEST_P(Json, run)
     simulation_test::runJsonSimulation(GetParam());
 }
 
+TEST_P(Json, build_geometries)
+{
+    SPH::SPHSimulation simulation(GetParam());
+    simulation.resetOutputRoot(fs::path("geometry_output") / GetParam().stem(), false);
+    simulation.buildGeometries();
+    EXPECT_FALSE(simulation.getShapeBounds().empty());
+}
+
 INSTANTIATE_TEST_SUITE_P(
     json,
     Json,

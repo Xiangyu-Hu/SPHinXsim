@@ -381,8 +381,8 @@ By default, `sphinxsim` uses a local mock LLM that works offline. To use a diffe
 
 ```bash
 export SPHINXSIM_LLM_PROVIDER=ollama
-export OLLAMA_BASE_URL=http://localhost:11434
-export OLLAMA_MODEL=qwen2.5:3b
+export SPHINXSIM_LLM_BASE_URL=http://localhost:11434
+export SPHINXSIM_LLM_MODEL=qwen2.5:3b
 sphinxsim generate "water dam break"
 ```
 
@@ -398,8 +398,8 @@ ollama pull qwen2.5:3b
 
 ```bash
 export SPHINXSIM_LLM_PROVIDER=openai
-export OPENAI_API_KEY=sk-...
-export OPENAI_MODEL=gpt-4
+export SPHINXSIM_LLM_API_KEY=sk-...
+export SPHINXSIM_LLM_MODEL=gpt-4
 sphinxsim generate "water dam break"
 ```
 
@@ -407,13 +407,11 @@ sphinxsim generate "water dam break"
 
 ```bash
 export SPHINXSIM_LLM_PROVIDER=nvidia_nim
-export NVIDIA_NIM_API_KEY=nvapi-...
-export NVIDIA_NIM_MODEL=z-ai/glm-5.2
-export NVIDIA_NIM_BASE_URL=https://integrate.api.nvidia.com/v1
+export SPHINXSIM_LLM_API_KEY=nvapi-...
+export SPHINXSIM_LLM_MODEL=meta/muse-glimmer-30b
+export SPHINXSIM_LLM_BASE_URL=https://integrate.api.nvidia.com/v1
 sphinxsim generate "water dam break"
 ```
-
-`NVIDIA_API_KEY` is also accepted for compatibility.
 
 ### Use mock (default)
 

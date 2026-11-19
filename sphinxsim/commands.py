@@ -148,7 +148,7 @@ def register(subparsers):
             parser.set_defaults(config_file=None)
             parser.add_argument("--request", help="Execute an explicit frozen JSON request under an external supervisor.")
             parser.add_argument("-o", "--output", help="Work directory containing the frozen project/ for --request.")
-            parser.add_argument("--detach", action="store_true", help="Return a persistent job reference immediately (POSIX).")
+            parser.add_argument("--detach", action="store_true", help="Return a persistent job reference immediately.")
             parser.add_argument("--submission-id", help="Reuse a UUID to retry the same frozen submission without creating another job.")
             parser.add_argument("--lease-seconds", type=int, default=600)
             parser.add_argument("--refresh-seconds", type=int, default=10)

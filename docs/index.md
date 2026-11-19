@@ -16,6 +16,10 @@ The project is designed around explicit simulation configuration rather than opa
 
 ## Core workflow
 
+For a single desktop window with a JSON editor, PyVista Preview, and embedded
+Chainlit chat, run `python -m sphinxsim workbench`. See
+[Desktop Workbench](workbench.md) for configuration edits and Agent demonstrations.
+
 The recommended user workflow is to use the **interactive shell**:
 
 ```bash
@@ -56,7 +60,7 @@ For detailed examples and all command options, see [CLI Usage](cli-usage.md).
 - `sphinxsim/config/schemas.py`:
   Defines the top-level `SimulationConfig` and the typed config surface for system domains, global resolution, shapes, oriented boxes, particle generation, fluid bodies, continuum bodies, solid bodies, boundary conditions, observers, restart settings, body constraints, and extra state recording.
 - `sphinxsim/llm/`:
-  Provides LLM backends that translate natural-language prompts into schema-compliant configs and answer schema exploration questions. The default mock backend supports deterministic local testing, while OpenAI and NVIDIA NIM backends can be enabled with environment variables such as `SPHINXSIM_LLM_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `NVIDIA_NIM_API_KEY`, and `NVIDIA_NIM_MODEL`.
+  Provides LLM backends that translate natural-language prompts into schema-compliant configs and answer schema exploration questions. The default mock backend supports deterministic local testing, while OpenAI-compatible, NVIDIA, and Ollama backends use the shared `SPHINXSIM_LLM_PROVIDER`, `SPHINXSIM_LLM_MODEL`, `SPHINXSIM_LLM_BASE_URL`, and `SPHINXSIM_LLM_API_KEY` settings.
 - `sphinxsim/sph_simulation/` and native bindings:
   Build and load SPHinXsys-backed simulation objects from validated JSON, including fluid and continuum-oriented workflows exposed through the Python package.
 

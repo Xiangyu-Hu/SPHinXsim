@@ -14,10 +14,8 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.json_editor.json_format import (
-    find_prettier_options,
-    format_json,
+    format_json_like_source,
     load_json_preserving_floats,
-    object_layout,
 )
 from sphinxsim.llm.common import dump_simulation_config_json
 
@@ -52,6 +50,9 @@ def _apply_payload_diff(raw: Any, base: Any, edited: Any) -> Any:
 
 def _config_spatial_dim(config: SimulationConfig) -> int:
     """Infer whether a validated config should use the 2-D or 3-D native module."""
+    dimension = config._infer_spatial_dim()
+    if dimension is not None:
+        return dimension
     geo = config.geometries
 
     if geo.system_domain is not None:
@@ -1421,16 +1422,9 @@ class JsonEditorMixin:
                 if patched_config.model_dump(exclude_none=True) == updated_config.model_dump(
                     exclude_none=True
                 ):
-                    prettier = find_prettier_options(active_config_path)
-                    if prettier is None:
-                        file_content = json.dumps(patched_payload, indent=2, ensure_ascii=False)
-                    else:
-                        file_content = format_json(
-                            patched_payload,
-                            layout=object_layout(raw_text),
-                            print_width=int(prettier.get("printWidth", 80)),
-                            tab_width=int(prettier.get("tabWidth", 2)),
-                        ) + ("\n" if raw_text.endswith("\n") else "")
+                    file_content = format_json_like_source(
+                        patched_payload, raw_text, active_config_path
+                    )
                     file_content = file_content.replace("\n", line_ending)
             except (OSError, ValidationError, json.JSONDecodeError, TypeError, KeyError):
                 file_content = None

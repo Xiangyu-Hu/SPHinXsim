@@ -41,11 +41,25 @@ def reject_inactive_fields(payload):
 
     for group in ("fluid_bodies", "continuum_bodies", "solid_bodies"):
         for index, body in enumerate(payload.get(group, [])):
+            if body.get("adaptation_ratios") is not None:
+                raise ValueError(
+                    f"{group}[{index}].adaptation_ratios is not consumed by the native builder; "
+                    "set particle_generation.bodies[].solid_body.refinement_to_global for solid refinement"
+                )
             item = body.get("material", {})
             kind = item.get("type")
             if kind not in MATERIAL_FIELDS:
                 raise ValueError(f"Material {kind} has no supported native material-builder branch")
             admit(item, {"type", "viscosity", "thermal_properties", *MATERIAL_FIELDS[kind].split()}, f"{group}[{index}].material")
+    generation = payload.get("particle_generation") or {}
+    if not isinstance(generation, dict):
+        raise ValueError("particle_generation must be an object")
+    for index, body in enumerate(generation.get("bodies", [])):
+        if body.get("adaptation_ratios") is not None:
+            raise ValueError(
+                f"particle_generation.bodies[{index}].adaptation_ratios is not consumed by the native builder; "
+                "set solid_body.refinement_to_global for solid refinement"
+            )
     geometries = payload.get("geometries", {})
     for index, shape in enumerate(geometries.get("shapes", [])):
         fields = {"name", "type", *SHAPE_FIELDS.get(shape.get("type"), "").split()}
@@ -130,6 +144,8 @@ def catalog():
 def reject_unknown(value, schema, definitions, path="$", depth=0):
     if depth > 64:
         raise ValueError("Configuration nesting exceeds limit")
+    if schema is True or schema == {}:
+        return
     if "$ref" in schema:
         schema = definitions[schema["$ref"].split("/")[-1]]
     if value is None:
@@ -151,6 +167,9 @@ def reject_unknown(value, schema, definitions, path="$", depth=0):
             raise ValueError(f"Expected a scalar or list at {path}")
         props = schema.get("properties", {})
         additional = schema.get("additionalProperties", False)
+        # Model fields remain strict; explicitly declared dictionaries stay open.
+        if "properties" in schema and additional is True:
+            additional = False
         unknown = set(value) - set(props)
         if unknown and additional is not True and not isinstance(additional, dict):
             raise ValueError(f"Unknown fields at {path}: {sorted(unknown)}")
@@ -226,9 +245,11 @@ def check_config(payload):
                   "message": "Configuration accepted by native schema; physical combination has not been certified."})
     spacing = normalized["geometries"]["global_resolution"].get("particle_spacing")
     if spacing:
+        primitives = {primitive["name"]: primitive for primitive in normalized["geometries"]["primitives"]}
         for shape in normalized["geometries"]["shapes"]:
-            if shape.get("type") == "bounding_box" and "lower_bound" in shape:
-                lengths = [b-a for a, b in zip(shape["lower_bound"], shape["upper_bound"])]
+            if shape.get("type") == "bounding_box":
+                bounds = primitives[shape["primitive"]] if shape.get("primitive") else shape
+                lengths = [b-a for a, b in zip(bounds["lower_bound"], bounds["upper_bound"])]
                 if min(lengths) < 3 * spacing:
                     notes.append({"code": "thin_geometry", "severity": "warning", "body": shape["name"],
                                   "message": "A shape dimension spans fewer than three particle spacings; inspect particle coverage."})

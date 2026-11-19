@@ -50,6 +50,8 @@ def load_project(snapshot, root, solver_defaults=None):
         elif isinstance(value, dict):
             for key, child in value.items():
                 if key == "file_name":
+                    if child is None:
+                        continue
                     if not isinstance(child, str):
                         raise ValueError("Invalid resource reference")
                     name = str(PurePosixPath(entry).parent / child)

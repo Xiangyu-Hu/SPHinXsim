@@ -56,8 +56,11 @@ class JobStore:
 
     @contextmanager
     def lock(self):
-        if os.name != "posix":
-            raise ValueError("Detached local jobs require POSIX; use the native synchronous run command on this platform")
+        if os.name == "nt":
+            from sphinxsim.services.process_control import workspace_lock
+            with workspace_lock(self.directory / ".lock", blocking=True):
+                yield
+            return
         import fcntl
         with (self.directory / ".lock").open("a") as stream:
             fcntl.flock(stream, fcntl.LOCK_EX)
@@ -132,7 +135,9 @@ class JobStore:
                     "created_at": time.time(), "heartbeat": time.time(), "wall_seconds": wall_seconds})
                 with (work / "supervisor.log").open("wb") as log:
                     subprocess.Popen([sys.executable, "-m", "sphinxsim.runtime.job_worker", str(work)],
-                        stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                        stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                        start_new_session=os.name == "posix",
+                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
             except Exception:
                 shutil.rmtree(work)
                 raise
@@ -174,7 +179,9 @@ class JobStore:
             try:
                 with (work / "supervisor.log").open("wb") as log:
                     subprocess.Popen([sys.executable, "-m", "sphinxsim.runtime.job_worker", str(work)],
-                        stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                        stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                        start_new_session=os.name == "posix",
+                        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
             except Exception:
                 shutil.rmtree(work)
                 raise

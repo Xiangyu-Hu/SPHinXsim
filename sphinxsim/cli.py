@@ -419,8 +419,13 @@ def cmd_run(args: argparse.Namespace) -> int:
         sim = sph.SPHSimulation(validated_config_path)
         print(f"Preview runtime config written to: {validated_config_path}")
 
-        # Create temp directory in project root, not relative to cwd
-        output_dir = PROJECT_ROOT / ".build-temp" / "test_simulation"
+        # Preserve the legacy shared root unless an isolated run directory is requested.
+        requested_output_dir = getattr(args, "output_dir", None)
+        output_dir = (
+            Path(requested_output_dir).resolve()
+            if requested_output_dir
+            else PROJECT_ROOT / ".build-temp" / "test_simulation"
+        )
         output_dir.mkdir(exist_ok=True, parents=True)
         sim.resetOutputRoot(str(output_dir))
         print(f"📁 Now, the output folder is changed to: {output_dir}")
@@ -454,8 +459,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"   Run config: {config_path}")
 
         # Show output location
-        safe_name = first_body_name.replace(' ', '_').replace('/', '_')[:50]
-        output_dir = PROJECT_ROOT / ".build-temp" / "simulations" / safe_name
+        # Keep output_dir unchanged: it is the actual root passed to SPHinXsys.
         print(f"\n📁 Simulation output saved to:")
         print(f"   {output_dir}")
 
@@ -1060,8 +1064,49 @@ def cmd_shell(args: argparse.Namespace) -> int:
         print(f"Unknown command: {cmd}. Type 'help' for commands.", file=sys.stderr)
 
 # ---------------------------------------------------------------------------
+# Standalone chatbot launcher
+# ---------------------------------------------------------------------------
+
+
+def cmd_chatbot(args: argparse.Namespace) -> int:
+    """Launch the independent standalone Chainlit chatbot."""
+    try:
+        from sphinxsim.ui.chatbot.application import (
+            ChatbotDependencyError,
+            launch_chatbot,
+        )
+        return launch_chatbot(
+            host=args.host,
+            port=args.port,
+            headless=args.headless,
+            watch=args.watch,
+        )
+    except (ImportError, ChatbotDependencyError) as exc:
+        print(
+            "The chatbot requires Chainlit. Install the chatbot extra and try "
+            "again: pip install -e .[chatbot]",
+            file=sys.stderr,
+        )
+        print(f"Import detail: {exc}", file=sys.stderr)
+        return 1
+
+
+# ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
+
+
+def cmd_workbench(args: argparse.Namespace) -> int:
+    """Open the unified Qt/PyVista/Chainlit workbench."""
+    try:
+        import importlib.util
+        if importlib.util.find_spec("chainlit") is None:
+            raise ImportError("Install sphinxsim[chatbot,visualization] to use the workbench.")
+        from sphinxsim.ui.workbench.window import launch_workbench
+        return launch_workbench(PROJECT_ROOT, args.workspace, args.config_file)
+    except (ImportError, ValueError, OSError) as exc:
+        print(f"Workbench could not start: {exc}", file=sys.stderr)
+        return 1
 
 COMPLETION_SCRIPTS = {
     "bash": """_sphinxsim_completion() {
@@ -1132,6 +1177,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    workbench = subparsers.add_parser("workbench", help="Open JSON editor, Preview and Chainlit in one desktop window.")
+    workbench.add_argument("config_file", nargs="?", type=Path, help="JSON to edit; defaults to a workspace copy of the column-collapse demo.")
+    workbench.add_argument("--workspace", type=Path, default=PROJECT_ROOT / ".build-temp" / "workbench")
+    workbench.set_defaults(func=cmd_workbench)
+
     # generate
     gen = subparsers.add_parser(
         "generate",
@@ -1185,6 +1235,12 @@ def _build_parser() -> argparse.ArgumentParser:
     # run
     run = subparsers.add_parser("run", help="Run a simulation from a JSON config file.")
     run.add_argument("config_file", nargs='?', default="config.json", help="Path to JSON config file.")
+    run.add_argument(
+        "--output-dir",
+        default=None,
+        metavar="DIR",
+        help="Write simulation artifacts under DIR instead of the legacy shared output root.",
+    )
     run.set_defaults(func=cmd_run)
 
     # preview
@@ -1230,6 +1286,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Interactive shell for config load/modify/validate workflow.",
     )
     shell.set_defaults(func=cmd_shell)
+
+    from sphinxsim.agent_cli import configure_agent_parser
+    configure_agent_parser(subparsers, PROJECT_ROOT)
 
     from sphinxsim.commands import register
     register(subparsers)

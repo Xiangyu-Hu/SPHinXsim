@@ -204,11 +204,14 @@ def test_asset_paths_follow_the_source_case_without_rewriting_other_fields(tmp_p
     assert payload["items"][0]["file_name"] == "input/mesh.stl"
 
 
-def test_shared_property_editor_edits_lists_validates_and_preserves_source_format(tmp_path):
+@pytest.mark.parametrize("prettier_options", [None, {"printWidth": 100, "tabWidth": 2}],
+                         ids=["without-prettier", "with-prettier"])
+def test_shared_property_editor_edits_lists_validates_and_preserves_source_format(tmp_path, prettier_options):
     pytest.importorskip("PySide6")
     pytest.importorskip("qtpy")
     root = Path(__file__).resolve().parents[1]
-    result = subprocess.run([sys.executable, str(root / "tests/json_editor_probe.py"), str(tmp_path)],
+    result = subprocess.run([sys.executable, str(root / "tests/json_editor_probe.py"), str(tmp_path),
+                             json.dumps(prettier_options)],
                             cwd=root, capture_output=True, timeout=30)
     assert result.returncode == 0, (result.stdout + result.stderr).decode("utf-8", errors="replace")
 

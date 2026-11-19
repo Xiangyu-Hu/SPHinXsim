@@ -98,8 +98,10 @@ editor.close()
 
 # The upstream shell editor must retain its save path and source formatting.
 from types import SimpleNamespace
+from unittest.mock import patch
 from sphinxsim.cli import _ShellPreviewRuntime
 from sphinxsim.config.schemas import SimulationConfig
+from sphinxsim.json_editor.json_format import find_prettier_options
 shell_case = workspace / "shell.json"
 shell_case.write_bytes(source.encode("utf-8"))
 shell_window = QtWidgets.QMainWindow()
@@ -118,9 +120,14 @@ while iterator.value():
     iterator += 1
 else:
     raise AssertionError("The native editor is missing the end-time field")
-shell_editor["shortcut"].activated.emit()
+prettier_options = json.loads(sys.argv[2]) if len(sys.argv) > 2 else find_prettier_options(shell_case)
+with patch("sphinxsim.json_editor.json_format.find_prettier_options", return_value=prettier_options):
+    shell_editor["shortcut"].activated.emit()
 assert json.loads(shell_case.read_bytes())["solver_parameters"]["end_time"] == 0.12
 assert '"gravity": [0.0, -9.800e+00]' in shell_case.read_bytes().decode("utf-8")
+assert shell_case.read_bytes().endswith(b"\r\n")
+assert b"\r\r\n" not in shell_case.read_bytes()
+assert set(json.loads(shell_case.read_bytes())) == set(payload)
 assert len(updates) == 1
 assert updates[0][1]["resolved_config_path"] == shell_case
 assert updates[0][1]["force"] is True

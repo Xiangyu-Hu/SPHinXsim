@@ -47,7 +47,7 @@ Invoke this skill when:
 
 ```
 SimulationConfig
-├── characteristic_dimensions: List[CharacteristicDimensionConfig]
+├── characteristic_dimensions: Optional[List[CharacteristicDimensionConfig]]
 ├── simulation_type: SimulationType (enum)
 ├── geometries: GeometriesConfig
 │   ├── system_domain: DomainConfig
@@ -68,7 +68,7 @@ SimulationConfig
 ├── initial_conditions: List[InitialConditionConfig]
 ├── extra_state_recording: List[ExtraStateRecordingConfig]
 ├── energy_recording: List[EnergyRecordingConfig]
-├── restart: RestartConfig
+├── restart: Optional[RestartConfig]
 └── solver_parameters: SolverParametersConfig
     ├── fluid_dynamics: FluidDynamicsSolverConfig
     └── continuum_dynamics: ContinuumDynamicsSolverConfig
@@ -104,7 +104,7 @@ Current parser-aligned constraint:
 ### Cross-Field Validation
 
 `SimulationConfig._cross_validate` (using `@model_validator(mode="after")`) checks:
-1. `characteristic_dimensions` must include a `Length` entry if provided
+1. If `characteristic_dimensions` is provided, it must include `Length`; native scaling also requires at least one other characteristic dimension
 2. Simulation type requirements: `fluid_dynamics` needs `fluid_bodies` + `solver_parameters.fluid_dynamics`; `continuum_dynamics` needs `continuum_bodies` + `solver_parameters.continuum_dynamics`
 3. Current builder limitations are enforced: continuum dynamics supports exactly one continuum body
 4. At least one `solid_body` is required unless a `FREE_STREAM` boundary condition is configured

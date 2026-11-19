@@ -28,9 +28,13 @@ under the subsection `oriented_boxes`. The parameters of the oriented box are de
 }
 ```
 
-Note that the `transform` entry defines the position and orientation of the emitter in the simulation domain. and the `half_size` entry defines the half size of the emitter box, which indicate the amount of particles contained in the box.
+The `transform` entry defines the position and orientation of the emitter region
+in the simulation domain. `half_size` gives its half-widths; together they define
+the region used to select particles for emission.
 
-Since there are particles generated in the emitter box, one need to define the amount of reserved particles in the `particle_reserve_factor` section of the fluid body, as shown below:
+The fluid body's `particle_reserve_factor` reserves capacity for particles added
+by the emitter. It is a positive dimensionless capacity factor, not a count or a
+ratio describing the number of particles inside the emitter region:
 
 ```json
 "fluid_bodies": [
@@ -45,7 +49,8 @@ Since there are particles generated in the emitter box, one need to define the a
   ]
 ```
 
-Note that the value is set to 350.0, which means that the number of particles in the emitter box is 350 times the initial number of particles in the fluid body. The value is large here because the emitter box is small and the number of particles in the box is small, so a large value is needed to ensure that there are enough particles for filling the tank.
+The value shown is specific to this example. Choose a factor large enough for
+the expected particle growth during inflow.
 
 Finally, one need to define the emitter boundary condition in the `fluid_boundary_conditions` section of the JSON file, as shown below:
 

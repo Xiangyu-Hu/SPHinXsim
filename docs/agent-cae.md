@@ -175,11 +175,11 @@ Use the upstream configuration locations for new or revised cases.
 - Define a container with `polygons[].inner_box`, using inline bounds or a named
   `bounding_box` primitive.
 - Set solid refinement with
-  `particle_generation.settings.bodies[].solid_body.refinement_to_global`.
+  `particle_generation.bodies[].solid_body.refinement_to_global`.
   The shared admission check reports `adaptation_ratios` as an inactive field
   and includes the current configuration path in its error.
 - Reference a relaxation geometry with
-  `particle_generation.settings.bodies[].relaxation.level_set.shape`.
+  `particle_generation.bodies[].relaxation.level_set.shape`.
 
 AgentCAE's RunManager owns workflow orchestration. Native MCP `project_inspect`,
 `submit`, `job_status`, `job_logs`, `job_cancel`, and `results_inspect` own solver

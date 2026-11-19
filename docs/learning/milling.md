@@ -4,7 +4,7 @@ In this tutorial, we will demonstrate how to simulate a milling process using SP
 
 ## Externally defined characteristic velocity
 
-Compared to previous tutorials, the characteristic dimension uses a different way to define the characteristic velocity. In this case, the characteristic velocity is defined as the cutting speed of the milling tool, which is calculated based on the rotational speed and the diameter of the tool. However, there is such velocity directly defined in the simulation setting file, so the `hint` entry here is `externally_defined`.
+Compared to previous tutorials, the characteristic dimension uses a different way to define the characteristic velocity. Here, the cutting speed is computed from the tool's angular velocity and diameter. Because the velocity is not represented by a single configuration field, its `hint` is `externally_defined`.
 
 ## Geometry of the milling tool
 
@@ -26,19 +26,30 @@ Another difference is that the we need read a data file for the geometry of the 
 
 ## Particle relaxation
 
-Since the milling tool is a complex geometry, it is necessary to perform particle relaxation to ensure that the particles are properly distributed around the tool. This can be done by running a separate simulation with the milling tool geometry and allowing the particles to settle into a stable configuration before starting the actual milling simulation.
+Since the milling tool is a complex geometry, the example enables particle
+relaxation for it during particle generation, before the main simulation starts.
 
-For this, we can use the `relaxation` entry in the simulation setting file to specify the relaxation approach. In this case, we will use `level_set`, which indicate that the relaxation will be performed using a level set method to ensure that the particles conform to the geometry of the milling tool. Note that the empty brackets `{}` indicate that no additional parameters are needed for this relaxation approach.
+In the configuration, the milling tool's particle-generation body has
+`"relaxation": {"level_set": {}}`. This selects level-set relaxation for that
+body; the per-body setting is under `particle_generation.bodies`, while
+`particle_generation.relaxation_parameters.total_iterations` controls the
+iteration count.
 
-To achieve full relaxation, we can set the `total_iterations` entry to a large value, such as 1000, to ensure that the particles have enough time to settle into a stable configuration. The `total_iterations` entry is defined in the `relaxation_parameters` section of the JSON file.
+The example sets `total_iterations` to 1000 in `relaxation_parameters`. This
+sets the number of relaxation iterations; it does not by itself guarantee that
+the particles are fully relaxed.
 
 ## Simulation type
 
-Milling simulation is not fluid simulation, so the `simulation_type` entry is set to `continuum_dynamics`. This indicates that the simulation will be performed using a solid mechanics (with failure and fracture) approach, which is appropriate for simulating the behavior of the milling tool and the workpiece during the cutting process.
+Milling simulation is not fluid simulation, so `simulation_type` is set to
+`continuum_dynamics`. In this example the deformable workpiece is the one
+`continuum_body`; the milling tool is a moving rigid `solid_body`. The J2
+plasticity material and enabled ductile-damage model describe the workpiece's
+deformation and damage.
 
 ## Continuum bodies
 
-Similar to the fluid bodies, we need to define the continuum bodies in the `continuum_bodies` section of the JSON file. In this case, we will define two continuum bodies: one for the milling tool and one for the workpiece. The parameters of the continuum bodies are defined as shown below:
+Define the workpiece in `continuum_bodies`:
 
 ```json
 "continuum_bodies": [
@@ -70,7 +81,8 @@ There is also a `ductile_damage` entry, which indicates that the simulation will
 
 ## Moving the milling tool
 
-In this simulation, there are two solid (rigid) bodies: the milling tool and container of the tool and working piece. The milling tool is a moving body, which means that it will be moving during the simulation. The movement of the milling tool is indicated by the `is_moving` entry.
+The milling tool and wall/container are the two rigid `solid_bodies` in this
+example. The tool is moving, as indicated by its `is_moving` entry.
 
 ## Body constraints
 
@@ -97,6 +109,10 @@ The prescribed movement of the milling tool and constraints on the working piece
 Note that the milling tool is defined as a `simbody` type, which indicates that the rigid body dynamics of the milling tool will be simulated using the Simbody library. The `mobilized_body` entry is set to `planar`, which indicates that the milling tool will be constrained to move in a plane. The `velocity` and `angular_velocity` entries define the linear and angular velocities of the milling tool, respectively.
 
 For the workpiece, the `type` entry is set to `fixed`, which indicates that the `region` entry is set to `ClampingRegion`, which indicates that the workpiece will be clamped in place using a specified region of the workpiece geometry.
+
+The Simbody constraint also requires a top-level `restart` configuration. The
+complete working example, including that section and the geometry, is
+[milling.json](../../tests/test_simulation/test_2d_simulation/data/milling.json).
 
 ## Restarting the simulation
 

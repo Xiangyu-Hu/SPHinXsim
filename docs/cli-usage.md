@@ -5,6 +5,26 @@ SPHinXsim provides a command-line interface for building, validating, updating, 
 Structured JSON, CadQuery modeling, persistent execution and MCP use the same
 CLI. See [Native CLI and external agents](agent-workflows.md).
 
+## AI-assisted workflows
+
+Use the interactive shell's `generate`, `update`, and `explore` commands for
+prompt-assisted configuration authoring. Provider selection is shared through
+`SPHINXSIM_LLM_PROVIDER`; see [LLM testing](llm-testing.md) for setup examples.
+
+For a graphical workflow with an embedded Chat panel, reviewed configuration
+proposals, and Preview, start the Workbench:
+
+```bash
+python -m sphinxsim workbench
+```
+
+For durable AgentCAE calibration, start with `python -m sphinxsim agent --help`.
+The default workflow requires explicit approval before it runs a solver. The
+agent stores its state in a workspace so you can inspect, approve, resume, or
+report a workflow in a later process. See
+[AgentCAE calibration](agent-cae.md) for a complete example and the supported
+workflow scope.
+
 ## Quick start
 
 ### Shell auto-completion

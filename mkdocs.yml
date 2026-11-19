@@ -12,9 +12,11 @@ nav:
       - Dambreak flow: learning/dambreak.md
       - Filling a tank: learning/filling-tank.md
       - Milling: learning/milling.md
-  - External Agents:
-      - Native Workflows: agent-workflows.md
-      - MCP Setup: mcp.md
+  - AI & Agents:
+      - AI Workbench: workbench.md
+      - AgentCAE calibration: agent-cae.md
+      - Native agent workflows: agent-workflows.md
+      - MCP setup: mcp.md
   - Visualization: visualization.md
   - LLM Testing: llm-testing.md
   - Theoretical Backgrounds:

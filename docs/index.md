@@ -20,6 +20,21 @@ For a single desktop window with a JSON editor, PyVista Preview, and embedded
 Chainlit chat, run `python -m sphinxsim workbench`. See
 [Desktop Workbench](workbench.md) for configuration edits and Agent demonstrations.
 
+SPHinXsim also includes two distinct AI-assisted workflows:
+
+- **Workbench Chat** uses the configured LLM and discovered native MCP tools to
+  discuss and propose changes to the open configuration. Review proposals in
+  the JSON Editor before applying or saving them.
+- **AgentCAE** runs a durable, bounded calibration workflow. It plans candidate
+  cases, asks for approval before execution by default, analyzes saved results,
+  and records a report. The currently supported example calibrates column-collapse
+  runout. Start with `python -m sphinxsim agent --help`; see
+  [AgentCAE calibration](agent-cae.md) for setup and lifecycle instructions.
+
+Both use the provider configured through `SPHINXSIM_LLM_PROVIDER`. The `mock`
+provider is useful for deterministic local testing; it is not a natural-language
+model. See [LLM testing](llm-testing.md) for provider setup.
+
 The recommended user workflow is to use the **interactive shell**:
 
 ```bash
@@ -49,6 +64,8 @@ Alternatively, you can use direct commands for non-interactive workflows:
 - `sphinxsim validate` — Check config validity
 - `sphinxsim run` — Execute a validated simulation
 - `sphinxsim preview` — Render an interactive geometry/BC preview before running
+- `sphinxsim workbench` — Open the desktop JSON Editor, Preview, and Chat
+- `sphinxsim agent` — Manage durable AgentCAE workflows
 - `sphinxsim --generate-completion {bash|zsh|fish}` — Print shell completion scripts
 
 For detailed examples and all command options, see [CLI Usage](cli-usage.md).
@@ -56,7 +73,16 @@ For detailed examples and all command options, see [CLI Usage](cli-usage.md).
 ## High-level architecture
 
 - `sphinxsim/cli.py`:
-  Command-line entry point for `generate`, `update`, `validate`, and `run`. It resolves project-local paths, validates configs before execution, and routes runtime output into project-managed build directories.
+  Command-line entry point for configuration, visualization, native execution,
+  desktop Workbench, MCP, and AgentCAE workflows. It resolves project-local
+  paths, validates configs before execution, and routes runtime output into
+  project-managed build directories.
+- `sphinxsim/agent/`:
+  Durable AgentCAE planning, approval, execution, analysis, persistence, and
+  bounded calibration workflows. See [AgentCAE calibration](agent-cae.md).
+- `sphinxsim/ui/workbench/` and `sphinxsim/ui/chatbot/`:
+  Desktop JSON editing, preview, and Chat integrations. See
+  [AI Workbench](workbench.md).
 - `sphinxsim/config/schemas.py`:
   Defines the top-level `SimulationConfig` and the typed config surface for system domains, global resolution, shapes, oriented boxes, particle generation, fluid bodies, continuum bodies, solid bodies, boundary conditions, observers, restart settings, body constraints, and extra state recording.
 - `sphinxsim/llm/`:
@@ -74,6 +100,8 @@ SPHinXsim currently supports a broader config surface than a basic fluid-only de
 - Config-driven geometry composition using domains, shapes, oriented boxes, transforms, and particle-generation settings.
 - Incremental config editing through the CLI update command instead of regenerating cases from scratch.
 - Schema exploration through the CLI explore command for questions about supported bodies, materials, and simulator behavior.
+- LLM-assisted configuration proposals and native MCP tool discovery in the Workbench.
+- Durable AgentCAE calibration with approval checkpoints, persisted runs, result analysis, and reports.
 
 The repository remains config-first: natural-language generation is useful for initialization and revision, but the validated JSON artifact is the authoritative simulation input.
 

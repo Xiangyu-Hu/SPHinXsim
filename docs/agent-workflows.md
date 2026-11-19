@@ -4,6 +4,10 @@ SPHinXsim uses its existing `sphinxsim` package and CLI for both people and
 agents. MCP exposes the same application operations. There is no separate
 agent package, command-line program, required cloud service or container image.
 
+For the built-in durable calibration agent, see
+[AgentCAE calibration](agent-cae.md). For the desktop editor, Preview, and
+embedded Chat workflow, see [AI Workbench](workbench.md).
+
 For client configuration and resource access, see [MCP setup](mcp.md). The optional
 [companion skill](https://github.com/Xiangyu-Hu/SPHinXsim/blob/main/.github/skills/sphinxsim/SKILL.md) follows the repository's
 `.github/skills/` convention. Install the complete `sphinxsim` skill directory,

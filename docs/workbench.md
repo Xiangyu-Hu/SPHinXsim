@@ -11,9 +11,14 @@ Use the Python environment containing the built SPHinXsim extensions and the
 `chatbot` and `visualization` extras (Chainlit, PySide6, PyVista and PyVistaQt):
 
 ```powershell
+python -m pip install -e '.[chatbot,visualization]'
 $env:SPHINXSIM_LLM_PROVIDER = "mock"
 python -m sphinxsim workbench
 ```
+
+The `mock` provider needs no external API and is useful for checking the UI;
+natural-language chat requires a configured real provider. See
+[LLM testing](llm-testing.md) for provider configuration.
 
 The default opens a workspace copy of the two-dimensional column-collapse demo;
 it does not edit the repository's demo file. To open your own JSON:

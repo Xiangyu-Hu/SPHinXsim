@@ -4,7 +4,7 @@ This is the first example use to learn how to setting up a flow simulation using
 Note that, dambreak flow is a classical benchmark case for free-surface flow simulation using SPH method,
 and it has been widely used in the literature to validate the accuracy of SPH solvers.
 
-The 2d and 3d dambreak examples demonstrate the basic usage of SPHinXsim for simulating free-surface flows. The examples are located in the `tests/test_simulation/test_2d_simulation/dambreak.json` for the 2d case and `tests/test_simulation/test_3d_simulation/dambreak.json` for the 3d case.
+The 2d and 3d dambreak examples demonstrate the basic usage of SPHinXsim for simulating free-surface flows. The canonical configurations are [the 2d case](../../tests/test_simulation/test_2d_simulation/data/dambreak.json) and [the 3d case](../../tests/test_simulation/test_3d_simulation/data/dambreak.json).
 
 Here, I show (2d) simulation setting json file to illustrate the basic usage.
 
@@ -39,7 +39,7 @@ Here, I show (2d) simulation setting json file to illustrate the basic usage.
         "name": "WaterBody",
         "type": "bounding_box",
         "lower_bound": [0.0, 0.0],
-        "upper_bound": [2.0, 2.0]
+        "upper_bound": [2.0, 1.0]
       },
       {
         "name": "WallBoundary",
@@ -135,15 +135,12 @@ Here, I show (2d) simulation setting json file to illustrate the basic usage.
 
 ### 1. Characteristic_dimensions
 
-The `characteristic_dimensions` section defines the characteristic length, gravity, and density for the simulation.
-These values are used to non-dimensionalize the governing equations and set the scale of the simulation.
-If the `characteristic_dimensions` section is not provided, the unity scaling reference is set.
-If this section is provided, the `Length` reference is set as the first characteristic dimension in the list,
-and one must provide at least two characteristic dimensions.
-In the dambreak case, three scaling reference, i.e. `Length` and `Gravity` and `Density` are provided.
+The `characteristic_dimensions` section defines scaling references for the simulation.
+If provided, it must include `Length` and at least one other characteristic dimension.
+In this example, `Length`, `Gravity`, and `Density` are provided.
 
-Note that the `hint` field, pointing to a specific JSON entry of the setting,
-is obligated and is used to provide additional information about the characteristic dimension.
+Each entry requires a `hint` identifying the corresponding configuration value or stating
+that the reference is externally defined.
 
 ### 2. Simulation type
 
@@ -177,18 +174,11 @@ but using 3d geometrical building blocks.
 
 ### 4. Particle generation
 
-This section defines the particle generation settings for the simulation.
-The `build_and_run` field is set to `true`, indicating that the particle generation process should
-be executed before the simulation starts.
-It can be set to `false` if the particle generation is already done and the generated particles are saved in a particle reload file.
-A typical case for the latter is when the simulation is restarted from a previous simulation.
-
-The `settings` field contains the parameters for particle generation,
-including the bodies to be generated and the relaxation parameters.
-Note that the `bodies` field references the geometries defined in the `geometries` section,
-and the `relaxation_parameters` field specifies the number of iterations for particle relaxation.
-Also, if the body is a solid body, the `solid_body` field
-should be provided to indicate that the body is a solid.
+`particle_generation` directly contains the `bodies` to generate and the
+`relaxation_parameters`. Each body name refers to a shape in `geometries.shapes`;
+include `solid_body` for a solid boundary. For a restart, set `restart.restore_step`
+to a saved step; particle generation and relaxation are skipped for nonzero
+`restore_step`.
 
 ### 5. Fluid bodies
 
@@ -234,10 +224,9 @@ The `end_time` field specifies the total simulation time,
 the `output_interval` field specifies the time interval for outputting simulation results,
 and the `screen_interval` field specifies the number of time steps between screen outputs.
 The `fluid_dynamics` field contains parameters specific to the fluid dynamics solver,
-including the `acoustic_cfl`, `advection_cfl`, `surface_type`, and `particle_sort_frequency`.
+including the `acoustic_cfl`, `advection_cfl`, and `particle_sort_frequency` values shown here.
 The `acoustic_cfl` and `advection_cfl` fields specify the CFL conditions for the acoustic and advection time steps, respectively.
-The `surface_type` field specifies the type of free surface treatment used in the simulation,
-and the `particle_sort_frequency` field specifies how often the particles are sorted to improve computational efficiency.
+The `particle_sort_frequency` field specifies how often the particles are sorted to improve computational efficiency.
 
 Note except for the `end_time` and `output_interval` have physical units
 and scaled by the characteristic dimensions defined in the `characteristic_dimensions` section,
@@ -247,26 +236,16 @@ the other parameters are dimensionless.
 
 The 3d dambreak simulation setting JSON file is similar to the 2d case,
 with the main difference being the definition of the geometries and the particle spacing.
-In the 3d case, the `WaterBody` is defined as a bounding box with lower and upper bounds in 3d space,
-and the `WallBoundary` is defined as a multipolygon with 3d boxes.
+In the 3d case, the `WaterBody` is defined as a bounding box with lower and upper bounds in 3d space.
+The `WallBoundary` is a `complex_shape` formed by taking the union of an expanded box and subtracting the inner box.
 The particle spacing is also adjusted to account for the additional dimension, and the simulation parameters are scaled accordingly.
 
-One more things in the 3d case, we have included an cylindrical emitter in the `geometries` section,
-which is used to generate particles for the fluid body.
-To make emitter work, we define an oriented box in the `oriented_boxes` section,
-which specifies the position and orientation of the emitting behavior.
-The `oriented_boxes` is defined so that its size can cover the emitter and its `x`
-direction is aligned with axis direction of the cylinder and facing the fluid domain.
-
-Note that we need generate the particles for the emitter too.
-The emitter is defined as an entry in `cylinder_shape_inserts` in the settings of the fluid body.
-
-Still, one need define a fluid boundary condition for the emitter, which is done by defining
-the `fluid_boundary_condition` section.
-Here, we define a `fluid_boundary_condition`
-for the `WaterBody` with a `Emitter` that references the name of the oriented box.
-In the boundary condition, we specify the `inflow_velocity` for the emitter
-and scheduled emitting with `switch_on_time` at 1.0 and `duration` of 5.
+The 3d example also includes a cylindrical emitter shape. It is inserted into the
+fluid body's generated particles through
+`particle_generation.bodies[].cylinder_shape_inserts`. A matching region in
+`geometries.oriented_boxes` defines the emitter boundary condition's active
+region. The `fluid_boundary_conditions` entry uses type `emitter`, references
+that region by name, and sets `inflow_speed` and an optional `on_schedule`.
 
 ## Try to modify the JSON file for your own simulation
 

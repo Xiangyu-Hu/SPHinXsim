@@ -1,5 +1,5 @@
 """Official SDK client for the native SPHinXsim MCP stdio service."""
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, ExitStack
 from datetime import timedelta
 import asyncio
 import os
@@ -25,10 +25,20 @@ class MCPClient:
         environment["PYTHONIOENCODING"] = "utf-8"
         parameters = StdioServerParameters(command=sys.executable,
             args=["-m", "sphinxsim", "mcp", "--root", str(self.root)], env=environment)
-        async with stdio_client(parameters) as (reader, writer):
-            async with ClientSession(reader, writer, read_timeout_seconds=timedelta(seconds=self.timeout)) as session:
-                await session.initialize()
-                yield session
+        # VTK can replace sys.stderr with a proxy without a file descriptor.
+        # Pass a real stream explicitly instead of the SDK's import-time default.
+        with ExitStack() as stack:
+            errlog = sys.__stderr__
+            try:
+                errlog.fileno()
+            except (AttributeError, OSError, ValueError):
+                directory = self.root / ".sphinxsim"
+                directory.mkdir(exist_ok=True)
+                errlog = stack.enter_context((directory / "mcp-stderr.log").open("a", encoding="utf-8"))
+            async with stdio_client(parameters, errlog=errlog) as (reader, writer):
+                async with ClientSession(reader, writer, read_timeout_seconds=timedelta(seconds=self.timeout)) as session:
+                    await session.initialize()
+                    yield session
 
     @staticmethod
     async def request(session, name, arguments):

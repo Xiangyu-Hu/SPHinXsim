@@ -243,7 +243,7 @@ def test_chainlit_edits_and_chat_context_use_the_live_editor(document, connectio
         asyncio.run(exercise())
         context = next(message["content"] for message in captured if message["content"].startswith("Current workbench state"))
         assert json.loads(context.split("\n", 1)[1])["config_path"] == str(document.path)
-        assert document.pending_proposal() is not None
+        assert document.pending_proposal() is not None, fake.sent_messages[-1].content
         assert "Validated proposal" in fake.sent_messages[-1].content
         assert not document.snapshot()["dirty"]
     finally:

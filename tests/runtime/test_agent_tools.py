@@ -3,6 +3,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import json
 from pathlib import Path
+import subprocess
 import sys
 from types import SimpleNamespace
 from uuid import uuid4
@@ -58,6 +59,49 @@ def test_native_agent_operations_are_discovered_and_executed_over_stdio(tmp_path
             rejected = await session.call_tool("validate", {"config_file": "../outside.json"})
             assert rejected.isError
     asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("console", ["available", "missing", "closed"])
+def test_mcp_starts_with_a_vtk_style_stderr_proxy(tmp_path, console):
+    # A fresh interpreter makes the SDK bind its default after redirection,
+    # matching a first MCP call made after native rendering with pytest -s.
+    script = r'''
+import io
+import json
+from pathlib import Path
+import sys
+
+class RenderStream:
+    def write(self, message):
+        return len(message)
+    def flush(self):
+        pass
+
+redirected = RenderStream()
+sys.stderr = redirected
+if sys.argv[2] == "missing":
+    sys.__stderr__ = None
+elif sys.argv[2] == "closed":
+    closed = io.StringIO()
+    closed.close()
+    sys.__stderr__ = closed
+
+from sphinxsim.runtime.client import MCPClient
+try:
+    result = MCPClient(Path(sys.argv[1]), timeout=60).call("capabilities", {})
+    assert sys.stderr is redirected
+    print(json.dumps({"available": result["execution"]["detached_local_jobs"]}))
+except Exception as error:
+    print(f"{type(error).__name__}: {error}")
+    raise SystemExit(1)
+'''
+    result = subprocess.run([sys.executable, "-c", script, str(tmp_path), console],
+        cwd=Path(__file__).resolve().parents[2], capture_output=True, text=True,
+        encoding="utf-8", timeout=90)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout)["available"]
+    if console != "available":
+        assert (tmp_path / ".sphinxsim/mcp-stderr.log").is_file()
 
 
 class JobSession:

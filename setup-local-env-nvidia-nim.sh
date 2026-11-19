@@ -27,7 +27,7 @@ fi
 
 # Set LLM provider for local development
 export SPHINXSIM_LLM_PROVIDER=nvidia_nim
-export SPHINXSIM_LLM_MODEL="${SPHINXSIM_LLM_MODEL:-meta/muse-glimmer-30b}"
+export SPHINXSIM_LLM_MODEL="${SPHINXSIM_LLM_MODEL:-z-ai/glm-5.2}"
 export SPHINXSIM_LLM_BASE_URL="${SPHINXSIM_LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}"
 # Comma-separated alternatives tried automatically if the primary model is degraded/unavailable.
 export SPHINXSIM_LLM_FALLBACK_MODELS="${SPHINXSIM_LLM_FALLBACK_MODELS:-meta/llama-3.1-70b-instruct,meta/llama-3.1-8b-instruct}"

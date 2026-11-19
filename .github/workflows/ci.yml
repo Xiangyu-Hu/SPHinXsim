@@ -60,6 +60,7 @@ jobs:
             build-essential \
             curl zip unzip tar \
             pkg-config \
+            gdb \
             git \
             ninja-build \
             python3-dev \
@@ -114,6 +115,16 @@ jobs:
         run: |
           cmake --build --preset integrated-build-release \
             --parallel $(nproc)
+
+      - name: Diagnose 3D initialization before the full simulation suite
+        working-directory: build-integrated/tests/test_simulation/test_3d_simulation/bin
+        run: |
+          lscpu
+          gdb --batch --return-child-result \
+            -ex 'set pagination off' \
+            -ex run \
+            -ex 'python if gdb.selected_thread(): gdb.execute("thread apply all bt"); gdb.execute("x/12i $pc-16"); gdb.execute("info registers")' \
+            --args ./test_3d_simulation --gtest_filter=json/Json.run/dambreak
 
       - name: Run C++ simulation class tests (ctest)
         run: |

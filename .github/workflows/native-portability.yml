@@ -54,6 +54,7 @@ jobs:
     - name: Install C++ dependencies via vcpkg
       run: |
         python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
+          "openblas[dynamic-arch]" \
           eigen3 \
           tbb \
           boost-program-options \

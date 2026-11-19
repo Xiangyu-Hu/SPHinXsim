@@ -60,7 +60,7 @@ jobs:
             build-essential \
             curl zip unzip tar \
             pkg-config \
-            gdb \
+            qemu-user \
             git \
             ninja-build \
             python3-dev \
@@ -92,7 +92,9 @@ jobs:
 
       - name: Install C++ dependencies via vcpkg
         run: |
+          # Cached BLAS libraries must support runners with different CPUs.
           python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
+            "openblas[dynamic-arch]" \
             eigen3 \
             tbb \
             boost-program-options \
@@ -116,15 +118,14 @@ jobs:
           cmake --build --preset integrated-build-release \
             --parallel $(nproc)
 
-      - name: Diagnose 3D initialization before the full simulation suite
+      - name: Check 3D geometry portability on an older x86 CPU
         working-directory: build-integrated/tests/test_simulation/test_3d_simulation/bin
+        env:
+          OPENBLAS_VERBOSE: "2"
         run: |
           lscpu
-          gdb --batch --return-child-result \
-            -ex 'set pagination off' \
-            -ex run \
-            -ex 'python if gdb.selected_thread(): gdb.execute("thread apply all bt"); gdb.execute("x/12i $pc-16"); gdb.execute("info registers")' \
-            --args ./test_3d_simulation --gtest_filter=json/Json.run/dambreak
+          qemu-x86_64 -cpu Nehalem ./test_3d_simulation \
+            '--gtest_filter=json/Json.build_geometries/*'
 
       - name: Run C++ simulation class tests (ctest)
         run: |
@@ -539,7 +540,12 @@ jobs:
       - name: Install C++ dependencies via vcpkg (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
+          blas=()
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            blas+=("openblas[dynamic-arch]")
+          fi
           python .github/scripts/retry-vcpkg-download.py "${{ github.workspace }}/vcpkg/vcpkg" install --clean-after-build \
+            "${blas[@]}" \
             eigen3 \
             tbb \
             boost-program-options \

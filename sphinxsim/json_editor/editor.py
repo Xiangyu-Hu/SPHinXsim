@@ -5,10 +5,12 @@ from __future__ import annotations
 import copy
 import json
 import sys
+import types
+from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, Union, get_args, get_origin
 
-from pydantic import ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.json_editor.json_format import (
@@ -87,7 +89,9 @@ def _config_spatial_dim(config: SimulationConfig) -> int:
     return 3
 
 
-def _new_json_editor_list_item(path: tuple[Any, ...], spatial_dim: int) -> Any:
+def _new_json_editor_list_item(
+    path: tuple[Any, ...], spatial_dim: int, variant: str | None = None
+) -> Any:
     """Return an editable starter value for an empty JSON editor list."""
     normalized_path = tuple(part for part in path if not isinstance(part, int))
     vector = [0.0] * spatial_dim
@@ -107,27 +111,78 @@ def _new_json_editor_list_item(path: tuple[Any, ...], spatial_dim: int) -> Any:
         },
         ("geometries", "primitives"): {
             "name": "New primitive",
-            "type": "box",
-            "half_size": unit_vector,
-            "transform": transform,
+            "type": variant or "box",
+            **(
+                {"half_size": unit_vector, "transform": transform}
+                if variant != "bounding_box"
+                else {"lower_bound": vector, "upper_bound": unit_vector}
+            ),
         },
         ("geometries", "shapes"): {
             "name": "New shape",
-            "type": "bounding_box",
-            "lower_bound": vector,
-            "upper_bound": unit_vector,
+            "type": variant or "bounding_box",
+            **{
+                "box": {"half_size": unit_vector, "transform": transform},
+                "bounding_box": {"lower_bound": vector, "upper_bound": unit_vector},
+                "expanded_box": {"original": "", "expansion": 0.1},
+                "extrude_shape": {"original": "", "thickness": 0.1},
+                "complex_shape": {"sub_shapes": [], "operations": []},
+                "multipolygon": {
+                    "polygons": [
+                        {
+                            "operation": "union",
+                            "type": "container_box",
+                            "inner_box": {
+                                "lower_bound": vector,
+                                "upper_bound": unit_vector,
+                            },
+                            "thickness": 0.1,
+                        }
+                    ]
+                },
+                "cylinder": {
+                    "radius": 1.0,
+                    "half_height": 1.0,
+                    "transform": transform,
+                },
+                "triangle_mesh": {"file_name": "mesh.stl"},
+            }.get(variant or "bounding_box", {}),
         },
         ("geometries", "shapes", "polygons"): {
             "operation": "union",
-            "type": "bounding_box",
-            "lower_bound": vector,
-            "upper_bound": unit_vector,
+            "type": variant or "bounding_box",
+            **{
+                "box": {"half_size": unit_vector, "transform": transform},
+                "bounding_box": {"lower_bound": vector, "upper_bound": unit_vector},
+                "container_box": {
+                    "inner_box": {
+                        "lower_bound": vector,
+                        "upper_bound": unit_vector,
+                    },
+                    "thickness": 0.1,
+                },
+                "circle": {"center": vector, "radius": 1.0, "resolution": 32},
+                "triangle": {"half_size": unit_vector, "transform": transform},
+                "clockwise_points": {
+                    "points": [vector, unit_vector, [0.0] * spatial_dim]
+                },
+                "data_file": {"file_name": "polygon.dat"},
+            }.get(variant or "bounding_box", {}),
         },
         ("geometries", "oriented_boxes"): {
             "name": "New region",
-            "type": "region",
-            "half_size": unit_vector,
-            "transform": transform,
+            "type": variant or "region",
+            **(
+                {"half_size": unit_vector, "transform": transform}
+                if variant != "boundary"
+                else {
+                    "center": vector,
+                    "normal": [0.0, 0.0, 1.0]
+                    if spatial_dim == 3
+                    else [0.0, 1.0],
+                    "radius": 1.0,
+                }
+            ),
         },
         ("particle_generation", "bodies"): {"name": "New body"},
         ("particle_generation", "relaxation_constraints"): {
@@ -162,10 +217,29 @@ def _new_json_editor_list_item(path: tuple[Any, ...], spatial_dim: int) -> Any:
         ("fluid_boundary_conditions",): {
             "body_name": "",
             "oriented_box": "",
-            "type": "emitter",
-            "inflow_speed": 1.0,
+            "type": variant or "emitter",
+            **{
+                "emitter": {"inflow_speed": 1.0},
+                "bi_directional": {"pressure": 0.0},
+                "free_stream": {
+                    "buffer_box": "",
+                    "disposer_box": "",
+                    "target_speed": 1.0,
+                    "t_ref": 1.0,
+                },
+                "disposer": {},
+                "wall_bounding": {},
+            }.get(variant or "emitter", {}),
         },
-        ("body_constraints",): {"body_name": "", "type": "fixed"},
+        ("body_constraints",): {
+            "body_name": "",
+            "type": variant or "fixed",
+            **(
+                {"mobilized_body": "pin", "angular_velocity": 0.0}
+                if variant == "simbody"
+                else {}
+            ),
+        },
         ("initial_conditions",): {
             "body_name": "",
             "assignments": [{"variable": {"real_type": "Pressure"}, "value": 0.0}],
@@ -182,6 +256,138 @@ def _new_json_editor_list_item(path: tuple[Any, ...], spatial_dim: int) -> Any:
         ("energy_recording",): {"name": "New energy recording", "body": ""},
     }
     return copy.deepcopy(templates.get(normalized_path, {}))
+
+
+def _unwrap_schema_type(annotation: Any) -> Any:
+    """Unwrap optional and single-model unions used by the configuration schema."""
+    origin = get_origin(annotation)
+    if origin in (Union, types.UnionType):
+        candidates = [arg for arg in get_args(annotation) if arg is not type(None)]
+        if len(candidates) == 1:
+            return _unwrap_schema_type(candidates[0])
+        model_candidates = [
+            candidate
+            for candidate in candidates
+            if isinstance(candidate, type) and issubclass(candidate, BaseModel)
+        ]
+        if len(model_candidates) == 1:
+            return model_candidates[0]
+    return annotation
+
+
+def _schema_type_at_path(path: tuple[Any, ...]) -> Any:
+    """Resolve a JSON payload path to its declared Pydantic field type."""
+    current: Any = SimulationConfig
+    for part in path:
+        current = _unwrap_schema_type(current)
+        if isinstance(part, int):
+            args = get_args(current)
+            current = args[0] if get_origin(current) is list and args else Any
+        elif isinstance(current, type) and issubclass(current, BaseModel):
+            field = current.model_fields.get(str(part))
+            current = field.annotation if field is not None else Any
+        else:
+            return Any
+    return _unwrap_schema_type(current)
+
+
+def _schema_enum_values(annotation: Any) -> list[str]:
+    annotation = _unwrap_schema_type(annotation)
+    if get_origin(annotation) is Literal:
+        return [str(value) for value in get_args(annotation)]
+    if isinstance(annotation, type) and issubclass(annotation, Enum):
+        return [str(value.value) for value in annotation]
+    return []
+
+
+def _schema_default_value(
+    annotation: Any, path: tuple[Any, ...], spatial_dim: int
+) -> Any:
+    """Build a simple starter value for an absent schema property."""
+    annotation = _unwrap_schema_type(annotation)
+    normalized_path = tuple(part for part in path if not isinstance(part, int))
+
+    if normalized_path == ("geometries", "system_domain"):
+        return {
+            "lower_bound": [0.0] * spatial_dim,
+            "upper_bound": [1.0] * spatial_dim,
+        }
+    if normalized_path == ("geometries", "global_resolution"):
+        return {"particle_spacing": 0.1}
+    if normalized_path and get_origin(annotation) is list:
+        item_type = (get_args(annotation) or (Any,))[0]
+        if isinstance(item_type, type) and issubclass(item_type, BaseModel):
+            return [_new_json_editor_list_item(normalized_path, spatial_dim)]
+        return []
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        result: dict[str, Any] = {}
+        for name, field in annotation.model_fields.items():
+            default = field.get_default(call_default_factory=True)
+            if default is not None and not field.is_required():
+                result[name] = default
+            elif field.is_required():
+                result[name] = _schema_default_value(
+                    field.annotation, (*path, name), spatial_dim
+                )
+        return result
+    values = _schema_enum_values(annotation)
+    if values:
+        return values[0]
+    if annotation is bool:
+        return False
+    if annotation is int:
+        return 1
+    if annotation is float:
+        return 1.0
+    if annotation is str:
+        return ""
+    if get_origin(annotation) is list:
+        return []
+    return {}
+
+
+def _schema_model_for_path(path: tuple[Any, ...]) -> type[BaseModel] | None:
+    annotation = _unwrap_schema_type(_schema_type_at_path(path))
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return annotation
+    return None
+
+
+def _schema_is_fixed_vector(path: tuple[Any, ...]) -> bool:
+    """Whether a field is a bounded numeric vector rather than an entry list."""
+    parent_model = _schema_model_for_path(path[:-1])
+    if parent_model is None:
+        return False
+    field = parent_model.model_fields.get(str(path[-1]))
+    if field is None or not any(
+        getattr(metadata, "max_length", None) is not None
+        for metadata in field.metadata
+    ):
+        return False
+    annotation = _unwrap_schema_type(field.annotation)
+    if get_origin(annotation) is not list:
+        return False
+    item_type = _unwrap_schema_type((get_args(annotation) or (Any,))[0])
+    return item_type in (int, float)
+
+
+def _schema_field_is_removable(path: tuple[Any, ...]) -> bool:
+    if not path or isinstance(path[-1], int):
+        return False
+    parent_model = _schema_model_for_path(path[:-1])
+    if parent_model is None:
+        return False
+    field = parent_model.model_fields.get(str(path[-1]))
+    return field is not None and not field.is_required()
+
+
+def _schema_list_variants(path: tuple[Any, ...]) -> list[str]:
+    item_type = _unwrap_schema_type(_schema_type_at_path((*path, 0)))
+    if isinstance(item_type, type) and issubclass(item_type, BaseModel):
+        type_field = item_type.model_fields.get("type")
+        if type_field is not None:
+            return _schema_enum_values(type_field.annotation)
+    return []
 
 
 def _set_windows_dark_title_bar(window: Any) -> None:
@@ -424,6 +630,18 @@ class JsonEditorMixin:
             "QMenu::item:enabled:selected { background: #315f8c; color: #ffffff; }"
             "QMenu::item:disabled { color: #686e79; }"
         )
+        value_actions = {
+            "copy": context_menu.addAction("Copy value"),
+            "paste": context_menu.addAction("Paste value"),
+        }
+        for operation, action in value_actions.items():
+            action.setObjectName(f"sphinxsim-json-editor-value-{operation}")
+        context_menu.addSeparator()
+        remove_property_action = context_menu.addAction("Remove property")
+        remove_property_action.setObjectName(
+            "sphinxsim-json-editor-remove-property"
+        )
+        context_menu.addSeparator()
         context_actions: dict[str, Any] = {}
         context_action_labels = {
             "add": "Add",
@@ -438,6 +656,14 @@ class JsonEditorMixin:
             action = context_menu.addAction(label)
             action.setObjectName(f"sphinxsim-json-editor-list-{operation}")
             context_actions[operation] = action
+        property_menu = context_menu.addMenu("Add property")
+        property_menu.setObjectName("sphinxsim-json-editor-add-property-menu")
+        variant_menu = context_menu.addMenu("Add as")
+        variant_menu.setObjectName("sphinxsim-json-editor-add-variant-menu")
+        context_menu.insertMenu(context_actions["duplicate"], property_menu)
+        context_menu.insertMenu(context_actions["duplicate"], variant_menu)
+        property_menu.menuAction().setVisible(False)
+        variant_menu.menuAction().setVisible(False)
         settings_menu = QtWidgets.QMenu(tree.header())
         settings_menu.setObjectName("sphinxsim-json-editor-settings-menu")
         settings_menu.setStyleSheet(context_menu.styleSheet())
@@ -563,14 +789,18 @@ class JsonEditorMixin:
             expand_defaults: bool = True,
             additional_expanded_paths: set[str] | None = None,
         ) -> None:
-            expanded_paths: set[str] = set()
-            iterator = QtWidgets.QTreeWidgetItemIterator(tree)
-            while iterator.value() is not None:
-                previous_item = iterator.value()
-                path_key = previous_item.data(0, QtCore.Qt.ItemDataRole.UserRole)
-                if path_key is not None and previous_item.isExpanded():
-                    expanded_paths.add(path_key)
-                iterator += 1
+            def expanded_tree_paths() -> set[str]:
+                paths: set[str] = set()
+                iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+                while iterator.value() is not None:
+                    item = iterator.value()
+                    path_key = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+                    if path_key is not None and item.isExpanded():
+                        paths.add(path_key)
+                    iterator += 1
+                return paths
+
+            expanded_paths = expanded_tree_paths()
             expanded_paths.update(additional_expanded_paths or set())
             editor_state["expanded_paths"] = expanded_paths
 
@@ -585,6 +815,21 @@ class JsonEditorMixin:
                 editor_state["undo_stack"] = []
             editor_state["dirty"] = False
             settings_actions["revert"].setEnabled(bool(editor_state["undo_stack"]))
+
+            def detach_item_widgets() -> None:
+                iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+                while iterator.value() is not None:
+                    item = iterator.value()
+                    for column in range(tree.columnCount()):
+                        widget = tree.itemWidget(item, column)
+                        if widget is not None:
+                            QtCore.QObject.disconnect(widget, None, None, None)
+                            tree.removeItemWidget(item, column)
+                            widget.setParent(None)
+                            widget.deleteLater()
+                    iterator += 1
+
+            detach_item_widgets()
             tree.clear()
 
             def add_value(parent: Any | None, label: str, value: Any, path: tuple[Any, ...], depth: int) -> None:
@@ -592,7 +837,7 @@ class JsonEditorMixin:
                     return
 
                 path_key = ".".join(str(part) for part in path)
-                if isinstance(value, dict) and value:
+                if isinstance(value, dict):
                     item = _new_tree_item(parent, _display_label(label), f"Object · {len(value)}")
                     item.setData(0, QtCore.Qt.ItemDataRole.UserRole, path_key)
                     editor_state["item_paths"][id(item)] = path
@@ -605,6 +850,19 @@ class JsonEditorMixin:
                     item.setFont(0, font)
                     for child_key, child_value in value.items():
                         add_value(item, str(child_key), child_value, (*path, child_key), depth + 1)
+                    return
+                if isinstance(value, list) and _schema_is_fixed_vector(path):
+                    item = _new_tree_item(parent, _display_label(label), f"Vector · {len(value)}")
+                    item.setData(0, QtCore.Qt.ItemDataRole.UserRole, path_key)
+                    editor_state["item_paths"][id(item)] = path
+                    widget = _value_widget(value, label)
+                    tree.setItemWidget(item, 1, widget)
+                    item.setToolTip(0, path_key)
+                    widget.setToolTip(path_key)
+                    widget.textChanged.connect(
+                        lambda *_args, entry=item: _mark_dirty(entry)
+                    )
+                    editor_state["fields"].append((path, value, widget, item))
                     return
                 if isinstance(value, list) and value:
                     item = _new_tree_item(parent, _display_label(label), f"List · {len(value)}")
@@ -658,6 +916,7 @@ class JsonEditorMixin:
                     add_value(None, str(key), value, (key,), 0)
             else:
                 add_value(None, "Configuration", payload, (), 0)
+            update_array_actions()
 
         def filter_items(query: str) -> None:
             query = query.strip().lower()
@@ -675,27 +934,119 @@ class JsonEditorMixin:
             for index in range(tree.topLevelItemCount()):
                 visit(tree.topLevelItem(index))
 
+        def _field_value(original_value: Any, widget: Any) -> Any:
+            if isinstance(original_value, bool):
+                return widget.isChecked()
+            if isinstance(original_value, str):
+                return widget.currentText() if isinstance(widget, QtWidgets.QComboBox) else widget.text()
+            if isinstance(original_value, int):
+                return int(widget.text())
+            if isinstance(original_value, float):
+                return float(widget.text())
+            return json.loads(widget.text())
+
+        def _field_at_path(path: tuple[Any, ...]) -> tuple[Any, Any, Any] | None:
+            for field_path, original_value, widget, item in editor_state["fields"]:
+                if field_path == path:
+                    return original_value, widget, item
+            return None
+
+        def _object_at_path(path: tuple[Any, ...]) -> bool:
+            return (
+                _schema_model_for_path(path) is not None
+                and isinstance(_payload_at(path), dict)
+            )
+
         def collect_payload() -> dict[str, Any]:
             payload = editor_state["payload"]
             for path, original_value, widget, _ in editor_state["fields"]:
-                if isinstance(original_value, bool):
-                    value = widget.isChecked()
-                else:
-                    if isinstance(original_value, str):
-                        value = widget.currentText() if isinstance(widget, QtWidgets.QComboBox) else widget.text()
-                    elif isinstance(original_value, int):
-                        value = int(widget.text())
-                    elif isinstance(original_value, float):
-                        value = float(widget.text())
-                    else:
-                        value = json.loads(widget.text())
-
+                value = _field_value(original_value, widget)
                 target = payload
                 for part in path[:-1]:
                     target = target[part]
                 if path:
                     target[path[-1]] = value
             return payload
+
+        def copy_field_value() -> None:
+            item = tree.currentItem()
+            path = editor_state["item_paths"].get(id(item)) if item is not None else None
+            field = _field_at_path(path) if path is not None else None
+            if field is None and (path is None or not _object_at_path(path)):
+                return
+            try:
+                collect_payload()
+                value = (
+                    _field_value(field[0], field[1])
+                    if field is not None
+                    else copy.deepcopy(_payload_at(path))
+                )
+                text = json.dumps(value, ensure_ascii=False)
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                status.setText(f"Could not copy field value: {exc}")
+                return
+            QtWidgets.QApplication.clipboard().setText(text)
+            status.setText(f"Copied value from {'.'.join(str(part) for part in path)}.")
+
+        def paste_field_value() -> None:
+            item = tree.currentItem()
+            path = editor_state["item_paths"].get(id(item)) if item is not None else None
+            field = _field_at_path(path) if path is not None else None
+            is_object = path is not None and _object_at_path(path)
+            if field is None and not is_object:
+                return
+
+            clipboard_text = QtWidgets.QApplication.clipboard().text()
+            try:
+                try:
+                    value = json.loads(clipboard_text)
+                except json.JSONDecodeError:
+                    annotation = _unwrap_schema_type(_schema_type_at_path(path))
+                    if annotation is str:
+                        value = clipboard_text
+                    else:
+                        raise ValueError("clipboard does not contain a JSON value")
+
+                annotation = _unwrap_schema_type(_schema_type_at_path(path))
+                if isinstance(annotation, type) and issubclass(annotation, Enum):
+                    value = annotation(value).value
+                elif isinstance(annotation, type) and issubclass(annotation, BaseModel):
+                    validated = TypeAdapter(annotation).validate_python(value)
+                    value = validated.model_dump(exclude_unset=True)
+                else:
+                    value = TypeAdapter(_schema_type_at_path(path)).validate_python(
+                        value, strict=True
+                    )
+                if (
+                    field is not None
+                    and _schema_is_fixed_vector(path)
+                    and len(value) != len(field[0])
+                ):
+                    raise ValueError(
+                        f"expected a vector with {len(field[0])} components"
+                    )
+            except (TypeError, ValueError, ValidationError) as exc:
+                status.setText(
+                    f"Cannot paste value into {'.'.join(str(part) for part in path)}: {exc}"
+                )
+                return
+
+            try:
+                collect_payload()
+                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+            except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                status.setText(f"Cannot paste value while another field is invalid: {exc}")
+                return
+
+            target = editor_state["payload"]
+            for part in path[:-1]:
+                target = target[part]
+            target[path[-1]] = value
+            editor_state["undo_stack"].append(before_edit)
+            _mark_dirty()
+            _refresh_after_structural_edit(
+                {".".join(str(part) for part in path[:-1])}
+            )
 
         def reset_to_json(text: str, message: str) -> None:
             editor_state["expanded_paths"] = set()
@@ -748,6 +1099,73 @@ class JsonEditorMixin:
                 target = target[part]
             return target
 
+        def _new_list_entry(path: tuple[Any, ...], variant: str | None = None) -> Any:
+            spatial_dim = _config_spatial_dim(config)
+            item_path = (*path, 0)
+            item_type = _schema_type_at_path(item_path)
+            starter = _new_json_editor_list_item(path, spatial_dim, variant)
+            schema_default = _schema_default_value(item_type, item_path, spatial_dim)
+            if isinstance(schema_default, dict) and isinstance(starter, dict):
+                schema_default.update(starter)
+                starter = schema_default
+            elif starter == {}:
+                starter = schema_default
+
+            if not isinstance(starter, dict):
+                return starter
+
+            if variant is not None:
+                starter["type"] = variant
+            current_items = _payload_at(path) if path in editor_state["list_paths"] else []
+            existing_names = {
+                entry.get("name")
+                for entry in current_items
+                if isinstance(entry, dict) and isinstance(entry.get("name"), str)
+            }
+            if isinstance(starter.get("name"), str):
+                base_name = starter["name"] or "New entry"
+                name = base_name
+                suffix = 2
+                while name in existing_names:
+                    name = f"{base_name} {suffix}"
+                    suffix += 1
+                starter["name"] = name
+
+            if path == ("geometries", "shapes"):
+                names = [
+                    entry.get("name")
+                    for entry in current_items
+                    if isinstance(entry, dict) and entry.get("name")
+                ]
+                if starter.get("type") in ("expanded_box", "extrude_shape") and names:
+                    starter["original"] = names[0]
+                elif starter.get("type") == "complex_shape" and names:
+                    starter["sub_shapes"] = [names[0]]
+                    starter["operations"] = ["union"]
+            elif path == ("fluid_boundary_conditions",):
+                body_names = editor_state["payload"].get("particle_generation", {}).get(
+                    "bodies", []
+                )
+                oriented_boxes = editor_state["payload"].get("geometries", {}).get(
+                    "oriented_boxes", []
+                )
+                if body_names and isinstance(body_names[0], dict):
+                    starter["body_name"] = body_names[0].get("name", "")
+                if oriented_boxes and isinstance(oriented_boxes[0], dict):
+                    starter["oriented_box"] = oriented_boxes[0].get("name", "")
+            return starter
+
+        def _new_property_value(parent_path: tuple[Any, ...], key: str) -> Any:
+            field_type = _schema_type_at_path((*parent_path, key))
+            normalized_type = _unwrap_schema_type(field_type)
+            if get_origin(normalized_type) is list:
+                item_type = _unwrap_schema_type(_schema_type_at_path((*parent_path, key, 0)))
+                if isinstance(item_type, type) and issubclass(item_type, BaseModel):
+                    return [_new_list_entry((*parent_path, key))]
+            return _schema_default_value(
+                field_type, (*parent_path, key), _config_spatial_dim(config)
+            )
+
         def reveal_path(path_key: str) -> bool:
             """Expand and select the tree entry identified by its payload path."""
             item = None
@@ -774,12 +1192,68 @@ class JsonEditorMixin:
             tree.scrollToItem(item)
             return True
 
+        def _refresh_after_structural_edit(
+            additional_expanded_paths: set[str]
+        ) -> None:
+            text = json.dumps(editor_state["payload"], indent=2, ensure_ascii=False)
+
+            def rebuild() -> None:
+                populate_editor(
+                    text,
+                    expand_defaults=False,
+                    additional_expanded_paths=additional_expanded_paths,
+                )
+                _mark_dirty()
+                update_array_actions()
+
+            QtCore.QTimer.singleShot(0, rebuild)
+
         def update_array_actions() -> None:
             item = tree.currentItem()
             path = editor_state["item_paths"].get(id(item)) if item is not None else None
             is_list = path in editor_state["list_paths"] if path is not None else False
             is_list_entry = bool(path) and path[:-1] in editor_state["list_paths"] and isinstance(path[-1], int)
+            is_field = path is not None and _field_at_path(path) is not None
+            remove_property_action.setEnabled(
+                path is not None
+                and _schema_field_is_removable(path)
+                and isinstance(_payload_at(path[:-1]), dict)
+                and path[-1] in _payload_at(path[:-1])
+            )
+            is_object = path is not None and _object_at_path(path)
+            value_actions["copy"].setEnabled(is_field or is_object)
+            value_actions["paste"].setEnabled(
+                (is_field or is_object)
+                and bool(QtWidgets.QApplication.clipboard().text())
+            )
             context_actions["add"].setEnabled(is_list)
+            property_menu.clear()
+            variant_menu.clear()
+            model = _schema_model_for_path(path) if path is not None else None
+            missing_fields = (
+                [name for name in model.model_fields if name not in _payload_at(path)]
+                if model is not None and isinstance(_payload_at(path), dict)
+                else []
+            )
+            for name in missing_fields:
+                action = property_menu.addAction(_display_label(name))
+                action.setData(name)
+                action.triggered.connect(
+                    lambda _checked=False, field_name=name, parent_path=path: add_property(
+                        parent_path, field_name
+                    )
+                )
+            property_menu.menuAction().setVisible(bool(missing_fields))
+            variants = _schema_list_variants(path) if is_list else []
+            for variant in variants:
+                action = variant_menu.addAction(variant.replace("_", " ").capitalize())
+                action.setData(variant)
+                action.triggered.connect(
+                    lambda _checked=False, selected_variant=variant, list_path=path: edit_array(
+                        "add", selected_variant
+                    )
+                )
+            variant_menu.menuAction().setVisible(is_list and len(variants) > 1)
             context_actions["duplicate"].setEnabled(is_list_entry)
             context_actions["remove"].setEnabled(is_list_entry)
             context_actions["up"].setEnabled(is_list_entry and path[-1] > 0)
@@ -793,7 +1267,7 @@ class JsonEditorMixin:
             else:
                 context_actions["down"].setEnabled(False)
 
-        def edit_array(operation: str) -> None:
+        def edit_array(operation: str, variant: str | None = None) -> None:
             item = tree.currentItem()
             path = editor_state["item_paths"].get(id(item)) if item is not None else None
             if path is None:
@@ -803,12 +1277,10 @@ class JsonEditorMixin:
                 before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
                 if operation == "add" and path in editor_state["list_paths"]:
                     target_list = _payload_at(path)
-                    if not target_list:
-                        target_list.append(
-                            _new_json_editor_list_item(path, _config_spatial_dim(config))
-                        )
-                    else:
-                        target_list.append(copy.deepcopy(target_list[-1]))
+                    if variant is None and target_list:
+                        last = target_list[-1]
+                        variant = last.get("type") if isinstance(last, dict) else None
+                    target_list.append(_new_list_entry(path, variant))
                 elif path[:-1] in editor_state["list_paths"] and isinstance(path[-1], int):
                     target_list = _payload_at(path[:-1])
                     index = path[-1]
@@ -829,13 +1301,54 @@ class JsonEditorMixin:
                 return
 
             editor_state["undo_stack"].append(before_edit)
-            populate_editor(
-                json.dumps(editor_state["payload"], indent=2, ensure_ascii=False),
-                expand_defaults=False,
-                additional_expanded_paths={".".join(str(part) for part in path)},
-            )
             _mark_dirty()
-            update_array_actions()
+            _refresh_after_structural_edit(
+                {".".join(str(part) for part in path)}
+            )
+
+        def add_property(parent_path: tuple[Any, ...], key: str) -> None:
+            try:
+                collect_payload()
+                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                target = _payload_at(parent_path)
+                if not isinstance(target, dict) or key in target:
+                    return
+                target[key] = _new_property_value(parent_path, key)
+            except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                status.setText(f"Could not add property: {exc}")
+                return
+
+            editor_state["undo_stack"].append(before_edit)
+            _mark_dirty()
+            _refresh_after_structural_edit(
+                {".".join(str(part) for part in parent_path)}
+            )
+
+        def remove_property() -> None:
+            item = tree.currentItem()
+            path = editor_state["item_paths"].get(id(item)) if item is not None else None
+            if (
+                path is None
+                or not _schema_field_is_removable(path)
+                or not path
+            ):
+                return
+            try:
+                collect_payload()
+                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                parent = _payload_at(path[:-1])
+                if not isinstance(parent, dict) or path[-1] not in parent:
+                    return
+                del parent[path[-1]]
+            except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                status.setText(f"Could not remove property: {exc}")
+                return
+
+            editor_state["undo_stack"].append(before_edit)
+            _mark_dirty()
+            _refresh_after_structural_edit(
+                {".".join(str(part) for part in path[:-1])}
+            )
 
         def show_list_context_menu(position: Any) -> None:
             item = tree.itemAt(position)
@@ -966,6 +1479,10 @@ class JsonEditorMixin:
                     selected_operation
                 )
             )
+        value_actions["copy"].triggered.connect(copy_field_value)
+        value_actions["paste"].triggered.connect(paste_field_value)
+        remove_property_action.triggered.connect(remove_property)
+        QtWidgets.QApplication.clipboard().dataChanged.connect(update_array_actions)
         update_settings_actions()
         filter_box.textChanged.connect(filter_items)
         def refresh_editor(
@@ -1025,6 +1542,10 @@ class JsonEditorMixin:
             "discard": lambda: populate_editor(editor_state["original_json"], reset_history=True),
             "reveal_path": reveal_path,
             "context_actions": context_actions,
+            "value_actions": value_actions,
+            "remove_property_action": remove_property_action,
+            "property_menu": property_menu,
+            "variant_menu": variant_menu,
             "settings_actions": settings_actions,
             "settings_menu": settings_menu,
         }

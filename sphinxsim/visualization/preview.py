@@ -626,7 +626,9 @@ class ConfigVisualizer:
                 builder.buildGeometries()
 
                 try:
-                    self._shape_bounds_cache = builder.getShapeBounds()
+                    self._shape_bounds_cache = self._filter_non_geometry_bounds(
+                        builder.getShapeBounds()
+                    )
                 except Exception:
                     self._shape_bounds_cache = None
 
@@ -639,7 +641,9 @@ class ConfigVisualizer:
                 sim.generateParticles()
 
                 try:
-                    self._shape_bounds_cache = sim.getShapeBounds()
+                    self._shape_bounds_cache = self._filter_non_geometry_bounds(
+                        sim.getShapeBounds()
+                    )
                 except Exception:
                     self._shape_bounds_cache = None               
                 self._particle_simulation = sim
@@ -670,6 +674,19 @@ class ConfigVisualizer:
             return vtp_output_dir
 
         return None
+
+    def _filter_non_geometry_bounds(self, bounds: dict[str, Any]) -> dict[str, Any]:
+        """Drop native bounds for shape types that intentionally have no geometry."""
+        non_geometric_shapes = {
+            shape.name
+            for shape in self.config.geometries.shapes
+            if shape.type.value == "default"
+        }
+        return {
+            name: shape_bounds
+            for name, shape_bounds in bounds.items()
+            if name not in non_geometric_shapes
+        }
 
     def _particle_generation_body_names(self) -> set[str]:
         """Return body names that are expected to have generated particle VTPs."""
@@ -869,8 +886,10 @@ class ConfigVisualizer:
         # --- Render each shape ---
         if not hide_shapes:
             for shape in config.geometries.shapes:
-                if shape.type.value == "extrude_shape" or shape.type.value == "complex_shape":
-                    # Skip — rendered via sub-shapes
+                if shape.type.value == "default":
+                    continue
+                if shape.type.value in {"extrude_shape", "complex_shape"}:
+                    # These are represented by their constituent sub-shapes.
                     continue
 
                 mesh = self._load_shape_mesh(shape, vtp_dir, config)
@@ -904,7 +923,7 @@ class ConfigVisualizer:
             missing_shapes = [
                 shape.name
                 for shape in config.geometries.shapes
-                if shape.type.value not in {"extrude_shape", "complex_shape"}
+                if shape.type.value not in {"default", "extrude_shape", "complex_shape"}
                 and shape.name not in rendered_shapes
             ]
             self._missing_shape_geometry = missing_shapes
@@ -1249,7 +1268,14 @@ class ConfigVisualizer:
         upper = [1.0] * ndim
 
         if self._shape_bounds_cache is not None:
-            for bounds in self._shape_bounds_cache.values():
+            non_geometric_shapes = {
+                shape.name
+                for shape in self.config.geometries.shapes
+                if shape.type.value == "default"
+            }
+            for name, bounds in self._shape_bounds_cache.items():
+                if name in non_geometric_shapes:
+                    continue
                 lo, hi = list(bounds[0]), list(bounds[1])
                 for i in range(min(ndim, len(lo))):
                     lower[i] = min(lower[i], lo[i])
@@ -1287,7 +1313,7 @@ class ConfigVisualizer:
         self._missing_shape_geometry = [
             shape.name
             for shape in self.config.geometries.shapes
-            if shape.type.value not in {"extrude_shape", "complex_shape"}
+            if shape.type.value not in {"default", "extrude_shape", "complex_shape"}
             and not (
                 vtp_dir is not None
                 and (vtp_dir / f"Shape{shape.name}.vtp").is_file()
@@ -1312,6 +1338,9 @@ class ConfigVisualizer:
         config: "SimulationConfig",
     ) -> Any | None:
         """Load the mesh for *shape* — VTP first, C++ bounds second."""
+        if shape.type.value == "default":
+            return None
+
         if vtp_dir is not None:
             vtp_path = vtp_dir / f"Shape{shape.name}.vtp"
             if vtp_path.exists():

@@ -375,6 +375,45 @@ class TestPreviewLegend:
 
 
 class TestPreviewGeometryFailure:
+    def test_default_shape_has_no_preview_geometry(self, fluid_config, tmp_path):
+        from sphinxsim.visualization.preview import ConfigVisualizer
+
+        data = copy.deepcopy(fluid_config.model_dump(exclude_none=True))
+        data["geometries"]["shapes"][0] = {
+            "name": "WaterBody",
+            "type": "default",
+        }
+        config = SimulationConfig.model_validate(data)
+        visualizer = ConfigVisualizer(config, tmp_path, off_screen=True)
+        visualizer._shape_bounds_cache = {
+            "WaterBody": ([-1e300, -1e300], [1e300, 1e300]),
+            "WallBoundary": ([-0.05, -0.05], [1.05, 1.05]),
+        }
+
+        assert visualizer._load_shape_mesh(
+            config.geometries.shapes[0], vtp_dir=None, config=config
+        ) is None
+        assert visualizer._filter_non_geometry_bounds(
+            visualizer._shape_bounds_cache
+        ) == {
+            "WallBoundary": ([-0.05, -0.05], [1.05, 1.05]),
+        }
+        lower, upper = visualizer._scene_extent(2)
+        assert lower == pytest.approx([-0.105, -0.105])
+        assert upper == pytest.approx([1.105, 1.105])
+
+        vtp_dir = tmp_path / "vtp"
+        vtp_dir.mkdir()
+        (vtp_dir / "ShapeInlet.vtp").touch()
+        visualizer._ensure_shape_geometry_available(vtp_dir=vtp_dir)
+        assert visualizer._missing_shape_geometry == []
+
+        plotter = _FakePlotter()
+        with patch.dict(sys.modules, {"pyvista": _FakePyVista}):
+            visualizer._populate_plotter(plotter, vtp_dir=vtp_dir)
+        assert all(call.get("label") != "WaterBody" for call in plotter.mesh_calls)
+        assert any(call.get("label") == "WallBoundary" for call in plotter.mesh_calls)
+
     def test_preview_fails_when_configured_shapes_have_no_native_geometry(
         self, fluid_config, tmp_path
     ):

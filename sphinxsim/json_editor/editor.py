@@ -17,6 +17,16 @@ from sphinxsim.json_editor.json_format import (
     format_json_like_source,
     load_json_preserving_floats,
 )
+from sphinxsim.json_editor.model import (
+    delete_value_at_path,
+    edit_list,
+    parse_field_value,
+    pop_undo_snapshot,
+    set_value_at_path,
+    snapshot_payload,
+    validate_payload,
+    value_at_path,
+)
 from sphinxsim.llm.common import dump_simulation_config_json
 
 
@@ -888,14 +898,18 @@ class JsonEditorMixin:
 
         def _field_value(original_value: Any, widget: Any) -> Any:
             if isinstance(original_value, bool):
-                return widget.isChecked()
-            if isinstance(original_value, str):
-                return widget.currentText() if isinstance(widget, QtWidgets.QComboBox) else widget.text()
-            if isinstance(original_value, int):
-                return int(widget.text())
-            if isinstance(original_value, float):
-                return float(widget.text())
-            return json.loads(widget.text())
+                raw = widget.isChecked()
+            elif isinstance(original_value, str):
+                raw = (
+                    widget.currentText()
+                    if isinstance(widget, QtWidgets.QComboBox)
+                    else widget.text()
+                )
+            elif isinstance(original_value, (int, float)):
+                raw = widget.text()
+            else:
+                raw = widget.text()
+            return parse_field_value(original_value, raw)
 
         def _field_at_path(path: tuple[Any, ...]) -> tuple[Any, Any, Any] | None:
             for field_path, original_value, widget, item in editor_state["fields"]:
@@ -913,11 +927,7 @@ class JsonEditorMixin:
             payload = editor_state["payload"]
             for path, original_value, widget, _ in editor_state["fields"]:
                 value = _field_value(original_value, widget)
-                target = payload
-                for part in path[:-1]:
-                    target = target[part]
-                if path:
-                    target[path[-1]] = value
+                set_value_at_path(payload, path, value)
             return payload
 
         def copy_field_value() -> None:
@@ -985,15 +995,12 @@ class JsonEditorMixin:
 
             try:
                 collect_payload()
-                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                before_edit = snapshot_payload(editor_state["payload"])
             except (TypeError, ValueError, json.JSONDecodeError) as exc:
                 status.setText(f"Cannot paste value while another field is invalid: {exc}")
                 return
 
-            target = editor_state["payload"]
-            for part in path[:-1]:
-                target = target[part]
-            target[path[-1]] = value
+            set_value_at_path(editor_state["payload"], path, value)
             editor_state["undo_stack"].append(before_edit)
             _mark_dirty()
             _refresh_after_structural_edit(
@@ -1006,10 +1013,16 @@ class JsonEditorMixin:
             status.setText(message)
 
         def undo_changes() -> None:
-            if not editor_state["undo_stack"]:
-                reset_to_json(editor_state["original_json"], "Restored the last saved configuration.")
-                return
-            reset_to_json(editor_state["undo_stack"].pop(), "Reverted the latest local edit.")
+            had_history = bool(editor_state["undo_stack"])
+            text = pop_undo_snapshot(
+                editor_state["undo_stack"], editor_state["original_json"]
+            )
+            message = (
+                "Restored the last saved configuration."
+                if not had_history
+                else "Reverted the latest local edit."
+            )
+            reset_to_json(text, message)
             settings_actions["revert"].setEnabled(bool(editor_state["undo_stack"]))
 
         def confirm_discard_changes(message: str) -> bool:
@@ -1046,10 +1059,7 @@ class JsonEditorMixin:
             status.setText("Reloaded the saved configuration from disk.")
 
         def _payload_at(path: tuple[Any, ...]) -> Any:
-            target = editor_state["payload"]
-            for part in path:
-                target = target[part]
-            return target
+            return value_at_path(editor_state["payload"], path)
 
         def _new_list_entry(path: tuple[Any, ...], variant: str | None = None) -> Any:
             spatial_dim = _config_spatial_dim(config)
@@ -1226,25 +1236,21 @@ class JsonEditorMixin:
                 return
             try:
                 collect_payload()
-                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                before_edit = snapshot_payload(editor_state["payload"])
                 if operation == "add" and path in editor_state["list_paths"]:
                     target_list = _payload_at(path)
                     if variant is None and target_list:
                         last = target_list[-1]
                         variant = last.get("type") if isinstance(last, dict) else None
-                    target_list.append(_new_list_entry(path, variant))
+                    changed = edit_list(
+                        editor_state["payload"],
+                        path,
+                        operation,
+                        new_item=_new_list_entry(path, variant),
+                    )
                 elif path[:-1] in editor_state["list_paths"] and isinstance(path[-1], int):
-                    target_list = _payload_at(path[:-1])
-                    index = path[-1]
-                    if operation == "duplicate":
-                        target_list.insert(index + 1, copy.deepcopy(target_list[index]))
-                    elif operation == "remove":
-                        target_list.pop(index)
-                    elif operation == "up" and index > 0:
-                        target_list[index - 1], target_list[index] = target_list[index], target_list[index - 1]
-                    elif operation == "down" and index < len(target_list) - 1:
-                        target_list[index + 1], target_list[index] = target_list[index], target_list[index + 1]
-                    else:
+                    changed = edit_list(editor_state["payload"], path, operation)
+                    if not changed:
                         return
                 else:
                     return
@@ -1252,6 +1258,8 @@ class JsonEditorMixin:
                 status.setText(f"Could not update list: {exc}")
                 return
 
+            if not changed:
+                return
             editor_state["undo_stack"].append(before_edit)
             _mark_dirty()
             _refresh_after_structural_edit(
@@ -1261,11 +1269,15 @@ class JsonEditorMixin:
         def add_property(parent_path: tuple[Any, ...], key: str) -> None:
             try:
                 collect_payload()
-                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                before_edit = snapshot_payload(editor_state["payload"])
                 target = _payload_at(parent_path)
                 if not isinstance(target, dict) or key in target:
                     return
-                target[key] = _new_property_value(parent_path, key)
+                set_value_at_path(
+                    editor_state["payload"],
+                    (*parent_path, key),
+                    _new_property_value(parent_path, key),
+                )
             except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 status.setText(f"Could not add property: {exc}")
                 return
@@ -1287,11 +1299,11 @@ class JsonEditorMixin:
                 return
             try:
                 collect_payload()
-                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                before_edit = snapshot_payload(editor_state["payload"])
                 parent = _payload_at(path[:-1])
                 if not isinstance(parent, dict) or path[-1] not in parent:
                     return
-                del parent[path[-1]]
+                delete_value_at_path(editor_state["payload"], path)
             except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 status.setText(f"Could not remove property: {exc}")
                 return
@@ -1335,14 +1347,14 @@ class JsonEditorMixin:
             active_with_particles = editor_state["with_particles"]
             _clear_field_errors()
             try:
-                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                before_edit = snapshot_payload(editor_state["payload"])
                 payload = collect_payload()
             except (TypeError, ValueError, json.JSONDecodeError) as exc:
                 status.setText(f"Invalid value: {exc}")
                 return
 
             try:
-                updated_config = self.config_type(**payload)
+                updated_config = validate_payload(payload, self.config_type)
             except ValidationError as exc:
                 first_error = exc.errors(include_url=False)[0]
                 location = ".".join(str(part) for part in first_error.get("loc", ("config",)))

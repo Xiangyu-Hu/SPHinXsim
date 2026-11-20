@@ -6,7 +6,6 @@ preview generation. Drafts contain only fields present in the source JSON.
 from __future__ import annotations
 
 import copy
-import json
 from pathlib import Path
 
 from qtpy import QtCore, QtGui, QtWidgets
@@ -15,6 +14,14 @@ from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.json_editor.json_format import (
     format_json_like_source,
     load_json_preserving_floats,
+)
+from sphinxsim.json_editor.model import (
+    edit_list,
+    parse_field_value,
+    pop_undo_snapshot,
+    set_value_at_path,
+    validate_payload,
+    value_at_path,
 )
 
 
@@ -199,10 +206,7 @@ class JsonPropertyEditor(QtWidgets.QWidget):
         self._update_actions()
 
     def _at(self, path):
-        value = self._payload
-        for part in path:
-            value = value[part]
-        return value
+        return value_at_path(self._payload, path)
 
     def _build_tree(self):
         expand_defaults = not self._items
@@ -267,23 +271,14 @@ class JsonPropertyEditor(QtWidgets.QWidget):
         raw = widget.isChecked() if isinstance(widget, QtWidgets.QCheckBox) else (
               widget.currentText() if isinstance(widget, QtWidgets.QComboBox) else widget.text())
         try:
-            if isinstance(original, bool):
-                value = raw
-            elif isinstance(original, int):
-                value = int(raw)
-            elif isinstance(original, float):
-                value = float(raw)
-            elif original is None:
-                value = json.loads(raw)
-            else:
-                value = raw
+            value = parse_field_value(original, raw)
             self._invalid.pop(path, None)
             widget.setStyleSheet("")
         except (ValueError, TypeError):
             value = raw
             self._invalid[path] = f"Invalid value at {'.'.join(map(str, path))}: {raw}"
             widget.setStyleSheet("border: 2px solid #ff6b5f; background: #472522;")
-        self._at(path[:-1])[path[-1]] = value
+        set_value_at_path(self._payload, path, value)
         self._text = self._format()
         self._items[path].setBackground(0, QtGui.QColor("#594a24"))
         self.status.setText(next(iter(self._invalid.values()), "Unsaved draft. Ctrl+S validates, saves and refreshes Preview."))
@@ -294,7 +289,7 @@ class JsonPropertyEditor(QtWidgets.QWidget):
         try:
             if self._invalid:
                 raise ValueError(next(iter(self._invalid.values())))
-            return SimulationConfig.model_validate_json(self._text)
+            return validate_payload(self._payload, SimulationConfig)
         except ValueError as exc:
             errors = exc.errors(include_url=False) if hasattr(exc, "errors") else []
             path = tuple(errors[0]["loc"]) if errors else next(iter(self._invalid), ())
@@ -351,20 +346,9 @@ class JsonPropertyEditor(QtWidgets.QWidget):
                     _new_json_editor_list_item,
                 )
                 value = _new_json_editor_list_item(path, _config_spatial_dim(self.validate_config()))
-            target.append(value)
-        elif path and path[:-1] in self._lists:
-            target, index = self._at(path[:-1]), path[-1]
-            if operation == "duplicate":
-                target.insert(index + 1, copy.deepcopy(target[index]))
-            elif operation == "remove":
-                target.pop(index)
-            elif operation == "up" and index > 0:
-                target[index - 1], target[index] = target[index], target[index - 1]
-            elif operation == "down" and index < len(target) - 1:
-                target[index + 1], target[index] = target[index], target[index + 1]
-            else:
+            if not edit_list(self._payload, path, operation, new_item=value):
                 return
-        else:
+        elif not edit_list(self._payload, path, operation):
             return
         self._history.append(before)
         self._text = self._format()
@@ -373,7 +357,7 @@ class JsonPropertyEditor(QtWidgets.QWidget):
         self.textChanged.emit(self._text)
 
     def revert(self):
-        text = self._history.pop() if self._history else self._saved_text
+        text = pop_undo_snapshot(self._history, self._saved_text)
         self._text = text
         self._payload = load_json_preserving_floats(text)
         self._invalid.clear()

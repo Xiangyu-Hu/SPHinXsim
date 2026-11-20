@@ -220,6 +220,8 @@ UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name, bool is_require
         return UnitMetrics{1, 0, 0, 0, 0, 0, 0};
     if (unit_name == "Mass")
         return UnitMetrics{0, 1, 0, 0, 0, 0, 0};
+    if (unit_name == "SpringStiffness")
+        return UnitMetrics{0, 1, -2, 0, 0, 0, 0};
     if (unit_name == "Time")
         return UnitMetrics{0, 0, 1, 0, 0, 0, 0};
     if (unit_name == "Frequency")

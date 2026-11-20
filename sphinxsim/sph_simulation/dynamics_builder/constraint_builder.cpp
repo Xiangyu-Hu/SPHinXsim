@@ -40,6 +40,20 @@ void ConstraintBuilder::addConstraint(
 
     const std::string type = config.at("type").get<std::string>();
 
+    if (type == "spring")
+    {
+        if (!real_body.isMatterMaterial<ElasticSolid>())
+        {
+            throw std::runtime_error(
+                "Spring constraints require an elastic solid body: " +
+                real_body.Name());
+        }
+
+        // Created and executed in SolidDynamicsBuilder so that
+        // the spring receives the solid substep dt.
+        return;
+    }
+
     if (type == "fixed")
     {
         auto &constraint = main_methods.addParticleDynamicsGroup();

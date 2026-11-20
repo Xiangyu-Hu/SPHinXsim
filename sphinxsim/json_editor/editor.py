@@ -525,6 +525,8 @@ class JsonEditorMixin:
         )
         if editor_host is None:
             dock.setWidget(content)
+        else:
+            dock.hide()
         # Give the right dock both right-hand corners so it spans the same full
         # top-to-bottom extent as the preview area instead of appearing offset.
         if editor_host is None:

@@ -956,10 +956,22 @@ class TestSimulationConfig:
         payload = json.loads(fixture_path.read_text())
         cfg = SimulationConfig.model_validate(payload)
 
+        assert cfg.geometries.shapes[0].type.value == "default"
         schedule = cfg.fluid_boundary_conditions[0].on_schedule
         assert schedule is not None
         assert schedule.switch_on_time == pytest.approx(1.0)
         assert schedule.duration == pytest.approx(25.0)
+
+    def test_default_shape_rejects_geometry_fields(self):
+        data = _make_minimal_fluid_config().model_dump(mode="json", exclude_none=True)
+        data["geometries"]["shapes"][0] = {
+            "name": "WaterBody",
+            "type": "default",
+            "file_name": "water.stl",
+        }
+
+        with pytest.raises(ValidationError, match="default shape must not define geometry fields"):
+            SimulationConfig.model_validate(data)
 
     def test_two_phase_dambreak_fixture_accepts_wall_bounding_boundary_condition(self):
         fixture_path = (

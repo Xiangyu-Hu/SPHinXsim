@@ -57,6 +57,7 @@ class GeometricOperationType(str, Enum):
 
 
 class BodyShapeType(str, Enum):
+    DEFAULT = "default"
     BOX = "box"
     BOUNDING_BOX = "bounding_box"
     EXPANDED_BOX = "expanded_box"
@@ -269,6 +270,29 @@ class ShapeConfig(BaseModel):
 
     @model_validator(mode="after")
     def _validate_type_fields(self) -> "ShapeConfig":
+        if self.type == BodyShapeType.DEFAULT:
+            geometry_fields = (
+                self.primitive,
+                self.lower_bound,
+                self.upper_bound,
+                self.half_size,
+                self.transform,
+                self.original,
+                self.expansion,
+                self.thickness,
+                self.sub_shapes,
+                self.operations,
+                self.polygons,
+                self.radius,
+                self.half_height,
+                self.file_name,
+                self.translation,
+                self.scale,
+            )
+            if any(value is not None and value != [] for value in geometry_fields):
+                raise ValueError("default shape must not define geometry fields")
+            return self
+
         if self.type == BodyShapeType.BOX:
             if not self.primitive and (self.half_size is None or self.transform is None):
                 raise ValueError("box shape requires primitive or half_size and transform")

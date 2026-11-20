@@ -11,6 +11,10 @@
     "shapes": [
       {
         "name": "WaterBody",
+        "type": "default"
+      },
+      {
+        "name": "EmitterInsert",
         "type": "box",
         "primitive": "EmitterBox"
       },
@@ -57,7 +61,8 @@
   "particle_generation": {
     "bodies": [
       {
-        "name": "WaterBody"
+        "name": "WaterBody",
+        "box_shape_inserts": ["EmitterInsert"]
       },
       {
         "name": "WallBoundary",

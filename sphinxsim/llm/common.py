@@ -746,6 +746,7 @@ def apply_stl_geometry_overrides(cfg: Dict[str, Any], description: str) -> Dict[
 
 
 _SHAPE_FIELDS_BY_TYPE = {
+    "default": {"name", "type"},
     "box": {"name", "type", "primitive", "half_size", "transform"},
     "bounding_box": {"name", "type", "primitive", "lower_bound", "upper_bound"},
     "expanded_box": {"name", "type", "original", "expansion"},

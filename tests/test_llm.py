@@ -462,6 +462,26 @@ class TestSTLGeometryOverrides:
         assert "file_name" not in granular
         assert "scale" not in granular
 
+    def test_sanitize_removes_geometry_fields_from_default_shape(self):
+        cfg = {
+            "geometries": {
+                "shapes": [
+                    {
+                        "name": "ShellBody",
+                        "type": "default",
+                        "file_name": "shell.stl",
+                        "translation": [0.0, 0.0, 0.0],
+                    }
+                ]
+            }
+        }
+
+        sanitized = sanitize_config_dict(cfg)
+
+        assert sanitized["geometries"]["shapes"] == [
+            {"name": "ShellBody", "type": "default"}
+        ]
+
     @pytest.mark.parametrize("shape_type", ["box", "bounding_box"])
     def test_sanitize_preserves_named_primitive_references(self, shape_type):
         cfg = example_config("2d column collapse")

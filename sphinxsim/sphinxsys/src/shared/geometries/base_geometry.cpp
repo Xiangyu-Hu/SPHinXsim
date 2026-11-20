@@ -60,7 +60,12 @@ Vecd Shape::findNormalDirection(const Vecd &probe_point)
 //=================================================================================================//
 bool BinaryShapes::isValid()
 {
-    return !sub_shapes_and_ops_.empty();
+    bool is_valid = true; // default value is true, if no sub-shape, it is valid.
+    for (auto &sub_shape_and_op : sub_shapes_and_ops_)
+    {
+        is_valid = is_valid && sub_shape_and_op.first->isValid();
+    }
+    return is_valid;
 }
 //=================================================================================================//
 BoundingBoxd BinaryShapes::findBounds()

@@ -14,12 +14,13 @@ pip install sphinxsim[visualization]
 ```
 
 For responsive persistent preview in interactive shell mode, install
-`pyvistaqt` with a Qt binding backend:
+`pyvistaqt`:
 
 ```bash
-pip install pyvistaqt PySide6
-# alternatively: pip install pyvistaqt PyQt5
+pip install pyvistaqt
 ```
+
+PySide6 and QtPy are installed with the base package.
 
 The compiled C++ extension (`_sphinxsys_core_2d` or `_sphinxsys_core_3d`) is
 required for preview geometry generation. The preview always attempts to build
@@ -130,8 +131,8 @@ geometry from the current config.
 
 Notes:
 - `preview --screenshot ...` is one-shot and does not use the persistent window.
-- Persistent interactive mode relies on `pyvistaqt` plus a Qt backend (for
-   example `PySide6` or `PyQt5`).
+- Persistent interactive mode relies on `pyvistaqt` and the base package's
+  PySide6 Qt backend.
 - In the Qt-backed persistent window, the full-height dark configuration editor on the right
   presents JSON fields as a searchable property tree: setting names on the
   left and editable value boxes on the right. It uses type-appropriate controls
@@ -220,9 +221,9 @@ and plays them in sequence at up to 25 FPS. It then waits for another interval
 before collecting the next batch, allowing slower simulations to produce
 more output between playback batches. A snapshot is loaded only after its file
 size and modification time remain stable across checks, avoiding reads while
-the solver is still writing it. This uses `pyvistaqt` plus `PySide6` or
-`PyQt5`; without a Qt-backed persistent preview, the simulation still
-continues but the window cannot refresh its particles live.
+the solver is still writing it. This uses `pyvistaqt` with the base package's
+PySide6 Qt backend. If a persistent preview cannot be opened, the simulation
+still continues but the window cannot refresh its particles live.
 
 ## Python API
 

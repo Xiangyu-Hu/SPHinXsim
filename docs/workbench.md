@@ -8,7 +8,8 @@ AgentCAE worker, checkpoint and result interfaces.
 ## Start
 
 Use the Python environment containing the built SPHinXsim extensions and the
-`chatbot` and `visualization` extras (Chainlit, PySide6, PyVista and PyVistaQt):
+`chatbot` and `visualization` extras (Chainlit, PyVista and PyVistaQt). QtPy
+and PySide6 are installed with the base package:
 
 ```powershell
 python -m pip install -e '.[chatbot,visualization]'

@@ -53,7 +53,7 @@ For a pip-first workflow, install directly from source (this builds C++ extensio
 
 ```bash
 CMAKE_ARGS="-D CMAKE_TOOLCHAIN_FILE=$(pwd)/../vcpkg/scripts/buildsystems/vcpkg.cmake" \
-python3 -m pip install -e ".[dev,visualization]"
+python3 -m pip install -v -e ".[dev,visualization]"
 ```
 
 Optional manual CMake workflow:

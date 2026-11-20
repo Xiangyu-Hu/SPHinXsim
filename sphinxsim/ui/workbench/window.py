@@ -10,6 +10,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 from urllib.request import urlopen
 from uuid import uuid4
 
@@ -18,6 +19,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from sphinxsim.ui.chatbot.application import _CHAINLIT_CONFIG, _chainlit_command
 from sphinxsim.json_editor import JsonPropertyEditor
+from sphinxsim.visualization.preview_runtime import _ShellPreviewRuntime
 from sphinxsim.ui.workbench.bridge import WorkbenchBridge
 from sphinxsim.ui.workbench.document import WorkbenchDocument
 from sphinxsim.ui.workbench.viewport import PreviewViewport
@@ -169,15 +171,42 @@ class WorkbenchWindow(QtWidgets.QMainWindow):
         editor_layout.addWidget(self.file_label)
         self.tabs = QtWidgets.QTabWidget()
         self.tabs.setDocumentMode(True)
-        self.editor = JsonPropertyEditor()
+        properties = QtWidgets.QWidget()
+        properties_layout = QtWidgets.QVBoxLayout(properties)
+        properties_layout.setContentsMargins(0, 0, 0, 0)
+        self.editor_runtime = _ShellPreviewRuntime()
+        self.editor_runtime.plotter = SimpleNamespace(app_window=self)
+        self.editor_runtime.json_editor_host = properties
+        self.editor_runtime.json_editor_changed = self._edited
+
+        def write_editor_config(path, updated_config, file_content):
+            self.document.text = file_content or json.dumps(
+                updated_config.model_dump(exclude_none=True), indent=2
+            )
+            self.document.save()
+
+        def refresh_editor_preview(*_args, **_kwargs):
+            self._edited()
+            self.refresh_preview()
+            return 0
+
+        self.editor_runtime.write_config = write_editor_config
+        self.editor_runtime.show_or_update = refresh_editor_preview
+        self.editor_runtime._install_json_editor(
+            self.document.validate(),
+            config_path=self.document.path,
+            with_particles=self.particles.isChecked(),
+        )
+        self.editor = self.editor_runtime._json_editor["widget"]
         self.editor.setObjectName("json-editor")
+        properties_layout.addWidget(self.editor)
         self.editor.status.hide()  # The workbench shares one editor status line.
         self.editor.save_shortcut.setEnabled(False)  # Ctrl+S belongs to the workbench action.
         self.editor.saveRequested.connect(self.save)
         self.editor.reloadRequested.connect(self.reload_file)
         self.editor.textChanged.connect(self._edited)
         self.editor.tree.setColumnWidth(0, 190)
-        self.tabs.addTab(self.editor, "Properties")
+        self.tabs.addTab(properties, "Properties")
         self.diff = QtWidgets.QPlainTextEdit()
         self.diff.setReadOnly(True)
         self.diff.setFont(QtGui.QFont("Consolas", 10))
@@ -235,11 +264,19 @@ class WorkbenchWindow(QtWidgets.QMainWindow):
                                      else "Unsaved JSON draft." if dirty else str(self.document.path))
 
     def _load_editor(self):
-        self.editor.set_text(self.document.text, config_path=self.document.path, saved_text=self.document.saved_text)
+        self.editor_runtime._json_editor["set_text"](
+            self.document.text,
+            config_path=self.document.path,
+            saved_text=self.document.saved_text,
+        )
         self._edited()
 
     def _edited(self, *_):
-        self.document.set_text(self.editor.text())
+        try:
+            self.document.set_text(self.editor_runtime._json_editor["text"]())
+        except (TypeError, ValueError) as exc:
+            self._error(exc)
+            return
         snapshot = self.document.snapshot()
         self.file_label.setText(self.document.path.name + ("  • Unsaved draft" if snapshot["dirty"] else "  • Saved"))
         self.file_label.setToolTip(str(self.document.path))
@@ -254,7 +291,7 @@ class WorkbenchWindow(QtWidgets.QMainWindow):
 
     def validate(self):
         try:
-            self.editor.validate_config()
+            self.editor_runtime._json_editor["validate"]()
             self.document.validate()
             self.editor_status.setText("Valid configuration.")
             return True
@@ -264,9 +301,9 @@ class WorkbenchWindow(QtWidgets.QMainWindow):
 
     def save(self):
         try:
-            self.editor.validate_config()
+            self.editor_runtime._json_editor["validate"]()
             self.document.save()
-            self.editor.mark_saved()
+            self.editor_runtime._json_editor["mark_saved"]()
             self._edited()
             self.editor_status.setText("Saved. Rebuilding Preview…")
             self.refresh_preview()
@@ -307,10 +344,16 @@ class WorkbenchWindow(QtWidgets.QMainWindow):
 
     def apply_proposal(self):
         try:
-            self.editor.set_text(self.document.apply_proposal(), saved_text=self.document.saved_text, remember=True)
+            self.editor_runtime._json_editor["set_text"](
+                self.document.apply_proposal(),
+                config_path=self.document.path,
+                saved_text=self.document.saved_text,
+                remember=True,
+            )
+            self._edited()
             self.discard_proposal()
             self.side_tabs.setCurrentWidget(self.editor_panel)
-            self.tabs.setCurrentWidget(self.editor)
+            self.tabs.setCurrentIndex(0)
             self.editor_status.setText("Applied to draft. Save + Preview to persist and refresh.")
         except ValueError as exc:
             self._error(exc)

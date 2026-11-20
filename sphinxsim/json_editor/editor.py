@@ -469,7 +469,10 @@ class JsonEditorMixin:
             "QSplitter::handle:hover { background: #5794cf; }"
         )
 
+        editor_host = getattr(self, "json_editor_host", None)
         dock = QtWidgets.QDockWidget("Simulation Properties", app_window)
+        if editor_host is not None:
+            self._embedded_json_dock = dock
         dock.setObjectName("sphinxsim-json-editor")
         dock.setStyleSheet(
             "QDockWidget { color: #e6e8ec; background: #181a1f; }"
@@ -477,7 +480,10 @@ class JsonEditorMixin:
             "border-bottom: 1px solid #3b4049; text-align: left; }"
         )
         dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.RightDockWidgetArea)
-        content = JsonPropertyEditor(dock, external_controller=True)
+        content = JsonPropertyEditor(
+            editor_host or dock,
+            external_controller=True,
+        )
         filter_box = content.filter
         tree = content.tree
         status = content.status
@@ -517,18 +523,20 @@ class JsonEditorMixin:
             "padding: 7px 9px; border: 1px solid #3d6f9e; border-radius: 4px; "
             "background: #1f3042; color: #d9e8f5;"
         )
-        dock.setWidget(content)
+        if editor_host is None:
+            dock.setWidget(content)
         # Give the right dock both right-hand corners so it spans the same full
         # top-to-bottom extent as the preview area instead of appearing offset.
-        app_window.setCorner(
-            QtCore.Qt.Corner.TopRightCorner,
-            QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
-        )
-        app_window.setCorner(
-            QtCore.Qt.Corner.BottomRightCorner,
-            QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
-        )
-        app_window.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dock)
+        if editor_host is None:
+            app_window.setCorner(
+                QtCore.Qt.Corner.TopRightCorner,
+                QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
+            )
+            app_window.setCorner(
+                QtCore.Qt.Corner.BottomRightCorner,
+                QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
+            )
+            app_window.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dock)
 
         json_editor_initial_width = 360
         json_editor_minimum_width = 260
@@ -563,8 +571,9 @@ class JsonEditorMixin:
             except Exception:
                 pass
 
-        QtCore.QTimer.singleShot(0, _set_initial_json_editor_width)
-        QtCore.QTimer.singleShot(100, _set_initial_json_editor_width)
+        if editor_host is None:
+            QtCore.QTimer.singleShot(0, _set_initial_json_editor_width)
+            QtCore.QTimer.singleShot(100, _set_initial_json_editor_width)
 
         editor_state: dict[str, Any] = {
             "payload": {},
@@ -698,6 +707,9 @@ class JsonEditorMixin:
             if item is not None:
                 item.setBackground(0, QtGui.QColor("#594a24"))
             status.setText("Unsaved changes. Press Ctrl+S to validate, save, and refresh.")
+            changed = getattr(self, "json_editor_changed", None)
+            if callable(changed):
+                changed()
 
         def _clear_field_errors() -> None:
             for _, _, widget, item in editor_state["fields"]:
@@ -781,10 +793,7 @@ class JsonEditorMixin:
                     for column in range(tree.columnCount()):
                         widget = tree.itemWidget(item, column)
                         if widget is not None:
-                            QtCore.QObject.disconnect(widget, None, None, None)
                             tree.removeItemWidget(item, column)
-                            widget.setParent(None)
-                            widget.deleteLater()
                     iterator += 1
 
             detach_item_widgets()
@@ -874,6 +883,17 @@ class JsonEditorMixin:
                     add_value(None, str(key), value, (key,), 0)
             else:
                 add_value(None, "Configuration", payload, (), 0)
+            content._fields = {
+                path: widget for path, _value, widget, _item in editor_state["fields"]
+            }
+            content._items = {}
+            iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+            while iterator.value() is not None:
+                item = iterator.value()
+                path = editor_state["item_paths"].get(id(item))
+                if path is not None:
+                    content._items[path] = item
+                iterator += 1
             update_array_actions()
 
         def filter_items(query: str) -> None:
@@ -1480,6 +1500,46 @@ class JsonEditorMixin:
             update_array_actions()
             return True
 
+        def editor_text() -> str:
+            return format_json_like_source(
+                collect_payload(),
+                editor_state["original_json"],
+                editor_state["config_path"],
+            )
+
+        def set_editor_text(
+            text: str,
+            *,
+            config_path: Path | None = None,
+            saved_text: str | None = None,
+            remember: bool = False,
+        ) -> None:
+            if config_path is not None:
+                editor_state["config_path"] = Path(config_path)
+            populate_editor(text, reset_history=not remember)
+            if remember:
+                editor_state["dirty"] = True
+            if saved_text is not None:
+                editor_state["dirty"] = text != saved_text
+            update_array_actions()
+
+        def mark_editor_saved() -> None:
+            editor_state["original_json"] = editor_text()
+            editor_state["baseline_payload"] = copy.deepcopy(
+                collect_payload()
+            )
+            editor_state["dirty"] = False
+            status.setText("Saved configuration.")
+            update_settings_actions()
+
+        def set_editor_text_and_notify(*args, **kwargs):
+            set_editor_text(*args, **kwargs)
+            changed = getattr(self, "json_editor_changed", None)
+            if callable(changed):
+                changed()
+
+        content.text = editor_text
+        content.set_text = set_editor_text_and_notify
         refresh_editor(config, config_path, with_particles)
         self._json_editor = {
             "dock": dock,
@@ -1493,6 +1553,10 @@ class JsonEditorMixin:
             # Optional embedding hooks; default CLI behavior is unchanged.
             "is_dirty": lambda: bool(editor_state["dirty"]),
             "payload": lambda: copy.deepcopy(collect_payload()),
+            "text": editor_text,
+            "set_text": set_editor_text_and_notify,
+            "validate": lambda: validate_payload(collect_payload(), self.config_type),
+            "mark_saved": mark_editor_saved,
             "discard": lambda: populate_editor(editor_state["original_json"], reset_history=True),
             "reveal_path": reveal_path,
             "context_actions": context_actions,

@@ -17,7 +17,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtWebEngineWidgets import QWebEngineView
 
 from sphinxsim.ui.chatbot.application import _CHAINLIT_CONFIG, _chainlit_command
-from sphinxsim.ui.json_editor import JsonPropertyEditor
+from sphinxsim.json_editor import JsonPropertyEditor
 from sphinxsim.ui.workbench.bridge import WorkbenchBridge
 from sphinxsim.ui.workbench.document import WorkbenchDocument
 from sphinxsim.ui.workbench.viewport import PreviewViewport

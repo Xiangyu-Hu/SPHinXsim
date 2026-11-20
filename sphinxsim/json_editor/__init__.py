@@ -17,6 +17,7 @@ from sphinxsim.json_editor.json_format import (
 
 __all__ = [
     "JsonEditorMixin",
+    "JsonPropertyEditor",
     "RawFloat",
     "find_prettier_options",
     "format_json",
@@ -24,3 +25,11 @@ __all__ = [
     "load_json_preserving_floats",
     "object_layout",
 ]
+
+
+def __getattr__(name: str):
+    if name == "JsonPropertyEditor":
+        from sphinxsim.json_editor.widget import JsonPropertyEditor
+
+        return JsonPropertyEditor
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

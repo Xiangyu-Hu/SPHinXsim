@@ -436,6 +436,7 @@ class JsonEditorMixin:
 
         try:
             from qtpy import QtCore, QtGui, QtWidgets
+            from sphinxsim.json_editor.widget import JsonPropertyEditor
         except Exception:
             return True
 
@@ -470,58 +471,16 @@ class JsonEditorMixin:
             "border-bottom: 1px solid #3b4049; text-align: left; }"
         )
         dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.RightDockWidgetArea)
-        content = QtWidgets.QWidget(dock)
-        content.setObjectName("sphinxsim-json-editor-content")
-        content.setStyleSheet(
-            "QWidget#sphinxsim-json-editor-content {"
-            "    background: #181a1f;"
-            "    color: #e6e8ec;"
-            "}"
-            "QLabel {"
-            "    color: #d7dae0;"
-            "}"
-            "QToolButton {"
-            "    min-height: 24px;"
-            "    padding: 2px 5px;"
-            "    border: 1px solid #4a505b;"
-            "    border-radius: 3px;"
-            "    background: #24272d;"
-            "    color: #d7dae0;"
-            "}"
-            "QToolButton:hover {"
-            "    background: #30343c;"
-            "    border: 1px solid #61707e;"
-            "    color: #ffffff;"
-            "}"
-            "QToolButton:pressed {"
-            "    background: #3a404a;"
-            "    border: 1px solid #7b8997;"
-            "    color: #ffffff;"
-            "}"
-            "QToolButton:disabled {"
-            "    background: #202329;"
-            "    border: 1px solid #343a43;"
-            "    color: #686e79;"
-            "}"
-        )
-        layout = QtWidgets.QVBoxLayout(content)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
-        filter_box = QtWidgets.QLineEdit(content)
-        filter_box.setObjectName("sphinxsim-json-editor-filter")
-        filter_box.setPlaceholderText("Filter settings…")
+        content = JsonPropertyEditor(dock, external_controller=True)
+        filter_box = content.filter
+        tree = content.tree
+        status = content.status
         filter_box.setStyleSheet(
             "min-height: 27px; padding: 1px 7px; border: 1px solid #454b55; border-radius: 3px; "
             "background: #24272d; color: #e6e8ec; selection-background-color: #315f8c;"
         )
-        tree = QtWidgets.QTreeWidget(content)
-        tree.setObjectName("sphinxsim-json-editor-tree")
-        tree.setColumnCount(2)
         tree.setHeaderLabels(["Setting ▾", "Value"])
         tree.setRootIsDecorated(True)
-        tree.setAlternatingRowColors(True)
-        tree.setUniformRowHeights(True)
-        tree.setIndentation(16)
         tree.header().setStretchLastSection(False)
         tree.header().setSectionsClickable(True)
         tree.header().setSortIndicatorShown(False)
@@ -545,8 +504,6 @@ class JsonEditorMixin:
             "QComboBox QAbstractItemView { background: #24272d; color: #e6e8ec; border: 1px solid #4b515c; "
             "selection-background-color: #315f8c; selection-color: #ffffff; outline: 0; }"
         )
-        status = QtWidgets.QLabel("Loaded configuration. Press Ctrl+S to save changes.")
-        status.setWordWrap(True)
         status.setAlignment(
             QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter
         )
@@ -554,9 +511,6 @@ class JsonEditorMixin:
             "padding: 7px 9px; border: 1px solid #3d6f9e; border-radius: 4px; "
             "background: #1f3042; color: #d9e8f5;"
         )
-        layout.addWidget(filter_box)
-        layout.addWidget(tree, 1)
-        layout.addWidget(status)
         dock.setWidget(content)
         # Give the right dock both right-hand corners so it spans the same full
         # top-to-bottom extent as the preview area instead of appearing offset.
@@ -1527,6 +1481,7 @@ class JsonEditorMixin:
             "shortcut": shortcut,
             "undo_shortcut": undo_shortcut,
             "refresh": refresh_editor,
+            "widget": content,
             # Optional embedding hooks; default CLI behavior is unchanged.
             "is_dirty": lambda: bool(editor_state["dirty"]),
             "payload": lambda: copy.deepcopy(collect_payload()),

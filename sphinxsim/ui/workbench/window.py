@@ -136,7 +136,7 @@ class WorkbenchWindow(QtWidgets.QMainWindow):
         self.display_label = QtWidgets.QLabel("Configuration preview")
         layout.addWidget(self.display_label)
         self.viewport = PreviewViewport(left)
-        self.plotter = self.viewport.plotter
+        self.plotter = self.viewport
         layout.addWidget(self.viewport, 1)
         controls = QtWidgets.QHBoxLayout()
         controls.addWidget(QtWidgets.QLabel("Agent results:"))

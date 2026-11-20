@@ -13,8 +13,17 @@
 
 ## Weakly open Q&A on-line session
 
-You are welcome to join our weekly 30min+ [open Q&A session](https://teams.microsoft.com/meet/364917695711033?p=beQ12Ie0Hxrll1W5ND) every Friday at 12:00 PM (UTC+1) to discuss SPHinXsim, SPHinXsys, and related topics.
-If you post your question on https://github.com/Xiangyu-Hu/SPHinXsim/discussions, we will prioritize answering it during the session. Note that  each question gets a soft limit (e.g., 5–7 minutes). If a topic needs more depth, your are suggested moving it to a dedicated GitHub issue.
+You are welcome to join our **weekly online Q&A session** to discuss SPHinXsim, SPHinXsys, and related topics.
+
+**Meeting details:**
+- **When:** Every Friday at 12:00 PM (UTC+1)
+- **Duration:** 30 minutes or longer
+- **Where:** Online via Microsoft Teams
+- **Join the meeting:** [Microsoft Teams Meeting Link](https://teams.microsoft.com/meet/364917695711033?p=beQ12Ie0Hxrll1W5ND)
+
+To help us prepare, please post your questions in advance on [GitHub Discussions](https://github.com/Xiangyu-Hu/SPHinXsim/discussions). Questions posted there will be prioritized during the session.
+
+Each question has a suggested time limit of **5–7 minutes**. For topics requiring more in-depth discussion, we recommend opening a dedicated GitHub issue.
 
 ## Repository Description
 

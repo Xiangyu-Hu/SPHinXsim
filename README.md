@@ -16,7 +16,7 @@
 You are welcome to join our **weekly online Q&A session** to discuss SPHinXsim, SPHinXsys, and related topics.
 
 **Meeting details:**
-- **When:** Every Friday at 12:00 PM (UTC+1)
+- **When:** Every Friday at 12:00 PM (Germany local time, CET/CEST))
 - **Duration:** 30 minutes or longer
 - **Where:** Online via Microsoft Teams
 - **Join the meeting:** [Microsoft Teams Meeting Link](https://teams.microsoft.com/meet/364917695711033?p=beQ12Ie0Hxrll1W5ND)

@@ -36,8 +36,14 @@ def test_circle_primitive_builds_referenced_native_geometry(tmp_path):
     builder.buildGeometries()
 
     lower, upper = builder.getShapeBounds()["Cylinder"]
-    assert lower == pytest.approx([0.7, 0.5], abs=0.001)
-    assert upper == pytest.approx([1.3, 1.1], abs=0.001)
+    shape = next(shape for shape in config["geometries"]["shapes"] if shape["name"] == "Cylinder")
+    primitive_name = shape["polygons"][0]["primitive"]
+    circle = next(
+        primitive for primitive in config["geometries"]["primitives"]
+        if primitive["name"] == primitive_name
+    )
+    assert lower == pytest.approx([coordinate - circle["radius"] for coordinate in circle["center"]], abs=0.001)
+    assert upper == pytest.approx([coordinate + circle["radius"] for coordinate in circle["center"]], abs=0.001)
 
 
 def configuration():

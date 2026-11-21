@@ -1806,6 +1806,7 @@ class TestShellPreview:
                 return FakePlotter()
 
         monkeypatch.setitem(sys.modules, "pyvista", FakePyVista())
+        monkeypatch.setitem(sys.modules, "pyvistaqt", None)
         monkeypatch.setattr(cli_mod, "PROJECT_ROOT", tmp_path)
 
         with patch("sphinxsim.visualization.preview.ConfigVisualizer", FakeVisualizer):
@@ -1816,6 +1817,7 @@ class TestShellPreview:
             )
 
         assert rc == 0
+        assert not runtime._using_background_plotter
 
     def test_shell_runtime_rebinds_editor_when_preview_path_changes(self, tmp_path, monkeypatch):
         """An existing editor must follow the newly loaded shell config file."""

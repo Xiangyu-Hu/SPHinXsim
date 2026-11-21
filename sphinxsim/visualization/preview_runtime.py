@@ -79,6 +79,10 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._hover_observer_tag: Any | None = None
         self._annotation_click_observer_tag: Any | None = None
         self._json_editor: Any | None = None
+        self._particle_visibility: Any | None = None
+        self._particle_menu_filter: Any | None = None
+        self._particle_scene_path: Path | None = None
+        self._particle_scene_generation = 0
         self._pending_simulation: Any | None = None
         self._pending_runtime_config_path: Path | None = None
         self._live_run_thread: Thread | None = None
@@ -107,6 +111,9 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self.discard_pending_simulation()
         self.plotter = None
         self._json_editor = None
+        self._particle_visibility = None
+        self._particle_menu_filter = None
+        self._particle_scene_path = None
         self.last_signature = None
         self._using_background_plotter = False
 
@@ -242,7 +249,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 continue
             if getattr(mesh, "n_points", None) == 0:
                 continue
-            self.plotter.add_mesh(
+            actor = self.plotter.add_mesh(
                 mesh,
                 name=f"particle-preview-{body_name}",
                 color=self._live_particle_colours.get(body_name),
@@ -252,6 +259,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 label=_particle_label(body_name),
                 reset_camera=False,
             )
+            if self._particle_visibility is not None:
+                self._particle_visibility.add_actor(body_name, actor)
 
         if self._live_replay_mode and not self._live_playback_queue:
             self._stop_live_refresh()
@@ -855,6 +864,15 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                     config_path=resolved_config_path,
                     with_particles=with_particles,
                 )
+                from qtpy import QtWidgets
+                if isinstance(self.plotter, QtWidgets.QWidget):
+                    from sphinxsim.visualization.particle_visibility import (
+                        ParticleVisibility, install_particle_menu,
+                    )
+                    self._particle_visibility = ParticleVisibility(self.plotter)
+                    self._particle_menu_filter = install_particle_menu(
+                        self.plotter, self._particle_visibility
+                    )
 
             self.plotter.clear()
             configure_layout = getattr(visualizer, "_configure_layout", None)
@@ -864,6 +882,17 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             if draw_sidebar is not None:
                 draw_sidebar(self.plotter)
             visualizer._populate_plotter(self.plotter, vtp_dir, latest_particle_vtps)
+            if self._particle_visibility is not None:
+                if resolved_config_path != self._particle_scene_path or with_particles:
+                    self._particle_scene_generation += 1
+                    self._particle_scene_path = resolved_config_path
+                self._particle_visibility.set_scene(
+                    ("preview", self._particle_scene_generation), config, visualizer.legend_actor
+                )
+                for body_name in sorted(latest_particle_vtps):
+                    actor = self.plotter.renderer.actors.get(f"particle-preview-{body_name}")
+                    if actor is not None:
+                        self._particle_visibility.add_actor(body_name, actor)
             ensure_shapes_rendered = getattr(visualizer, "_ensure_shapes_rendered", None)
             if ensure_shapes_rendered is not None:
                 ensure_shapes_rendered()

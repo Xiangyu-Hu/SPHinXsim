@@ -24,6 +24,7 @@ from sphinxsim.ui.workbench.bridge import WorkbenchBridge
 from sphinxsim.ui.workbench.document import WorkbenchDocument
 from sphinxsim.ui.workbench.viewport import PreviewViewport
 from sphinxsim.visualization.agent_preview import AgentPreviewObserver, ObservedRun, WorkflowPreviewSource
+from sphinxsim.visualization.particle_visibility import ParticleVisibility, install_particle_menu
 
 
 class ChainlitProcess:
@@ -139,6 +140,8 @@ class WorkbenchWindow(QtWidgets.QMainWindow):
         layout.addWidget(self.display_label)
         self.viewport = PreviewViewport(left)
         self.plotter = self.viewport
+        self.particle_visibility = ParticleVisibility(self.plotter)
+        self.particle_menu_filter = install_particle_menu(self.viewport, self.particle_visibility)
         layout.addWidget(self.viewport, 1)
         controls = QtWidgets.QHBoxLayout()
         controls.addWidget(QtWidgets.QLabel("Agent results:"))
@@ -415,8 +418,14 @@ class WorkbenchWindow(QtWidgets.QMainWindow):
             camera = (self.plotter.camera_position if self.observer is None
                       and self.preview_dimension == dimension and self.plotter.renderer.actors else None)
             visualizer.populate_existing_run(self.plotter, output)
+            self.particle_visibility.set_scene(
+                ("preview", Path(snapshot["config_path"])), config, visualizer.legend_actor
+            )
             bodies = config.fluid_bodies + config.continuum_bodies + config.solid_bodies
-            refresh_particle_actors(self.plotter, output, {b.name: _body_colour(b.name, config) for b in bodies}, {}, ResultCatalog())
+            refresh_particle_actors(
+                self.plotter, output, {b.name: _body_colour(b.name, config) for b in bodies},
+                {}, ResultCatalog(), self.particle_visibility,
+            )
             if camera is not None:
                 self.plotter.camera_position = camera
             self.observer = None
@@ -447,7 +456,10 @@ class WorkbenchWindow(QtWidgets.QMainWindow):
             source = WorkflowPreviewSource(self.workspace, workflow_id)
             if not (self.workspace / "store/workflows" / workflow_id / "workflow.json").is_file():
                 raise ValueError("Workflow not found in this workbench workspace.")
-            self.observer = AgentPreviewObserver(source, self.plotter, self.root)
+            self.observer = AgentPreviewObserver(
+                source, self.plotter, self.root, self.particle_visibility
+            )
+            self.particle_visibility.set_scene(("workflow", workflow_id), None)
             self.preview_requested = False
             self.selection.setCurrentIndex(0)
             self.plotter.clear()
@@ -489,7 +501,10 @@ class WorkbenchWindow(QtWidgets.QMainWindow):
         process.setProcessChannelMode(QtCore.QProcess.ProcessChannelMode.MergedChannels)
         process.setStandardOutputFile(str(output / "solver.log"))
         source = FixedRunSource(ObservedRun(case, output, "Saved case run", "running"))
-        self.observer = AgentPreviewObserver(source, self.plotter, self.root)
+        self.observer = AgentPreviewObserver(
+            source, self.plotter, self.root, self.particle_visibility
+        )
+        self.particle_visibility.set_scene(("run", case, output), None)
         self.preview_requested = False
         with self.document.lock:
             self.document.manual_run_active = True

@@ -160,6 +160,36 @@ def test_real_preview_observer_switches_run_and_preserves_camera(tmp_path, monke
     assert not (tmp_path / "execution/demo/cancel.request").exists()
 
 
+@requires_desktop
+def test_observer_preserves_hidden_particles_and_resets_on_run_switch(tmp_path):
+    pv = pytest.importorskip("pyvista")
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    first = prepare_run(tmp_path, 1)
+    save_workflow(tmp_path)
+    source = WorkflowPreviewSource(tmp_path, "demo")
+    plotter = pv.Plotter(off_screen=True, window_size=(800, 600))
+    visibility = ParticleVisibility(plotter)
+    observer = AgentPreviewObserver(source, plotter, tmp_path, visibility)
+    try:
+        observer.tick()
+        visibility.set_visible("GranularBody", False)
+        frame = tmp_path / "store/demo_iteration_001/runs/run_001/output/GranularBody_0001.vtp"
+        frame.write_text(frame.read_text().replace(">0.1</DataArray>", ">0.15</DataArray>"))
+        observer.tick()
+        actor = plotter.renderer.actors["particle-preview-GranularBody"]
+        assert not actor.GetVisibility()
+        assert visibility.legend.GetEntryString(0) == "GranularBody Particles (hidden)"
+
+        prepare_run(tmp_path, 2, time=0.2)
+        save_workflow(tmp_path, [first])
+        observer.tick()
+        assert plotter.renderer.actors["particle-preview-GranularBody"].GetVisibility()
+        assert not visibility.hidden
+    finally:
+        plotter.close()
+
+
 @pytest.mark.integration
 @requires_desktop
 def test_observer_displays_real_cpp_solver_output(build_temp_path):

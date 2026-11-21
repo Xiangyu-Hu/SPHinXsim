@@ -1576,6 +1576,36 @@ class TestShellPreview:
 
         plotter.add_mesh.assert_not_called()
 
+    def test_shell_live_and_replay_frames_keep_particle_visibility(self, tmp_path, fluid_config):
+        from sphinxsim import cli as cli_mod
+        from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+        plotter = MagicMock()
+        actors = [MagicMock(), MagicMock()]
+        plotter.add_mesh.side_effect = actors
+        visibility = ParticleVisibility(plotter)
+        visibility.set_scene("run", fluid_config)
+        visibility.hidden.add("WaterBody")
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = plotter
+        runtime._particle_visibility = visibility
+        runtime._live_output_dir = tmp_path
+        runtime._live_replay_mode = True
+        runtime._live_playback_queue = [
+            (1, {"WaterBody": tmp_path / "WaterBody_1.vtp"}),
+            (2, {"WaterBody": tmp_path / "WaterBody_2.vtp"}),
+        ]
+        with patch.object(visibility, "_update_legend"), patch.dict(
+            sys.modules,
+            {"pyvista": SimpleNamespace(read=lambda _path: SimpleNamespace(n_points=1))},
+        ):
+            runtime._refresh_live_particles()
+            runtime._refresh_live_particles()
+
+        for actor in actors:
+            actor.SetVisibility.assert_called_once_with(False)
+        assert visibility.actors["WaterBody"] is actors[-1]
+
     def test_shell_runtime_replays_recorded_frames_at_25_fps(self, tmp_path):
         from sphinxsim import cli as cli_mod
 

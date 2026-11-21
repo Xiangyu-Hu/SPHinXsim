@@ -110,11 +110,11 @@ def _new_json_editor_list_item(
         ("geometries", "primitives"): {
             "name": "New primitive",
             "type": variant or "box",
-            **(
-                {"half_size": unit_vector, "transform": transform}
-                if variant != "bounding_box"
-                else {"lower_bound": vector, "upper_bound": unit_vector}
-            ),
+            **{
+                "box": {"half_size": unit_vector, "transform": transform},
+                "bounding_box": {"lower_bound": vector, "upper_bound": unit_vector},
+                "circle": {"center": [0.0, 0.0], "radius": 1.0, "resolution": 32},
+            }.get(variant or "box", {}),
         },
         ("geometries", "shapes"): {
             "name": "New shape",

@@ -619,6 +619,31 @@ class TestConfigVisualizerNoPyvista:
 
 
 class TestSpatialDimensionInference:
+    def test_circle_primitive_supplies_2d_dimension(self, tmp_path):
+        from sphinxsim.json_editor import _config_spatial_dim
+        from sphinxsim.visualization.preview import ConfigVisualizer
+
+        data = _minimal_fluid_config()
+        data["geometries"].pop("system_domain")
+        data["geometries"]["oriented_boxes"] = []
+        data["geometries"]["primitives"] = [
+            {"name": "Circle", "type": "circle", "center": [0, 0], "radius": 1, "resolution": 32}
+        ]
+        data["geometries"]["shapes"] = [
+            {"name": name, "type": "multipolygon", "polygons": [
+                {"operation": "union", "type": "circle", "primitive": "Circle"}
+            ]}
+            for name in ("WaterBody", "WallBoundary")
+        ]
+        data.pop("gravity")
+        data["observers"] = []
+        data["fluid_boundary_conditions"] = []
+        config = SimulationConfig(**data)
+
+        assert config._infer_spatial_dim() == 2
+        assert ConfigVisualizer(config, tmp_path, off_screen=True)._spatial_dim() == 2
+        assert _config_spatial_dim(config) == 2
+
     def test_named_primitives_supply_2d_dimension_without_domain_or_gravity(self, tmp_path):
         from sphinxsim.json_editor import _config_spatial_dim
         from sphinxsim.visualization.preview import ConfigVisualizer

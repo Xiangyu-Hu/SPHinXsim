@@ -236,7 +236,7 @@ class ConfigVisualizer:
 
         # Referenced shapes can carry all dimension evidence in primitives.
         for primitive in geo.primitives:
-            for vec in (primitive.lower_bound, primitive.upper_bound, primitive.half_size):
+            for vec in (primitive.lower_bound, primitive.upper_bound, primitive.half_size, primitive.center):
                 if vec is not None:
                     return len(vec)
             if primitive.transform is not None:

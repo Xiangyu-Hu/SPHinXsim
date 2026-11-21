@@ -155,22 +155,27 @@ class TransformConfig(BaseModel):
 
 class PrimitiveConfig(BaseModel):
     name: str = Field(..., min_length=1)
-    type: Literal["box", "bounding_box"]
+    type: Literal["box", "bounding_box", "circle"]
     half_size: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     transform: Optional[TransformConfig] = None
     lower_bound: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
     upper_bound: Optional[List[float]] = Field(default=None, min_length=2, max_length=3)
+    center: Optional[List[float]] = Field(default=None, min_length=2, max_length=2)
+    radius: Optional[float] = Field(default=None, gt=0)
+    resolution: Optional[int] = Field(default=None, gt=0)
 
     @model_validator(mode="after")
     def _validate_primitive(self) -> "PrimitiveConfig":
         if self.type == "box":
             if self.half_size is None or self.transform is None:
                 raise ValueError("box primitive requires half_size and transform")
-        else:
+        elif self.type == "bounding_box":
             if self.lower_bound is None or self.upper_bound is None:
                 raise ValueError("bounding_box primitive requires lower_bound and upper_bound")
             if len(self.lower_bound) != len(self.upper_bound):
                 raise ValueError("bounding_box primitive dimensionality must match")
+        elif self.center is None or self.radius is None or self.resolution is None:
+            raise ValueError("circle primitive requires center, radius and resolution")
         return self
 
 
@@ -224,8 +229,11 @@ class MultiPolygonEntryConfig(BaseModel):
             if self.inner_box is None or self.thickness is None:
                 raise ValueError("multipolygon container_box requires inner_box and thickness")
         elif self.type == MultiPolygonPrimitiveType.CIRCLE:
-            if self.center is None or self.radius is None or self.resolution is None:
-                raise ValueError("multipolygon circle requires center, radius and resolution")
+            if self.primitive:
+                if self.center is not None or self.radius is not None or self.resolution is not None:
+                    raise ValueError("multipolygon circle requires either primitive or inline circle fields")
+            elif self.center is None or self.radius is None or self.resolution is None:
+                raise ValueError("multipolygon circle requires primitive or center, radius and resolution")
         elif self.type == MultiPolygonPrimitiveType.TRIANGLE:
             if self.half_size is None or self.transform is None:
                 raise ValueError("multipolygon triangle requires half_size and transform")
@@ -1118,7 +1126,7 @@ class SimulationConfig(BaseModel):
                 dims.add(len(shape.transform.translation))
 
         for primitive in self.geometries.primitives:
-            for vec in (primitive.half_size, primitive.lower_bound, primitive.upper_bound):
+            for vec in (primitive.half_size, primitive.lower_bound, primitive.upper_bound, primitive.center):
                 if vec is not None:
                     dims.add(len(vec))
             if primitive.transform is not None:

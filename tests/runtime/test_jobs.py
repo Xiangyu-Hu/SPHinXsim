@@ -23,6 +23,23 @@ def require_native():
         pytest.skip("Native 2D binding is not installed; native CI requires this test")
 
 
+def test_circle_primitive_builds_referenced_native_geometry(tmp_path):
+    from sphinxsim.runtime.physics import check_config
+
+    core = require_native()
+    source = Path(__file__).parents[1] / "test_simulation/test_2d_simulation/data/submerged_cylinder.json"
+    config, _ = check_config(json.loads(source.read_text()))
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(config))
+    builder = core.GeometryBuilder(str(path))
+    builder.resetInOutputRoot(str(tmp_path / "output"))
+    builder.buildGeometries()
+
+    lower, upper = builder.getShapeBounds()["Cylinder"]
+    assert lower == pytest.approx([0.7, 0.5], abs=0.001)
+    assert upper == pytest.approx([1.3, 1.1], abs=0.001)
+
+
 def configuration():
     source = Path(__file__).parents[1] / "test_simulation/test_2d_simulation/data/dambreak.json"
     config = json.loads(source.read_text())

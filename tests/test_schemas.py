@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from sphinxsim.config.schemas import DomainConfig, LogLevel, SimulationConfig
+from sphinxsim.config.schemas import DomainConfig, LogLevel, RelaxationBodyConfig, SimulationConfig
 
 
 def _make_minimal_fluid_config(**overrides) -> SimulationConfig:
@@ -780,6 +780,31 @@ class TestSimulationConfig:
             }
         )
         assert cfg.particle_generation.bodies[0].blockers == ["Inlet"]
+
+    @pytest.mark.parametrize("factor", [0.0, 0.25, 1.5])
+    def test_relaxation_randomization_round_trips(self, factor):
+        cfg = _make_minimal_fluid_config(
+            particle_generation={
+                "bodies": [
+                    {"name": "WaterBody", "relaxation": {"randomization": factor}},
+                    {"name": "WallBoundary", "solid_body": {}},
+                ],
+            }
+        )
+        relaxation = cfg.particle_generation.bodies[0].relaxation
+        assert relaxation.randomization == factor
+        assert cfg.model_dump(mode="json")["particle_generation"]["bodies"][0]["relaxation"]["randomization"] == factor
+
+    def test_relaxation_randomization_defaults_to_native_value(self):
+        assert RelaxationBodyConfig().randomization == 0.25
+        schema = SimulationConfig.model_json_schema()["$defs"]["RelaxationBodyConfig"]
+        assert schema["properties"]["randomization"]["default"] == 0.25
+        assert schema["properties"]["randomization"]["type"] == "number"
+
+    @pytest.mark.parametrize("factor", [None, "invalid", {}, float("inf"), float("nan")])
+    def test_relaxation_randomization_rejects_invalid_values(self, factor):
+        with pytest.raises(ValidationError, match="randomization"):
+            RelaxationBodyConfig(randomization=factor)
 
     def test_particle_generation_blockers_reject_unknown_oriented_box(self):
         with pytest.raises(ValidationError, match="blockers entries must reference existing"):

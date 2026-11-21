@@ -58,6 +58,7 @@ struct RelaxationParameters
 enum class RelaxationHookPoint
 {
     Initialization,
+    RelaxationResidue,
     Constraints,
     NumHooks
 };
@@ -101,7 +102,7 @@ class ParticleGeneration
     ParticleDynamicsGroup &addConfigurationDynamics(
         RelaxationSystem &relaxation_system, EntityManager &config_manager, MainMethods &main_methods);
 
-    ParticleDynamicsGroup &addRelaxationResidue(
+    void addRelaxationResidue(
         RelaxationSystem &relaxation_system, EntityManager &config_manager, MainMethods &main_methods);
 
     BaseDynamics<Real> &addRelaxationScaling(

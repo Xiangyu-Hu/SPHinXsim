@@ -42,7 +42,7 @@ void ParticleGeneration::defineGenerationAndRelaxationConfig(
         if (bd.contains("relaxation"))
         {
             config_manager.emplaceEntity<RelaxationBodyConfig>(
-                body_name, parseRelaxationBodyConfig(body_name, bd.at("relaxation")));
+                body_name, parseRelaxationBodyConfig(config_manager, body_name, bd.at("relaxation")));
         }
 
         StdVec<OrientedBox *> &blockers = *config_manager.emplaceEntity<
@@ -266,10 +266,20 @@ void ParticleGeneration::addAllBodies(
     }
 }
 //=================================================================================================//
-RelaxationBodyConfig ParticleGeneration::parseRelaxationBodyConfig(std::string body_name, const json &config)
+RelaxationBodyConfig ParticleGeneration::parseRelaxationBodyConfig(
+    EntityManager &config_manager, std::string body_name, const json &config)
 {
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
+
     RelaxationBodyConfig relax_body_config;
     relax_body_config.name_ = body_name;
+
+    if (config.contains("randomization"))
+    {
+        relax_body_config.randomization_ =
+            scaling_config.jsonToReal(config.at("randomization"), "Dimensionless");
+    }
+
     if (config.contains("level_set"))
     {
         relax_body_config.with_level_set_ = true;
@@ -311,7 +321,8 @@ ParticleDynamicsGroup &ParticleGeneration::randomizeParticlePositions(
     {
         RealBody &real_body = relaxation_system.getBodyByName<RealBody>(relax_body_config->name_);
         randomize_particle_position.add(
-            &host_methods.template addStateDynamics<RandomizeParticlePositionCK>(real_body));
+            &host_methods.template addStateDynamics<RandomizeParticlePositionCK>(
+                real_body, relax_body_config->randomization_));
     }
     return randomize_particle_position;
 }
@@ -363,7 +374,7 @@ void ParticleGeneration::addRelaxationResidue(
 {
     ParticleDynamicsGroup &residue_indepenent = main_methods.addParticleDynamicsGroup();
     ParticleDynamicsGroup &residue_depenent = main_methods.addParticleDynamicsGroup();
-    ParticleDynamicsGroup &level_set_bounding = main_methods.addParticleDynamicsGroup();
+    ParticleDynamicsGroup &level_set_integral = main_methods.addParticleDynamicsGroup();
 
     for (const auto &relax_body_config : config_manager.entitiesWith<RelaxationBodyConfig>())
     {
@@ -393,7 +404,7 @@ void ParticleGeneration::addRelaxationResidue(
         {
             RealBody &real_body = relaxation_system.getBodyByName<RealBody>(relax_body_config->name_);
             LevelSetShape &level_set_shape = config_manager.getEntity<LevelSetShape>(relax_body_config->name_);
-            level_set_bounding.add(&main_methods.template addStateDynamics<
+            level_set_integral.add(&main_methods.template addStateDynamics<
                                     LevelsetKernelGradientIntegral>(real_body, level_set_shape));
         }
     }
@@ -407,7 +418,7 @@ void ParticleGeneration::addRelaxationResidue(
             {
                 residue_depenent.exec();
             }
-            level_set_bounding.exec(); });
+            level_set_integral.exec(); });
 }
 //=================================================================================================//
 BaseDynamics<Real> &ParticleGeneration::addRelaxationScaling(

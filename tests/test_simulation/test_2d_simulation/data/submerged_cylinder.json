@@ -3,7 +3,7 @@
     {
       "value": 1.0,
       "name": "Length",
-      "hint": "geometries.shapes[name=WaterDomain].upper_bound"
+      "hint": "geometries.primitives[name=WaterDomain].upper_bound"
     },
     {
       "value": 1.0,
@@ -21,6 +21,14 @@
     "global_resolution": {
       "particle_spacing": 0.025
     },
+    "primitives": [
+      {
+        "name": "WaterDomain",
+        "type": "bounding_box",
+        "lower_bound": [0.0, 0.0],
+        "upper_bound": [2.0, 2.0]
+      }
+    ],
     "shapes": [
       {
         "name": "WaterBody",
@@ -29,8 +37,7 @@
           {
             "operation": "union",
             "type": "bounding_box",
-            "lower_bound": [0.0, 0.0],
-            "upper_bound": [2.0, 2.0]
+            "primitive": "WaterDomain"
           },
           {
             "operation": "subtraction",
@@ -55,12 +62,6 @@
         ]
       },
       {
-        "name": "WaterDomain",
-        "type": "bounding_box",
-        "lower_bound": [0.0, 0.0],
-        "upper_bound": [2.0, 2.0]
-      },
-      {
         "name": "WallBoundary",
         "type": "multipolygon",
         "polygons": [
@@ -75,22 +76,40 @@
           }
         ]
       }
+    ],
+    "oriented_boxes": [
+      {
+        "name": "UpperBlocker",
+        "type": "boundary",
+        "center": [1.0, 2.0],
+        "normal": [0.0, -1.0],
+        "radius": 1.0
+      },
+      {
+        "name": "RightBlocker",
+        "type": "boundary",
+        "center": [2.0, 1.0],
+        "normal": [-1.0, 0.0],
+        "radius": 1.0
+      }
     ]
   },
   "particle_generation": {
     "bodies": [
       {
         "name": "WaterBody",
+        "blockers": ["UpperBlocker", "RightBlocker"],
         "relaxation": {
-          "level_set": { "shape": "WaterDomain" },
-          "dependent_bodies": ["Cylinder"]
+          "randomization": 0.0,
+          "dependent_bodies": ["WallBoundary", "Cylinder"]
         }
       },
       {
         "name": "Cylinder",
         "solid_body": {
           "refinement_to_global": 2.0
-        }
+        },
+        "relaxation": { "level_set": {} }
       },
       {
         "name": "WallBoundary",

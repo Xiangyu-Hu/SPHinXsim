@@ -114,7 +114,7 @@ def tick():
                 busy = False
                 if "SPHinXsim Workbench" in text:
                     result["checks"].append("native geometry and embedded Chainlit greeting rendered")
-                    from sphinxsim.ui.json_editor import JsonPropertyEditor
+                    from sphinxsim.json_editor import JsonPropertyEditor
                     assert isinstance(window.editor, JsonPropertyEditor)
                     assert window.centralWidget() is window.horizontal_split
                     assert window.horizontal_split.orientation() == QtCore.Qt.Orientation.Horizontal

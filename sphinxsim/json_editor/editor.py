@@ -1,4 +1,4 @@
-"""Qt-backed JSON configuration editor for preview windows."""
+"""Qt-backed JSON editing widget and preview runtime integration."""
 
 from __future__ import annotations
 
@@ -17,7 +17,19 @@ from sphinxsim.json_editor.json_format import (
     format_json_like_source,
     load_json_preserving_floats,
 )
+from sphinxsim.json_editor.model import (
+    delete_value_at_path,
+    edit_list,
+    parse_field_value,
+    pop_undo_snapshot,
+    set_value_at_path,
+    snapshot_payload,
+    validate_payload,
+    value_at_path,
+)
 from sphinxsim.llm.common import dump_simulation_config_json
+
+from qtpy import QtCore, QtGui, QtWidgets
 
 
 def _apply_payload_diff(raw: Any, base: Any, edited: Any) -> Any:
@@ -434,11 +446,6 @@ class JsonEditorMixin:
                 return refresh(config, config_path, with_particles) is not False
             return True
 
-        try:
-            from qtpy import QtCore, QtGui, QtWidgets
-        except Exception:
-            return True
-
         app_window = getattr(self.plotter, "app_window", None)
         if app_window is None:
             return True
@@ -462,7 +469,10 @@ class JsonEditorMixin:
             "QSplitter::handle:hover { background: #5794cf; }"
         )
 
+        editor_host = getattr(self, "json_editor_host", None)
         dock = QtWidgets.QDockWidget("Simulation Properties", app_window)
+        if editor_host is not None:
+            self._embedded_json_dock = dock
         dock.setObjectName("sphinxsim-json-editor")
         dock.setStyleSheet(
             "QDockWidget { color: #e6e8ec; background: #181a1f; }"
@@ -470,58 +480,19 @@ class JsonEditorMixin:
             "border-bottom: 1px solid #3b4049; text-align: left; }"
         )
         dock.setAllowedAreas(QtCore.Qt.DockWidgetArea.RightDockWidgetArea)
-        content = QtWidgets.QWidget(dock)
-        content.setObjectName("sphinxsim-json-editor-content")
-        content.setStyleSheet(
-            "QWidget#sphinxsim-json-editor-content {"
-            "    background: #181a1f;"
-            "    color: #e6e8ec;"
-            "}"
-            "QLabel {"
-            "    color: #d7dae0;"
-            "}"
-            "QToolButton {"
-            "    min-height: 24px;"
-            "    padding: 2px 5px;"
-            "    border: 1px solid #4a505b;"
-            "    border-radius: 3px;"
-            "    background: #24272d;"
-            "    color: #d7dae0;"
-            "}"
-            "QToolButton:hover {"
-            "    background: #30343c;"
-            "    border: 1px solid #61707e;"
-            "    color: #ffffff;"
-            "}"
-            "QToolButton:pressed {"
-            "    background: #3a404a;"
-            "    border: 1px solid #7b8997;"
-            "    color: #ffffff;"
-            "}"
-            "QToolButton:disabled {"
-            "    background: #202329;"
-            "    border: 1px solid #343a43;"
-            "    color: #686e79;"
-            "}"
+        content = JsonPropertyEditor(
+            editor_host or dock,
+            external_controller=True,
         )
-        layout = QtWidgets.QVBoxLayout(content)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(8)
-        filter_box = QtWidgets.QLineEdit(content)
-        filter_box.setObjectName("sphinxsim-json-editor-filter")
-        filter_box.setPlaceholderText("Filter settings…")
+        filter_box = content.filter
+        tree = content.tree
+        status = content.status
         filter_box.setStyleSheet(
             "min-height: 27px; padding: 1px 7px; border: 1px solid #454b55; border-radius: 3px; "
             "background: #24272d; color: #e6e8ec; selection-background-color: #315f8c;"
         )
-        tree = QtWidgets.QTreeWidget(content)
-        tree.setObjectName("sphinxsim-json-editor-tree")
-        tree.setColumnCount(2)
         tree.setHeaderLabels(["Setting ▾", "Value"])
         tree.setRootIsDecorated(True)
-        tree.setAlternatingRowColors(True)
-        tree.setUniformRowHeights(True)
-        tree.setIndentation(16)
         tree.header().setStretchLastSection(False)
         tree.header().setSectionsClickable(True)
         tree.header().setSortIndicatorShown(False)
@@ -545,8 +516,6 @@ class JsonEditorMixin:
             "QComboBox QAbstractItemView { background: #24272d; color: #e6e8ec; border: 1px solid #4b515c; "
             "selection-background-color: #315f8c; selection-color: #ffffff; outline: 0; }"
         )
-        status = QtWidgets.QLabel("Loaded configuration. Press Ctrl+S to save changes.")
-        status.setWordWrap(True)
         status.setAlignment(
             QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter
         )
@@ -554,21 +523,22 @@ class JsonEditorMixin:
             "padding: 7px 9px; border: 1px solid #3d6f9e; border-radius: 4px; "
             "background: #1f3042; color: #d9e8f5;"
         )
-        layout.addWidget(filter_box)
-        layout.addWidget(tree, 1)
-        layout.addWidget(status)
-        dock.setWidget(content)
+        if editor_host is None:
+            dock.setWidget(content)
+        else:
+            dock.hide()
         # Give the right dock both right-hand corners so it spans the same full
         # top-to-bottom extent as the preview area instead of appearing offset.
-        app_window.setCorner(
-            QtCore.Qt.Corner.TopRightCorner,
-            QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
-        )
-        app_window.setCorner(
-            QtCore.Qt.Corner.BottomRightCorner,
-            QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
-        )
-        app_window.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dock)
+        if editor_host is None:
+            app_window.setCorner(
+                QtCore.Qt.Corner.TopRightCorner,
+                QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
+            )
+            app_window.setCorner(
+                QtCore.Qt.Corner.BottomRightCorner,
+                QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
+            )
+            app_window.addDockWidget(QtCore.Qt.DockWidgetArea.RightDockWidgetArea, dock)
 
         json_editor_initial_width = 360
         json_editor_minimum_width = 260
@@ -603,8 +573,9 @@ class JsonEditorMixin:
             except Exception:
                 pass
 
-        QtCore.QTimer.singleShot(0, _set_initial_json_editor_width)
-        QtCore.QTimer.singleShot(100, _set_initial_json_editor_width)
+        if editor_host is None:
+            QtCore.QTimer.singleShot(0, _set_initial_json_editor_width)
+            QtCore.QTimer.singleShot(100, _set_initial_json_editor_width)
 
         editor_state: dict[str, Any] = {
             "payload": {},
@@ -738,6 +709,9 @@ class JsonEditorMixin:
             if item is not None:
                 item.setBackground(0, QtGui.QColor("#594a24"))
             status.setText("Unsaved changes. Press Ctrl+S to validate, save, and refresh.")
+            changed = getattr(self, "json_editor_changed", None)
+            if callable(changed):
+                changed()
 
         def _clear_field_errors() -> None:
             for _, _, widget, item in editor_state["fields"]:
@@ -821,10 +795,7 @@ class JsonEditorMixin:
                     for column in range(tree.columnCount()):
                         widget = tree.itemWidget(item, column)
                         if widget is not None:
-                            QtCore.QObject.disconnect(widget, None, None, None)
                             tree.removeItemWidget(item, column)
-                            widget.setParent(None)
-                            widget.deleteLater()
                     iterator += 1
 
             detach_item_widgets()
@@ -914,6 +885,17 @@ class JsonEditorMixin:
                     add_value(None, str(key), value, (key,), 0)
             else:
                 add_value(None, "Configuration", payload, (), 0)
+            content._fields = {
+                path: widget for path, _value, widget, _item in editor_state["fields"]
+            }
+            content._items = {}
+            iterator = QtWidgets.QTreeWidgetItemIterator(tree)
+            while iterator.value() is not None:
+                item = iterator.value()
+                path = editor_state["item_paths"].get(id(item))
+                if path is not None:
+                    content._items[path] = item
+                iterator += 1
             update_array_actions()
 
         def filter_items(query: str) -> None:
@@ -934,14 +916,18 @@ class JsonEditorMixin:
 
         def _field_value(original_value: Any, widget: Any) -> Any:
             if isinstance(original_value, bool):
-                return widget.isChecked()
-            if isinstance(original_value, str):
-                return widget.currentText() if isinstance(widget, QtWidgets.QComboBox) else widget.text()
-            if isinstance(original_value, int):
-                return int(widget.text())
-            if isinstance(original_value, float):
-                return float(widget.text())
-            return json.loads(widget.text())
+                raw = widget.isChecked()
+            elif isinstance(original_value, str):
+                raw = (
+                    widget.currentText()
+                    if isinstance(widget, QtWidgets.QComboBox)
+                    else widget.text()
+                )
+            elif isinstance(original_value, (int, float)):
+                raw = widget.text()
+            else:
+                raw = widget.text()
+            return parse_field_value(original_value, raw)
 
         def _field_at_path(path: tuple[Any, ...]) -> tuple[Any, Any, Any] | None:
             for field_path, original_value, widget, item in editor_state["fields"]:
@@ -959,11 +945,7 @@ class JsonEditorMixin:
             payload = editor_state["payload"]
             for path, original_value, widget, _ in editor_state["fields"]:
                 value = _field_value(original_value, widget)
-                target = payload
-                for part in path[:-1]:
-                    target = target[part]
-                if path:
-                    target[path[-1]] = value
+                set_value_at_path(payload, path, value)
             return payload
 
         def copy_field_value() -> None:
@@ -1031,15 +1013,12 @@ class JsonEditorMixin:
 
             try:
                 collect_payload()
-                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                before_edit = snapshot_payload(editor_state["payload"])
             except (TypeError, ValueError, json.JSONDecodeError) as exc:
                 status.setText(f"Cannot paste value while another field is invalid: {exc}")
                 return
 
-            target = editor_state["payload"]
-            for part in path[:-1]:
-                target = target[part]
-            target[path[-1]] = value
+            set_value_at_path(editor_state["payload"], path, value)
             editor_state["undo_stack"].append(before_edit)
             _mark_dirty()
             _refresh_after_structural_edit(
@@ -1052,10 +1031,16 @@ class JsonEditorMixin:
             status.setText(message)
 
         def undo_changes() -> None:
-            if not editor_state["undo_stack"]:
-                reset_to_json(editor_state["original_json"], "Restored the last saved configuration.")
-                return
-            reset_to_json(editor_state["undo_stack"].pop(), "Reverted the latest local edit.")
+            had_history = bool(editor_state["undo_stack"])
+            text = pop_undo_snapshot(
+                editor_state["undo_stack"], editor_state["original_json"]
+            )
+            message = (
+                "Restored the last saved configuration."
+                if not had_history
+                else "Reverted the latest local edit."
+            )
+            reset_to_json(text, message)
             settings_actions["revert"].setEnabled(bool(editor_state["undo_stack"]))
 
         def confirm_discard_changes(message: str) -> bool:
@@ -1092,10 +1077,7 @@ class JsonEditorMixin:
             status.setText("Reloaded the saved configuration from disk.")
 
         def _payload_at(path: tuple[Any, ...]) -> Any:
-            target = editor_state["payload"]
-            for part in path:
-                target = target[part]
-            return target
+            return value_at_path(editor_state["payload"], path)
 
         def _new_list_entry(path: tuple[Any, ...], variant: str | None = None) -> Any:
             spatial_dim = _config_spatial_dim(config)
@@ -1272,25 +1254,21 @@ class JsonEditorMixin:
                 return
             try:
                 collect_payload()
-                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                before_edit = snapshot_payload(editor_state["payload"])
                 if operation == "add" and path in editor_state["list_paths"]:
                     target_list = _payload_at(path)
                     if variant is None and target_list:
                         last = target_list[-1]
                         variant = last.get("type") if isinstance(last, dict) else None
-                    target_list.append(_new_list_entry(path, variant))
+                    changed = edit_list(
+                        editor_state["payload"],
+                        path,
+                        operation,
+                        new_item=_new_list_entry(path, variant),
+                    )
                 elif path[:-1] in editor_state["list_paths"] and isinstance(path[-1], int):
-                    target_list = _payload_at(path[:-1])
-                    index = path[-1]
-                    if operation == "duplicate":
-                        target_list.insert(index + 1, copy.deepcopy(target_list[index]))
-                    elif operation == "remove":
-                        target_list.pop(index)
-                    elif operation == "up" and index > 0:
-                        target_list[index - 1], target_list[index] = target_list[index], target_list[index - 1]
-                    elif operation == "down" and index < len(target_list) - 1:
-                        target_list[index + 1], target_list[index] = target_list[index], target_list[index + 1]
-                    else:
+                    changed = edit_list(editor_state["payload"], path, operation)
+                    if not changed:
                         return
                 else:
                     return
@@ -1298,6 +1276,8 @@ class JsonEditorMixin:
                 status.setText(f"Could not update list: {exc}")
                 return
 
+            if not changed:
+                return
             editor_state["undo_stack"].append(before_edit)
             _mark_dirty()
             _refresh_after_structural_edit(
@@ -1307,11 +1287,15 @@ class JsonEditorMixin:
         def add_property(parent_path: tuple[Any, ...], key: str) -> None:
             try:
                 collect_payload()
-                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                before_edit = snapshot_payload(editor_state["payload"])
                 target = _payload_at(parent_path)
                 if not isinstance(target, dict) or key in target:
                     return
-                target[key] = _new_property_value(parent_path, key)
+                set_value_at_path(
+                    editor_state["payload"],
+                    (*parent_path, key),
+                    _new_property_value(parent_path, key),
+                )
             except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 status.setText(f"Could not add property: {exc}")
                 return
@@ -1333,11 +1317,11 @@ class JsonEditorMixin:
                 return
             try:
                 collect_payload()
-                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                before_edit = snapshot_payload(editor_state["payload"])
                 parent = _payload_at(path[:-1])
                 if not isinstance(parent, dict) or path[-1] not in parent:
                     return
-                del parent[path[-1]]
+                delete_value_at_path(editor_state["payload"], path)
             except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
                 status.setText(f"Could not remove property: {exc}")
                 return
@@ -1381,14 +1365,14 @@ class JsonEditorMixin:
             active_with_particles = editor_state["with_particles"]
             _clear_field_errors()
             try:
-                before_edit = json.dumps(editor_state["payload"], ensure_ascii=False)
+                before_edit = snapshot_payload(editor_state["payload"])
                 payload = collect_payload()
             except (TypeError, ValueError, json.JSONDecodeError) as exc:
                 status.setText(f"Invalid value: {exc}")
                 return
 
             try:
-                updated_config = self.config_type(**payload)
+                updated_config = validate_payload(payload, self.config_type)
             except ValidationError as exc:
                 first_error = exc.errors(include_url=False)[0]
                 location = ".".join(str(part) for part in first_error.get("loc", ("config",)))
@@ -1518,6 +1502,46 @@ class JsonEditorMixin:
             update_array_actions()
             return True
 
+        def editor_text() -> str:
+            return format_json_like_source(
+                collect_payload(),
+                editor_state["original_json"],
+                editor_state["config_path"],
+            )
+
+        def set_editor_text(
+            text: str,
+            *,
+            config_path: Path | None = None,
+            saved_text: str | None = None,
+            remember: bool = False,
+        ) -> None:
+            if config_path is not None:
+                editor_state["config_path"] = Path(config_path)
+            populate_editor(text, reset_history=not remember)
+            if remember:
+                editor_state["dirty"] = True
+            if saved_text is not None:
+                editor_state["dirty"] = text != saved_text
+            update_array_actions()
+
+        def mark_editor_saved() -> None:
+            editor_state["original_json"] = editor_text()
+            editor_state["baseline_payload"] = copy.deepcopy(
+                collect_payload()
+            )
+            editor_state["dirty"] = False
+            status.setText("Saved configuration.")
+            update_settings_actions()
+
+        def set_editor_text_and_notify(*args, **kwargs):
+            set_editor_text(*args, **kwargs)
+            changed = getattr(self, "json_editor_changed", None)
+            if callable(changed):
+                changed()
+
+        content.text = editor_text
+        content.set_text = set_editor_text_and_notify
         refresh_editor(config, config_path, with_particles)
         self._json_editor = {
             "dock": dock,
@@ -1527,9 +1551,14 @@ class JsonEditorMixin:
             "shortcut": shortcut,
             "undo_shortcut": undo_shortcut,
             "refresh": refresh_editor,
+            "widget": content,
             # Optional embedding hooks; default CLI behavior is unchanged.
             "is_dirty": lambda: bool(editor_state["dirty"]),
             "payload": lambda: copy.deepcopy(collect_payload()),
+            "text": editor_text,
+            "set_text": set_editor_text_and_notify,
+            "validate": lambda: validate_payload(collect_payload(), self.config_type),
+            "mark_saved": mark_editor_saved,
             "discard": lambda: populate_editor(editor_state["original_json"], reset_history=True),
             "reveal_path": reveal_path,
             "context_actions": context_actions,
@@ -1541,3 +1570,389 @@ class JsonEditorMixin:
             "settings_menu": settings_menu,
         }
         return True
+
+
+FIELD_LABELS = {
+    "simulation_type": "Simulation type",
+    "particle_spacing": "Particle spacing [m]",
+    "characteristic_length_particles": "Characteristic particles",
+    "lower_bound": "Lower bound [m]",
+    "upper_bound": "Upper bound [m]",
+    "half_size": "Half size [m]",
+    "translation": "Translation [m]",
+    "center": "Center [m]",
+    "radius": "Radius [m]",
+    "density": "Density [kg/m³]",
+    "sound_speed": "Sound speed [m/s]",
+    "viscosity": "Viscosity [Pa·s]",
+    "youngs_modulus": "Young's modulus [Pa]",
+    "yield_stress": "Yield stress [Pa]",
+    "cohesion": "Cohesion [Pa]",
+    "friction_angle": "Friction angle [rad]",
+    "dilatancy_angle": "Dilatancy angle [rad]",
+    "end_time": "End time [s]",
+    "output_interval": "Output interval [s]",
+    "screen_interval": "Screen interval",
+    "inflow_speed": "Inflow speed [m/s]",
+    "gravity": "Gravity [m/s²]",
+}
+ENUM_CHOICES = {
+    "simulation_type": ["fluid_dynamics", "continuum_dynamics"],
+    "surface_type": ["free_surface", "confined", "open_boundary", "free_stream"],
+    "kernel_correction": ["linear", "none"],
+}
+PATH_ROLE = QtCore.Qt.ItemDataRole.UserRole + 1
+
+
+class JsonPropertyEditor(QtWidgets.QWidget):
+    """Tree-based JSON editor widget shared by the preview and workbench."""
+
+    textChanged = QtCore.Signal(str)
+    saveRequested = QtCore.Signal()
+    reloadRequested = QtCore.Signal()
+
+    def __init__(self, parent=None, *, external_controller: bool = False):
+        super().__init__(parent)
+        self.external_controller = external_controller
+        self.setObjectName("sphinxsim-json-editor-content")
+        self._text = self._saved_text = self._layout_text = "{}"
+        self._payload = {}
+        self._history = []
+        self._expanded = set()
+        self._fields = {}
+        self._items = {}
+        self._lists = set()
+        self._invalid = {}
+        self.config_path = None
+        self.setStyleSheet("""
+            QWidget#sphinxsim-json-editor-content { background: #181a1f; color: #e6e8ec; }
+            QLabel { color: #d7dae0; }
+            QToolButton { min-height: 24px; padding: 2px 8px; border: 1px solid #4a505b;
+                border-radius: 3px; background: #24272d; color: #d7dae0; }
+            QToolButton:hover { background: #30343c; border-color: #75a9d0; }
+            QToolButton:disabled { color: #686e79; border-color: #343a43; }
+            QToolButton#sphinxsim-json-editor-list-action { background: #2f6f9f; color: white; }
+            QToolButton#sphinxsim-json-editor-list-action:disabled { background: #25313b; color: #788895; }
+            QLineEdit, QComboBox { min-height: 25px; padding: 1px 6px; border: 1px solid #4b515c;
+                border-radius: 3px; background: #181a1f; color: #e6e8ec; }
+            QLineEdit:focus, QComboBox:focus { border-color: #5794cf; }
+            QComboBox QAbstractItemView { background: #24272d; color: #e6e8ec;
+                selection-background-color: #315f8c; }
+            QTreeWidget { border: 1px solid #454b55; border-radius: 3px;
+                background: #202329; color: #e1e4e8; }
+            QTreeWidget::item { min-height: 30px; }
+            QTreeWidget::item:alternate { background: #252930; }
+            QTreeWidget::item:selected { background: #315f8c; color: white; }
+            QHeaderView::section { padding: 5px 7px; border: 0; border-bottom: 1px solid #454b55;
+                background: #292d34; color: #f0f2f5; font-weight: 600; }
+        """)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        self.filter = QtWidgets.QLineEdit()
+        self.filter.setObjectName("sphinxsim-json-editor-filter")
+        self.filter.setPlaceholderText("Filter settings…")
+        self.tools = QtWidgets.QGridLayout()
+        self.buttons = {}
+        if not external_controller:
+            callbacks = {
+                "Expand": lambda: self.tree.expandAll(),
+                "Collapse": lambda: self.tree.collapseAll(),
+                "Revert": self.revert,
+                "Reload": self.reloadRequested.emit,
+                **{
+                    label: lambda checked=False, operation=operation: self.edit_array(operation)
+                    for label, operation in (
+                        ("Add", "add"),
+                        ("Duplicate", "duplicate"),
+                        ("Remove", "remove"),
+                        ("Move up", "up"),
+                        ("Move down", "down"),
+                    )
+                },
+            }
+            for label, callback in callbacks.items():
+                button = QtWidgets.QToolButton()
+                button.setText(label)
+                button.clicked.connect(callback)
+                if label in ("Add", "Duplicate", "Remove", "Move up", "Move down"):
+                    button.setObjectName("sphinxsim-json-editor-list-action")
+                self.buttons[label] = button
+        layout.addLayout(self.tools)
+        self._tool_columns = None
+        self.tree = QtWidgets.QTreeWidget()
+        self.tree.setObjectName("sphinxsim-json-editor-tree")
+        self.tree.setColumnCount(2)
+        self.tree.setHeaderLabels(["Setting", "Value"])
+        self.tree.setAlternatingRowColors(True)
+        self.tree.setUniformRowHeights(True)
+        self.tree.setIndentation(16)
+        self.tree.setColumnWidth(0, 340)
+        self.tree.header().setStretchLastSection(True)
+        layout.addWidget(self.tree, 1)
+        self.status = QtWidgets.QLabel(
+            "Loaded configuration. Ctrl+S saves and refreshes Preview."
+        )
+        self.status.setWordWrap(True)
+        layout.addWidget(self.status)
+        if not external_controller:
+            self.filter.textChanged.connect(self._filter)
+            self.tree.currentItemChanged.connect(self._update_actions)
+        self.undo_shortcut = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Undo, self)
+        self.undo_shortcut.setContext(QtCore.Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.save_shortcut = QtGui.QShortcut(QtGui.QKeySequence.StandardKey.Save, self)
+        self.save_shortcut.setContext(QtCore.Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        if external_controller:
+            self.undo_shortcut.setEnabled(False)
+            self.save_shortcut.setEnabled(False)
+        else:
+            self.undo_shortcut.activated.connect(self.revert)
+            self.save_shortcut.activated.connect(self.saveRequested.emit)
+        self._arrange_tools()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._arrange_tools()
+
+    def _arrange_tools(self):
+        columns = 9 if self.width() >= 850 else 5
+        if columns == self._tool_columns:
+            return
+        self._tool_columns = columns
+        self.tools.removeWidget(self.filter)
+        for column in range(10):
+            self.tools.setColumnStretch(column, 0)
+        if columns == 9:
+            self.tools.addWidget(self.filter, 0, 0)
+            self.tools.setColumnStretch(0, 1)
+        else:
+            self.tools.addWidget(self.filter, 0, 0, 1, 5)
+        for index, button in enumerate(self.buttons.values()):
+            self.tools.removeWidget(button)
+            row, column = (0, index + 1) if columns == 9 else (1 + index // columns, index % columns)
+            self.tools.addWidget(button, row, column)
+
+    @property
+    def dirty(self):
+        return self._text != self._saved_text
+
+    def text(self):
+        return self._text
+
+    def set_text(self, text, *, config_path=None, saved_text=None, remember=False):
+        payload = load_json_preserving_floats(text)
+        if not isinstance(payload, dict):
+            raise ValueError("The simulation JSON must be an object.")
+        if remember:
+            self._history.append(self._text)
+        else:
+            self._history.clear()
+        if config_path is not None:
+            self.config_path = Path(config_path)
+        if saved_text is not None:
+            self._saved_text = saved_text
+        self._text = self._layout_text = text
+        self._payload = payload
+        self._invalid.clear()
+        self._build_tree()
+        self.textChanged.emit(self._text)
+
+    def mark_saved(self):
+        self._saved_text = self._text
+        self.status.setText("Saved configuration.")
+        self._update_actions()
+
+    def _at(self, path):
+        return value_at_path(self._payload, path)
+
+    def _build_tree(self):
+        expand_defaults = not self._items
+        if self._items:
+            self._expanded = {path for path, item in self._items.items() if item.isExpanded()}
+        self._fields, self._items, self._lists = {}, {}, set()
+        self.tree.clear()
+
+        def add(parent, key, value, path):
+            label = FIELD_LABELS.get(str(key), str(key).replace("_", " ").capitalize())
+            if isinstance(path[-1], int):
+                label = next(
+                    (
+                        value[name]
+                        for name in ("name", "body_name", "observed_body", "oriented_box")
+                        if isinstance(value, dict) and isinstance(value.get(name), str)
+                    ),
+                    f"Item {path[-1] + 1}",
+                )
+            item = QtWidgets.QTreeWidgetItem([label, ""])
+            (parent.addChild if parent is not None else self.tree.addTopLevelItem)(item)
+            item.setData(0, QtCore.Qt.ItemDataRole.UserRole, ".".join(map(str, path)))
+            item.setData(0, PATH_ROLE, path)
+            item.setToolTip(0, ".".join(map(str, path)))
+            self._items[path] = item
+            if isinstance(value, (dict, list)):
+                item.setText(1, f"{'Object' if isinstance(value, dict) else 'List'} · {len(value)}")
+                font = item.font(0)
+                font.setBold(True)
+                item.setFont(0, font)
+                item.setExpanded(path in self._expanded or (expand_defaults and len(path) < 3))
+                if isinstance(value, list):
+                    self._lists.add(path)
+                for child_key, child in (
+                    value.items() if isinstance(value, dict) else enumerate(value)
+                ):
+                    add(item, child_key, child, (*path, child_key))
+                return
+            if isinstance(value, bool):
+                widget = QtWidgets.QCheckBox()
+                widget.setChecked(value)
+                signal = widget.toggled
+            elif key in ENUM_CHOICES and isinstance(value, str):
+                widget = QtWidgets.QComboBox()
+                widget.addItems(ENUM_CHOICES[key])
+                if value not in ENUM_CHOICES[key]:
+                    widget.addItem(value)
+                widget.setCurrentText(value)
+                signal = widget.currentTextChanged
+            else:
+                widget = QtWidgets.QLineEdit(str(value) if value is not None else "null")
+                signal = widget.textChanged
+            widget.setToolTip(".".join(map(str, path)))
+            self.tree.setItemWidget(item, 1, widget)
+            self._fields[path] = widget
+            signal.connect(
+                lambda *_, p=path, original=value, w=widget: self._field_changed(
+                    p, original, w
+                )
+            )
+
+        for key, value in self._payload.items():
+            add(None, key, value, (key,))
+        self._filter(self.filter.text())
+        self._update_actions()
+
+    def _format(self):
+        return format_json_like_source(self._payload, self._layout_text, self.config_path)
+
+    def _field_changed(self, path, original, widget):
+        self._history.append(self._text)
+        raw = (
+            widget.isChecked()
+            if isinstance(widget, QtWidgets.QCheckBox)
+            else widget.currentText()
+            if isinstance(widget, QtWidgets.QComboBox)
+            else widget.text()
+        )
+        try:
+            value = parse_field_value(original, raw)
+            self._invalid.pop(path, None)
+            widget.setStyleSheet("")
+        except (ValueError, TypeError):
+            value = raw
+            self._invalid[path] = (
+                f"Invalid value at {'.'.join(map(str, path))}: {raw}"
+            )
+            widget.setStyleSheet("border: 2px solid #ff6b5f; background: #472522;")
+        set_value_at_path(self._payload, path, value)
+        self._text = self._format()
+        self._items[path].setBackground(0, QtGui.QColor("#594a24"))
+        self.status.setText(
+            next(
+                iter(self._invalid.values()),
+                "Unsaved draft. Ctrl+S validates, saves and refreshes Preview.",
+            )
+        )
+        self._update_actions()
+        self.textChanged.emit(self._text)
+
+    def validate_config(self):
+        try:
+            if self._invalid:
+                raise ValueError(next(iter(self._invalid.values())))
+            return validate_payload(self._payload, SimulationConfig)
+        except ValueError as exc:
+            errors = exc.errors(include_url=False) if hasattr(exc, "errors") else []
+            path = tuple(errors[0]["loc"]) if errors else next(iter(self._invalid), ())
+            if path in self._fields:
+                self._fields[path].setStyleSheet(
+                    "border: 2px solid #ff6b5f; background: #472522;"
+                )
+                self._fields[path].setToolTip(str(exc))
+                self.tree.scrollToItem(self._items[path])
+            self.status.setText(str(exc).splitlines()[0])
+            raise
+
+    def _filter(self, query):
+        query = query.strip().lower()
+
+        def visit(item):
+            path = item.data(0, PATH_ROLE)
+            widget = self._fields.get(path)
+            value = (
+                widget.currentText()
+                if isinstance(widget, QtWidgets.QComboBox)
+                else widget.text()
+                if isinstance(widget, QtWidgets.QLineEdit)
+                else item.text(1)
+            )
+            match = not query or query in (
+                f"{item.text(0)} {value} {'.'.join(map(str, path))}".lower()
+            )
+            children = [
+                visit(item.child(index)) for index in range(item.childCount())
+            ]
+            visible = match or any(children)
+            item.setHidden(not visible)
+            if query and any(children):
+                item.setExpanded(True)
+            return visible
+
+        for index in range(self.tree.topLevelItemCount()):
+            visit(self.tree.topLevelItem(index))
+
+    def _update_actions(self, *_):
+        if self.external_controller:
+            return
+        item = self.tree.currentItem()
+        path = item.data(0, PATH_ROLE) if item else ()
+        entry = bool(path) and path[:-1] in self._lists and isinstance(path[-1], int)
+        self.buttons["Add"].setEnabled(path in self._lists)
+        for label in ("Duplicate", "Remove"):
+            self.buttons[label].setEnabled(entry)
+        self.buttons["Move up"].setEnabled(entry and path[-1] > 0)
+        self.buttons["Move down"].setEnabled(
+            entry and path[-1] < len(self._at(path[:-1])) - 1
+        )
+        self.buttons["Revert"].setEnabled(bool(self._history) or self.dirty)
+
+    def edit_array(self, operation):
+        if self._invalid:
+            self.status.setText("Correct invalid field values before changing a list.")
+            return
+        item = self.tree.currentItem()
+        path = item.data(0, PATH_ROLE) if item else ()
+        before = self._text
+        if operation == "add" and path in self._lists:
+            target = self._at(path)
+            if target:
+                value = copy.deepcopy(target[-1])
+            else:
+                value = _new_json_editor_list_item(
+                    path, _config_spatial_dim(self.validate_config())
+                )
+            if not edit_list(self._payload, path, operation, new_item=value):
+                return
+        elif not edit_list(self._payload, path, operation):
+            return
+        self._history.append(before)
+        self._text = self._format()
+        self._build_tree()
+        self.status.setText("Unsaved list changes. Ctrl+S validates and saves.")
+        self.textChanged.emit(self._text)
+
+    def revert(self):
+        text = pop_undo_snapshot(self._history, self._saved_text)
+        self._text = text
+        self._payload = load_json_preserving_floats(text)
+        self._invalid.clear()
+        self._build_tree()
+        self.status.setText("Reverted the latest local edit.")
+        self.textChanged.emit(self._text)

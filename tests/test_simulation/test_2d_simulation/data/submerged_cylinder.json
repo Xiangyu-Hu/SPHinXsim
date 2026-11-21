@@ -29,9 +29,9 @@
         "upper_bound": [2.0, 2.0]
       },
       {
-        "name": "ClyderCircle",
+        "name": "CylinderCircle",
         "type": "circle",
-        "center": [1.0, 0.8],
+        "center": [1.5, 0.5],
         "radius": 0.3,
         "resolution": 100
       }
@@ -49,7 +49,7 @@
           {
             "operation": "subtraction",
             "type": "circle",
-            "primitive": "ClyderCircle"
+            "primitive": "CylinderCircle"
           }
         ]
       },
@@ -60,7 +60,7 @@
           {
             "operation": "union",
             "type": "circle",
-            "primitive": "ClyderCircle"
+            "primitive": "CylinderCircle"
           }
         ]
       },
@@ -176,7 +176,7 @@
     }
   ],
   "solver_parameters": {
-    "end_time": 1.0,
+    "end_time": 20.0,
     "output_interval": 0.1,
     "screen_interval": 100,
     "fluid_dynamics": {

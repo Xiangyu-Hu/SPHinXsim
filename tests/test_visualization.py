@@ -1467,7 +1467,7 @@ class TestShellPreview:
             reset_camera=False,
         )
         runtime._particle_visibility.add_actor.assert_called_once_with(
-            "WaterBody", runtime.plotter.add_mesh.return_value
+            "WaterBody", runtime.plotter.add_mesh.return_value, mesh, initialized=True
         )
         runtime.plotter.render.assert_called_once()
 

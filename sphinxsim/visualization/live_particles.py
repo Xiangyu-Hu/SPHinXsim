@@ -20,6 +20,6 @@ def refresh_particle_actors(plotter, output_dir, body_colours, versions, catalog
             label=f"Particles: {body}", reset_camera=False,
         )
         if visibility is not None:
-            visibility.add_actor(body, actor)
+            visibility.add_actor(body, actor, mesh, initialized=not frame.generation)
         versions[body] = version
     return frames

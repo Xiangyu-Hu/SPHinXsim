@@ -171,6 +171,19 @@ Notes:
   new animation frames arrive.
   This changes only the display, not the simulation or its output. Switching to
   a different case or starting a new particle-preview run resets the choice.
+- After `initialize-simulation`, right-click a body's **Particles** entry and
+  choose **Color by** to select a numeric particle attribute, or **Body color**
+  to restore the default. Vectors are colored by magnitude; matrices are not
+  offered. The color bar identifies the body and variable. The workbench canvas
+  offers the same menu when displaying solver output.
+- If an attribute has a saved scaling reference, scalar colors use the fixed
+  range `[-reference, reference]`, and vector magnitudes use `[0, reference]`.
+  Values outside the range use the end colors. Without a valid reference,
+  including in older files, the range is calculated from each frame's finite
+  values. Color selections persist across live and replay frames for the same
+  run. If a selected attribute is missing from a frame, that body temporarily
+  uses its body color and returns to the selection when the attribute reappears.
+  Hiding a body's particles also hides its color bar.
 
 ```
 sphinxsim> load config.json

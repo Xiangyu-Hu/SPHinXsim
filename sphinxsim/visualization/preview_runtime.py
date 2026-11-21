@@ -262,7 +262,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 reset_camera=False,
             )
             if self._particle_visibility is not None:
-                self._particle_visibility.add_actor(body_name, actor)
+                generation = vtp_path.stem[len(body_name) + 1:].startswith("ite_")
+                self._particle_visibility.add_actor(body_name, actor, mesh, initialized=not generation)
 
         if self._live_replay_mode and not self._live_playback_queue:
             self._stop_live_refresh()
@@ -452,7 +453,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 reset_camera=False,
             )
             if self._particle_visibility is not None:
-                self._particle_visibility.add_actor(body_name, actor)
+                self._particle_visibility.add_actor(body_name, actor, mesh, initialized=True)
         self.plotter.render()
 
     def continue_to_run(self, refresh_interval: float = 10.0) -> int:

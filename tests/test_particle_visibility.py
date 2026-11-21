@@ -1,5 +1,6 @@
 """Particle legend controls and visibility across actor updates."""
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -115,22 +116,236 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         assert first.GetVisibility()
         assert legend.GetEntryColor(0) == pytest.approx(initial_colour)
         event_filter.menu.close()
+        mesh = pv.Sphere()
+        mesh.point_data["Pressure"] = [0.2] * mesh.n_points
+        mesh.field_data["ScalingReference_Pressure"] = [3.0]
+        replacement = plotter.add_mesh(mesh, name="particle-preview-GranularBody", color="red")
+        controller.add_actor("GranularBody", replacement, mesh, initialized=True)
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
+        QtTest.QTest.qWait(50)
+        submenu = event_filter.menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-colouring")
+        assert submenu is not None
+        actions = {action.text(): action for action in submenu.actions()}
+        assert actions["Body color"].isChecked()
+        actions["Pressure"].trigger()
+        assert controller.colouring["GranularBody"] == "Pressure"
+        assert replacement.GetMapper().GetScalarRange() == pytest.approx((-3, 3))
+        assert controller.scalar_bars["GranularBody"].GetTitle() == "GranularBody: Pressure"
+        event_filter.menu.close()
         controller.set_visible("GranularBody", False)
 
-        replacement = plotter.add_mesh(pv.Sphere(), name="particle-preview-GranularBody")
-        controller.add_actor("GranularBody", replacement)
+        replacement = plotter.add_mesh(mesh, name="particle-preview-GranularBody", color="red")
+        controller.add_actor("GranularBody", replacement, mesh, initialized=True)
         assert not replacement.GetVisibility()
+        assert replacement.GetMapper().GetScalarVisibility()
+        assert not controller.scalar_bars["GranularBody"].GetVisibility()
         controller.set_scene("first-run", config)
-        controller.add_actor("GranularBody", replacement)
+        controller.add_actor("GranularBody", replacement, mesh, initialized=True)
         assert not replacement.GetVisibility()
+        assert replacement.GetMapper().GetScalarVisibility()
         controller.set_visible("GranularBody", True)
         assert replacement.GetVisibility()
         controller.set_visible("GranularBody", False)
         controller.set_scene("second-run", config)
         controller.add_actor("GranularBody", replacement)
         assert replacement.GetVisibility()
+        assert not controller.colouring
     finally:
         if event_filter.menu is not None:
             event_filter.menu.close()
         plotter.close()
         app.processEvents()
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("linux") and not os.environ.get("DISPLAY"),
+    reason="VTK rendering requires a display",
+)
+def test_particle_colour_ranges_and_missing_fields(caplog):
+    np = pytest.importorskip("numpy")
+    pv = pytest.importorskip("pyvista")
+    config = SimulationConfig.model_validate_json(CASE.read_text(encoding="utf-8"))
+    plotter = pv.Plotter(off_screen=True)
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", config)
+    mesh = pv.PolyData(np.array([[0, 0, 0], [1, 0, 0], [2, 0, 0]], dtype=float))
+    mesh.point_data["Pressure"] = [-4.0, 0.0, 9.0]
+    mesh.point_data["Velocity"] = [[3.0, 4.0, 0.0], [0, 0, 0], [6, 8, 0]]
+    mesh.point_data["OriginalID"] = [0, 1, 2]
+    mesh.point_data["Matrix"] = np.zeros((3, 9))
+    mesh.field_data["ScalingReference_Pressure"] = [2.0]
+    mesh.field_data["ScalingReference_Velocity"] = [8.0]
+    try:
+        actor = plotter.add_mesh(mesh, color="red", name="particle-preview-GranularBody")
+        controller.add_actor("GranularBody", actor, mesh, initialized=False)
+        assert not controller.colourable_fields("GranularBody")
+        controller.add_actor("GranularBody", actor, mesh, initialized=True)
+        assert controller.colourable_fields("GranularBody") == {
+            "OriginalID": False, "Pressure": False, "Velocity": True,
+        }
+        controller.set_colour("GranularBody", "Pressure")
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((-2, 2))
+        assert plotter.renderer.GetViewProps().IsItemPresent(controller.scalar_bars["GranularBody"])
+        lut = actor.GetMapper().GetLookupTable()
+        assert lut.GetColor(-4) == pytest.approx(lut.GetColor(-2))
+        assert lut.GetColor(9) == pytest.approx(lut.GetColor(2))
+        controller.set_colour("GranularBody", "Velocity")
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((0, 8))
+        assert mesh.point_data["_sphinxsim_colour_Velocity"] == pytest.approx([5, 0, 10])
+        assert "Velocity magnitude" in controller.scalar_bars["GranularBody"].GetTitle()
+        controller.set_colour("GranularBody", "OriginalID")
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((0, 2))
+
+        later = pv.PolyData(np.array([[0, 0, 0], [1, 0, 0]], dtype=float))
+        later.point_data["Pressure"] = [0.0, 1.0]
+        replacement = plotter.add_mesh(later, color="red", name="particle-preview-GranularBody")
+        controller.add_actor("GranularBody", replacement, later, initialized=True)
+        assert not replacement.GetMapper().GetScalarVisibility()
+        assert "unavailable" in caplog.text
+        assert controller.colouring["GranularBody"] == "OriginalID"
+        assert "GranularBody" not in controller.scalar_bars
+        later.point_data["OriginalID"] = [5, 6]
+        replacement = plotter.add_mesh(later, color="red", name="particle-preview-GranularBody")
+        controller.add_actor("GranularBody", replacement, later, initialized=True)
+        assert replacement.GetMapper().GetScalarRange() == pytest.approx((5, 6))
+        controller.set_colour("GranularBody", "Pressure")
+        assert replacement.GetMapper().GetScalarRange() == pytest.approx((0, 1))
+        later.field_data["ScalingReference_Pressure"] = [0.0]
+        controller.set_colour("GranularBody", "Pressure")
+        assert replacement.GetMapper().GetScalarRange() == pytest.approx((0, 1))
+        assert "Invalid scaling reference" in caplog.text
+        later.point_data["Pressure"] = [4.0, 4.0]
+        controller.set_colour("GranularBody", "Pressure")
+        low, high = replacement.GetMapper().GetScalarRange()
+        assert low < 4 < high
+        later.point_data["Pressure"] = [np.nan, np.nan]
+        controller.set_colour("GranularBody", "Pressure")
+        assert not replacement.GetMapper().GetScalarVisibility()
+        assert "no finite values" in caplog.text
+        controller.set_colour("GranularBody", None)
+        assert not replacement.GetMapper().GetScalarVisibility()
+        assert not controller.scalar_bars
+        controller.set_scene("another-run", config)
+        assert not controller.colouring
+    finally:
+        plotter.close()
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("linux") and not os.environ.get("DISPLAY"),
+    reason="VTK rendering requires a display",
+)
+def test_particle_colouring_survives_live_and_replay_frame_updates(tmp_path):
+    np = pytest.importorskip("numpy")
+    pv = pytest.importorskip("pyvista")
+    from sphinxsim.results import ResultCatalog
+    from sphinxsim.visualization.live_particles import refresh_particle_actors
+    from sphinxsim.visualization.preview_runtime import _ShellPreviewRuntime
+
+    config = SimulationConfig.model_validate_json(CASE.read_text(encoding="utf-8"))
+    plotter = pv.Plotter(off_screen=True)
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", config)
+    mesh = pv.PolyData(np.array([[0, 0, 0], [1, 0, 0]], dtype=float))
+    mesh.point_data["Pressure"] = [0.1, 0.2]
+    mesh.field_data["ScalingReference_Pressure"] = [2.0]
+    mesh.field_data["TimeValue"] = [0.0]
+    generation = tmp_path / "GranularBody_ite_0000.vtp"
+    initial = tmp_path / "GranularBody_0000.vtp"
+    later = tmp_path / "GranularBody_0001.vtp"
+    mesh.save(generation, binary=False)
+    colours = {"GranularBody": "red"}
+    versions = {}
+    catalog = ResultCatalog()
+    try:
+        refresh_particle_actors(plotter, tmp_path, colours, versions, catalog, controller)
+        assert not controller.colourable_fields("GranularBody")
+        mesh.save(initial, binary=False)
+        refresh_particle_actors(plotter, tmp_path, colours, versions, catalog, controller)
+        assert "Pressure" in controller.colourable_fields("GranularBody")
+        controller.set_colour("GranularBody", "Pressure")
+        mesh.point_data["Pressure"] = [5.0, 6.0]
+        mesh.field_data["TimeValue"] = [0.1]
+        mesh.save(later, binary=False)
+        refresh_particle_actors(plotter, tmp_path, colours, versions, catalog, controller)
+        actor = controller.actors["GranularBody"]
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((-2, 2))
+        assert controller.meshes["GranularBody"].point_data["Pressure"] == pytest.approx([5, 6])
+
+        runtime = _ShellPreviewRuntime()
+        runtime.plotter = plotter
+        runtime._particle_visibility = controller
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_colours = colours
+        runtime._live_replay_mode = True
+        runtime._live_playback_queue = [(0, {"GranularBody": initial}), (1, {"GranularBody": later})]
+        runtime._refresh_live_particles()
+        assert controller.actors["GranularBody"].GetMapper().GetScalarRange() == pytest.approx((-2, 2))
+        assert controller.meshes["GranularBody"].point_data["Pressure"] == pytest.approx([0.1, 0.2])
+        runtime._refresh_live_particles()
+        assert controller.actors["GranularBody"].GetMapper().GetScalarRange() == pytest.approx((-2, 2))
+        assert controller.meshes["GranularBody"].point_data["Pressure"] == pytest.approx([5, 6])
+    finally:
+        plotter.close()
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("linux") and not os.environ.get("DISPLAY"),
+    reason="VTK rendering requires a display",
+)
+def test_native_initialized_particle_colouring_persists_into_replay(tmp_path):
+    pv = pytest.importorskip("pyvista")
+    from sphinxsim.bindings.loader import load_sphinxsys_core_nd
+    from sphinxsim.results import ResultCatalog
+    from sphinxsim.visualization.preview_runtime import _ShellPreviewRuntime
+
+    try:
+        core = load_sphinxsys_core_nd(2)
+    except ImportError as exc:
+        pytest.skip(f"Native 2D binding unavailable: {exc}")
+    source = CASE.parent / "dambreak.json"
+    data = json.loads(source.read_text())
+    data["geometries"]["global_resolution"]["particle_spacing"] = 0.1
+    data["particle_generation"]["relaxation_parameters"]["total_iterations"] = 1
+    data["solver_parameters"].update(end_time=0.05, output_interval=0.01)
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(data))
+    output = tmp_path / "run"
+    output.mkdir()
+    simulation = core.SPHSimulation(str(path))
+    simulation.resetOutputRoot(str(output), True)
+    simulation.buildGeometries()
+    simulation.generateParticles()
+    config = SimulationConfig.model_validate(data)
+    plotter = pv.Plotter(off_screen=True)
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", config)
+    runtime = _ShellPreviewRuntime()
+    runtime.plotter = plotter
+    runtime._particle_visibility = controller
+    runtime._pending_simulation = simulation
+    runtime._live_output_dir = output / "output"
+    runtime._live_particle_body_names = {"WaterBody", "WallBoundary"}
+    runtime._live_particle_colours = {"WaterBody": "blue", "WallBoundary": "grey"}
+    try:
+        assert runtime.initialize_simulation() == 0
+        assert "Pressure" in controller.colourable_fields("WaterBody")
+        reference = controller.meshes["WaterBody"].field_data["ScalingReference_Pressure"][0]
+        controller.set_colour("WaterBody", "Pressure")
+        assert controller.actors["WaterBody"].GetMapper().GetScalarRange() == pytest.approx(
+            (-reference, reference)
+        )
+        assert runtime.continue_to_run() == 0
+        runtime._live_run_thread.join(timeout=60)
+        assert runtime._animation_run_completed
+        final = ResultCatalog().latest(runtime._live_output_dir, ["WaterBody"])["WaterBody"]
+        assert final.time > 0
+        runtime._live_replay_mode = True
+        runtime._live_playback_queue = [(final.time, {"WaterBody": final.path})]
+        runtime._refresh_live_particles()
+        assert controller.colouring["WaterBody"] == "Pressure"
+        assert controller.actors["WaterBody"].GetMapper().GetScalarRange() == pytest.approx(
+            (-reference, reference)
+        )
+    finally:
+        plotter.close()

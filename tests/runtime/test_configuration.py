@@ -109,10 +109,29 @@ def test_open_ended_relaxation_level_set_is_accepted_by_shared_admission():
         / "data"
         / "submerged_cylinder.json"
     )
-    normalized, _ = check_config(json.loads(source.read_text()))
+    config = json.loads(source.read_text())
+    config["particle_generation"]["bodies"][0]["relaxation"]["level_set"] = {"shape": "Cylinder"}
+    normalized, _ = check_config(config)
     assert normalized["particle_generation"]["bodies"][0]["relaxation"]["level_set"] == {
-        "shape": "WaterDomain"
+        "shape": "Cylinder"
     }
+
+
+@pytest.mark.parametrize("factor", [0.0, 0.4])
+def test_relaxation_randomization_is_accepted_by_cli_operations_and_compile(tmp_path, capsys, factor):
+    source = SIMULATION_CONFIG_ROOT / "test_2d_simulation/data/submerged_cylinder.json"
+    config = json.loads(source.read_text())
+    config["particle_generation"]["bodies"][0]["relaxation"]["randomization"] = factor
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(config))
+
+    assert main(["validate", str(path), "--root", str(tmp_path), "--json"]) == 0
+    result = json.loads(capsys.readouterr().out)["data"]
+    assert result["configuration"]["particle_generation"]["bodies"][0]["relaxation"]["randomization"] == factor
+    assert Operations(tmp_path).call("validate", {"config_file": "config.json"}) == result
+    compiled, _ = compile_config({"version": 1, "configuration": config})
+    assert compiled["particle_generation"]["bodies"][0]["relaxation"]["randomization"] == factor
+    assert not any("unknown keys" in note["message"] for note in result["report"]["diagnostics"])
 
 
 @pytest.mark.parametrize(

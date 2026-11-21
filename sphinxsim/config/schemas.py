@@ -468,6 +468,11 @@ class RelaxationBodyConfig(BaseModel):
 
     level_set: Optional[dict] = None
     dependent_bodies: List[str] = Field(default_factory=list)
+    randomization: float = Field(
+        default=0.25,
+        allow_inf_nan=False,
+        description="Initial random displacement factor relative to the body's minimum particle spacing.",
+    )
 
     @model_validator(mode="after")
     def _warn_unknown_fields(self) -> "RelaxationBodyConfig":

@@ -85,6 +85,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._particle_scene_generation = 0
         self._pending_simulation: Any | None = None
         self._pending_runtime_config_path: Path | None = None
+        self._pending_initialized = False
         self._live_run_thread: Thread | None = None
         self._live_refresh_timer: Any | None = None
         self._live_run_finished = False
@@ -146,6 +147,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
     def discard_pending_simulation(self) -> None:
         """Release a simulation retained by ``preview --with-particles``."""
         self._pending_simulation = None
+        self._pending_initialized = False
         runtime_config_path = self._pending_runtime_config_path
         self._pending_runtime_config_path = None
         if runtime_config_path is not None:
@@ -321,7 +323,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         if self._animation_output_dir is None or not self._animation_particle_body_names:
             print(
                 "No particle animation is available. Run 'run --with-animation', "
-                "or run 'preview --with-particles' followed by 'continue-to-run'.",
+                "or run 'preview --with-particles', 'initialize-simulation', "
+                "and 'continue-to-run'.",
                 file=sys.stderr,
             )
             return 1
@@ -394,22 +397,17 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         )
         return 0
 
-    def continue_to_run(self, refresh_interval: float = 10.0) -> int:
-        """Run the retained simulation and play its particle snapshots at a capped rate."""
+    def initialize_simulation(self) -> int:
+        """Build and initialize the retained simulation without running it."""
         simulation = self._pending_simulation
-        runtime_config_path = self._pending_runtime_config_path
-        self._pending_simulation = None
-        self._pending_runtime_config_path = None
         if simulation is None:
-            if runtime_config_path is not None:
-                try:
-                    runtime_config_path.unlink(missing_ok=True)
-                except OSError:
-                    pass
             print(
                 "No particle-preview simulation is available. Run 'preview --with-particles' first.",
                 file=sys.stderr,
             )
+            return 1
+        if self._pending_initialized:
+            print("Simulation is already initialized. Run 'continue-to-run' to start it.", file=sys.stderr)
             return 1
 
         try:
@@ -418,6 +416,61 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             print("✅ Simulation built")
             simulation.initializeSimulation()
             print("✅ Simulation initialized")
+        except Exception as exc:
+            self.discard_pending_simulation()
+            print(f"❌ Simulation initialization failed: {exc}", file=sys.stderr)
+            return 1
+
+        self._pending_initialized = True
+        if self.plotter is not None:
+            try:
+                self._show_initialized_particles()
+            except (ImportError, OSError, ValueError, RuntimeError) as exc:
+                print(f"❌ Could not display initialized particles: {exc}", file=sys.stderr)
+                return 1
+        return 0
+
+    def _show_initialized_particles(self) -> None:
+        from sphinxsim.results import ResultCatalog, read_particle_mesh
+        from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE, _particle_label
+
+        if self._live_output_dir is None:
+            raise RuntimeError("The simulation output directory is unavailable.")
+        frames = ResultCatalog().latest(self._live_output_dir, sorted(self._live_particle_body_names))
+        if not frames:
+            raise RuntimeError(f"No initial body-state snapshots found in {self._live_output_dir}.")
+        for body_name, frame in frames.items():
+            mesh = read_particle_mesh(frame.path)
+            actor = self.plotter.add_mesh(
+                mesh,
+                name=f"particle-preview-{body_name}",
+                color=self._live_particle_colours.get(body_name),
+                opacity=0.95,
+                style="points",
+                point_size=_PARTICLE_POINT_SIZE,
+                label=_particle_label(body_name),
+                reset_camera=False,
+            )
+            if self._particle_visibility is not None:
+                self._particle_visibility.add_actor(body_name, actor)
+        self.plotter.render()
+
+    def continue_to_run(self, refresh_interval: float = 10.0) -> int:
+        """Run the initialized simulation and play its particle snapshots."""
+        simulation = self._pending_simulation
+        if simulation is None or not self._pending_initialized:
+            print(
+                "No initialized simulation is available. Run 'preview --with-particles' "
+                "then 'initialize-simulation' first.",
+                file=sys.stderr,
+            )
+            return 1
+        runtime_config_path = self._pending_runtime_config_path
+        self._pending_simulation = None
+        self._pending_runtime_config_path = None
+        self._pending_initialized = False
+
+        try:
             print("\n🚀 Running simulation...")
             self._start_live_refresh(refresh_interval)
 
@@ -906,6 +959,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                         self._pending_simulation,
                         self._pending_runtime_config_path,
                     ) = pending_simulation
+                    self._pending_initialized = False
                     self._live_output_dir = vtp_dir or (
                         PROJECT_ROOT / ".build-temp" / "test_simulation" / "output"
                     )

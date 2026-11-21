@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import subprocess
 import sys
 import threading
 from pathlib import Path
@@ -1382,6 +1384,11 @@ class TestShellPreview:
             ) as show_or_update,
             patch.object(
                 cli_mod._ShellPreviewRuntime,
+                "initialize_simulation",
+                return_value=0,
+            ) as initialize,
+            patch.object(
+                cli_mod._ShellPreviewRuntime,
                 "continue_to_run",
                 return_value=0,
             ) as continue_to_run,
@@ -1393,6 +1400,7 @@ class TestShellPreview:
         _, kwargs = show_or_update.call_args
         assert kwargs["with_particles"] is True
         assert kwargs["force"] is True
+        initialize.assert_called_once_with()
         continue_to_run.assert_called_once_with()
 
     def test_shell_runtime_continues_retained_particle_simulation(self, tmp_path):
@@ -1416,12 +1424,177 @@ class TestShellPreview:
         runtime_config_path.write_text("{}")
         runtime._pending_runtime_config_path = runtime_config_path
 
+        assert runtime.continue_to_run() == 1
+        assert calls == []
+        assert runtime.initialize_simulation() == 0
+        assert calls == ["build", "initialize"]
+        assert runtime._pending_simulation is not None
+        assert runtime_config_path.exists()
+        assert runtime.initialize_simulation() == 1
         assert runtime.continue_to_run() == 0
         assert runtime._live_run_thread is not None
         runtime._live_run_thread.join()
         assert calls == ["build", "initialize", "run"]
         assert runtime._pending_simulation is None
         assert not runtime_config_path.exists()
+
+    def test_shell_initialization_displays_real_body_state_without_running(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        calls = []
+        runtime = cli_mod._ShellPreviewRuntime()
+        simulation = MagicMock()
+        simulation.buildSimulation.side_effect = lambda: calls.append("build")
+        simulation.initializeSimulation.side_effect = lambda: calls.append("initialize")
+        runtime._pending_simulation = simulation
+        runtime.plotter = MagicMock()
+        runtime._particle_visibility = MagicMock()
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_body_names = {"WaterBody"}
+        runtime._live_particle_colours = {"WaterBody": (0.2, 0.5, 0.8)}
+        frame = SimpleNamespace(path=tmp_path / "WaterBody_0.vtp")
+        mesh = object()
+        with patch("sphinxsim.results.ResultCatalog.latest", return_value={"WaterBody": frame}) as latest, \
+             patch("sphinxsim.results.read_particle_mesh", return_value=mesh):
+            assert runtime.initialize_simulation() == 0
+
+        latest.assert_called_once_with(tmp_path, ["WaterBody"])
+        simulation.run.assert_not_called()
+        assert calls == ["build", "initialize"]
+        runtime.plotter.add_mesh.assert_called_once_with(
+            mesh, name="particle-preview-WaterBody", color=(0.2, 0.5, 0.8),
+            opacity=0.95, style="points", point_size=5, label="WaterBody Particles",
+            reset_camera=False,
+        )
+        runtime._particle_visibility.add_actor.assert_called_once_with(
+            "WaterBody", runtime.plotter.add_mesh.return_value
+        )
+        runtime.plotter.render.assert_called_once()
+
+    def test_shell_initialization_failure_releases_simulation_and_config(self, tmp_path, capsys):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._pending_simulation = MagicMock()
+        runtime._pending_simulation.initializeSimulation.side_effect = RuntimeError("native failure")
+        runtime._pending_runtime_config_path = tmp_path / "runtime.json"
+        runtime._pending_runtime_config_path.write_text("{}")
+        assert runtime.initialize_simulation() == 1
+        assert runtime._pending_simulation is None
+        assert not runtime._pending_initialized
+        assert not (tmp_path / "runtime.json").exists()
+        assert "native failure" in capsys.readouterr().err
+
+    def test_shell_initial_snapshot_error_keeps_initialized_simulation(self, tmp_path, capsys):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._pending_simulation = MagicMock()
+        runtime.plotter = MagicMock()
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_body_names = {"WaterBody"}
+        with patch("sphinxsim.results.ResultCatalog.latest", return_value={}):
+            assert runtime.initialize_simulation() == 1
+        assert runtime._pending_initialized
+        assert runtime._pending_simulation is not None
+        assert "No initial body-state snapshots" in capsys.readouterr().err
+        runtime.discard_pending_simulation()
+        assert not runtime._pending_initialized
+
+    def test_native_initialization_writes_and_displays_body_states(self, tmp_path):
+        pytest.importorskip("pyvista")
+        from sphinxsim.bindings.loader import load_sphinxsys_core_nd
+
+        try:
+            load_sphinxsys_core_nd(2)
+        except ImportError as exc:
+            pytest.skip(f"Native 2D binding unavailable: {exc}")
+
+        project = Path(__file__).resolve().parents[1]
+        source = _DATA_DIR / "dambreak.json"
+        script = """
+import json
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock
+from sphinxsim.config.schemas import SimulationConfig
+from sphinxsim.results import ResultCatalog
+from sphinxsim.visualization.preview import ConfigVisualizer
+from sphinxsim.visualization.preview_runtime import _ShellPreviewRuntime
+
+source, root = map(Path, sys.argv[1:])
+data = json.loads(source.read_text())
+data["geometries"]["global_resolution"]["particle_spacing"] = 0.1
+data["particle_generation"]["relaxation_parameters"]["total_iterations"] = 1
+data["solver_parameters"].update(end_time=0.05, output_interval=0.01)
+case = root / "case.json"
+case.write_text(json.dumps(data))
+config = SimulationConfig.model_validate(data)
+visualizer = ConfigVisualizer(config, root, config_path=case, output_root=root / "run")
+vtp_dir = visualizer._try_build_geometries(2, with_particles=True)
+simulation, runtime_config = visualizer.take_particle_simulation()
+runtime = _ShellPreviewRuntime()
+runtime._pending_simulation = simulation
+runtime._pending_runtime_config_path = runtime_config
+runtime._live_output_dir = vtp_dir
+runtime._live_particle_body_names = visualizer._particle_generation_body_names()
+runtime.plotter = MagicMock()
+assert runtime.initialize_simulation() == 0
+assert runtime._pending_initialized
+assert runtime_config.exists()
+frames = ResultCatalog().latest(vtp_dir, sorted(runtime._live_particle_body_names))
+assert frames and all(frame.time == 0 for frame in frames.values())
+assert runtime.plotter.add_mesh.call_count == len(frames)
+assert any(call.args[0].point_data for call in runtime.plotter.add_mesh.call_args_list)
+assert runtime._live_run_thread is None
+assert runtime.continue_to_run() == 0
+runtime._live_run_thread.join(timeout=60)
+assert not runtime._live_run_thread.is_alive()
+assert runtime._animation_run_completed
+assert not runtime_config.exists()
+final_frames = ResultCatalog().latest(vtp_dir, sorted(runtime._live_particle_body_names))
+assert max(frame.time for frame in final_frames.values()) > 0
+"""
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(project) + os.pathsep + env.get("PYTHONPATH", "")
+        result = subprocess.run(
+            [sys.executable, "-c", script, str(source), str(tmp_path)],
+            cwd=tmp_path, env=env, text=True, capture_output=True, timeout=120,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+
+    def test_shell_initialize_command_and_slash_form(self):
+        from sphinxsim import cli as cli_mod
+
+        with patch.object(cli_mod._ShellPreviewRuntime, "initialize_simulation", return_value=0) as initialize, \
+             patch("builtins.input", side_effect=["initialize-simulation", "/initialize-simulation", "exit"]):
+            assert main(["shell"]) == 0
+        assert initialize.call_count == 2
+
+    def test_shell_lifecycle_commands_do_not_discard_retained_simulation(self):
+        from sphinxsim import cli as cli_mod
+
+        calls = []
+        with patch.object(cli_mod._ShellPreviewRuntime, "initialize_simulation",
+                          side_effect=lambda: calls.append("initialize")), \
+             patch.object(cli_mod._ShellPreviewRuntime, "continue_to_run",
+                          side_effect=lambda *_: calls.append("run")), \
+             patch.object(cli_mod._ShellPreviewRuntime, "discard_pending_simulation",
+                          side_effect=lambda: calls.append("discard")), \
+             patch("builtins.input", side_effect=["initialize-simulation", "continue-to-run", "validate", "exit"]):
+            assert main(["shell"]) == 0
+        assert calls == ["initialize", "run", "discard", "discard"]
+
+    def test_shell_animation_does_not_run_if_initialization_fails(self, build_temp_path):
+        from sphinxsim import cli as cli_mod
+
+        _, rel = self._write_config(build_temp_path)
+        with patch.object(cli_mod._ShellPreviewRuntime, "show_or_update", return_value=0), \
+             patch.object(cli_mod._ShellPreviewRuntime, "initialize_simulation", return_value=1), \
+             patch.object(cli_mod._ShellPreviewRuntime, "continue_to_run") as run, \
+             patch("builtins.input", side_effect=[f"load {rel}", "run --with-animation", "exit"]):
+            assert main(["shell"]) == 0
+        run.assert_not_called()
 
     def test_shell_runtime_plays_final_snapshots_when_run_finishes_before_refresh(self, tmp_path):
         from sphinxsim import cli as cli_mod
@@ -1464,6 +1637,7 @@ class TestShellPreview:
         timer = FakeTimer()
         runtime = cli_mod._ShellPreviewRuntime()
         runtime._pending_simulation = FakeSimulation()
+        runtime._pending_initialized = True
         runtime._using_background_plotter = True
         runtime._live_output_dir = tmp_path
         runtime._live_particle_body_names = {"WaterBody"}

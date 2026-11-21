@@ -82,8 +82,10 @@ Design rule:
 - Rebuild geometry on each preview run and refresh the shape-bounds cache from the builder.
 - For shell `preview --with-particles`, transfer the generated `SPHSimulation`
   and its temporary runtime config to `_ShellPreviewRuntime`. The runtime keeps
-  both alive only until the immediate `continue-to-run` command invokes
-  `buildSimulation()`, `initializeSimulation()`, and `run()`.
+  both alive through `initialize-simulation` and `continue-to-run`.
+  `initialize-simulation` calls `buildSimulation()` and `initializeSimulation()`
+  and displays the initialized body-state snapshots; `continue-to-run` calls
+  `run()` without reinitializing.
 - `continue-to-run` accepts `--refresh-interval SECONDS` with a default of
   `10`. It runs the solver in a worker thread and, for a Qt-backed persistent
   preview, uses a GUI-thread timer to replace particle actors from newer
@@ -168,8 +170,9 @@ Use `tests/test_visualization.py`.
   - simbody constraints require `config.restart`.
 
 5. Shell particle-preview continuation
-- Test that `continue-to-run` calls `buildSimulation()`,
-  `initializeSimulation()`, and `run()` on the retained simulation, in order.
+- Test that `initialize-simulation` calls `buildSimulation()` and
+  `initializeSimulation()`, displays the initial snapshots without running,
+  and that `continue-to-run` then calls `run()` on the same simulation.
 - Test that the retained temporary runtime config remains available through the
   continued run and is deleted afterward.
 - Test that another shell command releases the retained simulation instead of

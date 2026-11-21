@@ -176,9 +176,11 @@ sphinxsim> preview --with-particles
    Particle generation overlay is enabled (--with-particles).
 ✅ Preview used C++ geometry (VTP meshes).
 
-sphinxsim> continue-to-run --refresh-interval 10
+sphinxsim> initialize-simulation
 ✅ Simulation built
 ✅ Simulation initialized
+
+sphinxsim> continue-to-run --refresh-interval 10
 🚀 Running simulation...
 ℹ️ Preview checks for new snapshots every 10 seconds and plays each batch at up to 25 FPS.
 ✅ Simulation completed successfully!
@@ -190,8 +192,8 @@ For the full preview-and-animate workflow, load a JSON config and run:
 sphinxsim> run --with-animation
 ```
 
-This performs `preview --with-particles` followed by `continue-to-run` on the
-same generated simulation. Plain `run` remains unchanged. Once the animated
+This performs `preview --with-particles`, `initialize-simulation`, and
+`continue-to-run` on the same generated simulation. Plain `run` remains unchanged. Once the animated
 run or a manual `continue-to-run` completes, enter `replay` to play its
 recorded particle snapshots again at up to 25 FPS:
 
@@ -208,12 +210,15 @@ camera framing fixed while the particle snapshots animate.
 `preview` requires a config to be loaded first (via `load` or `generate`).
 
 After `preview --with-particles`, the shell retains the generated-particle
-`SPHSimulation` instance and its temporary runtime config for one immediate
-`continue-to-run`. This continues the same instance through
-`buildSimulation()`, `initializeSimulation()`, and `run()`, without generating
-particles again. Any other shell command discards the retained instance and its
-temporary config; use `run` when a fresh simulation from the saved config is
-intended.
+`SPHSimulation` instance and its temporary runtime config. The next command,
+`initialize-simulation`, builds and initializes that same instance, writes the
+initial body-state snapshots, and displays them without running the solver.
+`continue-to-run` then runs the initialized instance without generating
+particles or initializing again. Other shell commands discard the retained
+instance and its temporary config; use `run` when a fresh simulation from the
+saved config is intended. If displaying the initialized snapshots fails, the
+error is reported and the initialized simulation remains available for
+`continue-to-run`.
 
 `continue-to-run` accepts an optional wall-clock refresh interval:
 

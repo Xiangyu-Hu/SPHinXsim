@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from PySide6 import QtCore, QtWidgets
-from sphinxsim.ui.json_editor import JsonPropertyEditor
+from sphinxsim.json_editor import JsonPropertyEditor
 from sphinxsim.ui.workbench.document import WorkbenchDocument
 
 app = QtWidgets.QApplication([])

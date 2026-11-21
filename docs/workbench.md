@@ -8,7 +8,8 @@ AgentCAE worker, checkpoint and result interfaces.
 ## Start
 
 Use the Python environment containing the built SPHinXsim extensions and the
-`chatbot` and `visualization` extras (Chainlit, PySide6, PyVista and PyVistaQt):
+`chatbot` and `visualization` extras (Chainlit, PyVista and PyVistaQt). QtPy
+and PySide6 are installed with the base package:
 
 ```powershell
 python -m pip install -e '.[chatbot,visualization]'
@@ -44,9 +45,10 @@ errors are recorded in `<workspace>/chat.log`; use **Reconnect chat** to retry.
 The interface and embedded Chainlit controls use English.
 
 The canvas reuses `ConfigVisualizer`, live VTP loading, and `AgentPreviewObserver`.
-VTK renders offscreen and Qt presents the frames, avoiding native OpenGL child
-window issues on Windows while retaining camera interaction. Drag to rotate,
-middle-drag to pan, use the wheel to zoom, and press `R` to reset the view.
+It embeds PyVistaQt's native Qt VTK interactor in the Workbench, like the
+interactive shell Preview, rather than copying frames from an offscreen VTK
+window. Drag to rotate, middle-drag to pan, use the wheel to zoom, and press
+`R` to reset the view.
 The left canvas contains the model and results; the Model Information sidebar
 is removed from the workbench, so the scene uses the full canvas width.
 

@@ -1,0 +1,11 @@
+# Learning SPHinXsim
+
+The simulation settings are provided in JSON format, 
+which is a widely used data interchange format that is easy to read and write for humans and machines. 
+The JSON files contain all the necessary information to set up and run simulations in SPHinXsim.
+
+Choose simulation examples to learn SPHinXsim:
+
+- [Dambreak](learning/dambreak.md)
+- [Filling Tank](learning/filling-tank.md)
+- [Milling](learning/milling.md)

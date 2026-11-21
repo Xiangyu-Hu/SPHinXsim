@@ -63,6 +63,9 @@ class SPHSimulation
     void run();
     void stepTo(Real target_time);
     void stepBy(Real interval);
+    Real getPhysicalTime(); // NEW: declare the getter for the solver time-stepper’s actual physical time.
+    Vecd getMeanVelocity(const std::string &body_name); // NEW: declare the per-body arithmetic mean of real-particle velocity vectors.
+    void setControlAcceleration(const std::string &body_name, Real ax);// NEW: declare a uniform x-acceleration command for the named real body.
 
   protected:
     friend class SimulationBuilder;
@@ -95,6 +98,8 @@ class SPHSimulation
     bool particles_generated_{false};
     bool executable_simulation_state_ready_{false};
     json loadConfig();
+    std::map<std::string, Real> control_acceleration_x_; // Store the previously commanded horizontal acceleration for each body.
+// Used to calculate incremental changes in the applied control force.
 };
 } // namespace SPH
 #endif // SPH_SIMULATION_H

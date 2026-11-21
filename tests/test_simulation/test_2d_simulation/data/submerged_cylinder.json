@@ -27,6 +27,13 @@
         "type": "bounding_box",
         "lower_bound": [0.0, 0.0],
         "upper_bound": [2.0, 2.0]
+      },
+      {
+        "name": "ClyderCircle",
+        "type": "circle",
+        "center": [1.0, 0.8],
+        "radius": 0.3,
+        "resolution": 100
       }
     ],
     "shapes": [
@@ -42,9 +49,7 @@
           {
             "operation": "subtraction",
             "type": "circle",
-            "center": [1.0, 0.8],
-            "radius": 0.3,
-            "resolution": 100
+            "primitive": "ClyderCircle"
           }
         ]
       },
@@ -55,9 +60,7 @@
           {
             "operation": "union",
             "type": "circle",
-            "center": [1.0, 0.8],
-            "radius": 0.3,
-            "resolution": 100
+            "primitive": "ClyderCircle"
           }
         ]
       },

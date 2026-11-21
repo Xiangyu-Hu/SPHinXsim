@@ -145,6 +145,17 @@ void GeometryBuilder::addPrimitive(
         return;
     }
 
+#ifdef SPHINXSYS_2D
+    if (type == "circle")
+    {
+        CircleConfig circle_config = parseCircleConfig(scaling_config, config);
+        config_manager.emplaceEntity<CircleConfig>(name, circle_config);
+        return;
+    }
+#else
+    // 3d-only primitives
+#endif
+
     throw std::runtime_error(
         "GeometryBuilder::addPrimitive: unsupported primitive type: " + type);
 }
@@ -191,7 +202,22 @@ TransformGeometryBox GeometryBuilder::fetch_or_parseBox(
     }
 }
 //=================================================================================================//
-#ifdef SPHINXSYS_3D
+#ifdef SPHINXSYS_2D
+CircleConfig GeometryBuilder::fectch_or_parseCircleConfig(
+    const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config)
+{
+    if (config.contains("primitive"))
+    {
+        return CircleConfig(config_manager.getEntity<CircleConfig>(
+            config.at("primitive").get<std::string>()));
+    }
+    else
+    {
+        return parseCircleConfig(scaling_config, config);
+    }
+}
+//=================================================================================================//
+#else
 TransformGeometryCylinder GeometryBuilder::fetch_or_parseCylinder(
     const ScalingConfig &scaling_config, EntityManager &config_manager, const json &config)
 {
@@ -303,10 +329,10 @@ MultiPolygon GeometryBuilder::parseMultiPolygon(
 
     if (polygon_type == "circle")
     {
-        Vecd center = scaling_config.jsonToVecd(config.at("center"), "Length");
-        Real radius = scaling_config.jsonToReal(config.at("radius"), "Length");
-        int resolution = config.at("resolution").get<int>();
-        multi_polygon.addCircle(center, radius, resolution, GeometricOps::add);
+        CircleConfig circle_config =
+            fectch_or_parseCircleConfig(scaling_config, config_manager, config);
+        multi_polygon.addCircle(
+            circle_config.center_, circle_config.radius_, circle_config.resolution_, GeometricOps::add);
         return multi_polygon;
     }
 
@@ -345,6 +371,15 @@ MultiPolygon GeometryBuilder::parseMultiPolygon(
 
     throw std::runtime_error("SPHSimulation::parseMultiPolygon: unsupported polygon type: " + polygon_type);
 }
+//=================================================================================================//
+CircleConfig GeometryBuilder::parseCircleConfig(const ScalingConfig &scaling_config, const json &config)
+{
+    CircleConfig circle_config;
+    circle_config.center_ = scaling_config.jsonToVecd(config.at("center"), "Length");
+    circle_config.radius_ = scaling_config.jsonToReal(config.at("radius"), "Length");
+    circle_config.resolution_ = config.at("resolution").get<int>();
+    return circle_config;
+}
 #endif
 //=================================================================================================//
 Shape *GeometryBuilder::addShape(
@@ -360,7 +395,7 @@ Shape *GeometryBuilder::addShape(
         DefaultShape *shape = config_manager.emplaceEntity<DefaultShape>(name, name);
         return shape;
     }
-    
+
     if (type == "box")
     {
         TransformGeometryBox box = fetch_or_parseBox(scaling_config, config_manager, config);

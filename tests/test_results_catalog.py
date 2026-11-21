@@ -39,6 +39,20 @@ def test_incomplete_live_frame_is_ignored(tmp_path):
     assert frame.path.name == "Body_0001.vtp"
 
 
+def test_catalog_ignores_scaling_reference_fields(tmp_path):
+    source = tmp_path / "Body_0001.vtp"
+    write_vtp(source, time=0.1)
+    source.write_text(source.read_text().replace(
+        "</FieldData>",
+        '<DataArray Name="ScalingReference_Pressure">128</DataArray></FieldData>',
+    ))
+
+    frame = ResultCatalog().latest(tmp_path, ["Body"])["Body"]
+
+    assert frame.time == pytest.approx(0.1)
+    assert VTPPositionReader().read_summary(source, "Body").particle_count == 1
+
+
 def test_position_reader_rejects_wrong_body(tmp_path):
     source = tmp_path / "Body_0001.vtp"
     write_vtp(source, time=0.1, body="Other")

@@ -87,6 +87,23 @@ When particles are shown:
 This is useful for verifying particle distribution and spacing before running
 the full simulation.
 
+### Particle scaling metadata
+
+Particle VTP files produced by SPHinXsim include a `Float64` field-data value
+named `ScalingReference_<variable>` for each recorded variable with a known
+physical scaling reference (for example, `ScalingReference_Pressure` and
+`ScalingReference_Velocity`). The position reference is stored as
+`ScalingReference_Position`. These are characteristic magnitudes derived from
+the configuration's characteristic dimensions, not measured data ranges.
+Known dimensionless variables have a reference of `1`; unknown variables and
+particle IDs have no reference metadata. Without configured scaling, known
+references are `1`.
+
+Particle values in the files remain in physical units; the references are
+metadata and must not be applied to those values again. Older VTP files without
+these fields remain readable. This metadata does not change the default
+per-body particle colouring.
+
 ### Off-screen rendering
 
 ```bash

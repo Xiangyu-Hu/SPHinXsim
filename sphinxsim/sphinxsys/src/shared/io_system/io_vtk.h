@@ -74,8 +74,14 @@ class BodyStatesRecordingToVtp : public BodyStatesRecording
      */
     void setBinaryOutput(bool binary) { binary_output_ = binary; }
 
+    void setVariableScalingReference(const std::string &body_name,
+                                     const std::string &variable_name, Real reference);
+
   protected:
     bool binary_output_ = false;
+    std::map<std::string, std::map<std::string, Real>> scaling_references_;
+    std::map<std::string, Real> outputScalingReferences(const std::string &body_name,
+                                                        BaseParticles &particles) const;
 
     virtual void writeWithFileName(const std::string &sequence) override;
     template <typename OutStreamType>

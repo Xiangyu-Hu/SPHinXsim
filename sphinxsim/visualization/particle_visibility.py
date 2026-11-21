@@ -7,6 +7,8 @@ from typing import Any
 
 import numpy as np
 
+from sphinxsim.visualization.particle_time import PARTICLE_OVERLAY_CENTER_Y
+
 logger = logging.getLogger(__name__)
 
 
@@ -95,10 +97,11 @@ class ParticleVisibility:
                    if body not in self.hidden]
         for body, bar in self.scalar_bars.items():
             bar.SetVisibility(body not in self.hidden)
+        height = min(0.1, 0.8 / len(visible)) if visible else 0
         for index, (_, bar) in enumerate(visible):
-            bar.SetPosition(0.78, 0.05 + index * 0.85 / max(len(visible), 1))
+            bar.SetPosition(0.78, PARTICLE_OVERLAY_CENTER_Y - height / 2 + index * 0.85 / len(visible))
             bar.SetWidth(0.19)
-            bar.SetHeight(min(0.1, 0.8 / len(visible)))
+            bar.SetHeight(height)
 
     def _apply_colouring(self, body: str) -> None:
         self._remove_scalar_bar(body)

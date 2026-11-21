@@ -10,6 +10,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 _TIME_ACTOR = "particle-frame-time"
+PARTICLE_OVERLAY_CENTER_Y = 0.10
 
 
 class ParticleTimeDisplay:
@@ -55,7 +56,10 @@ class ParticleTimeDisplay:
                 f"{name}: {value:.6g} s" for name, value in sorted(self.times.items())
             )
         self.plotter.subplot(0, 0)
-        self.plotter.add_text(
-            text, name=_TIME_ACTOR, position="lower_edge", color="white", font_size=11,
+        actor = self.plotter.add_text(
+            text, name=_TIME_ACTOR, position=(0.50, PARTICLE_OVERLAY_CENTER_Y),
+            viewport=True, color="white", font_size=11,
         )
+        actor.GetTextProperty().SetJustificationToCentered()
+        actor.GetTextProperty().SetVerticalJustificationToCentered()
         self.shown = True

@@ -161,6 +161,51 @@ def test_particle_legend_menu_and_actor_replacement(surface):
     sys.platform.startswith("linux") and not os.environ.get("DISPLAY"),
     reason="VTK rendering requires a display",
 )
+@pytest.mark.parametrize("window_size", [(800, 600), (1400, 800)])
+def test_time_and_first_colour_legend_are_horizontally_aligned(window_size):
+    np = pytest.importorskip("numpy")
+    pv = pytest.importorskip("pyvista")
+    from sphinxsim.visualization.particle_time import ParticleTimeDisplay
+
+    config = SimulationConfig.model_validate_json(CASE.read_text(encoding="utf-8"))
+    plotter = pv.Plotter(off_screen=True, window_size=window_size)
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", config)
+    time_display = ParticleTimeDisplay(plotter)
+    mesh = pv.PolyData(np.array([[0, 0, 0], [1, 0, 0]], dtype=float))
+    mesh.point_data["Pressure"] = [0.0, 1.0]
+    mesh.field_data["TimeValue"] = [0.125]
+    try:
+        for body in ("GranularBody", "WallBoundary"):
+            actor = plotter.add_mesh(mesh.copy(), name=f"particle-preview-{body}", color="red")
+            controller.add_actor(body, actor, actor.mapper.dataset, initialized=True)
+            controller.set_colour(body, "Pressure")
+            time_display.update(body, mesh)
+        plotter.show(auto_close=False, interactive_update=True)
+        renderer = plotter.renderers[0]
+        text = renderer.actors["particle-frame-time"]
+        x, y = text.GetActualPositionCoordinate().GetComputedDoubleDisplayValue(renderer)
+        bar = controller.scalar_bars["GranularBody"]
+        left, bottom = bar.GetPositionCoordinate().GetComputedDoubleDisplayValue(renderer)
+        _, top = bar.GetPosition2Coordinate().GetComputedDoubleDisplayValue(renderer)
+        bounds = [0.0] * 4
+        text.GetBoundingBox(renderer, bounds)
+        assert y == pytest.approx((bottom + top) / 2, abs=1)
+        assert x + bounds[1] < left
+        assert controller.scalar_bars["WallBoundary"].GetPosition()[1] > bar.GetPosition()[1]
+        controller.set_visible("GranularBody", False)
+        bar = controller.scalar_bars["WallBoundary"]
+        bottom = bar.GetPositionCoordinate().GetComputedDoubleDisplayValue(renderer)[1]
+        top = bar.GetPosition2Coordinate().GetComputedDoubleDisplayValue(renderer)[1]
+        assert y == pytest.approx((bottom + top) / 2, abs=1)
+    finally:
+        plotter.close()
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("linux") and not os.environ.get("DISPLAY"),
+    reason="VTK rendering requires a display",
+)
 def test_particle_colour_ranges_and_missing_fields(caplog):
     np = pytest.importorskip("numpy")
     pv = pytest.importorskip("pyvista")
@@ -282,11 +327,11 @@ def test_particle_colouring_survives_live_and_replay_frame_updates(tmp_path):
         runtime._refresh_live_particles()
         assert controller.actors["GranularBody"].GetMapper().GetScalarRange() == pytest.approx((-2, 2))
         assert controller.meshes["GranularBody"].point_data["Pressure"] == pytest.approx([0.1, 0.2])
-        assert plotter.renderer.actors["particle-frame-time"].GetText(4) == "Time: 0 s"
+        assert plotter.renderer.actors["particle-frame-time"].GetInput() == "Time: 0 s"
         runtime._refresh_live_particles()
         assert controller.actors["GranularBody"].GetMapper().GetScalarRange() == pytest.approx((-2, 2))
         assert controller.meshes["GranularBody"].point_data["Pressure"] == pytest.approx([5, 6])
-        assert plotter.renderer.actors["particle-frame-time"].GetText(4) == "Time: 0.1 s"
+        assert plotter.renderer.actors["particle-frame-time"].GetInput() == "Time: 0.1 s"
     finally:
         plotter.close()
 
@@ -331,7 +376,7 @@ def test_native_initialized_particle_colouring_persists_into_replay(tmp_path):
     runtime._live_particle_colours = {"WaterBody": "blue", "WallBoundary": "grey"}
     try:
         assert runtime.initialize_simulation() == 0
-        assert plotter.renderer.actors["particle-frame-time"].GetText(4) == "Time: 0 s"
+        assert plotter.renderer.actors["particle-frame-time"].GetInput() == "Time: 0 s"
         assert "Pressure" in controller.colourable_fields("WaterBody")
         reference = controller.meshes["WaterBody"].field_data["ScalingReference_Pressure"][0]
         controller.set_colour("WaterBody", "Pressure")
@@ -346,7 +391,7 @@ def test_native_initialized_particle_colouring_persists_into_replay(tmp_path):
         runtime._live_replay_mode = True
         runtime._live_playback_queue = [(final.time, {"WaterBody": final.path})]
         runtime._refresh_live_particles()
-        assert plotter.renderer.actors["particle-frame-time"].GetText(4) == (
+        assert plotter.renderer.actors["particle-frame-time"].GetInput() == (
             f"Time: WallBoundary: 0 s, WaterBody: {final.time:.6g} s"
         )
         assert controller.colouring["WaterBody"] == "Pressure"

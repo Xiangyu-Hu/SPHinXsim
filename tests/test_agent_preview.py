@@ -190,6 +190,36 @@ def test_observer_preserves_hidden_particles_and_resets_on_run_switch(tmp_path):
         plotter.close()
 
 
+@requires_desktop
+def test_observer_shows_time_of_loaded_frame_and_resets_on_run_switch(tmp_path, monkeypatch):
+    pv = pytest.importorskip("pyvista")
+    from sphinxsim.visualization import live_particles
+
+    first = prepare_run(tmp_path, 1, time=0.1)
+    save_workflow(tmp_path)
+    plotter = pv.Plotter(off_screen=True, window_size=(800, 600))
+    observer = AgentPreviewObserver(WorkflowPreviewSource(tmp_path, "demo"), plotter, tmp_path)
+    try:
+        observer.tick()
+        assert plotter.renderer.actors["particle-frame-time"].GetText(4) == "Time: 0.1 s"
+        root = tmp_path / "store/demo_iteration_001/runs/run_001/output"
+        later = root / "GranularBody_0002.vtp"
+        later.write_text((root / "GranularBody_0001.vtp").read_text().replace(">0.1</DataArray>", ">0.3</DataArray>"))
+        reader = live_particles.read_particle_mesh
+        monkeypatch.setattr(live_particles, "read_particle_mesh", lambda _: (_ for _ in ()).throw(OSError("incomplete")))
+        observer.tick()
+        assert plotter.renderer.actors["particle-frame-time"].GetText(4) == "Time: 0.1 s"
+        monkeypatch.setattr(live_particles, "read_particle_mesh", reader)
+        observer.tick()
+        assert plotter.renderer.actors["particle-frame-time"].GetText(4) == "Time: 0.3 s"
+        prepare_run(tmp_path, 2, time=0.2)
+        save_workflow(tmp_path, [first])
+        observer.tick()
+        assert plotter.renderer.actors["particle-frame-time"].GetText(4) == "Time: 0.2 s"
+    finally:
+        plotter.close()
+
+
 @pytest.mark.integration
 @requires_desktop
 def test_observer_displays_real_cpp_solver_output(build_temp_path):

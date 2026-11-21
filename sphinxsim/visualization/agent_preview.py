@@ -80,6 +80,8 @@ class AgentPreviewObserver:
     """Update one Plotter on the Qt main thread and preserve its camera."""
 
     def __init__(self, source, plotter, project_root, visibility=None):
+        from sphinxsim.visualization.particle_time import ParticleTimeDisplay
+
         self.source = source
         self.plotter = plotter
         self.project_root = Path(project_root)
@@ -88,6 +90,7 @@ class AgentPreviewObserver:
         self.scene_key = None
         self.visualizer = None
         self.visibility = visibility
+        self.time_display = ParticleTimeDisplay(plotter)
 
     def tick(self):
         from sphinxsim.config.schemas import SimulationConfig
@@ -106,6 +109,7 @@ class AgentPreviewObserver:
             config = SimulationConfig.model_validate_json(run.config_path.read_text(encoding="utf-8"))
             camera = self.plotter.camera_position if self.visualizer is not None else None
             self.visualizer = ConfigVisualizer(config, self.project_root, config_path=run.config_path)
+            self.time_display.reset()
             self.visualizer.populate_existing_run(self.plotter, run.output_dir)
             if self.visibility is not None:
                 self.visibility.set_scene(
@@ -120,15 +124,14 @@ class AgentPreviewObserver:
         bodies = config.fluid_bodies + config.continuum_bodies + config.solid_bodies
         colours = {body.name: _body_colour(body.name, config) for body in bodies}
         self.visualizer._select_subplot(self.plotter, 0)
-        frames = refresh_particle_actors(
+        refresh_particle_actors(
             self.plotter, run.output_dir, colours, self.versions, self.catalog,
-            self.visibility,
+            self.visibility, self.time_display,
         )
         for body in config.fluid_bodies + config.continuum_bodies:
             if body.name in self.versions:
                 self.plotter.remove_actor(f"preview-shape-{body.name}", reset_camera=False)
-        time_text = ", ".join(f"{body}: {frame.time:.6g} s" for body, frame in frames.items() if not frame.generation)
-        self.plotter.add_text(f"{run.label} | {run.status}\n{time_text or 'Waiting for solver frames'}",
+        self.plotter.add_text(f"{run.label} | {run.status}",
                              name="agent-status", position="lower_left", color="white", font_size=10)
         self.plotter.render()
 

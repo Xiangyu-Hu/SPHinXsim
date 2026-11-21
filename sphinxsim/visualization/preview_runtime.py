@@ -81,6 +81,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._json_editor: Any | None = None
         self._particle_visibility: Any | None = None
         self._particle_menu_filter: Any | None = None
+        self._particle_time_display: Any | None = None
         self._particle_scene_path: Path | None = None
         self._particle_scene_generation = 0
         self._pending_simulation: Any | None = None
@@ -111,6 +112,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._stop_live_refresh()
         self.discard_pending_simulation()
         self.plotter = None
+        self._particle_time_display = None
         self._json_editor = None
         self._particle_visibility = None
         self._particle_menu_filter = None
@@ -261,9 +263,10 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 label=_particle_label(body_name),
                 reset_camera=False,
             )
+            generation = vtp_path.stem[len(body_name) + 1:].startswith("ite_")
             if self._particle_visibility is not None:
-                generation = vtp_path.stem[len(body_name) + 1:].startswith("ite_")
                 self._particle_visibility.add_actor(body_name, actor, mesh, initialized=not generation)
+            self._update_particle_time(body_name, mesh, generation=generation)
 
         if self._live_replay_mode and not self._live_playback_queue:
             self._stop_live_refresh()
@@ -454,7 +457,15 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             )
             if self._particle_visibility is not None:
                 self._particle_visibility.add_actor(body_name, actor, mesh, initialized=True)
+            self._update_particle_time(body_name, mesh)
         self.plotter.render()
+
+    def _update_particle_time(self, body: str, mesh: Any, *, generation: bool = False) -> None:
+        if self._particle_time_display is None:
+            from sphinxsim.visualization.particle_time import ParticleTimeDisplay
+
+            self._particle_time_display = ParticleTimeDisplay(self.plotter)
+        self._particle_time_display.update(body, mesh, generation=generation)
 
     def continue_to_run(self, refresh_interval: float = 10.0) -> int:
         """Run the initialized simulation and play its particle snapshots."""
@@ -928,6 +939,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                         self.plotter, self._particle_visibility
                     )
 
+            if self._particle_time_display is not None:
+                self._particle_time_display.reset()
             self.plotter.clear()
             configure_layout = getattr(visualizer, "_configure_layout", None)
             if configure_layout is not None:

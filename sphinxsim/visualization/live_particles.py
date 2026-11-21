@@ -4,7 +4,8 @@ from sphinxsim.results import ResultCatalog, read_particle_mesh
 from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE
 
 
-def refresh_particle_actors(plotter, output_dir, body_colours, versions, catalog, visibility=None):
+def refresh_particle_actors(plotter, output_dir, body_colours, versions, catalog, visibility=None,
+                            time_display=None):
     frames = catalog.latest(output_dir, list(body_colours), include_generation=True)
     for body, frame in frames.items():
         version = (str(frame.path), frame.version)
@@ -21,5 +22,7 @@ def refresh_particle_actors(plotter, output_dir, body_colours, versions, catalog
         )
         if visibility is not None:
             visibility.add_actor(body, actor, mesh, initialized=not frame.generation)
+        if time_display is not None:
+            time_display.update(body, mesh, generation=frame.generation)
         versions[body] = version
     return frames

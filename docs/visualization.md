@@ -184,6 +184,11 @@ Notes:
   run. If a selected attribute is missing from a frame, that body temporarily
   uses its body color and returns to the selection when the attribute reappears.
   Hiding a body's particles also hides its color bar.
+- The preview displays the physical time saved in the currently displayed
+  solver snapshots. It updates during live playback and replay; if bodies
+  have different snapshot times, their times are shown separately. Generated
+  particle iterations are not simulation times. The workbench shows the same
+  time display when observing solver results.
 
 ```
 sphinxsim> load config.json

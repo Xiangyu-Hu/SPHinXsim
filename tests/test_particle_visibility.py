@@ -282,9 +282,11 @@ def test_particle_colouring_survives_live_and_replay_frame_updates(tmp_path):
         runtime._refresh_live_particles()
         assert controller.actors["GranularBody"].GetMapper().GetScalarRange() == pytest.approx((-2, 2))
         assert controller.meshes["GranularBody"].point_data["Pressure"] == pytest.approx([0.1, 0.2])
+        assert plotter.renderer.actors["particle-frame-time"].GetText(4) == "Time: 0 s"
         runtime._refresh_live_particles()
         assert controller.actors["GranularBody"].GetMapper().GetScalarRange() == pytest.approx((-2, 2))
         assert controller.meshes["GranularBody"].point_data["Pressure"] == pytest.approx([5, 6])
+        assert plotter.renderer.actors["particle-frame-time"].GetText(4) == "Time: 0.1 s"
     finally:
         plotter.close()
 
@@ -329,6 +331,7 @@ def test_native_initialized_particle_colouring_persists_into_replay(tmp_path):
     runtime._live_particle_colours = {"WaterBody": "blue", "WallBoundary": "grey"}
     try:
         assert runtime.initialize_simulation() == 0
+        assert plotter.renderer.actors["particle-frame-time"].GetText(4) == "Time: 0 s"
         assert "Pressure" in controller.colourable_fields("WaterBody")
         reference = controller.meshes["WaterBody"].field_data["ScalingReference_Pressure"][0]
         controller.set_colour("WaterBody", "Pressure")
@@ -343,6 +346,9 @@ def test_native_initialized_particle_colouring_persists_into_replay(tmp_path):
         runtime._live_replay_mode = True
         runtime._live_playback_queue = [(final.time, {"WaterBody": final.path})]
         runtime._refresh_live_particles()
+        assert plotter.renderer.actors["particle-frame-time"].GetText(4) == (
+            f"Time: WallBoundary: 0 s, WaterBody: {final.time:.6g} s"
+        )
         assert controller.colouring["WaterBody"] == "Pressure"
         assert controller.actors["WaterBody"].GetMapper().GetScalarRange() == pytest.approx(
             (-reference, reference)

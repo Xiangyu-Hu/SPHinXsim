@@ -54,6 +54,103 @@ annotation enlarges it. Clicking an annotation reveals and selects its
 corresponding configuration entry in the editor; this expands the entry's
 ancestors and clears the editor filter if needed to make the entry visible.
 
+## JSON editor menus
+
+The Qt-backed shell Preview and the [Workbench](workbench.md) use a searchable
+**Setting / Value** tree to edit the loaded configuration. Expand a group to
+find its fields, or use the filter to narrow the tree. Boolean, numeric and
+enumerated values use controls appropriate to their types.
+
+### Right-click a setting
+
+Right-click a tree row to open its context menu. Actions depend on the selected
+row; unavailable actions are dimmed. A menu may contain:
+
+| Action | Use |
+|---|---|
+| **Copy value** | Copy a field or object as a JSON value. |
+| **Paste value** | Replace a field or object with a compatible clipboard value. Values are checked against the destination type; fixed-size vectors must have the expected number of components. Plain text is also accepted for string fields. |
+| **Add property** | Add an absent schema property to an object. Choose the property from the submenu, then edit its value. |
+| **Remove property** | Remove an existing removable property from an object. Required properties cannot be removed this way. |
+| **Add** | Add an entry to the selected list. |
+| **Add as** | Choose the type of a new list entry when the list supports multiple variants. |
+| **Duplicate** / **Remove** | Duplicate or remove the selected list entry. |
+| **Move up** / **Move down** | Reorder the selected list entry within its list. |
+
+For example, to duplicate a body, expand the appropriate body list, right-click
+the body entry, choose **Duplicate**, and edit the new entry. To add an optional
+setting, right-click its parent object and choose it under **Add property**.
+Adding or duplicating an entry may require further edits before the configuration
+passes validation. Errors are reported in the editor status area.
+
+### Tree menu, undo and saving
+
+Click the **Setting ▾** column header to open the tree menu:
+
+- **Expand** and **Collapse** change the tree display.
+- **Revert** undoes the latest local edit; `Ctrl+Z` also invokes undo.
+- **Reload** reads the configuration from disk. If there are unsaved changes,
+  the editor asks before discarding them.
+
+These menu actions change the editor draft, not the file immediately:
+
+- In the **shell Preview**, press `Ctrl+S` to validate and save the loaded JSON
+  and rebuild the preview. If validation or saving fails, the status area
+  reports the error and the file is not replaced. If saving succeeds but the
+  preview rebuild fails, the saved changes remain on disk and the error is
+  reported. Refreshing a preview that would discard unapplied edits asks for
+  confirmation.
+- In the **Workbench**, use **Validate** to check the draft, **Preview draft**
+  to visualize valid unsaved edits, or **Save + Preview** (`Ctrl+S`) to save
+  and refresh. Invalid edits leave the saved file and last valid scene intact.
+  Switching between the editor and Chat preserves the draft.
+
+When possible, saving preserves the existing JSON layout, numeric spelling and
+line endings rather than adding unchanged schema defaults.
+
+## Particle legend context menu
+
+In the Qt-backed shell Preview or Workbench canvas, right-click a body's
+**Particles** entry in the legend. Right-clicking and dragging remains a
+canvas gesture; use a click without dragging to open the menu.
+
+### Show or hide particles
+
+Toggle **Show particles** to hide or show that body's particle cloud. Its
+legend entry remains visible with a dimmed swatch when hidden, so it can be
+shown again. Hiding particles also hides that body's color bar. This affects
+only the display: it does not change the simulation or saved VTP files.
+
+### Color particles by an output attribute
+
+Particles are colored by body by default. In the shell, use
+`preview --with-particles` followed by `initialize-simulation` to produce and
+display initial solver output. Then right-click a body's **Particles** legend
+entry and choose **Color by**, followed by an attribute such as **Pressure**
+or **Velocity magnitude**. The Workbench offers the same menu when displaying
+solver output. Generated-particle previews have the visibility option but do
+not yet offer **Color by**.
+
+The submenu lists numeric scalar and vector point-data arrays present in that
+body's displayed solver snapshot, including integer arrays such as particle
+IDs. Vectors are colored by magnitude; matrices are not offered. The color bar
+identifies the body and variable. Select **Body color** to restore the default.
+
+For an attribute with a valid saved [scaling reference](#particle-scaling-metadata),
+scalar colors use the fixed range `[-reference, reference]` and vector
+magnitudes use `[0, reference]`; values outside the range use the end colors.
+Without a valid reference, including in older files, the range is calculated
+from each frame's finite values and may change between frames. If the selected
+attribute is absent or has no finite values, the body temporarily uses its
+body color. The selection is retained and applied again when the attribute
+returns.
+
+Visibility and color selections persist as frames change during a run and
+shell replay. Switching to another case or run resets them. The preview also
+shows the physical time stored in the displayed solver snapshots; if bodies
+are displaying different times, they are listed separately. Generated-particle
+iterations are not simulation times.
+
 ## CLI usage
 
 ### Basic preview (direct command)
@@ -150,45 +247,11 @@ Notes:
 - `preview --screenshot ...` is one-shot and does not use the persistent window.
 - Persistent interactive mode relies on `pyvistaqt` and the base package's
   PySide6 Qt backend.
-- In the Qt-backed persistent window, the full-height dark configuration editor on the right
-  presents JSON fields as a searchable property tree: setting names on the
-  left and editable value boxes on the right. It uses type-appropriate controls
-  for booleans, numbers, and common enumerations. Click the **Setting ▾**
-  column header to open the editor menu with **Expand**, **Collapse**,
-  **Revert**, and **Reload**. To modify a list, right-click its row and choose
-  **Add**, or right-click an entry to **Duplicate**, **Remove**, or **Move
-  up/Move down**. Only actions available for that row are highlighted;
-  unavailable actions are dimmed. A change is saved only when
-  you press `Ctrl+S`; it validates and atomically saves the currently loaded
-  JSON file before rebuilding the preview. Running `preview` asks for
-  confirmation before discarding unapplied editor changes. Loading a different
-  configuration and running `preview` rebinds the editor to that file.
-  If the persistent Preview window is closed, running `preview` again creates a
-  fresh window and reattaches the editor.
-- Right-click a body's **Particles** entry in the legend and toggle **Show
-  particles** to hide or show that body's particles. The entry stays visible
-  when hidden, with a dimmed colour swatch, and the choice remains in effect as
-  new animation frames arrive.
-  This changes only the display, not the simulation or its output. Switching to
-  a different case or starting a new particle-preview run resets the choice.
-- After `initialize-simulation`, right-click a body's **Particles** entry and
-  choose **Color by** to select a numeric particle attribute, or **Body color**
-  to restore the default. Vectors are colored by magnitude; matrices are not
-  offered. The color bar identifies the body and variable. The workbench canvas
-  offers the same menu when displaying solver output.
-- If an attribute has a saved scaling reference, scalar colors use the fixed
-  range `[-reference, reference]`, and vector magnitudes use `[0, reference]`.
-  Values outside the range use the end colors. Without a valid reference,
-  including in older files, the range is calculated from each frame's finite
-  values. Color selections persist across live and replay frames for the same
-  run. If a selected attribute is missing from a frame, that body temporarily
-  uses its body color and returns to the selection when the attribute reappears.
-  Hiding a body's particles also hides its color bar.
-- The preview displays the physical time saved in the currently displayed
-  solver snapshots. It updates during live playback and replay; if bodies
-  have different snapshot times, their times are shown separately. Generated
-  particle iterations are not simulation times. The workbench shows the same
-  time display when observing solver results.
+- See [JSON editor menus](#json-editor-menus) and [Particle legend context
+  menu](#particle-legend-context-menu) for editing and display controls.
+- Loading a different configuration and running `preview` rebinds the editor
+  to that file. If the persistent window is closed, running `preview` again
+  creates a fresh window and reattaches the editor.
 
 ```
 sphinxsim> load config.json

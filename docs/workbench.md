@@ -57,6 +57,10 @@ particles are hidden, with a dimmed colour swatch, and the choice is retained
 as result frames update.
 Changing to another run or case resets the choice; it never changes the
 simulation or its saved output.
+When solver frames are available, the same menu offers **Color by** for
+particle attributes and shows the frame's physical time. See the
+[particle legend guide](visualization.md#particle-legend-context-menu) for
+color ranges, playback behavior and missing attributes.
 
 ## Edit and preview
 
@@ -68,6 +72,9 @@ simulation or its saved output.
   LF/CRLF line endings, following upstream JSON Editor PRs
   [#160](https://github.com/Xiangyu-Hu/SPHinXsim/pull/160) and
   [#185](https://github.com/Xiangyu-Hu/SPHinXsim/pull/185).
+- Right-click a tree row for value, property and list actions. See the
+  [JSON editor menu guide](visualization.md#json-editor-menus) for the available
+  actions and their prerequisites.
 - Edit values, then **Validate** or **Save + Preview** (`Ctrl+S`). Invalid edits
   leave the saved file and last valid scene intact. **Preview draft** previews
   valid unsaved edits without saving them.

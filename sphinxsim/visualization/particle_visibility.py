@@ -41,7 +41,7 @@ class ParticleVisibility:
         actor = self.actors.get(body)
         if actor is not None:
             actor.SetVisibility(visible)
-        self._update_legend()
+        self._update_legend_colours()
         self.plotter.render()
 
     def _update_legend(self) -> None:
@@ -50,10 +50,16 @@ class ParticleVisibility:
         entries = _legend_entries_for_config(self.config, self.bodies)
         self.plotter.subplot(0, 0)
         self.legend = _draw_legend(self.plotter, entries)
+        self._update_legend_colours()
+
+    def _update_legend_colours(self) -> None:
+        from sphinxsim.visualization.preview import _body_colour
+
         if self.legend is not None:
             for index, body in enumerate(sorted(self.bodies)):
-                if body in self.hidden:
-                    self.legend.SetEntryString(index, f"{body} Particles (hidden)")
+                colour = _body_colour(body, self.config)
+                scale = 0.75 if body in self.hidden else 1.0
+                self.legend.SetEntryColor(index, *(component * scale for component in colour))
 
     def body_at(self, x: float, y: float) -> str | None:
         """Find a legend row from VTK display coordinates (origin at bottom left)."""

@@ -179,7 +179,7 @@ def test_observer_preserves_hidden_particles_and_resets_on_run_switch(tmp_path):
         observer.tick()
         actor = plotter.renderer.actors["particle-preview-GranularBody"]
         assert not actor.GetVisibility()
-        assert visibility.legend.GetEntryString(0) == "GranularBody Particles (hidden)"
+        assert visibility.legend.GetEntryString(0) == "GranularBody Particles"
 
         prepare_run(tmp_path, 2, time=0.2)
         save_workflow(tmp_path, [first])

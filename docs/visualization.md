@@ -150,7 +150,8 @@ Notes:
   fresh window and reattaches the editor.
 - Right-click a body's **Particles** entry in the legend and toggle **Show
   particles** to hide or show that body's particles. The entry stays visible
-  when hidden, and the choice remains in effect as new animation frames arrive.
+  when hidden, with a dimmed colour swatch, and the choice remains in effect as
+  new animation frames arrive.
   This changes only the display, not the simulation or its output. Switching to
   a different case or starting a new particle-preview run resets the choice.
 

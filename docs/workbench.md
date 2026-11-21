@@ -53,7 +53,8 @@ The left canvas contains the model and results; the Model Information sidebar
 is removed from the workbench, so the scene uses the full canvas width.
 Right-click a body's **Particles** legend entry and toggle **Show particles**
 to hide or show that body's particles. The legend remains available while
-particles are hidden, and the choice is retained as result frames update.
+particles are hidden, with a dimmed colour swatch, and the choice is retained
+as result frames update.
 Changing to another run or case resets the choice; it never changes the
 simulation or its saved output.
 

@@ -340,7 +340,7 @@ jobs:
       - name: Install Python package (editable with dev dependencies)
         run: |
           export CMAKE_ARGS="-D CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
-          pip install -e ".[dev]"
+          pip install -e ".[dev,visualization]"
 
       - name: Run unit tests (tests/, CI mock-LLM-only)
         env:
@@ -453,7 +453,7 @@ jobs:
           PYTHON_EXE=$(which python3)
           source /opt/intel/oneapi/setvars.sh --include-intel-llvm
           export CMAKE_ARGS="-D CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_COMPILER=icpx -D CMAKE_C_COMPILER_LAUNCHER=ccache -D CMAKE_CXX_COMPILER_LAUNCHER=ccache -D SPHINXSYS_USE_SYCL=ON"
-          "$PYTHON_EXE" -m pip install -e ".[dev]"
+          "$PYTHON_EXE" -m pip install -e ".[dev,visualization]"
 
       - name: Run unit tests (tests/)
         run: |

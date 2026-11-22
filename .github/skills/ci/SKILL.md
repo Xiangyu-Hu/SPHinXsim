@@ -37,10 +37,10 @@ The Linux SYCL job runs the unit and example suites but does not currently have
 that dedicated Xvfb desktop-graphics step.
 
 Windows and macOS run their unit and example suites without that dedicated
-desktop-graphics step. Windows additionally installs Qt preview dependencies
-and smoke-tests importing `pyvistaqt.BackgroundPlotter`. Do not describe the
-general test-suite runs or the Windows import smoke test as equivalent to the
-Linux native desktop and screenshot coverage.
+desktop-graphics step. All four build-and-test jobs install the visualization
+extra; Windows also smoke-tests importing `pyvistaqt.BackgroundPlotter`. Do not
+describe the general test-suite runs or the Windows import smoke test as
+equivalent to the Linux native desktop and screenshot coverage.
 
 ## Coverage invariants
 

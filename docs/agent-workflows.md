@@ -236,3 +236,5 @@ local native tests skip explicitly; `SPHINXSIM_REQUIRE_NATIVE_TESTS=1` turns tha
 absence into failure. `SPHINXSIM_DESKTOP_TESTS=1` enables the real-rendering tests,
 including off-screen PyVista plotters, when a display and bindings are available.
 Qt editor tests alone do not establish GPU or remote-desktop end-to-end behavior.
+Windows, macOS, and Linux SYCL CI also install the visualization extra, but do
+not run the dedicated Xvfb rendering step.

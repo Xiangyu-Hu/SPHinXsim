@@ -785,8 +785,8 @@ class ConfigVisualizer:
             font_size: int,
             text_color: Any,
             config_path: tuple[str | int, ...] | None = None,
-            background_color: Any = (0.88, 0.88, 0.88),
-            background_opacity: float = 0.0,
+            background_color: Any = None,
+            background_opacity: float | None = None,
         ) -> None:
             def _deconflict_anchor(anchor: tuple[float, float, float]) -> tuple[float, float, float]:
                 if not occupied_points:
@@ -868,19 +868,18 @@ class ConfigVisualizer:
             occupied_points.extend(normalized_points)
 
             text_values = [str(label) for label in labels]
+            label_options = {
+                "shape": "rounded_rect",
+                "fill_shape": background_opacity is None or background_opacity > 0.0,
+                "shape_color": background_color if background_color is not None else "grey",
+                "shape_opacity": background_opacity if background_opacity is not None else 1.0,
+                "background_color": background_color,
+                "background_opacity": background_opacity,
+            }
             actor = plotter.add_point_labels(
-                normalized_points,
-                text_values,
-                point_size=0,
-                font_size=font_size,
-                text_color=text_color,
-                always_visible=True,
-                shape="rounded_rect",
-                fill_shape=background_opacity > 0.0,
-                shape_color=background_color,
-                shape_opacity=background_opacity,
-                background_color=background_color,
-                background_opacity=background_opacity,
+                normalized_points, text_values,
+                point_size=0, font_size=font_size, text_color=text_color,
+                always_visible=True, **label_options,
             )
             if actor is not None:
                 self._annotation_label_actors.append(
@@ -890,6 +889,7 @@ class ConfigVisualizer:
                         "points": normalized_points,
                         "labels": text_values,
                         "text_color": text_color,
+                        "label_options": label_options,
                         "config_path": (
                             ".".join(str(part) for part in config_path)
                             if config_path is not None
@@ -1311,6 +1311,14 @@ class ConfigVisualizer:
         else:
             label_pos = (start[0], start[1] + label_offset, start[2])
 
+        label_options = {
+            "shape": "rounded_rect",
+            "fill_shape": True,
+            "shape_color": (0.2, 0.2, 0.2),
+            "shape_opacity": 0.96,
+            "background_color": (0.2, 0.2, 0.2),
+            "background_opacity": 0.96,
+        }
         try:
             actor = plotter.add_point_labels(
                 [label_pos],
@@ -1319,12 +1327,7 @@ class ConfigVisualizer:
                 font_size=10,
                 text_color=PREVIEW_GRAVITY_TEXT_COLOUR,
                 always_visible=True,
-                shape="rounded_rect",
-                fill_shape=True,
-                shape_color=(0.2, 0.2, 0.2),
-                shape_opacity=0.96,
-                background_color=(0.2, 0.2, 0.2),
-                background_opacity=0.96,
+                **label_options,
             )
             if actor is not None:
                 self._annotation_label_actors.append(
@@ -1334,6 +1337,7 @@ class ConfigVisualizer:
                         "points": [label_pos],
                         "labels": [g_label],
                         "text_color": PREVIEW_GRAVITY_TEXT_COLOUR,
+                        "label_options": label_options,
                         "config_path": "gravity",
                     }
                 )

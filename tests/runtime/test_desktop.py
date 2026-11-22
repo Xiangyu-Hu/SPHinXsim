@@ -188,6 +188,163 @@ def test_json_context_menu_toggles_matching_preview_elements(editor):
     ).hide()
 
 
+def test_annotation_toggle_tracks_real_label_during_hover(editor):
+    pv = pytest.importorskip("pyvista")
+    vtk = pytest.importorskip("vtk")
+    app, runtime, _, _ = editor
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+    plotter = pv.Plotter(off_screen=True, window_size=(400, 400))
+
+    class Interactor:
+        def __init__(self):
+            self.observers = {}
+            self.position = (0, 0)
+
+        def AddObserver(self, event, callback):
+            self.observers[event] = callback
+            return event
+
+        def RemoveObserver(self, tag):
+            self.observers.pop(tag, None)
+
+        def GetEventPosition(self):
+            return self.position
+
+        def trigger(self, event):
+            self.observers[event](self, event)
+
+    interactor = Interactor()
+    runtime.plotter = SimpleNamespace(
+        renderer=plotter.renderer,
+        iren=SimpleNamespace(interactor=interactor),
+        add_point_labels=plotter.add_point_labels,
+        remove_actor=plotter.remove_actor,
+        render=plotter.render,
+    )
+    try:
+        actor = plotter.add_point_labels(
+            [(0.0, 0.0, 0.0)], ["Gravity"], point_size=0, font_size=10,
+            always_visible=True,
+        )
+        plotter.show(auto_close=False)
+        entry = {
+            "actor": actor,
+            "font_size": 10,
+            "points": [(0.0, 0.0, 0.0)],
+            "labels": ["Gravity"],
+            "text_color": "white",
+            "config_path": "gravity",
+        }
+        visualizer = SimpleNamespace(
+            annotation_label_actors=[entry],
+            preview_element_actors={"gravity": {"annotation": [actor]}},
+        )
+        hooks["set_preview_elements"](visualizer.preview_element_actors)
+        runtime._install_annotation_hover(visualizer)
+        assert entry["actor"] is actor
+        assert any(value is actor for value in plotter.renderer.actors.values())
+
+        coordinate = vtk.vtkCoordinate()
+        coordinate.SetCoordinateSystemToWorld()
+        coordinate.SetValue(0.0, 0.0, 0.0)
+        interactor.position = coordinate.GetComputedDisplayValue(plotter.renderer)
+        interactor.trigger("MouseMoveEvent")
+        text_property = actor.GetMapper().GetInputConnection(0, 0).GetProducer().GetTextProperty()
+        assert text_property.GetFontSize() == 14
+
+        gravity_item = next(
+            item for item in _tree_items(tree)
+            if item.data(0, QtCore.Qt.ItemDataRole.UserRole) == "gravity"
+        )
+        tree.scrollToItem(gravity_item)
+        tree.customContextMenuRequested.emit(tree.visualItemRect(gravity_item).center())
+        app.processEvents()
+        action = hooks["preview_actions"]["annotation"]
+        assert action.isEnabled() and action.isChecked()
+        shown_image = plotter.screenshot(return_img=True)
+        action.trigger()
+        assert not actor.GetVisibility()
+        hidden_image = plotter.screenshot(return_img=True)
+        assert (shown_image != hidden_image).any()
+
+        revealed = []
+        hooks["reveal_path"] = revealed.append
+        interactor.trigger("MouseMoveEvent")
+        interactor.trigger("LeftButtonPressEvent")
+        assert not actor.GetVisibility()
+        assert revealed == []
+
+        action.trigger()
+        assert actor.GetVisibility()
+        assert (plotter.screenshot(return_img=True) != hidden_image).any()
+        interactor.trigger("MouseMoveEvent")
+        interactor.trigger("LeftButtonPressEvent")
+        assert revealed == ["gravity"]
+    finally:
+        runtime._remove_hover_observer()
+        plotter.close()
+
+
+def test_desktop_result_binds_new_annotation_actors(editor, tmp_path, monkeypatch):
+    app, runtime, session, path = editor
+    work = tmp_path / "job"
+    result = work / "result"
+    result.mkdir(parents=True)
+    (work / "published.json").write_text(json.dumps({"snapshot": "new"}))
+    (work / "effective-config.json").write_bytes(path.read_bytes())
+    (result / "manifest.json").write_text(json.dumps({"geometry": [], "bodies": {}}))
+    session.reference = {"job_id": "job"}
+    session.jobs = SimpleNamespace(
+        resolve=lambda reference: reference["job_id"],
+        job_path=lambda job_id: work,
+        results=lambda job_id: {"available": True, "manifest": "manifest.json"},
+    )
+
+    class Actor:
+        def __init__(self):
+            self.visible = True
+
+        def GetVisibility(self):
+            return self.visible
+
+        def SetVisibility(self, visible):
+            self.visible = bool(visible)
+
+    actor = Actor()
+
+    class Visualizer:
+        def __init__(self, *args, **kwargs):
+            self.preview_element_actors = {"gravity": {"annotation": [actor]}}
+
+        def _populate_plotter(self, *args):
+            pass
+
+        def _configure_default_view(self, *args):
+            pass
+
+        def _spatial_dim(self):
+            return 3
+
+    monkeypatch.setattr("sphinxsim.visualization.preview.ConfigVisualizer", Visualizer)
+    runtime._install_annotation_hover = lambda visualizer: None
+    runtime.plotter = SimpleNamespace(
+        camera_position=None,
+        renderer=SimpleNamespace(actors={}),
+        clear=lambda: None,
+        reset_camera=lambda **kwargs: None,
+        render=lambda: None,
+    )
+    session.refresh_result()
+    hooks = runtime._json_editor
+    assert hooks["reveal_path"]("gravity")
+    app.processEvents()
+    action = hooks["preview_actions"]["annotation"]
+    assert action.isEnabled() and action.isChecked()
+    action.trigger()
+    assert not actor.visible
+
+
 def test_list_context_menu_adds_to_the_right_clicked_list(editor):
     app, runtime, _, _ = editor
     app.processEvents()

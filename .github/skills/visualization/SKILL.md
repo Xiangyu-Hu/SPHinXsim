@@ -71,6 +71,10 @@ Design rule:
   visualization actors by canonical dot-separated config path. The runtime
   clears this binding when rebuilding the plotter and rebinds it after scene
   population; do not retain actor references across preview rebuilds.
+- PyVista point labels use `vtkLabelPlacementMapper` with the text property on
+  its input `vtkPointSetToLabelHierarchy`. Resize those labels in place; if a
+  hover fallback replaces an actor, preserve its styling and visibility and
+  rebind editor references. Hidden labels must not respond to hover or click.
 - When changing runtime behavior, inspect the CLI, desktop session, and
   visualization test call sites. Prefer focused tests in
   `tests/test_visualization.py` and `tests/runtime/test_desktop.py` as

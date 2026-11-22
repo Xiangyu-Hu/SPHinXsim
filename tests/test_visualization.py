@@ -2313,6 +2313,97 @@ assert max(frame.time for frame in final_frames.values()) > 0
         interactor.trigger_mouse_move(1, 1)
         assert actor.prop.size == 8
 
+    def test_hover_rebuild_rebinds_annotation_and_preserves_visibility(self):
+        from sphinxsim.visualization.preview_runtime import _ShellPreviewRuntime
+
+        class Actor:
+            def __init__(self):
+                self.visible = True
+
+            def GetMapper(self):
+                return object()
+
+            def GetVisibility(self):
+                return self.visible
+
+            def SetVisibility(self, visible):
+                self.visible = bool(visible)
+
+        class Interactor:
+            def __init__(self):
+                self.observers = {}
+
+            def AddObserver(self, event, callback):
+                self.observers[event] = callback
+                return event
+
+            def GetEventPosition(self):
+                return (20, 20)
+
+            def trigger(self, event):
+                self.observers[event](self, event)
+
+        class Coordinate:
+            def SetCoordinateSystemToWorld(self):
+                pass
+
+            def SetValue(self, *args):
+                pass
+
+            def GetComputedDisplayValue(self, renderer):
+                return (20, 20)
+
+        entry = {
+            "actor": Actor(),
+            "font_size": 8,
+            "points": [(0.0, 0.0, 0.0)],
+            "labels": ["label"],
+            "config_path": "gravity",
+            "label_options": {
+                "shape_color": (0.2, 0.2, 0.2),
+                "shape_opacity": 0.96,
+                "background_opacity": 0.96,
+            },
+        }
+
+        class Visualizer:
+            annotation_label_actors = [entry]
+
+            @property
+            def preview_element_actors(self):
+                return {"gravity": {"annotation": [entry["actor"]]}}
+
+        interactor = Interactor()
+        runtime = _ShellPreviewRuntime()
+        runtime._using_background_plotter = True
+        runtime.plotter = SimpleNamespace(
+            iren=SimpleNamespace(interactor=interactor),
+            renderer=object(),
+            remove_actor=lambda *args, **kwargs: None,
+            add_point_labels=MagicMock(side_effect=lambda *args, **kwargs: Actor()),
+        )
+        bindings = []
+        revealed = []
+        runtime._json_editor = {
+            "set_preview_elements": bindings.append,
+            "reveal_path": revealed.append,
+        }
+        visualizer = Visualizer()
+        with patch.dict(sys.modules, {"vtk": SimpleNamespace(vtkCoordinate=Coordinate)}):
+            runtime._install_annotation_hover(visualizer)
+
+        for key, value in entry["label_options"].items():
+            assert runtime.plotter.add_point_labels.call_args.kwargs[key] == value
+        runtime._json_editor["set_preview_elements"](visualizer.preview_element_actors)
+        assert bindings[-1]["gravity"]["annotation"] == [entry["actor"]]
+        interactor.trigger("MouseMoveEvent")
+        entry["actor"].SetVisibility(False)
+        interactor.trigger("MouseMoveEvent")
+        assert not entry["actor"].GetVisibility()
+        assert bindings[-1]["gravity"]["annotation"] == [entry["actor"]]
+        interactor.trigger("LeftButtonPressEvent")
+        assert revealed == []
+
     def test_shell_help_mentions_preview(self, build_temp_path, capsys):
         inputs = ["help", "exit"]
         with patch("builtins.input", side_effect=inputs):
@@ -2838,6 +2929,75 @@ class _FakePyVista:
 
 class TestPreviewGravityArrow:
     """Tests that the gravity arrow is rendered in the preview plotter."""
+
+    def test_dambreak_emitter_annotation_has_visible_background(self, tmp_path, monkeypatch):
+        from sphinxsim.visualization.preview import ConfigVisualizer
+
+        config_path = Path(__file__).parent / "test_simulation" / "test_3d_simulation" / "data" / "dambreak.json"
+        config = SimulationConfig.model_validate_json(config_path.read_text())
+        viz = ConfigVisualizer(config, tmp_path, off_screen=True)
+        monkeypatch.setattr(
+            viz, "_load_oriented_box_mesh",
+            lambda ob, vtp_dir: _FakeMesh((0.4, 0.6, 1.4, 1.6, 0.1, 0.4)),
+        )
+        plotter = _FakePlotter()
+        with patch.dict(sys.modules, {"pyvista": _FakePyVista}):
+            viz._populate_plotter(plotter, vtp_dir=None)
+
+        emitter = next(
+            call for call in plotter.label_calls
+            if any("Emitter" in label for label in call["labels"])
+        )
+        assert emitter["fill_shape"]
+        assert emitter["shape_color"] == "grey"
+        assert emitter["shape_opacity"] == 1.0
+        observer = next(
+            call for call in plotter.label_calls if call["labels"] == ["Observer 1"]
+        )
+        assert observer["shape_opacity"] == 0.96
+
+    def test_dambreak_emitter_background_survives_hover_and_toggle(self, tmp_path, monkeypatch):
+        pv = pytest.importorskip("pyvista")
+        import numpy as np
+
+        from sphinxsim.visualization.preview import ConfigVisualizer
+        from sphinxsim.visualization.preview_runtime import _ShellPreviewRuntime
+
+        config_path = Path(__file__).parent / "test_simulation" / "test_3d_simulation" / "data" / "dambreak.json"
+        config = SimulationConfig.model_validate_json(config_path.read_text())
+        viz = ConfigVisualizer(config, tmp_path, off_screen=True)
+        monkeypatch.setattr(
+            viz, "_load_oriented_box_mesh",
+            lambda ob, vtp_dir: pv.Box(bounds=(0.4, 0.6, 1.4, 1.6, 0.1, 0.4)),
+        )
+        plotter = pv.Plotter(off_screen=True, window_size=(600, 400))
+        try:
+            viz._populate_plotter(plotter, vtp_dir=None)
+            entry = next(
+                item for item in viz.annotation_label_actors
+                if item["config_path"] == "geometries.oriented_boxes.0"
+            )
+            actor = entry["actor"]
+            mapper = actor.GetMapper()
+            assert mapper.GetBackgroundOpacity() == pytest.approx(1.0)
+            assert mapper.GetBackgroundColor() == pytest.approx((0.5, 0.5, 0.5), abs=0.01)
+            assert _ShellPreviewRuntime._set_label_font_size(actor, 12)
+
+            plotter.view_xy()
+            plotter.show(auto_close=False)
+            shown = plotter.screenshot(return_img=True)
+            actor.SetVisibility(False)
+            plotter.render()
+            hidden = plotter.screenshot(return_img=True)
+            changed = np.any(shown != hidden, axis=2)
+            grey = np.all((shown >= 120) & (shown <= 136), axis=2)
+            assert np.any(changed & grey)
+
+            actor.SetVisibility(True)
+            plotter.render()
+            assert np.any(plotter.screenshot(return_img=True) != hidden)
+        finally:
+            plotter.close()
 
     def test_gravity_arrow_added_when_gravity_set(self, fluid_config, tmp_path):
         """When gravity is set, _populate_plotter should add an arrow mesh."""

@@ -199,6 +199,11 @@ class Session:
             raise
         finally:
             plotter.suppress_rendering = False
+        editor = self.runtime._json_editor
+        if isinstance(editor, dict):
+            set_elements = editor.get("set_preview_elements")
+            if callable(set_elements):
+                set_elements(visualizer.preview_element_actors)
         plotter.render()
         self.manifest, self.error = result["manifest"], None
         if self.read_only:

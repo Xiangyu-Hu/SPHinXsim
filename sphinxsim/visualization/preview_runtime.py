@@ -569,7 +569,11 @@ class _ShellPreviewRuntime(JsonEditorMixin):
     def _set_label_font_size(actor: Any, size: int) -> bool:
         try:
             mapper = actor.GetMapper()
-            text_prop = mapper.GetLabelTextProperty()
+            if hasattr(mapper, "GetLabelTextProperty"):
+                text_prop = mapper.GetLabelTextProperty()
+            else:
+                connection = mapper.GetInputConnection(0, 0)
+                text_prop = connection.GetProducer().GetTextProperty()
             text_prop.SetFontSize(int(size))
             if hasattr(mapper, "Modified"):
                 mapper.Modified()
@@ -584,6 +588,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             return entry.get("actor")
 
         actor = entry.get("actor")
+        get_visibility = getattr(actor, "GetVisibility", None)
+        visible = bool(get_visibility()) if callable(get_visibility) else True
         if actor is not None:
             try:
                 self.plotter.remove_actor(actor, render=False)
@@ -609,10 +615,13 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 font_size=int(font_size),
                 text_color=text_color,
                 always_visible=True,
+                **entry.get("label_options", {}),
             )
         except Exception:
             return actor
 
+        if new_actor is not None:
+            new_actor.SetVisibility(visible)
         entry["actor"] = new_actor
         return new_actor
 
@@ -662,6 +671,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         spec_entries: list[dict[str, Any]] = []
         hover_coordinate = vtk.vtkCoordinate()
         hover_coordinate.SetCoordinateSystemToWorld()
+        hover_installed = False
 
         def _apply_size(spec_index: int, font_size: int) -> None:
             entry = spec_entries[spec_index]
@@ -672,6 +682,12 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             rebuilt_actor = self._rebuild_label_actor(entry, font_size)
             if rebuilt_actor is not None:
                 entry["actor"] = rebuilt_actor
+                if hover_installed:
+                    editor = self._json_editor
+                    set_elements = editor.get("set_preview_elements") if isinstance(editor, dict) else None
+                    elements = getattr(visualizer, "preview_element_actors", None)
+                    if callable(set_elements) and isinstance(elements, dict):
+                        set_elements(elements)
 
         for entry in entries:
             actor = entry.get("actor") if isinstance(entry, dict) else None
@@ -710,6 +726,10 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             best_inside_score = float("inf")
             best_anchor_distance_sq = float(16 * 16)
             for idx, entry in enumerate(spec_entries):
+                actor = entry.get("actor")
+                get_visibility = getattr(actor, "GetVisibility", None)
+                if callable(get_visibility) and not get_visibility():
+                    continue
                 points = entry.get("points") or []
                 if not points:
                     continue
@@ -793,6 +813,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._hover_interactor = interactor
         self._hover_observer_tag = tag
         self._annotation_click_observer_tag = click_tag
+        hover_installed = True
 
     def _is_unchanged(
         self,
@@ -957,8 +978,6 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             if draw_sidebar is not None:
                 draw_sidebar(self.plotter)
             visualizer._populate_plotter(self.plotter, vtp_dir, latest_particle_vtps)
-            if callable(set_preview_elements):
-                set_preview_elements(visualizer.preview_element_actors)
             if self._particle_visibility is not None:
                 if resolved_config_path != self._particle_scene_path or with_particles:
                     self._particle_scene_generation += 1
@@ -1019,6 +1038,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             config_info = f"{dim_label}  •  {sim_type_label}  •  {mode_label}"
             visualizer._add_config_info_text(self.plotter, config_info, ndim)
             self._install_annotation_hover(visualizer)
+            if callable(set_preview_elements):
+                set_preview_elements(visualizer.preview_element_actors)
 
             if not self._using_background_plotter:
                 try:

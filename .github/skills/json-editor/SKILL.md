@@ -40,6 +40,13 @@ and round-tripping behavior, or code that integrates with the editor.
   and use the runtime's configured writer for saved content.
 - Preserve editor state behavior, including undo/revert, dirty-state handling,
   reload/discard confirmation, list editing, and preview refresh cancellation.
+- Preview bindings use `set_preview_elements` with canonical dot-separated
+  paths mapped to annotation and visualization actor lists. Shell Preview and
+  the desktop session rebind after scene rebuilds; do not keep stale actors.
+  Visibility actions are display-only and enabled only for bound actors.
+- Annotation hover and click links are installed by the preview runtime; clicking
+  reveals the linked tree entry. The Workbench does not currently bind these
+  annotation or visualization links to its separate canvas.
 
 ## Workflow
 

@@ -41,7 +41,7 @@ only the C++ projects may leave the Python binding out of date.
 | Inlet/Outlet oriented boxes | Wireframe | Red |
 | Constraint region oriented boxes | Wireframe | Yellow |
 | System domain bounding box | Wireframe | White (10 % opacity) |
-| Generated particles (`--with-particles`) | Points | White (per-body colour) |
+| Generated particles (`--with-particles`) | Points by default; optional sphere splats | Per-body colour |
 
 Each shape and oriented box is labelled with an annotation that includes:
 
@@ -49,10 +49,11 @@ Each shape and oriented box is labelled with an annotation that includes:
 - **Oriented boxes**: BC type (emitter, bi-directional), inflow speed or pressure, and particle-relaxation constraints targeting that oriented box.
 - **Gravity**: shown in the lower-left corner when a gravity vector is defined.
 
-In an interactive preview window with the JSON editor open, hovering an
-annotation enlarges it. Clicking an annotation reveals and selects its
-corresponding configuration entry in the editor; this expands the entry's
-ancestors and clears the editor filter if needed to make the entry visible.
+In the Qt-backed shell Preview and desktop session, hovering an annotation
+enlarges it. Clicking an annotation reveals and selects its corresponding
+configuration entry in the editor; this expands the entry's ancestors and
+clears the editor filter if needed to make the entry visible. These annotation
+links are not currently connected in the Workbench.
 
 ## JSON editor menus
 
@@ -84,8 +85,9 @@ the body entry, choose **Duplicate**, and edit the new entry. To add an optional
 setting, right-click its parent object and choose it under **Add property**.
 Adding or duplicating an entry may require further edits before the configuration
 passes validation. The annotation and visualization toggles are enabled only
-when the selected entry has a corresponding preview element. Errors are reported
-in the editor status area.
+when the selected entry has a corresponding bound preview element. The shell
+Preview and desktop session provide these bindings; the Workbench does not
+currently connect them. Errors are reported in the editor status area.
 
 ### Tree menu, undo and saving
 
@@ -154,7 +156,8 @@ display initial solver output. Then right-click a body's **Particles** legend
 entry and choose **Color by**, followed by an attribute such as **Pressure**
 or **Velocity magnitude**. The Workbench offers the same menu when displaying
 solver output. Generated-particle previews have the visibility option but do
-not yet offer **Color by**.
+not yet offer **Color by**; their representation and transparency can still be
+changed.
 
 The submenu lists numeric scalar and vector point-data arrays present in that
 body's displayed solver snapshot, including integer arrays such as particle
@@ -189,9 +192,9 @@ iterations are not simulation times.
 sphinxsim preview path/to/config.json
 ```
 
-This opens an interactive PyVista window showing the geometry.  The original
-JSON file is passed directly to the C++ `SPHSimulation` — it is the single
-source of truth, no intermediate copy is written.
+This opens an interactive PyVista window showing the geometry. The preview
+writes a temporary runtime JSON from the validated configuration and uses it
+to build geometry; it does not modify the source JSON.
 
 ### Preview with generated particles
 
@@ -205,11 +208,12 @@ because particle generation can be expensive.
 
 When particles are shown:
 
-- Regular body shapes are hidden to keep the view clear.
+- Regular geometry shapes are hidden to keep the view clear.
 - Oriented boxes, constraints, observers, gravity, and all annotations remain visible.
 - One particle cloud is rendered per body, using the highest step VTP file
   (`BodyName_<step>.vtp` or `BodyName_ite_<step>.vtp`).
-- A small label shows the body name and step number for each particle cloud.
+- The legend identifies each particle cloud by body name. Solver snapshots
+  displayed during a live run or replay also show their physical time.
 
 This is useful for verifying particle distribution and spacing before running
 the full simulation.

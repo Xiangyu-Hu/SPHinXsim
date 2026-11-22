@@ -52,8 +52,10 @@ Design rule:
 ## Core files
 - `sphinxsim/visualization/preview.py`
 - `sphinxsim/visualization/preview_runtime.py`
+- `sphinxsim/visualization/particle_visibility.py`
 - `sphinxsim/visualization/annotations.py`
 - `tests/test_visualization.py`
+- `tests/test_particle_visibility.py`
 - `tests/runtime/test_desktop.py`
 
 ### Preview responsibilities
@@ -79,6 +81,11 @@ Design rule:
   so editor bindings survive. VTK 9.3's Gaussian mapper requires direct RGBA
   colors; mapped scalar colors can crash during rendering. Preserve the color
   transfer function for the scalar bar when converting particle values to RGBA.
+- `ParticleVisibility` keeps each body's visibility, representation, opacity,
+  field and palette across replacement actors and frame updates in the same
+  scene; a new scene resets these choices. Its Qt event filter maps widget
+  coordinates to VTK legend/color-bar coordinates and preserves right-drag.
+  Palette changes must update both the particle mapper and its scalar bar.
 - When changing runtime behavior, inspect the CLI, desktop session, and
   visualization test call sites. Prefer focused tests in
   `tests/test_visualization.py` and `tests/runtime/test_desktop.py` as
@@ -194,6 +201,14 @@ Use `tests/test_visualization.py`.
 - Mock the GUI timer and VTP reader when testing live refresh. Do not mutate
   PyVista/VTK actors from the solver worker thread; timer callbacks own actor
   updates on the Qt GUI thread.
+
+6. Particle legend and color-bar controls
+- Use `tests/test_visualization.py` for mapper, rendered output and replay
+  coverage. Verify per-body state across replacement actors and scene changes.
+- Use `tests/test_particle_visibility.py` with `SPHINXSIM_DESKTOP_TESTS=1`
+  and a real Qt/VTK display for menu hit testing, right-drag and both shell and
+  Workbench surfaces. Linux desktop CI provides Xvfb; on Windows use the
+  native Qt platform rather than the offscreen plugin for these menu tests.
 
 ## Common failure patterns
 - Missing import in local `annotations` import block inside `_populate_plotter`.

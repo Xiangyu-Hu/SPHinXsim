@@ -182,7 +182,7 @@ Notes:
 - For responsive persistent preview, install the `visualization` extra, which
   provides `pyvistaqt`; PySide6 is installed with the base package.
 - In the Qt-backed preview, edit settings in the searchable property tree on the right and press `Ctrl+S`; only then are changes validated, saved, and rendered. Click the **Setting ▾** column header for **Expand**, **Collapse**, **Revert**, and **Reload**. To modify list entries, right-click the list row or entry and choose an available action from its context menu. If `preview` would reset unapplied edits, it asks for confirmation first.
-- For the complete editor and particle legend menu actions, see
+- For the complete editor, particle legend and color-bar menu actions, see
   [JSON editor menus](visualization.md#json-editor-menus) and
   [Particle legend context menu](visualization.md#particle-legend-context-menu).
 - To switch configurations while the Preview window remains open, run `load OTHER.json` followed by `preview`; the property editor is rebound to the newly loaded file.

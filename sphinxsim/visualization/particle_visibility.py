@@ -11,6 +11,33 @@ from sphinxsim.visualization.particle_time import PARTICLE_OVERLAY_CENTER_Y
 
 logger = logging.getLogger(__name__)
 
+_SPHERE_SPLAT_SHADER = (
+    "//VTK::Color::Impl\n"
+    "float dist = dot(offsetVCVSOutput.xy,offsetVCVSOutput.xy);\n"
+    "if (dist > 1.0) {\n"
+    "  discard;\n"
+    "} else {\n"
+    "  float scale = (1.0 - dist);\n"
+    "  ambientColor *= scale;\n"
+    "  diffuseColor *= scale;\n"
+    "}\n"
+)
+
+
+def _sphere_splat_radius(mesh: Any, config: Any) -> float:
+    spacing = config.geometries.global_resolution.particle_spacing
+    if spacing is not None:
+        return float(spacing) * 0.5
+
+    bounds = mesh.bounds
+    extents = [abs(float(bounds[i + 1]) - float(bounds[i])) for i in (0, 2, 4)]
+    largest = max(extents)
+    active = [extent for extent in extents if extent > largest * 1e-8]
+    count = mesh.n_points
+    if not active or count <= 0 or not np.all(np.isfinite(active)):
+        raise ValueError("Cannot estimate particle spacing from this point cloud.")
+    return float(np.prod(active) / count) ** (1.0 / len(active)) * 0.5
+
 
 class ParticleVisibility:
     """Keep particle visibility independent of frequently replaced VTK actors."""
@@ -25,14 +52,22 @@ class ParticleVisibility:
         self.legend: Any = None
         self.meshes: dict[str, Any] = {}
         self.colouring: dict[str, str] = {}
+        self.sphere_splats: set[str] = set()
+        self._point_mappers: dict[str, tuple[Any, Any]] = {}
         self.scalar_bars: dict[str, Any] = {}
         self._colour_warnings: set[tuple[str, str]] = set()
 
     def set_scene(self, key: Any, config: Any, legend: Any = None) -> None:
         self._clear_scalar_bars()
         if key != self.scene_key:
+            for body in self.sphere_splats:
+                entry = self._point_mappers.get(body)
+                if entry is not None:
+                    entry[0].SetMapper(entry[1])
             self.hidden.clear()
             self.colouring.clear()
+            self.sphere_splats.clear()
+            self._point_mappers.clear()
             self._colour_warnings.clear()
             self.scene_key = key
         self.config = config
@@ -42,6 +77,14 @@ class ParticleVisibility:
         self.legend = legend
 
     def add_actor(self, body: str, actor: Any, mesh: Any = None, *, initialized: bool = False) -> None:
+        previous = self._point_mappers.get(body)
+        if previous is None or previous[0] is not actor:
+            self._point_mappers[body] = (actor, actor.GetMapper())
+            if body in self.sphere_splats:
+                try:
+                    self._set_actor_representation(body, actor, True)
+                except ValueError as exc:
+                    logger.warning("Cannot render sphere splats for %s: %s; showing points", body, exc)
         self.actors[body] = actor
         if initialized and mesh is not None:
             self.meshes[body] = mesh
@@ -53,6 +96,35 @@ class ParticleVisibility:
         if body not in self.bodies:
             self.bodies.add(body)
             self._update_legend()
+
+    def _set_actor_representation(self, body: str, actor: Any, splats: bool) -> None:
+        point_mapper = self._point_mappers[body][1]
+        if not splats:
+            actor.SetMapper(point_mapper)
+            return
+
+        mesh = point_mapper.GetInput()
+        if mesh is None:
+            raise ValueError("The particle mesh is unavailable.")
+        radius = _sphere_splat_radius(mesh, self.config)
+        from pyvista import PointGaussianMapper
+
+        mapper = PointGaussianMapper(emissive=False, scale_factor=radius)
+        mapper.dataset = mesh
+        mapper.SetSplatShaderCode(_SPHERE_SPLAT_SHADER)
+        mapper.ScalarVisibilityOff()
+        actor.SetMapper(mapper)
+
+    def set_sphere_splats(self, body: str, enabled: bool) -> None:
+        actor = self.actors[body]
+        self._set_actor_representation(body, actor, enabled)
+        if enabled:
+            self.sphere_splats.add(body)
+        else:
+            self.sphere_splats.discard(body)
+        if body in self.colouring:
+            self._apply_colouring(body)
+        self.plotter.render()
 
     def colourable_fields(self, body: str) -> dict[str, bool]:
         """Return point-data names and whether each is a vector magnitude."""
@@ -159,7 +231,17 @@ class ParticleVisibility:
         colour_map.AddRGBPoint(high, 0.71, 0.02, 0.15)
         colour_map.SetNanColor(0.5, 0.5, 0.5)
         array_name = "_sphinxsim_colour_" + field
-        mesh.point_data[array_name] = values
+        if body in self.sphere_splats and mapper.IsA("vtkPointGaussianMapper"):
+            from vtkmodules.util.numpy_support import numpy_to_vtk, vtk_to_numpy
+
+            # VTK's Gaussian mapper requires direct RGB(A), not mapped scalars.
+            rgba = colour_map.MapScalars(numpy_to_vtk(values, deep=True), 0, 0)
+            array_name += "_rgba"
+            mesh.point_data[array_name] = vtk_to_numpy(rgba)
+            mapper.SetColorModeToDirectScalars()
+        else:
+            mesh.point_data[array_name] = values
+            mapper.SetColorModeToMapScalars()
         mapper.SetScalarModeToUsePointFieldData()
         mapper.SelectColorArray(array_name)
         mapper.SetLookupTable(colour_map)
@@ -280,6 +362,24 @@ def install_particle_menu(widget: Any, controller: ParticleVisibility) -> Any:
                     controller.set_visible(body, visible)
 
             action.toggled.connect(toggle)
+            representation = self.menu.addMenu("Representation")
+            representation.setObjectName("sphinxsim-particle-representation")
+            representation_group = QtGui.QActionGroup(representation)
+            representation_group.setExclusive(True)
+            for label, splats in (("Points", False), ("Sphere splats", True)):
+                choice = representation.addAction(label)
+                choice.setCheckable(True)
+                choice.setChecked((body in controller.sphere_splats) == splats)
+                representation_group.addAction(choice)
+
+                def choose_representation(_checked: bool, enabled: bool = splats) -> None:
+                    if scene_key == controller.scene_key and body in controller.bodies:
+                        try:
+                            controller.set_sphere_splats(body, enabled)
+                        except ValueError as exc:
+                            QtWidgets.QMessageBox.warning(widget, "Particle representation", str(exc))
+
+                choice.triggered.connect(choose_representation)
             fields = controller.colourable_fields(body)
             if body in controller.meshes:
                 submenu = self.menu.addMenu("Color by")

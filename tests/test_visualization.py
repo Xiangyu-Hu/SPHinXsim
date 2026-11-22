@@ -136,6 +136,147 @@ def test_preview_element_actors_group_annotations_and_visualizations(
     }
 
 
+def test_particle_sphere_splats_render_and_survive_actor_replacement(fluid_config):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    fluid_config.geometries.global_resolution.particle_spacing = 0.2
+    mesh = pv.PolyData(np.array([[-0.2, 0, 0], [0.2, 0, 0]]))
+    mesh.point_data["Pressure"] = [0.0, 1.0]
+    plotter = pv.Plotter(off_screen=True, window_size=(400, 400))
+    plotter.set_background("black")
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", fluid_config)
+    try:
+        actor = plotter.add_mesh(mesh, name="particles", color="white", style="points", point_size=5)
+        controller.add_actor("WaterBody", actor, mesh, initialized=True)
+        original_mapper = actor.GetMapper()
+        plotter.camera_position = [(0, 0, 3), (0, 0, 0), (0, 1, 0)]
+        plotter.enable_parallel_projection()
+        plotter.camera.parallel_scale = 0.5
+        plotter.show(auto_close=False)
+        points_image = plotter.screenshot(return_img=True)
+
+        controller.set_sphere_splats("WaterBody", True)
+        assert actor.GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
+        assert actor.GetMapper().GetScaleFactor() == pytest.approx(0.1)
+        splats_image = plotter.screenshot(return_img=True)
+        assert np.count_nonzero(np.any(splats_image > 10, axis=2)) > (
+            2 * np.count_nonzero(np.any(points_image > 10, axis=2))
+        )
+
+        controller.set_colour("WaterBody", "Pressure")
+        coloured = plotter.screenshot(return_img=True)[100:300, 50:350, :3].astype(float)
+        assert np.any((coloured[:, :, 0] > 1.4 * coloured[:, :, 2]) & (coloured[:, :, 0] > 30))
+        assert np.any((coloured[:, :, 2] > 1.4 * coloured[:, :, 0]) & (coloured[:, :, 2] > 30))
+        controller.set_visible("WaterBody", False)
+        replacement = plotter.add_mesh(mesh.copy(), name="particles", color="white", style="points")
+        controller.add_actor("WaterBody", replacement, replacement.GetMapper().GetInput(), initialized=True)
+        assert replacement.GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
+        assert replacement.GetMapper().GetScalarVisibility()
+        assert not replacement.GetVisibility()
+        controller.set_sphere_splats("WaterBody", False)
+        assert replacement.GetMapper().GetClassName() != "vtkOpenGLPointGaussianMapper"
+        assert replacement.GetMapper().GetScalarVisibility()
+        assert not replacement.GetVisibility()
+
+        controller.set_scene("new-run", fluid_config)
+        assert not controller.sphere_splats
+        assert original_mapper.GetClassName() != "vtkOpenGLPointGaussianMapper"
+    finally:
+        plotter.close()
+
+
+def test_particle_sphere_splat_spacing_estimate_and_invalid_cloud(fluid_config):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from sphinxsim.visualization.particle_visibility import _sphere_splat_radius
+
+    fluid_config.geometries.global_resolution.particle_spacing = None
+    mesh = pv.PolyData(np.array([[0, 0, 0], [0, 1, 0], [1, 0, 0], [1, 1, 0]], dtype=float))
+    assert _sphere_splat_radius(mesh, fluid_config) == pytest.approx(0.25)
+    point = pv.PolyData(np.array([[0, 0, 0]], dtype=float))
+    with pytest.raises(ValueError, match="Cannot estimate particle spacing"):
+        _sphere_splat_radius(point, fluid_config)
+
+
+def test_particle_splat_invalid_frame_falls_back_and_recovers(fluid_config, caplog):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    fluid_config.geometries.global_resolution.particle_spacing = None
+    valid = pv.PolyData(np.array([[0, 0, 0], [1, 0, 0]], dtype=float))
+    invalid = pv.PolyData(np.array([[0, 0, 0]], dtype=float))
+    plotter = pv.Plotter(off_screen=True)
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", fluid_config)
+    try:
+        actor = plotter.add_mesh(invalid, name="particles", color="blue", style="points")
+        controller.add_actor("WaterBody", actor, invalid)
+        with pytest.raises(ValueError, match="Cannot estimate particle spacing"):
+            controller.set_sphere_splats("WaterBody", True)
+        assert not controller.sphere_splats
+
+        actor = plotter.add_mesh(valid, name="particles", color="blue", style="points")
+        controller.add_actor("WaterBody", actor, valid)
+        controller.set_sphere_splats("WaterBody", True)
+        actor = plotter.add_mesh(invalid, name="particles", color="blue", style="points")
+        controller.add_actor("WaterBody", actor, invalid)
+        assert actor.GetMapper().GetClassName() != "vtkOpenGLPointGaussianMapper"
+        assert "showing points" in caplog.text
+        assert controller.sphere_splats == {"WaterBody"}
+        actor = plotter.add_mesh(valid, name="particles", color="blue", style="points")
+        controller.add_actor("WaterBody", actor, valid)
+        assert actor.GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
+    finally:
+        plotter.close()
+
+
+def test_particle_splat_selection_survives_live_and_replay(fluid_config, tmp_path):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from sphinxsim.results import ResultCatalog
+    from sphinxsim.visualization.live_particles import refresh_particle_actors
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+    from sphinxsim.visualization.preview_runtime import _ShellPreviewRuntime
+
+    mesh = pv.PolyData(np.array([[0, 0, 0], [1, 0, 0]], dtype=float))
+    mesh.point_data["Pressure"] = [0.0, 1.0]
+    mesh.field_data["TimeValue"] = [0.0]
+    first = tmp_path / "WaterBody_0000.vtp"
+    second = tmp_path / "WaterBody_0001.vtp"
+    mesh.save(first, binary=False)
+    plotter = pv.Plotter(off_screen=True)
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", fluid_config)
+    versions = {}
+    colours = {"WaterBody": "blue"}
+    try:
+        refresh_particle_actors(plotter, tmp_path, colours, versions, ResultCatalog(), controller)
+        controller.set_sphere_splats("WaterBody", True)
+        controller.set_colour("WaterBody", "Pressure")
+        mesh.field_data["TimeValue"] = [1.0]
+        mesh.save(second, binary=False)
+        refresh_particle_actors(plotter, tmp_path, colours, versions, ResultCatalog(), controller)
+        assert controller.actors["WaterBody"].GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
+        assert controller.actors["WaterBody"].GetMapper().GetScalarVisibility()
+
+        runtime = _ShellPreviewRuntime()
+        runtime.plotter = plotter
+        runtime._particle_visibility = controller
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_colours = colours
+        runtime._live_replay_mode = True
+        runtime._live_playback_queue = [(0, {"WaterBody": first})]
+        runtime._refresh_live_particles()
+        assert controller.actors["WaterBody"].GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
+        assert controller.actors["WaterBody"].GetMapper().GetScalarVisibility()
+    finally:
+        plotter.close()
+
+
 class TestBodyLabel:
     def test_fluid_body_label_includes_density(self, fluid_config):
         from sphinxsim.visualization.annotations import body_label

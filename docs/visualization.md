@@ -125,6 +125,20 @@ legend entry remains visible with a dimmed swatch when hidden, so it can be
 shown again. Hiding particles also hides that body's color bar. This affects
 only the display: it does not change the simulation or saved VTP files.
 
+### Particle representation
+
+Choose **Representation → Sphere splats** in a body's particle legend menu to
+render shaded, circular splats like ParaView's Sphere preset. **Points** is the
+default and restores the original display. The choice applies to that body and
+persists across its live and replayed frames in the same scene.
+
+The splat radius is half the configured particle spacing. If the spacing is
+unspecified, it is estimated from the particle cloud's bounds and point count.
+Rendering cost depends on the particle count, spacing, and graphics hardware.
+If spacing cannot be estimated for a later frame, that frame uses points and
+logs a warning; the splat selection is retried on subsequent frames. The
+selection resets when changing scenes.
+
 ### Color particles by an output attribute
 
 Particles are colored by body by default. In the shell, use

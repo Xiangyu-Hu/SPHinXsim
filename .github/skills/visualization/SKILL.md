@@ -75,6 +75,10 @@ Design rule:
   its input `vtkPointSetToLabelHierarchy`. Resize those labels in place; if a
   hover fallback replaces an actor, preserve its styling and visibility and
   rebind editor references. Hidden labels must not respond to hover or click.
+- Particle legend representation changes swap the mapper on the existing actor
+  so editor bindings survive. VTK 9.3's Gaussian mapper requires direct RGBA
+  colors; mapped scalar colors can crash during rendering. Preserve the color
+  transfer function for the scalar bar when converting particle values to RGBA.
 - When changing runtime behavior, inspect the CLI, desktop session, and
   visualization test call sites. Prefer focused tests in
   `tests/test_visualization.py` and `tests/runtime/test_desktop.py` as

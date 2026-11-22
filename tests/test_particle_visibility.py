@@ -128,11 +128,37 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         assert replacement.GetMapper().GetScalarRange() == pytest.approx((-3, 3))
         assert controller.scalar_bars["GranularBody"].GetTitle() == "GranularBody: Pressure"
         event_filter.menu.close()
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
+        QtTest.QTest.qWait(50)
+        representation = event_filter.menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-representation")
+        choices = {action.text(): action for action in representation.actions()}
+        assert choices["Points"].isChecked()
+        choices["Sphere splats"].trigger()
+        assert controller.sphere_splats == {"GranularBody"}
+        assert replacement.GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
+        assert replacement.GetMapper().GetScalarRange() == pytest.approx((-3, 3))
+        event_filter.menu.close()
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
+        QtTest.QTest.qWait(50)
+        representation = event_filter.menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-representation")
+        choices = {action.text(): action for action in representation.actions()}
+        assert choices["Sphere splats"].isChecked()
+        choices["Points"].trigger()
+        assert not controller.sphere_splats
+        assert replacement.GetMapper().GetClassName() != "vtkOpenGLPointGaussianMapper"
+        assert replacement.GetMapper().GetScalarRange() == pytest.approx((-3, 3))
+        event_filter.menu.close()
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
+        QtTest.QTest.qWait(50)
+        representation = event_filter.menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-representation")
+        next(action for action in representation.actions() if action.text() == "Sphere splats").trigger()
+        event_filter.menu.close()
         controller.set_visible("GranularBody", False)
 
         replacement = plotter.add_mesh(mesh, name="particle-preview-GranularBody", color="red")
         controller.add_actor("GranularBody", replacement, mesh, initialized=True)
         assert not replacement.GetVisibility()
+        assert replacement.GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
         assert replacement.GetMapper().GetScalarVisibility()
         assert not controller.scalar_bars["GranularBody"].GetVisibility()
         controller.set_scene("first-run", config)
@@ -145,7 +171,9 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         controller.set_scene("second-run", config)
         controller.add_actor("GranularBody", replacement)
         assert replacement.GetVisibility()
+        assert replacement.GetMapper().GetClassName() != "vtkOpenGLPointGaussianMapper"
         assert not controller.colouring
+        assert not controller.sphere_splats
     finally:
         if event_filter.menu is not None:
             event_filter.menu.close()

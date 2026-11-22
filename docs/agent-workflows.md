@@ -234,6 +234,6 @@ The native Linux CI installs the extras and runs real OCCT, stdio MCP, native
 particle/continue/lease and J2 material-builder tests. It also runs opt-in
 real Qt/VTK window, particle visibility, and PNG tests under Xvfb with a CPU renderer. Without bindings,
 local native tests skip explicitly; `SPHINXSIM_REQUIRE_NATIVE_TESTS=1` turns that
-absence into failure. `SPHINXSIM_DESKTOP_TESTS=1` enables the real-rendering tests
-when a display and bindings are available. Qt editor tests alone do not establish
-GPU or remote-desktop end-to-end behavior.
+absence into failure. `SPHINXSIM_DESKTOP_TESTS=1` enables the real-rendering tests,
+including off-screen PyVista plotters, when a display and bindings are available.
+Qt editor tests alone do not establish GPU or remote-desktop end-to-end behavior.

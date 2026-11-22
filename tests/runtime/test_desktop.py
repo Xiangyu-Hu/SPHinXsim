@@ -1,7 +1,7 @@
-"""Qt editor boundary tests plus an opt-in real native-window process test.
+"""Qt editor boundary tests plus opt-in real rendering and process tests.
 
 The editor tests use a real QMainWindow and native property editor with a
-renderer facade. Only the last test claims native rendering/process coverage.
+renderer facade except for the opt-in real-label rendering test.
 """
 import base64
 import json
@@ -188,6 +188,10 @@ def test_json_context_menu_toggles_matching_preview_elements(editor):
     ).hide()
 
 
+@pytest.mark.skipif(
+    os.environ.get("SPHINXSIM_DESKTOP_TESTS") != "1",
+    reason="Real rendering requires a display; Linux CI runs this under Xvfb",
+)
 def test_annotation_toggle_tracks_real_label_during_hover(editor):
     pv = pytest.importorskip("pyvista")
     vtk = pytest.importorskip("vtk")

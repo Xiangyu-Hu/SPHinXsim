@@ -180,6 +180,12 @@ include `solid_body` for a solid boundary. For a restart, set `restart.restore_s
 to a saved step; particle generation and relaxation are skipped for nonzero
 `restore_step`.
 
+In 2D, a circle can be defined once in `geometries.primitives` with `name`,
+`type: "circle"`, `center`, `radius`, and `resolution`. Multipolygon entries
+can reuse it with `type: "circle"` and `primitive: "<name>"` in place of the
+inline circle fields. The primitive must be defined before the shapes and
+cannot be used in a 3D configuration.
+
 ### 5. Fluid bodies
 
 Here, we define the fluid bodies in the simulation.

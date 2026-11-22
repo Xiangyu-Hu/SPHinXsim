@@ -14,12 +14,13 @@ pip install sphinxsim[visualization]
 ```
 
 For responsive persistent preview in interactive shell mode, install
-`pyvistaqt` with a Qt binding backend:
+`pyvistaqt`:
 
 ```bash
-pip install pyvistaqt PySide6
-# alternatively: pip install pyvistaqt PyQt5
+pip install pyvistaqt
 ```
+
+PySide6 and QtPy are installed with the base package.
 
 The compiled C++ extension (`_sphinxsys_core_2d` or `_sphinxsys_core_3d`) is
 required for preview geometry generation. The preview always attempts to build
@@ -53,6 +54,103 @@ annotation enlarges it. Clicking an annotation reveals and selects its
 corresponding configuration entry in the editor; this expands the entry's
 ancestors and clears the editor filter if needed to make the entry visible.
 
+## JSON editor menus
+
+The Qt-backed shell Preview and the [Workbench](workbench.md) use a searchable
+**Setting / Value** tree to edit the loaded configuration. Expand a group to
+find its fields, or use the filter to narrow the tree. Boolean, numeric and
+enumerated values use controls appropriate to their types.
+
+### Right-click a setting
+
+Right-click a tree row to open its context menu. Actions depend on the selected
+row; unavailable actions are dimmed. A menu may contain:
+
+| Action | Use |
+|---|---|
+| **Copy value** | Copy a field or object as a JSON value. |
+| **Paste value** | Replace a field or object with a compatible clipboard value. Values are checked against the destination type; fixed-size vectors must have the expected number of components. Plain text is also accepted for string fields. |
+| **Add property** | Add an absent schema property to an object. Choose the property from the submenu, then edit its value. |
+| **Remove property** | Remove an existing removable property from an object. Required properties cannot be removed this way. |
+| **Add** | Add an entry to the selected list. |
+| **Add as** | Choose the type of a new list entry when the list supports multiple variants. |
+| **Duplicate** / **Remove** | Duplicate or remove the selected list entry. |
+| **Move up** / **Move down** | Reorder the selected list entry within its list. |
+
+For example, to duplicate a body, expand the appropriate body list, right-click
+the body entry, choose **Duplicate**, and edit the new entry. To add an optional
+setting, right-click its parent object and choose it under **Add property**.
+Adding or duplicating an entry may require further edits before the configuration
+passes validation. Errors are reported in the editor status area.
+
+### Tree menu, undo and saving
+
+Click the **Setting ▾** column header to open the tree menu:
+
+- **Expand** and **Collapse** change the tree display.
+- **Revert** undoes the latest local edit; `Ctrl+Z` also invokes undo.
+- **Reload** reads the configuration from disk. If there are unsaved changes,
+  the editor asks before discarding them.
+
+These menu actions change the editor draft, not the file immediately:
+
+- In the **shell Preview**, press `Ctrl+S` to validate and save the loaded JSON
+  and rebuild the preview. If validation or saving fails, the status area
+  reports the error and the file is not replaced. If saving succeeds but the
+  preview rebuild fails, the saved changes remain on disk and the error is
+  reported. Refreshing a preview that would discard unapplied edits asks for
+  confirmation.
+- In the **Workbench**, use **Validate** to check the draft, **Preview draft**
+  to visualize valid unsaved edits, or **Save + Preview** (`Ctrl+S`) to save
+  and refresh. Invalid edits leave the saved file and last valid scene intact.
+  Switching between the editor and Chat preserves the draft.
+
+When possible, saving preserves the existing JSON layout, numeric spelling and
+line endings rather than adding unchanged schema defaults.
+
+## Particle legend context menu
+
+In the Qt-backed shell Preview or Workbench canvas, right-click a body's
+**Particles** entry in the legend. Right-clicking and dragging remains a
+canvas gesture; use a click without dragging to open the menu.
+
+### Show or hide particles
+
+Toggle **Show particles** to hide or show that body's particle cloud. Its
+legend entry remains visible with a dimmed swatch when hidden, so it can be
+shown again. Hiding particles also hides that body's color bar. This affects
+only the display: it does not change the simulation or saved VTP files.
+
+### Color particles by an output attribute
+
+Particles are colored by body by default. In the shell, use
+`preview --with-particles` followed by `initialize-simulation` to produce and
+display initial solver output. Then right-click a body's **Particles** legend
+entry and choose **Color by**, followed by an attribute such as **Pressure**
+or **Velocity magnitude**. The Workbench offers the same menu when displaying
+solver output. Generated-particle previews have the visibility option but do
+not yet offer **Color by**.
+
+The submenu lists numeric scalar and vector point-data arrays present in that
+body's displayed solver snapshot, including integer arrays such as particle
+IDs. Vectors are colored by magnitude; matrices are not offered. The color bar
+identifies the body and variable. Select **Body color** to restore the default.
+
+For an attribute with a valid saved [scaling reference](#particle-scaling-metadata),
+scalar colors use the fixed range `[-reference, reference]` and vector
+magnitudes use `[0, reference]`; values outside the range use the end colors.
+Without a valid reference, including in older files, the range is calculated
+from each frame's finite values and may change between frames. If the selected
+attribute is absent or has no finite values, the body temporarily uses its
+body color. The selection is retained and applied again when the attribute
+returns.
+
+Visibility and color selections persist as frames change during a run and
+shell replay. Switching to another case or run resets them. The preview also
+shows the physical time stored in the displayed solver snapshots; if bodies
+are displaying different times, they are listed separately. Generated-particle
+iterations are not simulation times.
+
 ## CLI usage
 
 ### Basic preview (direct command)
@@ -85,6 +183,23 @@ When particles are shown:
 
 This is useful for verifying particle distribution and spacing before running
 the full simulation.
+
+### Particle scaling metadata
+
+Particle VTP files produced by SPHinXsim include a `Float64` field-data value
+named `ScalingReference_<variable>` for each recorded variable with a known
+physical scaling reference (for example, `ScalingReference_Pressure` and
+`ScalingReference_Velocity`). The position reference is stored as
+`ScalingReference_Position`. These are characteristic magnitudes derived from
+the configuration's characteristic dimensions, not measured data ranges.
+Known dimensionless variables have a reference of `1`; unknown variables and
+particle IDs have no reference metadata. Without configured scaling, known
+references are `1`.
+
+Particle values in the files remain in physical units; the references are
+metadata and must not be applied to those values again. Older VTP files without
+these fields remain readable. This metadata does not change the default
+per-body particle colouring.
 
 ### Off-screen rendering
 
@@ -130,23 +245,13 @@ geometry from the current config.
 
 Notes:
 - `preview --screenshot ...` is one-shot and does not use the persistent window.
-- Persistent interactive mode relies on `pyvistaqt` plus a Qt backend (for
-   example `PySide6` or `PyQt5`).
-- In the Qt-backed persistent window, the full-height dark configuration editor on the right
-  presents JSON fields as a searchable property tree: setting names on the
-  left and editable value boxes on the right. It uses type-appropriate controls
-  for booleans, numbers, and common enumerations. Click the **Setting ▾**
-  column header to open the editor menu with **Expand**, **Collapse**,
-  **Revert**, and **Reload**. To modify a list, right-click its row and choose
-  **Add**, or right-click an entry to **Duplicate**, **Remove**, or **Move
-  up/Move down**. Only actions available for that row are highlighted;
-  unavailable actions are dimmed. A change is saved only when
-  you press `Ctrl+S`; it validates and atomically saves the currently loaded
-  JSON file before rebuilding the preview. Running `preview` asks for
-  confirmation before discarding unapplied editor changes. Loading a different
-  configuration and running `preview` rebinds the editor to that file.
-  If the persistent Preview window is closed, running `preview` again creates a
-  fresh window and reattaches the editor.
+- Persistent interactive mode relies on `pyvistaqt` and the base package's
+  PySide6 Qt backend.
+- See [JSON editor menus](#json-editor-menus) and [Particle legend context
+  menu](#particle-legend-context-menu) for editing and display controls.
+- Loading a different configuration and running `preview` rebinds the editor
+  to that file. If the persistent window is closed, running `preview` again
+  creates a fresh window and reattaches the editor.
 
 ```
 sphinxsim> load config.json
@@ -169,9 +274,11 @@ sphinxsim> preview --with-particles
    Particle generation overlay is enabled (--with-particles).
 ✅ Preview used C++ geometry (VTP meshes).
 
-sphinxsim> continue-to-run --refresh-interval 10
+sphinxsim> initialize-simulation
 ✅ Simulation built
 ✅ Simulation initialized
+
+sphinxsim> continue-to-run --refresh-interval 10
 🚀 Running simulation...
 ℹ️ Preview checks for new snapshots every 10 seconds and plays each batch at up to 25 FPS.
 ✅ Simulation completed successfully!
@@ -183,8 +290,8 @@ For the full preview-and-animate workflow, load a JSON config and run:
 sphinxsim> run --with-animation
 ```
 
-This performs `preview --with-particles` followed by `continue-to-run` on the
-same generated simulation. Plain `run` remains unchanged. Once the animated
+This performs `preview --with-particles`, `initialize-simulation`, and
+`continue-to-run` on the same generated simulation. Plain `run` remains unchanged. Once the animated
 run or a manual `continue-to-run` completes, enter `replay` to play its
 recorded particle snapshots again at up to 25 FPS:
 
@@ -201,12 +308,15 @@ camera framing fixed while the particle snapshots animate.
 `preview` requires a config to be loaded first (via `load` or `generate`).
 
 After `preview --with-particles`, the shell retains the generated-particle
-`SPHSimulation` instance and its temporary runtime config for one immediate
-`continue-to-run`. This continues the same instance through
-`buildSimulation()`, `initializeSimulation()`, and `run()`, without generating
-particles again. Any other shell command discards the retained instance and its
-temporary config; use `run` when a fresh simulation from the saved config is
-intended.
+`SPHSimulation` instance and its temporary runtime config. The next command,
+`initialize-simulation`, builds and initializes that same instance, writes the
+initial body-state snapshots, and displays them without running the solver.
+`continue-to-run` then runs the initialized instance without generating
+particles or initializing again. Other shell commands discard the retained
+instance and its temporary config; use `run` when a fresh simulation from the
+saved config is intended. If displaying the initialized snapshots fails, the
+error is reported and the initialized simulation remains available for
+`continue-to-run`.
 
 `continue-to-run` accepts an optional wall-clock refresh interval:
 
@@ -220,9 +330,9 @@ and plays them in sequence at up to 25 FPS. It then waits for another interval
 before collecting the next batch, allowing slower simulations to produce
 more output between playback batches. A snapshot is loaded only after its file
 size and modification time remain stable across checks, avoiding reads while
-the solver is still writing it. This uses `pyvistaqt` plus `PySide6` or
-`PyQt5`; without a Qt-backed persistent preview, the simulation still
-continues but the window cannot refresh its particles live.
+the solver is still writing it. This uses `pyvistaqt` with the base package's
+PySide6 Qt backend. If a persistent preview cannot be opened, the simulation
+still continues but the window cannot refresh its particles live.
 
 ## Python API
 

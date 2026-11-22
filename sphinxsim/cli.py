@@ -632,6 +632,7 @@ _SHELL_COMMANDS = (
     "validate",
     "run",
     "preview",
+    "initialize-simulation",
     "continue-to-run",
     "replay",
     "explore",
@@ -715,7 +716,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             "Commands: load FILE, generate DESCRIPTION FILE, "
             "update [--patch-mode] [--dry-run] [--strict true|false] INSTRUCTION, "
             "validate, run [--with-animation], preview [--with-particles] [--screenshot FILE], "
-                "continue-to-run [--refresh-interval SECONDS], replay, explore QUESTION, exit"
+                "initialize-simulation, continue-to-run [--refresh-interval SECONDS], replay, explore QUESTION, exit"
     )
     print("Note: relative paths are resolved from the current directory first, then .build-temp/.")
 
@@ -754,8 +755,9 @@ def cmd_shell(args: argparse.Namespace) -> int:
             print("  preview                         - Render geometry/BC preview (requires pyvista)")
             print("  preview --with-particles        - Run particle generation and overlay particles")
             print("  preview --screenshot FILE        - Save a screenshot to FILE instead of interactive window")
+            print("  initialize-simulation           - Build and initialize the retained particle preview")
             print("  continue-to-run [--refresh-interval SECONDS]")
-            print("                                 - Finish and run the retained particle preview simulation")
+            print("                                 - Run the initialized particle preview simulation")
             print("  replay                          - Replay recorded particle snapshots at up to 25 FPS")
             print("  run [--with-animation]          - Run config; optionally preview particles and animate")
             print("  exit                            - Exit shell")
@@ -776,9 +778,8 @@ def cmd_shell(args: argparse.Namespace) -> int:
 
         cmd = parts[0]
 
-        # A retained simulation has exactly one follow-up command. Any other
-        # command abandons it and lets the native wrapper release its state.
-        if cmd != "continue-to-run":
+        # Only the two lifecycle commands retain the particle-preview simulation.
+        if cmd not in {"initialize-simulation", "continue-to-run"}:
             preview_runtime.discard_pending_simulation()
 
         if cmd == "load":
@@ -946,6 +947,13 @@ def cmd_shell(args: argparse.Namespace) -> int:
                 print("ℹ️ Preview window is persistent in shell mode; run `preview` again after edits.")
             continue
 
+        if cmd == "initialize-simulation":
+            if len(parts) != 1:
+                print("Usage: initialize-simulation", file=sys.stderr)
+                continue
+            _ = preview_runtime.initialize_simulation()
+            continue
+
         if cmd == "continue-to-run":
             refresh_interval = 10.0
             if len(parts) == 3 and parts[1] == "--refresh-interval":
@@ -995,7 +1003,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
                     with_particles=True,
                     force=True,
                 )
-                if preview_rc == 0:
+                if preview_rc == 0 and preview_runtime.initialize_simulation() == 0:
                     _ = preview_runtime.continue_to_run()
                 continue
 
@@ -1320,7 +1328,8 @@ def _parse_shell_ai_cli_style(text: str) -> list[str] | None:
 
     command = parts[0][1:]
     valid_commands = {
-        "generate", "validate", "update", "run", "preview", "continue-to-run", "explore", "shell"
+        "generate", "validate", "update", "run", "preview", "initialize-simulation",
+        "continue-to-run", "explore", "shell"
     }
     if command not in valid_commands:
         return None

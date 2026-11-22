@@ -61,11 +61,27 @@ class EventScheduler
     UnsignedInt nextOrder_ = 0;
 };
 
-class TimeStepper
+class IteravtiveStepper
+{
+  public:
+    IteravtiveStepper() {};
+    virtual ~IteravtiveStepper() {};
+    bool isFirstComputingStep() const { return iteration_step_ == first_computing_step_; };
+    UnsignedInt getIterationStep() const { return iteration_step_; };
+    UnsignedInt incrementIterationStep() { return ++iteration_step_; };
+    bool isScreeningStep() const { return (iteration_step_ % screening_interval_ == 0); };
+
+  protected:
+    UnsignedInt iteration_step_{0};
+    UnsignedInt first_computing_step_{0};
+    UnsignedInt screening_interval_{100};
+};
+
+class TimeStepper : public IteravtiveStepper
 {
   public:
     TimeStepper(SPHSystem &sph_system);
-    ~TimeStepper() {};
+    virtual ~TimeStepper() {};
 
     EventScheduler &getEventScheduler() { return event_scheduler_; }
     bool isEndTime(Real end_time);
@@ -76,15 +92,11 @@ class TimeStepper
     Real getGlobalTimeStepSizeWithScalingRef();
     Real incrementPhysicalTime(Real global_time_step);
     Real incrementPhysicalTime(BaseDynamics<Real> &step_evaluator);
-    UnsignedInt getIterationStep() const { return iteration_step_; }
     void setRestartStep(UnsignedInt restart_step);
-    bool isFirstComputingStep() const { return iteration_step_ == first_computing_step_; }
-    UnsignedInt incrementIterationStep() { return ++iteration_step_; }
     UnsignedInt getScreeningInterval() const { return screening_interval_; }
     UnsignedInt getObservationInterval() const { return observation_interval_; }
     void setScreeningInterval(UnsignedInt interval) { screening_interval_ = interval; }
     void setObservationInterval(UnsignedInt interval) { observation_interval_ = interval; }
-    bool isScreeningStep() const { return (iteration_step_ % screening_interval_ == 0); }
     bool isObservationStep() const { return (iteration_step_ % observation_interval_ == 0); }
 
     template <class Integrator>
@@ -174,9 +186,6 @@ class TimeStepper
     StdVec<TriggerByPhysicalTime *> physical_time_executers_;
     Real global_dt_;
     SingleVariable<Real> *sv_physical_time_;
-    UnsignedInt iteration_step_{0};
-    UnsignedInt first_computing_step_{0};
-    UnsignedInt screening_interval_{100};
     UnsignedInt observation_interval_{200};
 };
 
@@ -197,6 +206,7 @@ class SPHSolver
     HostMethods &getHostMethodContainer();
     SequenceMethods &getSequenceMethodContainer();
     TimeStepper &getTimeStepper() { return time_stepper_; };
+    IteravtiveStepper &getIterativeStepper() { return time_stepper_; };
 
   protected:
     SPHSystem &sph_system_;

@@ -35,6 +35,11 @@ body; the per-body setting is under `particle_generation.bodies`, while
 `particle_generation.relaxation_parameters.total_iterations` controls the
 iteration count.
 
+An optional `randomization` number in a body's `relaxation` object controls
+the initial random displacement along each coordinate, as a factor of that
+body's minimum particle spacing. It defaults to `0.25`; use `0.0` to disable
+the initial random displacement. This does not disable subsequent relaxation.
+
 The example sets `total_iterations` to 1000 in `relaxation_parameters`. This
 sets the number of relaxation iterations; it does not by itself guarantee that
 the particles are fully relaxed.

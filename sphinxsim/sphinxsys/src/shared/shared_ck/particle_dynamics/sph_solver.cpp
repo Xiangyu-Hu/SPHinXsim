@@ -32,7 +32,7 @@ bool EventScheduler::Event::operator<(const Event &other) const
 }
 //=================================================================================================//
 TimeStepper::TimeStepper(SPHSystem &sph_system)
-    : global_dt_(0.0), sv_physical_time_(&sph_system.svPhysicalTime()) {}
+    : IteravtiveStepper(), global_dt_(0.0), sv_physical_time_(&sph_system.svPhysicalTime()) {}
 //=================================================================================================//
 void TimeStepper::setRestartStep(UnsignedInt restart_step)
 {

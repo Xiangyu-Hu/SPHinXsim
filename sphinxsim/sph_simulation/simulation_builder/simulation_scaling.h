@@ -32,6 +32,7 @@
 #include "data_type.h"
 
 #include <nlohmann/json.hpp>
+#include <optional>
 using json = nlohmann::json;
 
 namespace SPH
@@ -68,6 +69,7 @@ class ScalingConfig
     Vec2d jsonToVec2d(const nlohmann::json &arr, const std::string &unit_name) const;
     Real jsonToReal(const json &j, const std::string &unit_name) const;
     Real getScalingRef(const std::string &unit_name, bool is_required = true) const;
+    bool hasScalingRef(const std::string &unit_name) const;
 #ifdef SPHINXSYS_2D
     Transform jsonToTransform(const nlohmann::json &config) const;
 #else
@@ -79,6 +81,7 @@ class ScalingConfig
     Eigen::Array<Real, 7, 1> scaling_refs_ = Eigen::Array<Real, 7, 1>::Ones();
 
     UnitMetrics getUnitMetrics(std::string unit_name, bool is_required = true) const;
+    std::optional<UnitMetrics> findUnitMetrics(const std::string &unit_name) const;
     CharacteristicDimension parseCharacteristicDimension(const json &root_config, const json &config) const;
     void computeScaling();
     bool isSameOrderOfMagnitude(const Real a, const Real b) const;

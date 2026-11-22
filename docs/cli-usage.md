@@ -159,7 +159,8 @@ Inside the shell, you can use the following commands:
 | `preview` | Render an interactive geometry/BC preview of the loaded config |
 | `preview --with-particles` | Also run particle generation and overlay the latest generated particles per body |
 | `preview --screenshot FILE` | Save a screenshot to FILE instead of opening an interactive window |
-| `continue-to-run [--refresh-interval SECONDS]` | Build, initialize, and run the simulation retained by the most recent particle preview; collect snapshots every 10 seconds by default and play each batch at up to 25 FPS |
+| `initialize-simulation` | Build and initialize the retained particle-preview simulation and display its initial body-state snapshots |
+| `continue-to-run [--refresh-interval SECONDS]` | Run the initialized particle-preview simulation; collect snapshots every 10 seconds by default and play each batch at up to 25 FPS |
 | `run` | Build and execute the loaded config |
 | `run --with-animation` | Preview generated particles, continue that same simulation, and animate its snapshots |
 | `replay` | Replay particle snapshots from the latest successful animated run at up to 25 FPS |
@@ -172,12 +173,16 @@ Notes:
 - In shell mode, slash-prefixed commands are also accepted, e.g. `/generate water dam break simulation config.json` or `/update simulate for 2 s`.
 - `validate` always reloads from disk, so external edits are picked up immediately.
 - In shell mode, `preview` keeps a persistent window and returns control to the prompt. Running `preview` again updates the same window.
-- `preview --with-particles` retains its generated-particle simulation for one immediate `continue-to-run` command. Any other command discards that retained simulation.
-- `run` without options is unchanged. `run --with-animation` performs the equivalent of `preview --with-particles` followed by `continue-to-run`.
-- `continue-to-run --refresh-interval SECONDS` sets the delay between checks for new body-state VTP files; the default is `10` seconds. At each check, all available snapshots are played in sequence at up to 25 FPS, then the preview waits for the next interval before collecting another batch. When the simulation finishes, the preview promptly checks and plays any remaining snapshots. Live refresh requires the Qt-backed persistent preview (`pyvistaqt` with `PySide6` or `PyQt5`); the simulation still runs when that preview is unavailable, but its particles are not updated live.
+- `preview --with-particles` retains its generated-particle simulation for `initialize-simulation`, followed by `continue-to-run`. Other shell commands discard that retained simulation. Initialization writes and displays the initial state without running the solver.
+- `run` without options is unchanged. `run --with-animation` performs the equivalent of `preview --with-particles`, `initialize-simulation`, and `continue-to-run`.
+- `continue-to-run --refresh-interval SECONDS` sets the delay between checks for new body-state VTP files; the default is `10` seconds. At each check, all available snapshots are played in sequence at up to 25 FPS, then the preview waits for the next interval before collecting another batch. When the simulation finishes, the preview promptly checks and plays any remaining snapshots. Live refresh requires the Qt-backed persistent preview with `pyvistaqt`; the simulation still runs when that preview is unavailable, but its particles are not updated live.
 - After a successful `run --with-animation` or `continue-to-run`, use `replay` to play the recorded particle snapshots again. Replay opens a Qt-backed window if needed, keeps the current camera view fixed while particles animate, and is capped at 25 FPS.
-- For responsive persistent preview, install `pyvistaqt` and a Qt backend (`PySide6` or `PyQt5`).
+- For responsive persistent preview, install the `visualization` extra, which
+  provides `pyvistaqt`; PySide6 is installed with the base package.
 - In the Qt-backed preview, edit settings in the searchable property tree on the right and press `Ctrl+S`; only then are changes validated, saved, and rendered. Click the **Setting ▾** column header for **Expand**, **Collapse**, **Revert**, and **Reload**. To modify list entries, right-click the list row or entry and choose an available action from its context menu. If `preview` would reset unapplied edits, it asks for confirmation first.
+- For the complete editor and particle legend menu actions, see
+  [JSON editor menus](visualization.md#json-editor-menus) and
+  [Particle legend context menu](visualization.md#particle-legend-context-menu).
 - To switch configurations while the Preview window remains open, run `load OTHER.json` followed by `preview`; the property editor is rebound to the newly loaded file.
 - If the persistent Preview window is closed, run `preview` again to create a new window.
 
@@ -297,8 +302,7 @@ pip install sphinxsim[visualization]
 For responsive persistent shell preview:
 
 ```bash
-pip install pyvistaqt PySide6
-# or: pip install pyvistaqt PyQt5
+pip install pyvistaqt
 ```
 
 See [Visualization](visualization.md) for full details.

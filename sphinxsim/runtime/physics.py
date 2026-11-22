@@ -269,7 +269,7 @@ UNITS = {
     "Pa*s": ("viscosity", 1), "rad": ("angle", 1), "deg": ("angle", math.pi / 180), "K": ("temperature", 1),
 }
 QUANTITIES = {
-    "particle_spacing": "length", "radius": "length", "half_height": "length", "half_size": "length",
+    "particle_spacing": "length", "radius": "length", "half_height": "length", "half_size": "length", "center": "length",
     "lower_bound": "length", "upper_bound": "length", "translation": "length", "expansion": "length",
     "end_time": "time", "output_interval": "time", "density": "density", "pressure": "pressure",
     "youngs_modulus": "pressure", "hardening_modulus": "pressure", "yield_stress": "pressure", "cohesion": "pressure",

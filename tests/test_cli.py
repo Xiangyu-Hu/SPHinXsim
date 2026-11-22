@@ -218,6 +218,18 @@ class TestSpatialDimension:
 
 
 class TestJsonEditorListItems:
+    def test_circle_primitive_variant_gets_editable_fields(self):
+        from sphinxsim.config.schemas import PrimitiveConfig
+        from sphinxsim.json_editor.editor import _schema_list_variants
+
+        assert "circle" in _schema_list_variants(("geometries", "primitives"))
+        item = _new_json_editor_list_item(("geometries", "primitives"), spatial_dim=2, variant="circle")
+        assert item == {
+            "name": "New primitive", "type": "circle",
+            "center": [0.0, 0.0], "radius": 1.0, "resolution": 32,
+        }
+        assert PrimitiveConfig.model_validate(item).type == "circle"
+
     def test_empty_shapes_list_gets_an_editable_shape(self):
         item = _new_json_editor_list_item(("geometries", "shapes"), spatial_dim=2)
 

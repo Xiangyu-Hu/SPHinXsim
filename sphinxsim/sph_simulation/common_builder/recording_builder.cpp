@@ -120,18 +120,24 @@ void RecordingBuilder::finalizeBodyStatesRecording(
         for (DiscreteVariable<Real> *variable : std::get<type_index_Real>(variables_to_write))
         {
             variable->setScalingRef(scaling_config.getScalingRef(variable->Name(), false));
+            if (scaling_config.hasScalingRef(variable->Name()))
+                state_recorder.setVariableScalingReference(body->Name(), variable->Name(), variable->getScalingRef());
         }
 
         constexpr int type_index_Vecd = DataTypeIndex<Vecd>::value;
         for (DiscreteVariable<Vecd> *variable : std::get<type_index_Vecd>(variables_to_write))
         {
             variable->setScalingRef(scaling_config.getScalingRef(variable->Name(), false));
+            if (scaling_config.hasScalingRef(variable->Name()))
+                state_recorder.setVariableScalingReference(body->Name(), variable->Name(), variable->getScalingRef());
         }
 
         constexpr int type_index_Matd = DataTypeIndex<Matd>::value;
         for (DiscreteVariable<Matd> *variable : std::get<type_index_Matd>(variables_to_write))
         {
             variable->setScalingRef(scaling_config.getScalingRef(variable->Name(), false));
+            if (scaling_config.hasScalingRef(variable->Name()))
+                state_recorder.setVariableScalingReference(body->Name(), variable->Name(), variable->getScalingRef());
         }
     }
 }

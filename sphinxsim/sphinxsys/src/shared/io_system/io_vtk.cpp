@@ -3,8 +3,56 @@
 #include "sph_system.h"
 #include "vector_functions.h"
 
+#include <limits>
+
 namespace SPH
 {
+//=============================================================================================//
+void BodyStatesRecordingToVtp::setVariableScalingReference(
+    const std::string &body_name, const std::string &variable_name, Real reference)
+{
+    scaling_references_[body_name][variable_name] = reference;
+}
+//=============================================================================================//
+std::map<std::string, Real> BodyStatesRecordingToVtp::outputScalingReferences(
+    const std::string &body_name, BaseParticles &particles) const
+{
+    std::map<std::string, Real> result;
+    auto body_refs = scaling_references_.find(body_name);
+    if (body_refs == scaling_references_.end())
+        return result;
+
+    auto position_ref = body_refs->second.find("Position");
+    if (position_ref != body_refs->second.end())
+        result.emplace("Position", position_ref->second);
+
+    auto &variables = particles.ParticleAttributesToWrite();
+    auto add_references = [&](const auto &typed_variables, bool split_entries)
+    {
+        for (auto *variable : typed_variables)
+        {
+            auto reference = body_refs->second.find(variable->Name());
+            if (reference == body_refs->second.end())
+                continue;
+            if (split_entries)
+            {
+                for (UnsignedInt k = 0; k != variable->getWidth(); ++k)
+                    result.emplace(variable->Name() + variable->getEntryName(k), reference->second);
+            }
+            else
+                result.emplace(variable->Name(), reference->second);
+        }
+    };
+#ifdef SPHINXSYS_USE_VTK
+    constexpr bool split_entries = false;
+#else
+    constexpr bool split_entries = true;
+#endif
+    add_references(std::get<DataTypeIndex<Real>::value>(variables), split_entries);
+    add_references(std::get<DataTypeIndex<Vecd>::value>(variables), split_entries);
+    add_references(std::get<DataTypeIndex<Matd>::value>(variables), false);
+    return result;
+}
 //=============================================================================================//
 #ifdef SPHINXSYS_USE_VTK
 void BodyStatesRecordingToVtp::writeWithFileName(const std::string &sequence)
@@ -50,6 +98,16 @@ void BodyStatesRecordingToVtp::writeWithFileName(const std::string &sequence)
                     time_array->SetNumberOfTuples(1);
                     time_array->SetValue(0, sv_physical_time_->getValue());
                     polydata->GetFieldData()->AddArray(time_array);
+                }
+
+                for (const auto &[name, reference] : outputScalingReferences(body->Name(), base_particles))
+                {
+                    vtkNew<vtkDoubleArray> reference_array;
+                    std::string field_name = "ScalingReference_" + name;
+                    reference_array->SetName(field_name.c_str());
+                    reference_array->SetNumberOfTuples(1);
+                    reference_array->SetValue(0, reference);
+                    polydata->GetFieldData()->AddArray(reference_array);
                 }
 
                 // Add particle data arrays to point data
@@ -183,13 +241,25 @@ void BodyStatesRecordingToVtp::writeWithFileName(const std::string &sequence)
                 out_file << "<VTKFile type=\"PolyData\" version=\"1.0\" byte_order=\"LittleEndian\">\n";
                 out_file << " <PolyData>\n";
 
-                // physical time
-                if (sph_system_.isPhysical())
+                auto references = outputScalingReferences(body->Name(), base_particles);
+                if (sph_system_.isPhysical() || !references.empty())
                 {
                     out_file << "<FieldData>\n";
-                    out_file << "<DataArray type=\"Float64\"  Name=\"TimeValue\" NumberOfTuples=\"1\" format=\"ascii\">\n";
-                    out_file << std::fixed << std::setprecision(9) << sv_physical_time_->getValueWithScalingRef() << "\n";
-                    out_file << " </DataArray>\n";
+                    if (sph_system_.isPhysical())
+                    {
+                        out_file << "<DataArray type=\"Float64\"  Name=\"TimeValue\" NumberOfTuples=\"1\" format=\"ascii\">\n";
+                        out_file << std::fixed << std::setprecision(9) << sv_physical_time_->getValueWithScalingRef() << "\n";
+                        out_file << " </DataArray>\n";
+                    }
+                    for (const auto &[name, reference] : references)
+                    {
+                        std::ostringstream value;
+                        value << std::scientific << std::setprecision(std::numeric_limits<Real>::max_digits10)
+                              << reference;
+                        out_file << "<DataArray type=\"Float64\" Name=\"ScalingReference_" << name
+                                 << "\" NumberOfTuples=\"1\" format=\"ascii\">\n";
+                        out_file << value.str() << "\n </DataArray>\n";
+                    }
                     out_file << "</FieldData>\n";
                 }
 

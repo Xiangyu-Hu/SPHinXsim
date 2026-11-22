@@ -7,7 +7,67 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from sphinxsim.config.schemas import DomainConfig, LogLevel, SimulationConfig
+from sphinxsim.config.schemas import (
+    DomainConfig, LogLevel, MultiPolygonEntryConfig, PrimitiveConfig,
+    RelaxationBodyConfig, SimulationConfig,
+)
+
+
+def _submerged_cylinder_data():
+    path = Path(__file__).parent / "test_simulation/test_2d_simulation/data/submerged_cylinder.json"
+    return json.loads(path.read_text())
+
+
+def test_circle_primitive_and_references_round_trip():
+    data = _submerged_cylinder_data()
+    cfg = SimulationConfig.model_validate(data)
+    dumped = cfg.model_dump(mode="json", exclude_none=True)
+    assert dumped["geometries"]["primitives"][1] == data["geometries"]["primitives"][1]
+    for index in (0, 1):
+        polygon = dumped["geometries"]["shapes"][index]["polygons"][-1]
+        assert polygon["primitive"] == data["geometries"]["primitives"][1]["name"]
+        assert "center" not in polygon
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"center": None}, {"center": [0, 0, 0]}, {"radius": None},
+        {"radius": 0}, {"resolution": None}, {"resolution": 0},
+    ],
+)
+def test_circle_primitive_rejects_invalid_fields(overrides):
+    data = {"name": "C", "type": "circle", "center": [0, 0], "radius": 1, "resolution": 32}
+    data.update(overrides)
+    with pytest.raises(ValidationError):
+        PrimitiveConfig.model_validate(data)
+
+
+def test_circle_reference_and_inline_fields_are_mutually_exclusive():
+    with pytest.raises(ValidationError, match="either primitive or inline"):
+        MultiPolygonEntryConfig(
+            operation="union", type="circle", primitive="C", center=[0, 0], radius=1, resolution=32,
+        )
+    with pytest.raises(ValidationError, match="requires primitive or center"):
+        MultiPolygonEntryConfig(operation="union", type="circle", center=[0, 0], radius=1)
+
+
+@pytest.mark.parametrize("reference", ["missing", "WaterDomain"])
+def test_circle_primitive_reference_must_exist_and_match_type(reference):
+    data = _submerged_cylinder_data()
+    data["geometries"]["shapes"][0]["polygons"][1]["primitive"] = reference
+    with pytest.raises(ValidationError, match="unknown primitive|must be a circle primitive"):
+        SimulationConfig.model_validate(data)
+
+
+def test_circle_primitive_is_not_supported_in_3d():
+    path = Path(__file__).parent / "test_simulation/test_3d_simulation/data/dambreak.json"
+    data = json.loads(path.read_text())
+    data["geometries"]["primitives"] = [
+        {"name": "C", "type": "circle", "center": [0, 0], "radius": 1, "resolution": 32}
+    ]
+    with pytest.raises(ValidationError, match="dimensionality"):
+        SimulationConfig.model_validate(data)
 
 
 def _make_minimal_fluid_config(**overrides) -> SimulationConfig:
@@ -780,6 +840,31 @@ class TestSimulationConfig:
             }
         )
         assert cfg.particle_generation.bodies[0].blockers == ["Inlet"]
+
+    @pytest.mark.parametrize("factor", [0.0, 0.25, 1.5])
+    def test_relaxation_randomization_round_trips(self, factor):
+        cfg = _make_minimal_fluid_config(
+            particle_generation={
+                "bodies": [
+                    {"name": "WaterBody", "relaxation": {"randomization": factor}},
+                    {"name": "WallBoundary", "solid_body": {}},
+                ],
+            }
+        )
+        relaxation = cfg.particle_generation.bodies[0].relaxation
+        assert relaxation.randomization == factor
+        assert cfg.model_dump(mode="json")["particle_generation"]["bodies"][0]["relaxation"]["randomization"] == factor
+
+    def test_relaxation_randomization_defaults_to_native_value(self):
+        assert RelaxationBodyConfig().randomization == 0.25
+        schema = SimulationConfig.model_json_schema()["$defs"]["RelaxationBodyConfig"]
+        assert schema["properties"]["randomization"]["default"] == 0.25
+        assert schema["properties"]["randomization"]["type"] == "number"
+
+    @pytest.mark.parametrize("factor", [None, "invalid", {}, float("inf"), float("nan")])
+    def test_relaxation_randomization_rejects_invalid_values(self, factor):
+        with pytest.raises(ValidationError, match="randomization"):
+            RelaxationBodyConfig(randomization=factor)
 
     def test_particle_generation_blockers_reject_unknown_oriented_box(self):
         with pytest.raises(ValidationError, match="blockers entries must reference existing"):

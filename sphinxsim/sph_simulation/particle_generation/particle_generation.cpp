@@ -42,7 +42,7 @@ void ParticleGeneration::defineGenerationAndRelaxationConfig(
         if (bd.contains("relaxation"))
         {
             config_manager.emplaceEntity<RelaxationBodyConfig>(
-                body_name, parseRelaxationBodyConfig(body_name, bd.at("relaxation")));
+                body_name, parseRelaxationBodyConfig(config_manager, body_name, bd.at("relaxation")));
         }
 
         StdVec<OrientedBox *> &blockers = *config_manager.emplaceEntity<
@@ -100,7 +100,7 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     auto &main_methods = sph_solver.getMainMethodContainer();
     RecordingBuilder::createBodyStatesRecording(relaxation_system, main_methods);
     auto &body_update_configuration = addConfigurationDynamics(relaxation_system, config_manager, main_methods);
-    auto &relaxation_residual = addRelaxationResidue(relaxation_system, config_manager, main_methods);
+    addRelaxationResidue(relaxation_system, config_manager, main_methods);
     auto &relaxation_scaling = addRelaxationScaling(relaxation_system, config_manager, main_methods);
     auto &update_particle_position = addRelaxationPositionUpdate(relaxation_system, config_manager, main_methods);
     auto &dummy_cell_linked_list = addDummyBodiesCellLinkedListDynamics(relaxation_system, config_manager, main_methods);
@@ -110,6 +110,10 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
     RecordingBuilder::finalizeBodyStatesRecording(relaxation_system, config_manager, config);
     auto &write_particle_reload_files = main_methods.addIODynamics<ReloadParticleIOCK>(relaxation_system);
     auto &body_state_recorder = RecordingBuilder::getBodyStatesRecording(relaxation_system);
+    //----------------------------------------------------------------------
+    //	Define stepper method, screen output.
+    //----------------------------------------------------------------------
+    auto &iterative_stepper = sph_solver.getIterativeStepper();
     //----------------------------------------------------------------------
     //	Out initial particle distribution after setting up.
     //----------------------------------------------------------------------
@@ -124,20 +128,20 @@ void ParticleGeneration::buildParticleGeneration(SPHSimulation &sim, const json 
             relaxation_pipeline_.run_hooks(RelaxationHookPoint::Initialization);
             dummy_cell_linked_list.exec();
 
-            UnsignedInt ite_p = 0;
-            while (ite_p < relaxation_parameters_.total_iterations)
+            while (iterative_stepper.getIterationStep() < relaxation_parameters_.total_iterations)
             {
                 body_update_configuration.exec();
 
-                relaxation_residual.exec();
+                relaxation_pipeline_.run_hooks(RelaxationHookPoint::RelaxationResidue);
                 Real relaxation_step = relaxation_scaling.exec();
                 relaxation_pipeline_.run_hooks(RelaxationHookPoint::Constraints);
                 update_particle_position.exec(relaxation_step);
 
-                ite_p += 1;
-                if (ite_p % 100 == 0)
+                UnsignedInt ite_p = iterative_stepper.incrementIterationStep();
+                if (iterative_stepper.isScreeningStep())
                 {
-                    std::cout << std::fixed << std::setprecision(9) << "Relaxation steps N = " << ite_p << "\n";
+                    std::cout << std::fixed << std::setprecision(9)
+                              << "Relaxation steps N = " << ite_p << "\n";
                     body_state_recorder.writeToFile(ite_p);
                 }
             }
@@ -262,10 +266,20 @@ void ParticleGeneration::addAllBodies(
     }
 }
 //=================================================================================================//
-RelaxationBodyConfig ParticleGeneration::parseRelaxationBodyConfig(std::string body_name, const json &config)
+RelaxationBodyConfig ParticleGeneration::parseRelaxationBodyConfig(
+    EntityManager &config_manager, std::string body_name, const json &config)
 {
+    auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
+
     RelaxationBodyConfig relax_body_config;
     relax_body_config.name_ = body_name;
+
+    if (config.contains("randomization"))
+    {
+        relax_body_config.randomization_ =
+            scaling_config.jsonToReal(config.at("randomization"), "Dimensionless");
+    }
+
     if (config.contains("level_set"))
     {
         relax_body_config.with_level_set_ = true;
@@ -290,7 +304,6 @@ void ParticleGeneration::defineBodyRelations(RelaxationSystem &relaxation_system
 
         if (!relax_body_config->dependent_bodies_.empty())
         {
-            StdVec<RealBody *> dependent_bodies;
             for (const auto &dependent_body_name : relax_body_config->dependent_bodies_)
             {
                 RealBody &dependent_body = relaxation_system.getBodyByName<RealBody>(dependent_body_name);
@@ -308,7 +321,8 @@ ParticleDynamicsGroup &ParticleGeneration::randomizeParticlePositions(
     {
         RealBody &real_body = relaxation_system.getBodyByName<RealBody>(relax_body_config->name_);
         randomize_particle_position.add(
-            &host_methods.template addStateDynamics<RandomizeParticlePositionCK>(real_body));
+            &host_methods.template addStateDynamics<RandomizeParticlePositionCK>(
+                real_body, relax_body_config->randomization_));
     }
     return randomize_particle_position;
 }
@@ -355,34 +369,56 @@ ParticleDynamicsGroup &ParticleGeneration::addConfigurationDynamics(
     return configuration_update;
 }
 //=================================================================================================//
-ParticleDynamicsGroup &ParticleGeneration::addRelaxationResidue(
+void ParticleGeneration::addRelaxationResidue(
     RelaxationSystem &relaxation_system, EntityManager &config_manager, MainMethods &main_methods)
 {
-    ParticleDynamicsGroup &relaxation_residue = main_methods.addParticleDynamicsGroup();
+    ParticleDynamicsGroup &residue_indepenent = main_methods.addParticleDynamicsGroup();
+    ParticleDynamicsGroup &residue_depenent = main_methods.addParticleDynamicsGroup();
+    ParticleDynamicsGroup &level_set_integral = main_methods.addParticleDynamicsGroup();
+
     for (const auto &relax_body_config : config_manager.entitiesWith<RelaxationBodyConfig>())
     {
         auto &inner_relation = relaxation_system.getRelationByName<
             Inner<Relation<RealBody>>>(relax_body_config->name_);
-        auto &residual_dynamics = main_methods.template addInteractionDynamics<
-            KernelGradientIntegral, NoKernelCorrectionCK>(inner_relation);
+
+        if (relax_body_config->dependent_bodies_.empty())
+        {
+            residue_indepenent.add(&main_methods.template addInteractionDynamics<
+                                    KernelGradientIntegral, NoKernelCorrectionCK>(inner_relation));
+        }
+        else
+        {
+            auto &residual_dynamics = main_methods.template addInteractionDynamics<
+                KernelGradientIntegral, NoKernelCorrectionCK>(inner_relation);
+            residue_depenent.add(&residual_dynamics);
+
+            for (const auto &db_config : relax_body_config->dependent_bodies_)
+            {
+                auto &contact_relation = relaxation_system.getRelationByName<
+                    Contact<Relation<RealBody, RealBody>>>(relax_body_config->name_ + db_config);
+                residual_dynamics.template addPostContactInteraction<Boundary, NoKernelCorrectionCK>(contact_relation);
+            }
+        }
 
         if (relax_body_config->with_level_set_)
         {
             RealBody &real_body = relaxation_system.getBodyByName<RealBody>(relax_body_config->name_);
             LevelSetShape &level_set_shape = config_manager.getEntity<LevelSetShape>(relax_body_config->name_);
-            residual_dynamics.template addPostStateDynamics<LevelsetKernelGradientIntegral>(real_body, level_set_shape);
+            level_set_integral.add(&main_methods.template addStateDynamics<
+                                    LevelsetKernelGradientIntegral>(real_body, level_set_shape));
         }
-
-        for (const auto &db_config : relax_body_config->dependent_bodies_)
-        {
-            auto &contact_relation = relaxation_system.getRelationByName<
-                Contact<Relation<RealBody, RealBody>>>(relax_body_config->name_ + db_config);
-            residual_dynamics.template addPostContactInteraction<Boundary, NoKernelCorrectionCK>(contact_relation);
-        }
-
-        relaxation_residue.add(&residual_dynamics);
     }
-    return relaxation_residue;
+
+    auto &iterative_stepper = sph_solver_ptr_->getIterativeStepper();
+    relaxation_pipeline_.insert_hook(
+        RelaxationHookPoint::RelaxationResidue, [&]()
+        { 
+            residue_indepenent.exec(); 
+            if(iterative_stepper.getIterationStep() > 100) //delay 100 steps
+            {
+                residue_depenent.exec();
+            }
+            level_set_integral.exec(); });
 }
 //=================================================================================================//
 BaseDynamics<Real> &ParticleGeneration::addRelaxationScaling(

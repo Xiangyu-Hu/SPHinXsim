@@ -212,7 +212,7 @@ bool ScalingConfig::isScalingEnabled() const
     return scaling_refs_.any();
 }
 //=================================================================================================//
-UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name, bool is_required) const
+std::optional<UnitMetrics> ScalingConfig::findUnitMetrics(const std::string &unit_name) const
 {
     if (unit_name == "Dimensionless" || unit_name == "NormalDirection")
         return UnitMetrics{0, 0, 0, 0, 0, 0, 0};
@@ -254,12 +254,25 @@ UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name, bool is_require
     if (unit_name == "Energy")
         return UnitMetrics{2, 1, -2, 0, 0, 0, 0};
 
+    return std::nullopt;
+}
+//=================================================================================================//
+UnitMetrics ScalingConfig::getUnitMetrics(std::string unit_name, bool is_required) const
+{
+    auto metrics = findUnitMetrics(unit_name);
+    if (metrics)
+        return *metrics;
     if (is_required)
     {
         throw std::runtime_error(
             "ScalingConfig::getUnitMetrics: not supported: '" + unit_name + "' found!");
     }
     return UnitMetrics{0, 0, 0, 0, 0, 0, 0};
+}
+//=================================================================================================//
+bool ScalingConfig::hasScalingRef(const std::string &unit_name) const
+{
+    return findUnitMetrics(unit_name).has_value();
 }
 //=================================================================================================//
 CharacteristicDimension ScalingConfig::parseCharacteristicDimension(

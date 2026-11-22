@@ -139,6 +139,26 @@ def _legend_entries_for_config(
     return entries
 
 
+def _draw_legend(plotter: Any, entries: list[tuple[str, tuple[float, float, float]]]) -> Any:
+    legend = plotter.add_legend(
+        [(label, [int(c * 255) for c in colour], "rectangle") for label, colour in entries],
+        size=(0.28, 0.10),
+        bcolor=PREVIEW_SIDEBAR_BACKGROUND,
+        border=False,
+        loc="upper left",
+        background_opacity=0.88,
+    )
+    if legend is not None:
+        try:
+            text_property = legend.GetEntryTextProperty()
+            text_property.SetFontSize(5)
+            text_property.SetBold(False)
+            text_property.SetColor(PREVIEW_TEXT_COLOUR)
+        except AttributeError:
+            pass
+    return legend
+
+
 # ---------------------------------------------------------------------------
 # Geometry helpers
 # ---------------------------------------------------------------------------
@@ -196,6 +216,7 @@ class ConfigVisualizer:
         self._shape_bounds_cache: dict[str, Any] | None = None
         self._missing_shape_geometry: list[str] = []
         self._annotation_label_actors: list[dict[str, Any]] = []
+        self.legend_actor: Any = None
         self._particle_simulation: Any | None = None
         self._particle_runtime_config_path: Path | None = None
 
@@ -236,7 +257,7 @@ class ConfigVisualizer:
 
         # Referenced shapes can carry all dimension evidence in primitives.
         for primitive in geo.primitives:
-            for vec in (primitive.lower_bound, primitive.upper_bound, primitive.half_size):
+            for vec in (primitive.lower_bound, primitive.upper_bound, primitive.half_size, primitive.center):
                 if vec is not None:
                     return len(vec)
             if primitive.transform is not None:
@@ -1090,27 +1111,7 @@ class ConfigVisualizer:
 
         # --- Legend ---
         legend_entries = _legend_entries_for_config(config, set(particle_vtps))
-        legend = plotter.add_legend(
-            [
-                (entry[0], [int(c * 255) for c in entry[1]], "rectangle")
-                for entry in legend_entries
-            ],
-            # A larger legend viewport gives the rectangular material swatches
-            # enough visual weight beside their labels.
-            size=(0.28, 0.10),
-            bcolor=PREVIEW_SIDEBAR_BACKGROUND,
-            border=False,
-            loc="upper left",
-            background_opacity=0.88,
-        )
-        if legend is not None:
-            try:
-                text_property = legend.GetEntryTextProperty()
-                text_property.SetFontSize(5)
-                text_property.SetBold(False)
-                text_property.SetColor(PREVIEW_TEXT_COLOUR)
-            except AttributeError:
-                pass
+        self.legend_actor = _draw_legend(plotter, legend_entries)
         try:
             plotter.set_background(PREVIEW_MAIN_BACKGROUND)
         except AttributeError:

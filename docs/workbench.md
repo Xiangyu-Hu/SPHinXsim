@@ -8,7 +8,8 @@ AgentCAE worker, checkpoint and result interfaces.
 ## Start
 
 Use the Python environment containing the built SPHinXsim extensions and the
-`chatbot` and `visualization` extras (Chainlit, PySide6, PyVista and PyVistaQt):
+`chatbot` and `visualization` extras (Chainlit, PyVista and PyVistaQt). QtPy
+and PySide6 are installed with the base package:
 
 ```powershell
 python -m pip install -e '.[chatbot,visualization]'
@@ -44,11 +45,22 @@ errors are recorded in `<workspace>/chat.log`; use **Reconnect chat** to retry.
 The interface and embedded Chainlit controls use English.
 
 The canvas reuses `ConfigVisualizer`, live VTP loading, and `AgentPreviewObserver`.
-VTK renders offscreen and Qt presents the frames, avoiding native OpenGL child
-window issues on Windows while retaining camera interaction. Drag to rotate,
-middle-drag to pan, use the wheel to zoom, and press `R` to reset the view.
+It embeds PyVistaQt's native Qt VTK interactor in the Workbench, like the
+interactive shell Preview, rather than copying frames from an offscreen VTK
+window. Drag to rotate, middle-drag to pan, use the wheel to zoom, and press
+`R` to reset the view.
 The left canvas contains the model and results; the Model Information sidebar
 is removed from the workbench, so the scene uses the full canvas width.
+Right-click a body's **Particles** legend entry and toggle **Show particles**
+to hide or show that body's particles. The legend remains available while
+particles are hidden, with a dimmed colour swatch, and the choice is retained
+as result frames update.
+Changing to another run or case resets the choice; it never changes the
+simulation or its saved output.
+When solver frames are available, the same menu offers **Color by** for
+particle attributes and shows the frame's physical time. See the
+[particle legend guide](visualization.md#particle-legend-context-menu) for
+color ranges, playback behavior and missing attributes.
 
 ## Edit and preview
 
@@ -60,6 +72,9 @@ is removed from the workbench, so the scene uses the full canvas width.
   LF/CRLF line endings, following upstream JSON Editor PRs
   [#160](https://github.com/Xiangyu-Hu/SPHinXsim/pull/160) and
   [#185](https://github.com/Xiangyu-Hu/SPHinXsim/pull/185).
+- Right-click a tree row for value, property and list actions. See the
+  [JSON editor menu guide](visualization.md#json-editor-menus) for the available
+  actions and their prerequisites.
 - Edit values, then **Validate** or **Save + Preview** (`Ctrl+S`). Invalid edits
   leave the saved file and last valid scene intact. **Preview draft** previews
   valid unsaved edits without saving them.

@@ -151,7 +151,7 @@ jobs:
           QT_QPA_PLATFORM: xcb
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
-          xvfb-run -a -s "-screen 0 1600x1000x24" pytest tests/runtime/test_desktop.py tests/test_agent_preview.py tests/test_workbench.py -v -s
+          xvfb-run -a -s "-screen 0 1600x1000x24" pytest tests/runtime/test_desktop.py tests/test_agent_preview.py tests/test_workbench.py tests/test_particle_visibility.py -v -s
 
       - name: Run example tests (examples/)
         run: |
@@ -391,7 +391,10 @@ jobs:
             ninja-build \
             python3-dev \
             autoconf automake autoconf-archive \
-            libxmu-dev libxi-dev libgl-dev libxt-dev
+            libxmu-dev libxi-dev libgl-dev libxt-dev \
+            libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 \
+            libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-shape0 \
+            xvfb xauth libgl1-mesa-dri libegl1 libopengl0
           wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
             | gpg --dearmor \
             | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
@@ -514,7 +517,9 @@ jobs:
             python3-dev \
             autoconf automake autoconf-archive \
             libxmu-dev libxi-dev libgl-dev libxt-dev \
-            libxcb-cursor0
+            libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 \
+            libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-shape0 \
+            libegl1 libopengl0
 
       - name: Install macOS system dependencies
         if: runner.os == 'macOS'

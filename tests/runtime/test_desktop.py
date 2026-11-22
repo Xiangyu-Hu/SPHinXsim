@@ -25,6 +25,7 @@ from sphinxsim.cli import _ShellPreviewRuntime
 from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.desktop.session import Session
 from sphinxsim.desktop.presentation import Presentation
+from sphinxsim.json_editor import JsonPropertyEditor
 
 
 @pytest.fixture
@@ -80,6 +81,20 @@ def test_json_editor_tree_columns_share_width_equally(editor):
     assert header.sectionResizeMode(0) == QtWidgets.QHeaderView.ResizeMode.Stretch
     assert header.sectionResizeMode(1) == QtWidgets.QHeaderView.ResizeMode.Stretch
     assert abs(header.sectionSize(0) - header.sectionSize(1)) <= 1
+
+
+def test_preview_hosts_the_shared_property_editor_widget(editor):
+    _, runtime, _, _ = editor
+    hooks = runtime._json_editor
+    widget = hooks["widget"]
+
+    assert isinstance(widget, JsonPropertyEditor)
+    assert hooks["dock"].widget() is widget
+    assert hooks["tree"] is widget.tree
+    assert hooks["filter"] is widget.filter
+    assert hooks["status"] is widget.status
+    assert not widget.buttons
+    assert not widget.save_shortcut.isEnabled()
 
 
 def test_annotation_reveal_expands_selects_and_filters_json_path(editor):

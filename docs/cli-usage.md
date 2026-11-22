@@ -303,11 +303,7 @@ Requires the optional `[visualization]` extra:
 pip install sphinxsim[visualization]
 ```
 
-For responsive persistent shell preview:
-
-```bash
-pip install pyvistaqt
-```
+The extra includes `pyvistaqt` for responsive persistent shell preview.
 
 See [Visualization](visualization.md) for full details.
 

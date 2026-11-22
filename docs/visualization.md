@@ -13,14 +13,8 @@ PyVista is required:
 pip install sphinxsim[visualization]
 ```
 
-For responsive persistent preview in interactive shell mode, install
-`pyvistaqt`:
-
-```bash
-pip install pyvistaqt
-```
-
-PySide6 and QtPy are installed with the base package.
+The extra includes `pyvistaqt` for responsive persistent preview in interactive
+shell mode. PySide6 and QtPy are installed with the base package.
 
 The compiled C++ extension (`_sphinxsys_core_2d` or `_sphinxsys_core_3d`) is
 required for preview geometry generation. The preview always attempts to build

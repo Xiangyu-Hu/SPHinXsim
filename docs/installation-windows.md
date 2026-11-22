@@ -57,8 +57,7 @@ For a pip-first workflow, install directly from source (this builds C++ extensio
 
 ```powershell
 $env:CMAKE_ARGS='-D CMAKE_TOOLCHAIN_FILE="' + "$pwd\..\vcpkg\scripts\buildsystems\vcpkg.cmake" + '" -D CMAKE_C_COMPILER=cl -D CMAKE_CXX_COMPILER=cl'
-python -m pip install -v -e ".[dev]"
-python -m pip install pyvistaqt PySide6
+python -m pip install -v -e ".[dev,visualization]"
 ```
 
 This matches the Windows CI Python dependency selection. It does not install
@@ -113,7 +112,7 @@ python -m pip install -e ".[dev]"
 To match Windows CI and enable geometry preview (`sphinxsim preview`), also install:
 
 ```powershell
-python -m pip install pyvistaqt PySide6
+python -m pip install -e ".[visualization]"
 ```
 
 Run Python tests:

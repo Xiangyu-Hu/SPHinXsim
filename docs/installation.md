@@ -20,8 +20,7 @@ python3 -m pip install -v -e ".[dev,visualization]"
 
 # Windows (PowerShell)
 $env:CMAKE_ARGS='-D CMAKE_TOOLCHAIN_FILE="' + "$pwd\..\vcpkg\scripts\buildsystems\vcpkg.cmake" + '" -D CMAKE_C_COMPILER=cl -D CMAKE_CXX_COMPILER=cl'
-python -m pip install -v -e ".[dev]"
-python -m pip install pyvistaqt PySide6
+python -m pip install -v -e ".[dev,visualization]"
 ```
 
 The Windows CI installation omits the optional CAD extra; see the

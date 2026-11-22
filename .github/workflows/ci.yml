@@ -249,12 +249,7 @@ jobs:
         run: |
           $toolchain = "${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake" -replace '\\', '/'
           $env:CMAKE_ARGS = "-D CMAKE_TOOLCHAIN_FILE=$toolchain"
-          pip install -e ".[dev]"
-
-      - name: Install Qt preview dependencies (Windows)
-        shell: pwsh
-        run: |
-          pip install pyvistaqt PySide6
+          pip install -e ".[dev,visualization]"
 
       - name: Smoke test pyvistaqt BackgroundPlotter import (Windows)
         shell: pwsh

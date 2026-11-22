@@ -28,8 +28,7 @@ python -m sphinxsim --help
 On Windows, use the CI-tested installation without the `cad` extra:
 
 ```powershell
-python -m pip install -e ".[dev]"
-python -m pip install pyvistaqt PySide6
+python -m pip install -e ".[dev,visualization]"
 ```
 
 See the [Windows guide](installation-windows.md) for the CadQuery DLL conflict.

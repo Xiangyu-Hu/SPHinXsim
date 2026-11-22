@@ -66,8 +66,7 @@ python -m pip install -e '.[dev,cad,mcp,results,visualization]'
 On Windows, the CI-tested installation omits the optional CAD extra:
 
 ```powershell
-python -m pip install -e ".[dev]"
-python -m pip install pyvistaqt PySide6
+python -m pip install -e ".[dev,visualization]"
 ```
 
 Then run:

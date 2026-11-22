@@ -67,6 +67,10 @@ Design rule:
   and scene-population logic in `preview.py`.
 - The runtime uses `JsonEditorMixin` for the preview configuration dock. See the
   `json-editor` skill for editor UI and JSON round-tripping details.
+- For JSON-editor preview toggles, `ConfigVisualizer` groups annotation and
+  visualization actors by canonical dot-separated config path. The runtime
+  clears this binding when rebuilding the plotter and rebinds it after scene
+  population; do not retain actor references across preview rebuilds.
 - When changing runtime behavior, inspect the CLI, desktop session, and
   visualization test call sites. Prefer focused tests in
   `tests/test_visualization.py` and `tests/runtime/test_desktop.py` as

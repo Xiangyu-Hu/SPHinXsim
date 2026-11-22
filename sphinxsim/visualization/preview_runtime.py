@@ -942,6 +942,14 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             if self._particle_time_display is not None:
                 self._particle_time_display.reset()
             self.plotter.clear()
+            editor = self._json_editor
+            set_preview_elements = (
+                editor.get("set_preview_elements")
+                if isinstance(editor, dict)
+                else None
+            )
+            if callable(set_preview_elements):
+                set_preview_elements({})
             configure_layout = getattr(visualizer, "_configure_layout", None)
             if configure_layout is not None:
                 configure_layout(self.plotter)
@@ -949,6 +957,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             if draw_sidebar is not None:
                 draw_sidebar(self.plotter)
             visualizer._populate_plotter(self.plotter, vtp_dir, latest_particle_vtps)
+            if callable(set_preview_elements):
+                set_preview_elements(visualizer.preview_element_actors)
             if self._particle_visibility is not None:
                 if resolved_config_path != self._particle_scene_path or with_particles:
                     self._particle_scene_generation += 1

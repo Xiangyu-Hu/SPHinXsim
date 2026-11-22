@@ -589,6 +589,7 @@ class JsonEditorMixin:
             "expanded_paths": set(),
             "item_paths": {},
             "list_paths": set(),
+            "preview_elements": {},
         }
         context_menu = QtWidgets.QMenu(tree)
         context_menu.setObjectName("sphinxsim-json-editor-list-context-menu")
@@ -625,6 +626,15 @@ class JsonEditorMixin:
             action = context_menu.addAction(label)
             action.setObjectName(f"sphinxsim-json-editor-list-{operation}")
             context_actions[operation] = action
+        context_menu.addSeparator()
+        preview_actions = {
+            "annotation": context_menu.addAction("Show annotation"),
+            "visualization": context_menu.addAction("Show visualization"),
+        }
+        for kind, action in preview_actions.items():
+            action.setObjectName(f"sphinxsim-json-editor-show-{kind}")
+            action.setCheckable(True)
+            action.setEnabled(False)
         property_menu = context_menu.addMenu("Add property")
         property_menu.setObjectName("sphinxsim-json-editor-add-property-menu")
         variant_menu = context_menu.addMenu("Add as")
@@ -1172,6 +1182,44 @@ class JsonEditorMixin:
             tree.scrollToItem(item)
             return True
 
+        def set_preview_elements(
+            elements: dict[str, dict[str, list[Any]]]
+        ) -> None:
+            editor_state["preview_elements"] = elements
+            update_preview_actions()
+
+        def update_preview_actions() -> None:
+            item = tree.currentItem()
+            path = editor_state["item_paths"].get(id(item)) if item is not None else None
+            path_key = ".".join(str(part) for part in path) if path is not None else ""
+            elements = editor_state["preview_elements"].get(path_key, {})
+            for kind, action in preview_actions.items():
+                actors = elements.get(kind, [])
+                action.setEnabled(bool(actors))
+                if actors:
+                    action.setChecked(
+                        all(
+                            not callable(getattr(actor, "GetVisibility", None))
+                            or bool(actor.GetVisibility())
+                            for actor in actors
+                        )
+                    )
+
+        def toggle_preview_element(kind: str, visible: bool) -> None:
+            item = tree.currentItem()
+            path = editor_state["item_paths"].get(id(item)) if item is not None else None
+            if path is None:
+                return
+            path_key = ".".join(str(part) for part in path)
+            actors = editor_state["preview_elements"].get(path_key, {}).get(kind, [])
+            if not actors:
+                return
+            for actor in actors:
+                actor.SetVisibility(visible)
+            render = getattr(self.plotter, "render", None)
+            if callable(render):
+                render()
+
         def _refresh_after_structural_edit(
             additional_expanded_paths: set[str]
         ) -> None:
@@ -1246,6 +1294,7 @@ class JsonEditorMixin:
                     context_actions["down"].setEnabled(False)
             else:
                 context_actions["down"].setEnabled(False)
+            update_preview_actions()
 
         def edit_array(operation: str, variant: str | None = None) -> None:
             item = tree.currentItem()
@@ -1454,6 +1503,12 @@ class JsonEditorMixin:
                     selected_operation
                 )
             )
+        for kind, action in preview_actions.items():
+            action.triggered.connect(
+                lambda visible, selected_kind=kind: toggle_preview_element(
+                    selected_kind, visible
+                )
+            )
         value_actions["copy"].triggered.connect(copy_field_value)
         value_actions["paste"].triggered.connect(paste_field_value)
         remove_property_action.triggered.connect(remove_property)
@@ -1561,7 +1616,9 @@ class JsonEditorMixin:
             "mark_saved": mark_editor_saved,
             "discard": lambda: populate_editor(editor_state["original_json"], reset_history=True),
             "reveal_path": reveal_path,
+            "set_preview_elements": set_preview_elements,
             "context_actions": context_actions,
+            "preview_actions": preview_actions,
             "value_actions": value_actions,
             "remove_property_action": remove_property_action,
             "property_menu": property_menu,

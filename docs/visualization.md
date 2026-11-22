@@ -76,12 +76,16 @@ row; unavailable actions are dimmed. A menu may contain:
 | **Add as** | Choose the type of a new list entry when the list supports multiple variants. |
 | **Duplicate** / **Remove** | Duplicate or remove the selected list entry. |
 | **Move up** / **Move down** | Reorder the selected list entry within its list. |
+| **Show annotation** | Show or hide the preview annotation associated with the selected entry, when present. |
+| **Show visualization** | Show or hide the rendered preview element associated with the selected entry, when present. |
 
 For example, to duplicate a body, expand the appropriate body list, right-click
 the body entry, choose **Duplicate**, and edit the new entry. To add an optional
 setting, right-click its parent object and choose it under **Add property**.
 Adding or duplicating an entry may require further edits before the configuration
-passes validation. Errors are reported in the editor status area.
+passes validation. The annotation and visualization toggles are enabled only
+when the selected entry has a corresponding preview element. Errors are reported
+in the editor status area.
 
 ### Tree menu, undo and saving
 

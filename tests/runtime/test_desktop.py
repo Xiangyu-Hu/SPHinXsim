@@ -118,6 +118,76 @@ def test_annotation_reveal_expands_selects_and_filters_json_path(editor):
     assert filter_box.text() == ""
 
 
+def test_json_context_menu_toggles_matching_preview_elements(editor):
+    app, runtime, _, _ = editor
+    app.processEvents()
+    hooks = runtime._json_editor
+    tree = hooks["tree"]
+
+    class Actor:
+        def __init__(self):
+            self.visible = True
+
+        def GetVisibility(self):
+            return self.visible
+
+        def SetVisibility(self, visible):
+            self.visible = bool(visible)
+
+    annotation = Actor()
+    visualization = Actor()
+    hooks["set_preview_elements"](
+        {
+            "gravity": {
+                "annotation": [annotation],
+                "visualization": [visualization],
+            }
+        }
+    )
+    gravity_item = next(
+        item for item in _tree_items(tree)
+        if item.data(0, QtCore.Qt.ItemDataRole.UserRole) == "gravity"
+    )
+    tree.scrollToItem(gravity_item)
+    tree.customContextMenuRequested.emit(
+        tree.visualItemRect(gravity_item).center()
+    )
+    app.processEvents()
+
+    annotation_action = tree.findChild(
+        QtGui.QAction, "sphinxsim-json-editor-show-annotation"
+    )
+    visualization_action = tree.findChild(
+        QtGui.QAction, "sphinxsim-json-editor-show-visualization"
+    )
+    assert annotation_action.isEnabled() and annotation_action.isChecked()
+    assert visualization_action.isEnabled() and visualization_action.isChecked()
+
+    annotation_action.trigger()
+    app.processEvents()
+    assert not annotation.visible
+    assert visualization.visible
+
+    visualization_action.trigger()
+    app.processEvents()
+    assert not visualization.visible
+
+    spacing_item = next(
+        item for item in _tree_items(tree)
+        if item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+        == "geometries.global_resolution.particle_spacing"
+    )
+    tree.customContextMenuRequested.emit(
+        tree.visualItemRect(spacing_item).center()
+    )
+    app.processEvents()
+    assert not annotation_action.isEnabled()
+    assert not visualization_action.isEnabled()
+    tree.findChild(
+        QtWidgets.QMenu, "sphinxsim-json-editor-list-context-menu"
+    ).hide()
+
+
 def test_list_context_menu_adds_to_the_right_clicked_list(editor):
     app, runtime, _, _ = editor
     app.processEvents()

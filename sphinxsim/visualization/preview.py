@@ -216,6 +216,7 @@ class ConfigVisualizer:
         self._shape_bounds_cache: dict[str, Any] | None = None
         self._missing_shape_geometry: list[str] = []
         self._annotation_label_actors: list[dict[str, Any]] = []
+        self._preview_visualization_actors: dict[str, list[Any]] = {}
         self.legend_actor: Any = None
         self._particle_simulation: Any | None = None
         self._particle_runtime_config_path: Path | None = None
@@ -287,6 +288,32 @@ class ConfigVisualizer:
     def annotation_label_actors(self) -> list[dict[str, Any]]:
         """Label actors created by the latest preview population pass."""
         return list(self._annotation_label_actors)
+
+    @property
+    def preview_element_actors(self) -> dict[str, dict[str, list[Any]]]:
+        """Return the preview actors grouped by their configuration paths."""
+        elements: dict[str, dict[str, list[Any]]] = {
+            path: {"visualization": list(actors)}
+            for path, actors in self._preview_visualization_actors.items()
+        }
+        for entry in self._annotation_label_actors:
+            path = entry.get("config_path")
+            actor = entry.get("actor")
+            if path and actor is not None:
+                elements.setdefault(path, {}).setdefault("annotation", []).append(actor)
+        return elements
+
+    def _register_visualization_actor(
+        self, config_path: str | tuple[str | int, ...], actor: Any
+    ) -> None:
+        if actor is None:
+            return
+        path = (
+            ".".join(str(part) for part in config_path)
+            if isinstance(config_path, tuple)
+            else config_path
+        )
+        self._preview_visualization_actors.setdefault(path, []).append(actor)
 
     def take_particle_simulation(self) -> tuple[Any, Path] | None:
         """Transfer a generated-particle simulation and its runtime config."""
@@ -747,6 +774,7 @@ class ConfigVisualizer:
         config = self.config
         self._select_subplot(plotter, 0)
         self._annotation_label_actors = []
+        self._preview_visualization_actors = {}
         self._missing_shape_geometry = []
         hide_shapes = bool(latest_particle_vtps)
 
@@ -906,7 +934,7 @@ class ConfigVisualizer:
 
         # --- Render each shape ---
         if not hide_shapes:
-            for shape in config.geometries.shapes:
+            for shape_index, shape in enumerate(config.geometries.shapes):
                 if shape.type.value == "default":
                     continue
                 if shape.type.value in {"extrude_shape", "complex_shape"}:
@@ -922,7 +950,7 @@ class ConfigVisualizer:
                 opacity = 0.6 if is_body else 0.35
                 style = "surface" if is_body else "wireframe"
 
-                plotter.add_mesh(
+                actor = plotter.add_mesh(
                     mesh,
                     name=f"preview-shape-{shape.name}",
                     color=colour,
@@ -930,6 +958,19 @@ class ConfigVisualizer:
                     style=style,
                     label=shape.name,
                 )
+                self._register_visualization_actor(
+                    ("geometries", "shapes", shape_index), actor
+                )
+                for body_key in (
+                    "fluid_bodies",
+                    "solid_bodies",
+                    "continuum_bodies",
+                ):
+                    for body_index, body in enumerate(getattr(config, body_key)):
+                        if body.name == shape.name:
+                            self._register_visualization_actor(
+                                (body_key, body_index), actor
+                            )
                 _update_scene_bounds(mesh)
 
                 occupied_points.append(
@@ -949,6 +990,25 @@ class ConfigVisualizer:
             ]
             self._missing_shape_geometry = missing_shapes
 
+        for body_key in ("fluid_bodies", "solid_bodies", "continuum_bodies"):
+            for body_index, body in enumerate(getattr(config, body_key)):
+                body_shape = shape_lookup.get(body.name)
+                if body_shape is None or body_shape.type.value != "complex_shape":
+                    continue
+                body_path = (body_key, body_index)
+                registered_actor_ids: set[int] = set()
+                for sub_shape_name in body_shape.sub_shapes:
+                    for shape_index, shape in enumerate(config.geometries.shapes):
+                        if shape.name != sub_shape_name:
+                            continue
+                        shape_path = f"geometries.shapes.{shape_index}"
+                        for actor in self._preview_visualization_actors.get(
+                            shape_path, []
+                        ):
+                            if id(actor) not in registered_actor_ids:
+                                self._register_visualization_actor(body_path, actor)
+                                registered_actor_ids.add(id(actor))
+
         # --- Overlay latest generated particles (one VTP per body) ---
         particle_vtps = latest_particle_vtps or {}
         for body_name in sorted(particle_vtps):
@@ -958,7 +1018,7 @@ class ConfigVisualizer:
             except Exception:
                 continue
 
-            plotter.add_mesh(
+            actor = plotter.add_mesh(
                 particle_mesh,
                 name=f"particle-preview-{body_name}",
                 color=_body_colour(body_name, config),
@@ -967,6 +1027,16 @@ class ConfigVisualizer:
                 point_size=_PARTICLE_POINT_SIZE,
                 label=_particle_label(body_name),
             )
+            for body_key in (
+                "fluid_bodies",
+                "solid_bodies",
+                "continuum_bodies",
+            ):
+                for body_index, body in enumerate(getattr(config, body_key)):
+                    if body.name == body_name:
+                        self._register_visualization_actor(
+                            (body_key, body_index), actor
+                        )
 
             _update_scene_bounds(particle_mesh)
             occupied_points.append(
@@ -985,13 +1055,16 @@ class ConfigVisualizer:
                 continue
 
             colour = _INLET_OUTLET_COLOUR if ob.type.value == "boundary" else _REGION_COLOUR
-            plotter.add_mesh(
+            actor = plotter.add_mesh(
                 mesh,
                 color=colour,
                 opacity=0.50,
                 style="wireframe",
                 line_width=2,
                 label=ob.name,
+            )
+            self._register_visualization_actor(
+                ("geometries", "oriented_boxes", box_index), actor
             )
             _update_scene_bounds(mesh)
             label_text = oriented_box_label(ob, config)
@@ -1025,13 +1098,16 @@ class ConfigVisualizer:
                 ob = oriented_box_lookup[constraint.region]
                 mesh = self._load_oriented_box_mesh(ob, vtp_dir)
                 if mesh is not None:
-                    plotter.add_mesh(
+                    actor = plotter.add_mesh(
                         mesh,
                         color=_CONSTRAINT_COLOUR,
                         opacity=0.30,
                         style="wireframe",
                         line_width=3,
                         label=f"Constraint: {constraint.body_name}",
+                    )
+                    self._register_visualization_actor(
+                        ("body_constraints", constraint_index), actor
                     )
                     _add_annotation_label(
                         [mesh.center],
@@ -1058,12 +1134,15 @@ class ConfigVisualizer:
         if config.geometries.system_domain is not None:
             domain = config.geometries.system_domain
             domain_mesh = _bounds_to_box(domain.lower_bound, domain.upper_bound)
-            plotter.add_mesh(
+            actor = plotter.add_mesh(
                 domain_mesh,
                 color="white",
                 opacity=0.10,
                 style="wireframe",
                 line_width=1,
+            )
+            self._register_visualization_actor(
+                ("geometries", "system_domain"), actor
             )
             _update_scene_bounds(domain_mesh)
 
@@ -1092,12 +1171,15 @@ class ConfigVisualizer:
                 continue
 
             observer_points = pv.PolyData(points)
-            plotter.add_mesh(
+            actor = plotter.add_mesh(
                 observer_points,
                 color=_OBSERVER_COLOUR,
                 point_size=10,
                 render_points_as_spheres=True,
                 label=f"Observer: {observer.name}",
+            )
+            self._register_visualization_actor(
+                ("observers", observer_index - 1), actor
             )
             _add_annotation_label(
                 [points[0]],
@@ -1214,12 +1296,13 @@ class ConfigVisualizer:
             start = (lower[0] + 0.05 * extent[0], upper[1] - 0.05 * extent[1], upper[2] - 0.05 * extent[2])
 
         arrow = pv.Arrow(start=start, direction=direction, scale=arrow_length)
-        plotter.add_mesh(
+        actor = plotter.add_mesh(
             arrow,
             color=_GRAVITY_COLOUR,
             line_width=4,
             label="Gravity",
         )
+        self._register_visualization_actor("gravity", actor)
 
         # Place the gravity text label just above the arrow start.
         label_offset = 0.04 * vertical_extent

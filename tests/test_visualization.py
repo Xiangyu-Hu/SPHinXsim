@@ -115,6 +115,27 @@ def heat_config() -> SimulationConfig:
 # Annotations tests
 # ---------------------------------------------------------------------------
 
+def test_preview_element_actors_group_annotations_and_visualizations(
+    fluid_config, tmp_path
+):
+    from sphinxsim.visualization.preview import ConfigVisualizer
+
+    visualizer = ConfigVisualizer(fluid_config, tmp_path, off_screen=True)
+    annotation = object()
+    visualization = object()
+    visualizer._register_visualization_actor(("gravity",), visualization)
+    visualizer._annotation_label_actors = [
+        {"actor": annotation, "config_path": "gravity"}
+    ]
+
+    assert visualizer.preview_element_actors == {
+        "gravity": {
+            "visualization": [visualization],
+            "annotation": [annotation],
+        }
+    }
+
+
 class TestBodyLabel:
     def test_fluid_body_label_includes_density(self, fluid_config):
         from sphinxsim.visualization.annotations import body_label

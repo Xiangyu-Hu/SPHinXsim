@@ -188,6 +188,43 @@ def test_particle_sphere_splats_render_and_survive_actor_replacement(fluid_confi
         plotter.close()
 
 
+@pytest.mark.parametrize("splats", [False, True])
+@pytest.mark.parametrize("colour", [False, True])
+def test_particle_transparency_changes_rendered_opacity(fluid_config, splats, colour):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    fluid_config.geometries.global_resolution.particle_spacing = 0.2
+    mesh = pv.PolyData(np.array([[-0.2, 0, 0], [0.2, 0, 0]]))
+    mesh.point_data["Pressure"] = [0.0, 1.0]
+    plotter = pv.Plotter(off_screen=True, window_size=(400, 400))
+    plotter.set_background("black")
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", fluid_config)
+    try:
+        actor = plotter.add_mesh(mesh, name="particles", color="white", style="points", point_size=10)
+        controller.add_actor("WaterBody", actor, mesh, initialized=True)
+        if splats:
+            controller.set_sphere_splats("WaterBody", True)
+        if colour:
+            controller.set_colour("WaterBody", "Pressure")
+        plotter.camera_position = [(0, 0, 3), (0, 0, 0), (0, 1, 0)]
+        plotter.enable_parallel_projection()
+        plotter.camera.parallel_scale = 0.5
+        plotter.show(auto_close=False)
+        assert actor.GetProperty().GetOpacity() == pytest.approx(0.95)
+        transparent = plotter.screenshot(return_img=True)[100:300, 50:350]
+        controller.set_opaque("WaterBody", True)
+        assert actor.GetProperty().GetOpacity() == pytest.approx(1.0)
+        opaque = plotter.screenshot(return_img=True)[100:300, 50:350]
+        assert np.any(opaque > transparent)
+        controller.set_opaque("WaterBody", False)
+        assert actor.GetProperty().GetOpacity() == pytest.approx(0.95)
+    finally:
+        plotter.close()
+
+
 def test_particle_sphere_splat_spacing_estimate_and_invalid_cloud(fluid_config):
     pv = pytest.importorskip("pyvista")
     np = pytest.importorskip("numpy")
@@ -257,11 +294,13 @@ def test_particle_splat_selection_survives_live_and_replay(fluid_config, tmp_pat
         refresh_particle_actors(plotter, tmp_path, colours, versions, ResultCatalog(), controller)
         controller.set_sphere_splats("WaterBody", True)
         controller.set_colour("WaterBody", "Pressure")
+        controller.set_opaque("WaterBody", True)
         mesh.field_data["TimeValue"] = [1.0]
         mesh.save(second, binary=False)
         refresh_particle_actors(plotter, tmp_path, colours, versions, ResultCatalog(), controller)
         assert controller.actors["WaterBody"].GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
         assert controller.actors["WaterBody"].GetMapper().GetScalarVisibility()
+        assert controller.actors["WaterBody"].GetProperty().GetOpacity() == pytest.approx(1.0)
 
         runtime = _ShellPreviewRuntime()
         runtime.plotter = plotter
@@ -273,6 +312,12 @@ def test_particle_splat_selection_survives_live_and_replay(fluid_config, tmp_pat
         runtime._refresh_live_particles()
         assert controller.actors["WaterBody"].GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
         assert controller.actors["WaterBody"].GetMapper().GetScalarVisibility()
+        assert controller.actors["WaterBody"].GetProperty().GetOpacity() == pytest.approx(1.0)
+        controller.set_scene("new-run", fluid_config)
+        replacement = plotter.add_mesh(mesh, name="particles", style="points", opacity=1.0)
+        controller.add_actor("WaterBody", replacement, mesh, initialized=True)
+        assert replacement.GetProperty().GetOpacity() == pytest.approx(0.95)
+        assert not controller.opaque_bodies
     finally:
         plotter.close()
 

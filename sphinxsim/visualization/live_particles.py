@@ -1,7 +1,7 @@
 """Particle updates shared by continued Preview runs and Agent observers."""
 
 from sphinxsim.results import ResultCatalog, read_particle_mesh
-from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE
+from sphinxsim.visualization.preview import _PARTICLE_DEFAULT_OPACITY, _PARTICLE_POINT_SIZE
 
 
 def refresh_particle_actors(plotter, output_dir, body_colours, versions, catalog, visibility=None,
@@ -17,7 +17,7 @@ def refresh_particle_actors(plotter, output_dir, body_colours, versions, catalog
             continue
         actor = plotter.add_mesh(
             mesh, name=f"particle-preview-{body}", color=body_colours[body],
-            opacity=0.95, style="points", point_size=_PARTICLE_POINT_SIZE,
+            opacity=_PARTICLE_DEFAULT_OPACITY, style="points", point_size=_PARTICLE_POINT_SIZE,
             label=f"Particles: {body}", reset_camera=False,
         )
         if visibility is not None:

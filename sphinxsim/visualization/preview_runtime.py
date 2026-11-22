@@ -181,7 +181,9 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         if self.plotter is None or self._live_output_dir is None:
             return
 
-        from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE, _particle_label
+        from sphinxsim.visualization.preview import (
+            _PARTICLE_DEFAULT_OPACITY, _PARTICLE_POINT_SIZE, _particle_label,
+        )
 
         try:
             import pyvista as pv
@@ -257,7 +259,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 mesh,
                 name=f"particle-preview-{body_name}",
                 color=self._live_particle_colours.get(body_name),
-                opacity=0.95,
+                opacity=_PARTICLE_DEFAULT_OPACITY,
                 style="points",
                 point_size=_PARTICLE_POINT_SIZE,
                 label=_particle_label(body_name),
@@ -436,7 +438,9 @@ class _ShellPreviewRuntime(JsonEditorMixin):
 
     def _show_initialized_particles(self) -> None:
         from sphinxsim.results import ResultCatalog, read_particle_mesh
-        from sphinxsim.visualization.preview import _PARTICLE_POINT_SIZE, _particle_label
+        from sphinxsim.visualization.preview import (
+            _PARTICLE_DEFAULT_OPACITY, _PARTICLE_POINT_SIZE, _particle_label,
+        )
 
         if self._live_output_dir is None:
             raise RuntimeError("The simulation output directory is unavailable.")
@@ -449,7 +453,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 mesh,
                 name=f"particle-preview-{body_name}",
                 color=self._live_particle_colours.get(body_name),
-                opacity=0.95,
+                opacity=_PARTICLE_DEFAULT_OPACITY,
                 style="points",
                 point_size=_PARTICLE_POINT_SIZE,
                 label=_particle_label(body_name),

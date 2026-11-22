@@ -139,6 +139,13 @@ If spacing cannot be estimated for a later frame, that frame uses points and
 logs a warning; the splat selection is retried on subsequent frames. The
 selection resets when changing scenes.
 
+### Particle transparency
+
+Choose **Transparency → Opaque (0%)** or **5% transparent** for each body.
+The default is 5% transparent for both points and sphere splats. The choice
+persists across live and replayed frames in the same scene and resets when
+changing scenes.
+
 ### Color particles by an output attribute
 
 Particles are colored by body by default. In the shell, use

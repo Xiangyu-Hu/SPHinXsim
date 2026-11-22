@@ -74,6 +74,7 @@ _OBSERVER_COLOUR = (0.93, 0.13, 0.93)      # magenta — observer positions
 _CONSTRAINT_COLOUR = (0.93, 0.55, 0.13)     # orange — body constraint regions
 _GRAVITY_COLOUR = (0.00, 0.48, 0.50)        # dark cyan — gravity direction arrow
 _PARTICLE_POINT_SIZE = 5
+_PARTICLE_DEFAULT_OPACITY = 0.95
 
 
 def _particle_label(body_name: str) -> str:
@@ -1022,7 +1023,7 @@ class ConfigVisualizer:
                 particle_mesh,
                 name=f"particle-preview-{body_name}",
                 color=_body_colour(body_name, config),
-                opacity=0.95,
+                opacity=_PARTICLE_DEFAULT_OPACITY,
                 style="points",
                 point_size=_PARTICLE_POINT_SIZE,
                 label=_particle_label(body_name),

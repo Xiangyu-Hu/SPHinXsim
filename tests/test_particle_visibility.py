@@ -112,6 +112,24 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         assert first.GetVisibility()
         assert legend.GetEntryColor(0) == pytest.approx(initial_colour)
         event_filter.menu.close()
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
+        QtTest.QTest.qWait(50)
+        transparency = event_filter.menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-transparency")
+        options = {action.text(): action for action in transparency.actions()}
+        assert options["5% transparent"].isChecked()
+        options["Opaque (0%)"].trigger()
+        assert first.GetProperty().GetOpacity() == pytest.approx(1.0)
+        assert second.GetProperty().GetOpacity() == pytest.approx(0.95)
+        event_filter.menu.close()
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
+        QtTest.QTest.qWait(50)
+        transparency = event_filter.menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-transparency")
+        options = {action.text(): action for action in transparency.actions()}
+        assert options["Opaque (0%)"].isChecked()
+        options["5% transparent"].trigger()
+        assert first.GetProperty().GetOpacity() == pytest.approx(0.95)
+        options["Opaque (0%)"].trigger()
+        event_filter.menu.close()
         mesh = pv.Sphere()
         mesh.point_data["Pressure"] = [0.2] * mesh.n_points
         mesh.field_data["ScalingReference_Pressure"] = [3.0]
@@ -160,6 +178,7 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         assert not replacement.GetVisibility()
         assert replacement.GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
         assert replacement.GetMapper().GetScalarVisibility()
+        assert replacement.GetProperty().GetOpacity() == pytest.approx(1.0)
         assert not controller.scalar_bars["GranularBody"].GetVisibility()
         controller.set_scene("first-run", config)
         controller.add_actor("GranularBody", replacement, mesh, initialized=True)
@@ -174,6 +193,8 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         assert replacement.GetMapper().GetClassName() != "vtkOpenGLPointGaussianMapper"
         assert not controller.colouring
         assert not controller.sphere_splats
+        assert replacement.GetProperty().GetOpacity() == pytest.approx(0.95)
+        assert not controller.opaque_bodies
     finally:
         if event_filter.menu is not None:
             event_filter.menu.close()

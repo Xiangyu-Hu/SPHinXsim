@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 
 from sphinxsim.visualization.particle_time import PARTICLE_OVERLAY_CENTER_Y
+from sphinxsim.visualization.preview import _PARTICLE_DEFAULT_OPACITY
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ class ParticleVisibility:
         self.meshes: dict[str, Any] = {}
         self.colouring: dict[str, str] = {}
         self.sphere_splats: set[str] = set()
+        self.opaque_bodies: set[str] = set()
         self._point_mappers: dict[str, tuple[Any, Any]] = {}
         self.scalar_bars: dict[str, Any] = {}
         self._colour_warnings: set[tuple[str, str]] = set()
@@ -67,6 +69,7 @@ class ParticleVisibility:
             self.hidden.clear()
             self.colouring.clear()
             self.sphere_splats.clear()
+            self.opaque_bodies.clear()
             self._point_mappers.clear()
             self._colour_warnings.clear()
             self.scene_key = key
@@ -90,6 +93,9 @@ class ParticleVisibility:
             self.meshes[body] = mesh
         else:
             self.meshes.pop(body, None)
+        actor.GetProperty().SetOpacity(
+            1.0 if body in self.opaque_bodies else _PARTICLE_DEFAULT_OPACITY
+        )
         actor.SetVisibility(body not in self.hidden)
         if body in self.colouring:
             self._apply_colouring(body)
@@ -124,6 +130,15 @@ class ParticleVisibility:
             self.sphere_splats.discard(body)
         if body in self.colouring:
             self._apply_colouring(body)
+        self.plotter.render()
+
+    def set_opaque(self, body: str, opaque: bool) -> None:
+        actor = self.actors[body]
+        actor.GetProperty().SetOpacity(1.0 if opaque else _PARTICLE_DEFAULT_OPACITY)
+        if opaque:
+            self.opaque_bodies.add(body)
+        else:
+            self.opaque_bodies.discard(body)
         self.plotter.render()
 
     def colourable_fields(self, body: str) -> dict[str, bool]:
@@ -380,6 +395,21 @@ def install_particle_menu(widget: Any, controller: ParticleVisibility) -> Any:
                             QtWidgets.QMessageBox.warning(widget, "Particle representation", str(exc))
 
                 choice.triggered.connect(choose_representation)
+            transparency = self.menu.addMenu("Transparency")
+            transparency.setObjectName("sphinxsim-particle-transparency")
+            transparency_group = QtGui.QActionGroup(transparency)
+            transparency_group.setExclusive(True)
+            for label, opaque in (("Opaque (0%)", True), ("5% transparent", False)):
+                choice = transparency.addAction(label)
+                choice.setCheckable(True)
+                choice.setChecked((body in controller.opaque_bodies) == opaque)
+                transparency_group.addAction(choice)
+
+                def choose_opacity(_checked: bool, selected: bool = opaque) -> None:
+                    if scene_key == controller.scene_key and body in controller.bodies:
+                        controller.set_opaque(body, selected)
+
+                choice.triggered.connect(choose_opacity)
             fields = controller.colourable_fields(body)
             if body in controller.meshes:
                 submenu = self.menu.addMenu("Color by")

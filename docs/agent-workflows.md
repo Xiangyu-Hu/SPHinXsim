@@ -17,13 +17,24 @@ It guides experiment design and quality interpretation; it grants no access.
 ## Installation
 
 Follow the platform [installation guide](installation.md) to build the native
-bindings. From this checkout, install the optional features you need:
+bindings. On Linux and macOS, install the optional features you need:
 
 ```sh
 python -m pip install '.[dev,cad,mcp,results,visualization]'
 sphinxsim --help
 python -m sphinxsim --help
 ```
+
+On Windows, use the CI-tested installation without the `cad` extra:
+
+```powershell
+python -m pip install -e ".[dev]"
+python -m pip install pyvistaqt PySide6
+```
+
+See the [Windows guide](installation-windows.md) for the CadQuery DLL conflict.
+CAD modeling is unavailable without CadQuery. Install `results`
+separately if headless result export or quality checks are needed.
 
 `cad` installs CadQuery/OCCT and mesh validation dependencies. `results` supplies
 VTK and mesh boolean support for headless export and quality checks. `mcp`
@@ -209,13 +220,15 @@ physics combinations; global extrema do not locate a pressure hotspot.
 
 ## Tests
 
-Use the existing project build, install and test entry points:
+On Linux and macOS, use the existing project build, install and test entry points:
 
 ```sh
 python -m pip install -e '.[dev,cad,mcp,results,visualization]'
 pytest tests/ -v
 ctest --test-dir build-integrated --output-on-failure -L simulation_class
 ```
+
+On Windows, use the CI-tested installation above instead of installing `cad`.
 
 The native Linux CI installs the extras and runs real OCCT, stdio MCP, native
 particle/continue/lease and J2 material-builder tests. It also runs opt-in

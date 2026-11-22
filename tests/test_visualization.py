@@ -1578,9 +1578,10 @@ assert max(frame.time for frame in final_frames.values()) > 0
 """
         env = os.environ.copy()
         env["PYTHONPATH"] = str(project) + os.pathsep + env.get("PYTHONPATH", "")
+        env["PYTHONIOENCODING"] = "utf-8"
         result = subprocess.run(
             [sys.executable, "-c", script, str(source), str(tmp_path)],
-            cwd=tmp_path, env=env, text=True, capture_output=True, timeout=120,
+            cwd=tmp_path, env=env, text=True, encoding="utf-8", capture_output=True, timeout=120,
         )
         assert result.returncode == 0, result.stdout + result.stderr
 

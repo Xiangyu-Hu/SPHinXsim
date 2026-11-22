@@ -2,7 +2,6 @@
 
 import json
 import os
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -14,11 +13,12 @@ from sphinxsim.visualization.particle_visibility import ParticleVisibility, inst
 
 CASE = Path(__file__).parent / "test_simulation/test_2d_simulation/data/column_collapse.json"
 
-
-@pytest.mark.skipif(
-    sys.platform.startswith("linux") and not os.environ.get("DISPLAY"),
-    reason="VTK rendering requires a display",
+pytestmark = pytest.mark.skipif(
+    os.environ.get("SPHINXSIM_DESKTOP_TESTS") != "1",
+    reason="Real Qt/VTK rendering requires a display; Linux CI runs this under Xvfb",
 )
+
+
 def test_hidden_particle_does_not_change_other_legend_text_pixels():
     np = pytest.importorskip("numpy")
     pv = pytest.importorskip("pyvista")
@@ -43,10 +43,6 @@ def test_hidden_particle_does_not_change_other_legend_text_pixels():
         plotter.close()
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("linux") and not os.environ.get("DISPLAY"),
-    reason="Native Qt interaction requires a display",
-)
 @pytest.mark.parametrize("surface", ["workbench", "shell"])
 def test_particle_legend_menu_and_actor_replacement(surface):
     pv = pytest.importorskip("pyvista")
@@ -157,10 +153,6 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         app.processEvents()
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("linux") and not os.environ.get("DISPLAY"),
-    reason="VTK rendering requires a display",
-)
 @pytest.mark.parametrize("window_size", [(800, 600), (1400, 800)])
 def test_time_and_first_colour_legend_are_horizontally_aligned(window_size):
     np = pytest.importorskip("numpy")
@@ -202,10 +194,6 @@ def test_time_and_first_colour_legend_are_horizontally_aligned(window_size):
         plotter.close()
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("linux") and not os.environ.get("DISPLAY"),
-    reason="VTK rendering requires a display",
-)
 def test_particle_colour_ranges_and_missing_fields(caplog):
     np = pytest.importorskip("numpy")
     pv = pytest.importorskip("pyvista")
@@ -276,10 +264,6 @@ def test_particle_colour_ranges_and_missing_fields(caplog):
         plotter.close()
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("linux") and not os.environ.get("DISPLAY"),
-    reason="VTK rendering requires a display",
-)
 def test_particle_colouring_survives_live_and_replay_frame_updates(tmp_path):
     np = pytest.importorskip("numpy")
     pv = pytest.importorskip("pyvista")
@@ -336,11 +320,7 @@ def test_particle_colouring_survives_live_and_replay_frame_updates(tmp_path):
         plotter.close()
 
 
-@pytest.mark.skipif(
-    sys.platform.startswith("linux") and not os.environ.get("DISPLAY"),
-    reason="VTK rendering requires a display",
-)
-def test_native_initialized_particle_colouring_persists_into_replay(tmp_path):
+def test_native_initialized_particle_colouring_persists_into_replay(tmp_path, monkeypatch):
     pv = pytest.importorskip("pyvista")
     from sphinxsim.bindings.loader import load_sphinxsys_core_nd
     from sphinxsim.results import ResultCatalog
@@ -357,6 +337,7 @@ def test_native_initialized_particle_colouring_persists_into_replay(tmp_path):
     data["solver_parameters"].update(end_time=0.05, output_interval=0.01)
     path = tmp_path / "config.json"
     path.write_text(json.dumps(data))
+    monkeypatch.chdir(tmp_path)
     output = tmp_path / "run"
     output.mkdir()
     simulation = core.SPHSimulation(str(path))

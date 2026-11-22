@@ -161,6 +161,11 @@ body's displayed solver snapshot, including integer arrays such as particle
 IDs. Vectors are colored by magnitude; matrices are not offered. The color bar
 identifies the body and variable. Select **Body color** to restore the default.
 
+Right-click a visible color bar to choose **Blue to red** (the default),
+**Viridis**, or **Grayscale**. The palette applies to that body, including
+points and sphere splats, and persists across its fields and frames in the same
+scene. Changing the palette does not change the color range.
+
 For an attribute with a valid saved [scaling reference](#particle-scaling-metadata),
 scalar colors use the fixed range `[-reference, reference]` and vector
 magnitudes use `[0, reference]`; values outside the range use the end colors.

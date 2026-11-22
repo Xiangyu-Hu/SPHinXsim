@@ -294,6 +294,7 @@ def test_particle_splat_selection_survives_live_and_replay(fluid_config, tmp_pat
         refresh_particle_actors(plotter, tmp_path, colours, versions, ResultCatalog(), controller)
         controller.set_sphere_splats("WaterBody", True)
         controller.set_colour("WaterBody", "Pressure")
+        controller.set_palette("WaterBody", "Viridis")
         controller.set_opaque("WaterBody", True)
         mesh.field_data["TimeValue"] = [1.0]
         mesh.save(second, binary=False)
@@ -301,6 +302,9 @@ def test_particle_splat_selection_survives_live_and_replay(fluid_config, tmp_pat
         assert controller.actors["WaterBody"].GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
         assert controller.actors["WaterBody"].GetMapper().GetScalarVisibility()
         assert controller.actors["WaterBody"].GetProperty().GetOpacity() == pytest.approx(1.0)
+        assert controller.actors["WaterBody"].GetMapper().GetLookupTable().GetColor(0) == pytest.approx(
+            (0.267, 0.005, 0.329)
+        )
 
         runtime = _ShellPreviewRuntime()
         runtime.plotter = plotter
@@ -313,11 +317,66 @@ def test_particle_splat_selection_survives_live_and_replay(fluid_config, tmp_pat
         assert controller.actors["WaterBody"].GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
         assert controller.actors["WaterBody"].GetMapper().GetScalarVisibility()
         assert controller.actors["WaterBody"].GetProperty().GetOpacity() == pytest.approx(1.0)
+        assert controller.palettes["WaterBody"] == "Viridis"
         controller.set_scene("new-run", fluid_config)
         replacement = plotter.add_mesh(mesh, name="particles", style="points", opacity=1.0)
         controller.add_actor("WaterBody", replacement, mesh, initialized=True)
         assert replacement.GetProperty().GetOpacity() == pytest.approx(0.95)
         assert not controller.opaque_bodies
+        assert not controller.palettes
+    finally:
+        plotter.close()
+
+
+def test_particle_palette_updates_per_body_and_representation(fluid_config):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    mesh = pv.PolyData(np.array([[-0.2, 0, 0], [0.2, 0, 0]]))
+    mesh.point_data["Pressure"] = [0.0, 1.0]
+    mesh.point_data["Velocity"] = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]
+    plotter = pv.Plotter(off_screen=True, window_size=(400, 400))
+    plotter.set_background("black")
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", fluid_config)
+    try:
+        for body in ("WaterBody", "WallBoundary"):
+            actor = plotter.add_mesh(mesh.copy(), name=body, color="white", style="points", point_size=10)
+            controller.add_actor(body, actor, actor.GetMapper().GetInput(), initialized=True)
+            controller.set_colour(body, "Pressure")
+        water = controller.actors["WaterBody"]
+        wall = controller.actors["WallBoundary"]
+        wall.SetPosition(0, 0.5, 0)
+        plotter.camera_position = [(0, 0, 3), (0, 0, 0), (0, 1, 0)]
+        plotter.enable_parallel_projection()
+        plotter.camera.parallel_scale = 0.5
+        plotter.show(auto_close=False)
+        before = plotter.screenshot(return_img=True)[180:220, 100:300]
+        assert water.GetMapper().GetLookupTable().GetColor(0) == pytest.approx((0.23, 0.30, 0.75))
+        controller.set_palette("WaterBody", "Viridis")
+        after = plotter.screenshot(return_img=True)[180:220, 100:300]
+        assert np.any(before != after)
+        assert water.GetMapper().GetLookupTable().GetColor(0) == pytest.approx((0.267, 0.005, 0.329))
+        assert wall.GetMapper().GetLookupTable().GetColor(0) == pytest.approx((0.23, 0.30, 0.75))
+        assert controller.scalar_bars["WaterBody"].GetLookupTable() == water.GetMapper().GetLookupTable()
+        controller.set_sphere_splats("WaterBody", True)
+        rgba = controller.meshes["WaterBody"].point_data["_sphinxsim_colour_Pressure_rgba"]
+        assert rgba[0, :3] / 255.0 == pytest.approx((0.267, 0.005, 0.329), abs=0.005)
+        controller.set_colour("WaterBody", "Velocity")
+        assert water.GetMapper().GetLookupTable().GetColor(0) == pytest.approx((0.267, 0.005, 0.329))
+        controller.set_palette("WaterBody", "Grayscale")
+        assert water.GetMapper().GetLookupTable().GetColor(0) == pytest.approx((0, 0, 0))
+        assert water.GetMapper().GetLookupTable().GetColor(1) == pytest.approx((1, 1, 1))
+        controller.set_colour("WaterBody", None)
+        controller.set_colour("WaterBody", "Pressure")
+        assert controller.palettes["WaterBody"] == "Grayscale"
+        water_mesh = controller.meshes["WaterBody"]
+        controller.set_scene("run", fluid_config)
+        controller.add_actor("WaterBody", water, water_mesh, initialized=True)
+        assert water.GetMapper().GetLookupTable().GetColor(0) == pytest.approx((0, 0, 0))
+        with pytest.raises(ValueError, match="Unknown particle color palette"):
+            controller.set_palette("WaterBody", "invalid")
     finally:
         plotter.close()
 

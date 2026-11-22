@@ -31,6 +31,7 @@ and runs these files under Xvfb with software rendering:
 - `tests/test_agent_preview.py`
 - `tests/test_workbench.py`
 - `tests/test_particle_visibility.py`
+- `tests/test_visualization.py`
 
 The Linux SYCL job runs the unit and example suites but does not currently have
 that dedicated Xvfb desktop-graphics step.
@@ -49,6 +50,10 @@ Linux native desktop and screenshot coverage.
 - Keep headless or mocked graphics tests in the general test suite when they
   are suitable for cross-platform execution. Tests requiring a real Qt display
   must have an explicit display setup in each CI job expected to run them.
+- Gate tests that construct a real PyVista plotter with
+  `SPHINXSIM_DESKTOP_TESTS=1`, even when `off_screen=True`: VTK's OpenGL
+  initialization can abort without a display before pytest can catch an error.
+  Include those tests in the Linux Xvfb step.
 - If moving real desktop coverage to Windows, macOS, or the SYCL job, configure
   and validate an appropriate display/rendering backend there; do not assume
   that running `pytest tests/` provides a display.

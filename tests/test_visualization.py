@@ -2,7 +2,7 @@
 
 PyVista is *not* required for most tests — mesh-building helpers are tested via
 a thin stub.  Tests that do require PyVista are skipped automatically when the
-library is not installed.
+library is not installed. Real plotter tests also require the desktop-test opt-in.
 """
 
 from __future__ import annotations
@@ -31,6 +31,11 @@ from sphinxsim.cli import main
 
 _DATA_DIR = Path(__file__).parent / "test_simulation" / "test_2d_simulation" / "data"
 _HEAT_TRANSFER_JSON = _DATA_DIR / "heat_transfer.json"
+
+requires_desktop = pytest.mark.skipif(
+    os.environ.get("SPHINXSIM_DESKTOP_TESTS") != "1",
+    reason="Real rendering requires a display; Linux CI runs this under Xvfb",
+)
 
 
 def _minimal_fluid_config() -> dict:
@@ -136,6 +141,7 @@ def test_preview_element_actors_group_annotations_and_visualizations(
     }
 
 
+@requires_desktop
 def test_particle_sphere_splats_render_and_survive_actor_replacement(fluid_config):
     pv = pytest.importorskip("pyvista")
     np = pytest.importorskip("numpy")
@@ -188,6 +194,7 @@ def test_particle_sphere_splats_render_and_survive_actor_replacement(fluid_confi
         plotter.close()
 
 
+@requires_desktop
 @pytest.mark.parametrize("splats", [False, True])
 @pytest.mark.parametrize("colour", [False, True])
 def test_particle_transparency_changes_rendered_opacity(fluid_config, splats, colour):
@@ -238,6 +245,7 @@ def test_particle_sphere_splat_spacing_estimate_and_invalid_cloud(fluid_config):
         _sphere_splat_radius(point, fluid_config)
 
 
+@requires_desktop
 def test_particle_splat_invalid_frame_falls_back_and_recovers(fluid_config, caplog):
     pv = pytest.importorskip("pyvista")
     np = pytest.importorskip("numpy")
@@ -271,6 +279,7 @@ def test_particle_splat_invalid_frame_falls_back_and_recovers(fluid_config, capl
         plotter.close()
 
 
+@requires_desktop
 def test_particle_splat_selection_survives_live_and_replay(fluid_config, tmp_path):
     pv = pytest.importorskip("pyvista")
     np = pytest.importorskip("numpy")
@@ -328,6 +337,7 @@ def test_particle_splat_selection_survives_live_and_replay(fluid_config, tmp_pat
         plotter.close()
 
 
+@requires_desktop
 def test_particle_palette_updates_per_body_and_representation(fluid_config):
     pv = pytest.importorskip("pyvista")
     np = pytest.importorskip("numpy")
@@ -3376,6 +3386,7 @@ class TestPreviewGravityArrow:
         )
         assert observer["shape_opacity"] == 0.96
 
+    @requires_desktop
     def test_dambreak_emitter_background_survives_hover_and_toggle(self, tmp_path, monkeypatch):
         pv = pytest.importorskip("pyvista")
         import numpy as np

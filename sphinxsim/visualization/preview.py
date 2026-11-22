@@ -711,19 +711,23 @@ class ConfigVisualizer:
         """Return body names that are expected to have generated particle VTPs."""
         return {body.name for body in self.config.particle_generation.bodies}
 
-    def _discover_latest_particle_vtps(self, vtp_dir: Path | None) -> dict[str, Path]:
+    def _discover_latest_particle_vtps(
+        self, vtp_dir: Path | None, *, generation_only: bool = False
+    ) -> dict[str, Path]:
         """Resolve the latest particle VTP file per body.
 
         Particle files are expected as ``<BodyName>_<step>.vtp`` and some
         generators use ``<BodyName>_ite_<step>.vtp``. This method returns one
         file per configured particle-generation body with the highest sequence
-        number.
+        number. When ``generation_only`` is set, exclude solver snapshots.
         """
         from sphinxsim.results import ResultCatalog
         if vtp_dir is None:
             return {}
-        frames = ResultCatalog().latest(vtp_dir, self._particle_generation_body_names(),
-                                        include_generation=True)
+        frames = ResultCatalog().latest(
+            vtp_dir, self._particle_generation_body_names(),
+            include_generation=True, generation_only=generation_only,
+        )
         return {body: frame.path for body, frame in frames.items()}
 
     def _populate_plotter(

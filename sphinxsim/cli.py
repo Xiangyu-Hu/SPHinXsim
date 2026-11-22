@@ -775,7 +775,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             "Commands: load FILE, generate DESCRIPTION FILE, "
             "update [--patch-mode] [--dry-run] [--strict true|false] INSTRUCTION, "
             "validate, run [--with-animation], preview [--with-particles] [--screenshot FILE], "
-                "initialize-simulation, continue-to-run [--refresh-interval SECONDS], replay, explore QUESTION, exit"
+                "initialize-simulation, continue-to-run [--refresh-interval SECONDS], replay [--relaxation], explore QUESTION, exit"
     )
     print("Note: relative paths are resolved from the current directory first, then .build-temp/.")
 
@@ -817,7 +817,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             print("  initialize-simulation           - Build and initialize the retained particle preview")
             print("  continue-to-run [--refresh-interval SECONDS]")
             print("                                 - Run the initialized particle preview simulation")
-            print("  replay                          - Replay recorded particle snapshots at up to 25 FPS")
+            print("  replay [--relaxation]           - Replay simulation or relaxation snapshots at up to 25 FPS")
             print("  run [--with-animation]          - Run config; optionally preview particles and animate")
             print("  exit                            - Exit shell")
             continue
@@ -837,8 +837,8 @@ def cmd_shell(args: argparse.Namespace) -> int:
 
         cmd = parts[0]
 
-        # Only the two lifecycle commands retain the particle-preview simulation.
-        if cmd not in {"initialize-simulation", "continue-to-run"}:
+        # Relaxation replay also retains the simulation for later initialization.
+        if cmd not in {"initialize-simulation", "continue-to-run"} and parts != ["replay", "--relaxation"]:
             preview_runtime.discard_pending_simulation()
 
         if cmd == "load":
@@ -1033,10 +1033,13 @@ def cmd_shell(args: argparse.Namespace) -> int:
             continue
 
         if cmd == "replay":
-            if len(parts) != 1:
-                print("Usage: replay", file=sys.stderr)
+            if len(parts) == 1:
+                _ = preview_runtime.replay_animation()
+            elif parts == ["replay", "--relaxation"]:
+                _ = preview_runtime.replay_animation(relaxation=True)
+            else:
+                print("Usage: replay [--relaxation]", file=sys.stderr)
                 continue
-            _ = preview_runtime.replay_animation()
             continue
 
         if cmd == "run":
@@ -1388,7 +1391,7 @@ def _parse_shell_ai_cli_style(text: str) -> list[str] | None:
     command = parts[0][1:]
     valid_commands = {
         "load", "generate", "validate", "update", "run", "preview", "initialize-simulation",
-        "continue-to-run", "explore", "shell"
+        "continue-to-run", "replay", "explore", "shell"
     }
     if command not in valid_commands:
         return None

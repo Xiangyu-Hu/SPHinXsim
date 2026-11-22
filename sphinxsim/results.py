@@ -44,7 +44,8 @@ class ResultCatalog:
         self._cache: dict[Path, tuple[tuple[int, int], ResultFrame]] = {}
 
     def latest(self, output_dir: str | Path, body_names: Sequence[str], *,
-               include_generation: bool = False) -> dict[str, ResultFrame]:
+               include_generation: bool = False,
+               generation_only: bool = False) -> dict[str, ResultFrame]:
         root = Path(output_dir)
         job = referenced_job(root)
         if job:
@@ -58,7 +59,8 @@ class ResultCatalog:
                     continue
                 suffix = path.stem[len(body) + 1:]
                 generation = suffix.startswith("ite_")
-                if generation and not include_generation:
+                if (generation and not (include_generation or generation_only)
+                        or generation_only and not generation):
                     break
                 try:
                     sequence = float(suffix[4:] if generation else suffix)

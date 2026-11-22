@@ -307,6 +307,7 @@ sphinxsim> preview --with-particles
    Building C++ geometry; bounds cache fallback will be used if VTP meshes are unavailable.
    Particle generation overlay is enabled (--with-particles).
 ✅ Preview used C++ geometry (VTP meshes).
+▶️ Replaying 100 particle frames at up to 25 FPS.
 
 sphinxsim> initialize-simulation
 ✅ Simulation built
@@ -327,7 +328,7 @@ sphinxsim> run --with-animation
 This performs `preview --with-particles`, `initialize-simulation`, and
 `continue-to-run` on the same generated simulation. Plain `run` remains unchanged. Once the animated
 run or a manual `continue-to-run` completes, enter `replay` to play its
-recorded particle snapshots again at up to 25 FPS:
+recorded simulation snapshots again at up to 25 FPS:
 
 ```text
 sphinxsim> replay
@@ -340,14 +341,22 @@ correct 2D/3D camera (including the orthographic XY view for 2D). Wait until
 camera framing fixed while the particle snapshots animate.
 
 `preview` requires a config to be loaded first (via `load` or `generate`).
+After particle generation, `preview --with-particles` automatically plays
+relaxation snapshots (`_ite_` files) in the Qt-backed preview. To play them
+again, including before initialization, enter `replay --relaxation`. If Qt
+playback is unavailable, the preview remains usable and reports a warning.
+Simulation playback and plain `replay` exclude relaxation snapshots.
+All playback reads the shared output directory, so older files of the same
+kind may also be included.
 
 After `preview --with-particles`, the shell retains the generated-particle
 `SPHSimulation` instance and its temporary runtime config. The next command,
 `initialize-simulation`, builds and initializes that same instance, writes the
 initial body-state snapshots, and displays them without running the solver.
 `continue-to-run` then runs the initialized instance without generating
-particles or initializing again. Other shell commands discard the retained
-instance and its temporary config; use `run` when a fresh simulation from the
+particles or initializing again. `replay --relaxation` also preserves the
+instance, and initialization stops any active relaxation playback. Other shell
+commands discard the retained instance and its temporary config; use `run` when a fresh simulation from the
 saved config is intended. If displaying the initialized snapshots fails, the
 error is reported and the initialized simulation remains available for
 `continue-to-run`.
@@ -359,7 +368,7 @@ sphinxsim> continue-to-run --refresh-interval 2.5
 ```
 
 The default interval is `10` seconds and the value must be greater than zero.
-At each interval, the preview collects all available body-state VTP snapshots
+At each interval, the preview collects available simulation body-state VTP snapshots
 and plays them in sequence at up to 25 FPS. It then waits for another interval
 before collecting the next batch, allowing slower simulations to produce
 more output between playback batches. A snapshot is loaded only after its file

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import tempfile
@@ -158,7 +159,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             except OSError:
                 pass
 
-    def _stop_live_refresh(self) -> None:
+    def _stop_live_refresh(self, *, preserve_context: bool = False) -> None:
         timer = self._live_refresh_timer
         self._live_refresh_timer = None
         if timer is not None:
@@ -166,11 +167,12 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 timer.stop()
             except Exception:
                 pass
-        self._live_output_dir = None
+        if not preserve_context:
+            self._live_output_dir = None
+            self._live_particle_body_names = set()
+            self._live_particle_colours = {}
         self._live_run_finished = False
         self._live_run_completion_woken = False
-        self._live_particle_body_names = set()
-        self._live_particle_colours = {}
         self._live_particle_versions = {}
         self._live_particle_file_states = {}
         self._live_playback_queue = []
@@ -191,23 +193,25 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             return
 
         if self._live_replay_mode and not self._live_playback_queue:
-            self._stop_live_refresh()
+            self._stop_live_refresh(preserve_context=True)
             return
 
         if not self._live_replay_mode and not self._live_playback_queue:
             batch: dict[float, dict[str, Path]] = {}
             has_unstable_snapshot = False
             for vtp_path in self._live_output_dir.glob("*.vtp"):
-                for body_name in self._live_particle_body_names:
+                for body_name in sorted(self._live_particle_body_names, key=len, reverse=True):
                     prefix = f"{body_name}_"
                     if not vtp_path.stem.startswith(prefix):
                         continue
                     suffix = vtp_path.stem[len(prefix):]
                     if suffix.startswith("ite_"):
-                        suffix = suffix[len("ite_"):]
+                        break
                     try:
                         sequence = float(suffix)
                     except ValueError:
+                        break
+                    if not math.isfinite(sequence):
                         break
                     if sequence <= self._live_particle_versions.get(body_name, float("-inf")):
                         break
@@ -271,7 +275,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             self._update_particle_time(body_name, mesh, generation=generation)
 
         if self._live_replay_mode and not self._live_playback_queue:
-            self._stop_live_refresh()
+            self._stop_live_refresh(preserve_context=True)
             print("✅ Particle animation replay completed.")
         elif not self._live_playback_queue:
             timer = self._live_refresh_timer
@@ -317,27 +321,49 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                     continue
                 self._live_particle_file_states[vtp_path] = (stat.st_size, stat.st_mtime_ns)
 
-    def replay_animation(self) -> int:
-        """Replay all recorded particle snapshots at no more than 25 FPS."""
+    def replay_animation(self, *, relaxation: bool = False, _automatic: bool = False) -> int:
+        """Replay simulation or relaxation snapshots at no more than 25 FPS."""
+        def unavailable(message: str) -> int:
+            prefix = "⚠️ Relaxation playback unavailable:" if _automatic else "❌"
+            print(f"{prefix} {message}", file=sys.stderr)
+            return 1
+
         thread = self._live_run_thread
         if thread is not None and thread.is_alive():
-            print("❌ Wait for the simulation to finish before replaying.", file=sys.stderr)
-            return 1
-        if not self._animation_run_completed:
-            print("❌ Complete a successful animated run before replaying.", file=sys.stderr)
-            return 1
+            return unavailable("Wait for the simulation to finish before replaying.")
+        if not relaxation and not self._animation_run_completed:
+            return unavailable("Complete a successful animated run before replaying.")
         if self._animation_output_dir is None or not self._animation_particle_body_names:
-            print(
+            return unavailable(
                 "No particle animation is available. Run 'run --with-animation', "
                 "or run 'preview --with-particles', 'initialize-simulation', "
-                "and 'continue-to-run'.",
-                file=sys.stderr,
+                "and 'continue-to-run'."
             )
-            return 1
+        snapshots: dict[float, dict[str, Path]] = {}
+        for vtp_path in self._animation_output_dir.glob("*.vtp"):
+            for body_name in sorted(self._animation_particle_body_names, key=len, reverse=True):
+                prefix = f"{body_name}_"
+                if not vtp_path.stem.startswith(prefix):
+                    continue
+                suffix = vtp_path.stem[len(prefix):]
+                generation = suffix.startswith("ite_")
+                if generation != relaxation:
+                    break
+                try:
+                    sequence = float(suffix[4:] if generation else suffix)
+                except ValueError:
+                    break
+                if math.isfinite(sequence):
+                    snapshots.setdefault(sequence, {})[body_name] = vtp_path
+                break
+
+        if not snapshots:
+            kind = "relaxation" if relaxation else "simulation"
+            return unavailable(f"No {kind} particle snapshots found in {self._animation_output_dir}.")
+
         if self.plotter is None:
             if self._animation_config is None or self._animation_config_path is None:
-                print("❌ The configuration for this particle animation is unavailable.", file=sys.stderr)
-                return 1
+                return unavailable("The configuration for this particle animation is unavailable.")
             rc = self.show_or_update(
                 self._animation_config,
                 resolved_config_path=self._animation_config_path,
@@ -346,38 +372,15 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             )
             if rc != 0:
                 return rc
-        elif not self._using_background_plotter:
-            print("❌ Animation replay requires the Qt-backed persistent preview.", file=sys.stderr)
-            return 1
+        if not self._using_background_plotter:
+            return unavailable("Animation replay requires the Qt-backed persistent preview.")
 
         try:
             from qtpy import QtCore
         except ImportError as exc:
-            print(
-                f"❌ Animation replay requires Qt (`pyvistaqt` with `PySide6` or `PyQt5`): {exc}",
-                file=sys.stderr,
+            return unavailable(
+                f"Animation replay requires Qt (`pyvistaqt` with `PySide6` or `PyQt5`): {exc}"
             )
-            return 1
-
-        snapshots: dict[float, dict[str, Path]] = {}
-        for vtp_path in self._animation_output_dir.glob("*.vtp"):
-            for body_name in self._animation_particle_body_names:
-                prefix = f"{body_name}_"
-                if not vtp_path.stem.startswith(prefix):
-                    continue
-                suffix = vtp_path.stem[len(prefix):]
-                if suffix.startswith("ite_"):
-                    suffix = suffix[len("ite_"):]
-                try:
-                    sequence = float(suffix)
-                except ValueError:
-                    break
-                snapshots.setdefault(sequence, {})[body_name] = vtp_path
-                break
-
-        if not snapshots:
-            print(f"❌ No particle snapshots found in {self._animation_output_dir}.", file=sys.stderr)
-            return 1
 
         self._stop_live_refresh()
         self._live_output_dir = self._animation_output_dir
@@ -416,6 +419,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             print("Simulation is already initialized. Run 'continue-to-run' to start it.", file=sys.stderr)
             return 1
 
+        self._stop_live_refresh(preserve_context=True)
         try:
             self._animation_run_completed = False
             simulation.buildSimulation()
@@ -893,7 +897,9 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             # falls back to cached bounds and still renders the scene.
             vtp_dir = visualizer._try_build_geometries(ndim, with_particles=with_particles)
             if with_particles:
-                latest_particle_vtps = visualizer._discover_latest_particle_vtps(vtp_dir)
+                latest_particle_vtps = visualizer._discover_latest_particle_vtps(
+                    vtp_dir, generation_only=True
+                )
             ensure_geometry_available = getattr(
                 visualizer, "_ensure_shape_geometry_available", None
             )
@@ -1046,6 +1052,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 self.plotter.render()
             except Exception:
                 pass
+            if with_particles and self._pending_simulation is not None:
+                self.replay_animation(relaxation=True, _automatic=True)
             return 0
         except ImportError as exc:
             self.last_signature = None

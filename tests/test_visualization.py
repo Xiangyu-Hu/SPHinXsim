@@ -1784,7 +1784,8 @@ class TestShellPreview:
 import json
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
 from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.results import ResultCatalog
 from sphinxsim.visualization.preview import ConfigVisualizer
@@ -1807,7 +1808,15 @@ runtime._pending_runtime_config_path = runtime_config
 runtime._live_output_dir = vtp_dir
 runtime._live_particle_body_names = visualizer._particle_generation_body_names()
 runtime.plotter = MagicMock()
-assert runtime.initialize_simulation() == 0
+runtime._using_background_plotter = True
+runtime._animation_output_dir = vtp_dir
+runtime._animation_particle_body_names = set(runtime._live_particle_body_names)
+timer = MagicMock()
+with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))}):
+    assert runtime.replay_animation(relaxation=True) == 0
+    assert all("_ite_" in path.name for _, batch in runtime._live_playback_queue for path in batch.values())
+    assert runtime.initialize_simulation() == 0
+    timer.stop.assert_called_once()
 assert runtime._pending_initialized
 assert runtime_config.exists()
 frames = ResultCatalog().latest(vtp_dir, sorted(runtime._live_particle_body_names))
@@ -1815,6 +1824,7 @@ assert frames and all(frame.time == 0 for frame in frames.values())
 assert runtime.plotter.add_mesh.call_count == len(frames)
 assert any(call.args[0].point_data for call in runtime.plotter.add_mesh.call_args_list)
 assert runtime._live_run_thread is None
+runtime._using_background_plotter = False
 assert runtime.continue_to_run() == 0
 runtime._live_run_thread.join(timeout=60)
 assert not runtime._live_run_thread.is_alive()
@@ -1822,6 +1832,10 @@ assert runtime._animation_run_completed
 assert not runtime_config.exists()
 final_frames = ResultCatalog().latest(vtp_dir, sorted(runtime._live_particle_body_names))
 assert max(frame.time for frame in final_frames.values()) > 0
+runtime._using_background_plotter = True
+with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))}):
+    assert runtime.replay_animation() == 0
+    assert all("_ite_" not in path.name for _, batch in runtime._live_playback_queue for path in batch.values())
 """
         env = os.environ.copy()
         env["PYTHONPATH"] = str(project) + os.pathsep + env.get("PYTHONPATH", "")
@@ -1962,6 +1976,158 @@ assert max(frame.time for frame in final_frames.values()) > 0
                 runtime._refresh_live_particles()
 
         assert runtime.plotter.meshes == [str(path) for path in snapshots]
+
+    def test_live_playback_ignores_relaxation_snapshots(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_body_names = {"Water", "Water_Extra"}
+        runtime._live_run_thread = SimpleNamespace(is_alive=lambda: True)
+        for name in ("Water_ite_1.vtp", "Water_1.vtp", "Water_Extra_ite_1.vtp",
+                     "Water_Extra_1.vtp", "Water_2.vtp"):
+            (tmp_path / name).touch()
+
+        with patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=str)}):
+            for _ in range(4):
+                runtime._refresh_live_particles()
+
+        assert {Path(call.args[0]).name for call in runtime.plotter.add_mesh.call_args_list} == {
+            "Water_1.vtp", "Water_Extra_1.vtp", "Water_2.vtp"
+        }
+
+    def test_replay_separates_relaxation_from_simulation_and_preserves_pending(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        timer = MagicMock()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        runtime._using_background_plotter = True
+        runtime._animation_output_dir = tmp_path
+        runtime._animation_particle_body_names = {"Water", "Water_Extra"}
+        runtime._pending_simulation = MagicMock()
+        for name in ("Water_ite_10.vtp", "Water_ite_2.vtp", "Water_2.vtp",
+                     "Water_Extra_ite_2.vtp", "Water_Extra_2.vtp", "Water_10.vtp"):
+            (tmp_path / name).touch()
+
+        with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))}):
+            assert runtime.replay_animation(relaxation=True) == 0
+            assert [step for step, _ in runtime._live_playback_queue] == [2, 10]
+            assert set(runtime._live_playback_queue[0][1]) == {"Water", "Water_Extra"}
+            assert all("_ite_" in path.name for _, batch in runtime._live_playback_queue
+                       for path in batch.values())
+            runtime._animation_run_completed = True
+            assert runtime.replay_animation() == 0
+            assert [step for step, _ in runtime._live_playback_queue] == [2, 10]
+            assert all("_ite_" not in path.name for _, batch in runtime._live_playback_queue
+                       for path in batch.values())
+        assert runtime._pending_simulation is not None
+
+    def test_initialization_stops_relaxation_timer_and_preserves_output_context(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._pending_simulation = MagicMock()
+        runtime.plotter = MagicMock()
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_body_names = {"WaterBody"}
+        runtime._live_refresh_timer = MagicMock()
+        timer = runtime._live_refresh_timer
+        runtime._live_replay_mode = True
+        runtime._live_playback_queue = [(1, {"WaterBody": tmp_path / "WaterBody_ite_1.vtp"})]
+        with patch.object(runtime, "_show_initialized_particles") as show:
+            assert runtime.initialize_simulation() == 0
+        timer.stop.assert_called_once()
+        assert runtime._live_output_dir == tmp_path
+        assert runtime._live_particle_body_names == {"WaterBody"}
+        assert not runtime._live_playback_queue
+        show.assert_called_once()
+
+    def test_completed_relaxation_playback_keeps_initialization_context(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        runtime._pending_simulation = MagicMock()
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_body_names = {"WaterBody"}
+        runtime._live_refresh_timer = MagicMock()
+        runtime._live_replay_mode = True
+        runtime._live_playback_queue = [(1, {"WaterBody": tmp_path / "WaterBody_ite_1.vtp"})]
+        with patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=str)}), \
+             patch.object(runtime, "_show_initialized_particles") as show:
+            runtime._refresh_live_particles()
+            assert runtime.initialize_simulation() == 0
+        assert runtime._live_output_dir == tmp_path
+        assert runtime._live_particle_body_names == {"WaterBody"}
+        show.assert_called_once()
+
+    def test_particle_preview_starts_relaxation_playback(self, tmp_path, fluid_config):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        runtime._using_background_plotter = True
+        visualizer = MagicMock()
+        visualizer._spatial_dim.return_value = 2
+        visualizer._try_build_geometries.return_value = tmp_path
+        visualizer._discover_latest_particle_vtps.return_value = {}
+        visualizer._particle_generation_body_names.return_value = {"WaterBody"}
+        simulation = MagicMock()
+        visualizer.take_particle_simulation.return_value = (simulation, None)
+        (tmp_path / "WaterBody_ite_1.vtp").touch()
+        timer = MagicMock()
+        with patch("sphinxsim.visualization.preview.ConfigVisualizer", return_value=visualizer), \
+             patch.dict(sys.modules, {
+                 "pyvista": MagicMock(),
+                 "qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer)),
+             }), \
+             patch.object(runtime, "_install_json_editor", return_value=True), \
+             patch.object(runtime, "_install_annotation_hover"):
+            assert runtime.show_or_update(
+                fluid_config, resolved_config_path=tmp_path / "case.json", with_particles=True
+            ) == 0
+
+        visualizer._discover_latest_particle_vtps.assert_called_once_with(tmp_path, generation_only=True)
+        assert runtime._pending_simulation is simulation
+        assert runtime._live_replay_mode
+        assert runtime._live_playback_queue[0][1]["WaterBody"].name == "WaterBody_ite_1.vtp"
+        timer.start.assert_called_once()
+
+    def test_relaxation_replay_reports_missing_snapshots(self, tmp_path, capsys):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._animation_output_dir = tmp_path
+        runtime._animation_particle_body_names = {"WaterBody"}
+        (tmp_path / "WaterBody_1.vtp").touch()
+        assert runtime.replay_animation(relaxation=True) == 1
+        assert "No relaxation particle snapshots" in capsys.readouterr().err
+
+    def test_automatic_relaxation_reports_unavailable_qt_without_failing_preview(
+        self, tmp_path, fluid_config, capsys
+    ):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        visualizer = MagicMock()
+        visualizer._spatial_dim.return_value = 2
+        visualizer._try_build_geometries.return_value = tmp_path
+        visualizer._discover_latest_particle_vtps.return_value = {}
+        visualizer._particle_generation_body_names.return_value = {"WaterBody"}
+        simulation = MagicMock()
+        visualizer.take_particle_simulation.return_value = (simulation, None)
+        (tmp_path / "WaterBody_ite_1.vtp").touch()
+        with patch("sphinxsim.visualization.preview.ConfigVisualizer", return_value=visualizer), \
+             patch.dict(sys.modules, {"pyvista": MagicMock()}), \
+             patch.object(runtime, "_install_annotation_hover"):
+            assert runtime.show_or_update(
+                fluid_config, resolved_config_path=tmp_path / "case.json", with_particles=True
+            ) == 0
+        assert runtime._pending_simulation is simulation
+        assert "Relaxation playback unavailable" in capsys.readouterr().err
 
     def test_shell_runtime_caps_live_refresh_at_25_fps(self):
         from sphinxsim import cli as cli_mod
@@ -2169,6 +2335,22 @@ assert max(frame.time for frame in final_frames.values()) > 0
                 assert main(["shell"]) == 0
 
         replay.assert_called_once_with()
+
+    def test_shell_relaxation_replay_and_slash_form_preserve_simulation(self):
+        from sphinxsim import cli as cli_mod
+
+        calls = []
+        with patch.object(cli_mod._ShellPreviewRuntime, "replay_animation",
+                          side_effect=lambda **kwargs: calls.append(kwargs)), \
+             patch.object(cli_mod._ShellPreviewRuntime, "initialize_simulation",
+                          side_effect=lambda: calls.append("initialize")), \
+             patch.object(cli_mod._ShellPreviewRuntime, "discard_pending_simulation",
+                          side_effect=lambda: calls.append("discard")), \
+             patch("builtins.input", side_effect=[
+                 "replay --relaxation", "/replay --relaxation", "initialize-simulation", "exit"
+             ]):
+            assert main(["shell"]) == 0
+        assert calls == [{"relaxation": True}, {"relaxation": True}, "initialize", "discard"]
 
     def test_shell_continue_to_run_accepts_refresh_interval(self):
         from sphinxsim import cli as cli_mod

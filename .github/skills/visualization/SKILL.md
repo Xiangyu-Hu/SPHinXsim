@@ -101,7 +101,9 @@ Design rule:
 - Rebuild geometry on each preview run and refresh the shape-bounds cache from the builder.
 - For shell `preview --with-particles`, transfer the generated `SPHSimulation`
   and its temporary runtime config to `_ShellPreviewRuntime`. The runtime keeps
-  both alive through `initialize-simulation` and `continue-to-run`.
+  both alive through `replay --relaxation`, `initialize-simulation`, and
+  `continue-to-run`. Play `_ite_` relaxation snapshots after particle preview;
+  stop that timer before showing initialized solver output.
   `initialize-simulation` calls `buildSimulation()` and `initializeSimulation()`
   and displays the initialized body-state snapshots; `continue-to-run` calls
   `run()` without reinitializing.
@@ -110,8 +112,12 @@ Design rule:
   preview, uses a GUI-thread timer to replace particle actors from newer
   completed body-state VTP snapshots. The interval is wall-clock time and must
   be positive.
-- Any other shell command must release the retained simulation and delete its
-  temporary runtime config.
+- Live simulation playback and plain `replay` exclude `_ite_` snapshots;
+  `replay --relaxation` selects only `_ite_` snapshots and does not require
+  a completed simulation. Both read the shared output directory, which can
+  contain older files of the same kind.
+- Other shell commands release the retained simulation and delete its temporary
+  runtime config.
 
 ### Persistent preview runtime responsibilities
 - `_ShellPreviewRuntime` is implemented in

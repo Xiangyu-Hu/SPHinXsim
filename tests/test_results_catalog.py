@@ -30,6 +30,17 @@ def test_catalog_prefers_latest_solver_frame_and_handles_xml_namespace(tmp_path)
     assert frame.generation is False
 
 
+def test_catalog_can_select_relaxation_instead_of_solver_frames(tmp_path):
+    write_vtp(tmp_path / "Body_ite_2.vtp", time=0)
+    write_vtp(tmp_path / "Body_ite_10.vtp", time=0)
+    write_vtp(tmp_path / "Body_0001.vtp", time=100)
+
+    frame = ResultCatalog().latest(tmp_path, ["Body"], generation_only=True)["Body"]
+
+    assert frame.path.name == "Body_ite_10.vtp"
+    assert frame.generation
+
+
 def test_incomplete_live_frame_is_ignored(tmp_path):
     write_vtp(tmp_path / "Body_0001.vtp", time=0.1)
     (tmp_path / "Body_0002.vtp").write_text("<VTKFile>", encoding="utf-8")

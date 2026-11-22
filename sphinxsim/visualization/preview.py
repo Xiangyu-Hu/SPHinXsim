@@ -395,16 +395,6 @@ class ConfigVisualizer:
         plotter.add_axes()
         plotter.show_grid(font_size=10, color=PREVIEW_AXIS_COLOUR, bold=False)
 
-        if vtp_dir:
-            mode_label = "VTP geometry"
-        elif self._shape_bounds_cache is not None:
-            mode_label = "C++ bounds cache"
-        else:
-            mode_label = "No C++ geometry"
-        dim_label = "2-D" if ndim == 2 else "3-D"
-        sim_type_label = self.config.simulation_type.value.replace("_", " ").title()
-        config_info = f"{dim_label}  •  {sim_type_label}  •  {mode_label}"
-        self._add_config_info_text(plotter, config_info, ndim)
         # Some PyVista legend actors temporarily make their active renderer
         # current. Re-apply the split viewport and backgrounds immediately
         # before capture/show so the main canvas cannot inherit a black default.
@@ -599,26 +589,6 @@ class ConfigVisualizer:
             plotter.view_xy(negative=False)
         except Exception:
             pass
-
-    def _add_config_info_text(self, plotter: Any, config_info: str, ndim: int) -> None:
-        """Add the simulation-info overlay text in a non-overlapping location."""
-        if ndim == 2:
-            plotter.add_text(
-                config_info,
-                position="upper_edge",
-                font_size=11,
-                color=PREVIEW_GRAVITY_TEXT_COLOUR,
-                font="arial",
-            )
-            return
-
-        plotter.add_text(
-            config_info,
-            position="upper_edge",
-            font_size=11,
-            color=PREVIEW_GRAVITY_TEXT_COLOUR,
-            font="arial",
-        )
 
     def _try_build_geometries(self, ndim: int, with_particles: bool = False) -> Path | None:
         """Run buildGeometries() and return the VTP output directory, or None.

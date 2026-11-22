@@ -1031,16 +1031,6 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             self.plotter.add_axes()
             self.plotter.show_grid(font_size=10, color=(0.25, 0.25, 0.25), bold=False)
 
-            if vtp_dir:
-                mode_label = "VTP geometry"
-            elif visualizer.used_cpp_bounds:
-                mode_label = "C++ bounds fallback"
-            else:
-                mode_label = "No C++ geometry"
-            dim_label = "2-D" if ndim == 2 else "3-D"
-            sim_type_label = config.simulation_type.value.replace("_", " ").title()
-            config_info = f"{dim_label}  •  {sim_type_label}  •  {mode_label}"
-            visualizer._add_config_info_text(self.plotter, config_info, ndim)
             self._install_annotation_hover(visualizer)
             if callable(set_preview_elements):
                 set_preview_elements(visualizer.preview_element_actors)

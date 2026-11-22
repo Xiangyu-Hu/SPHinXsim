@@ -988,27 +988,29 @@ class TestPreviewViewMode:
         assert "enable_parallel_projection" in calls
         assert "view_xy:False" in calls
 
-    def test_3d_config_info_is_centered_top(self, fluid_config, tmp_path):
+    @pytest.mark.parametrize("ndim", [2, 3])
+    @pytest.mark.parametrize("screenshot", [False, True])
+    def test_preview_has_no_config_info_overlay(
+        self, fluid_config, tmp_path, ndim, screenshot, monkeypatch
+    ):
         from sphinxsim.visualization.preview import ConfigVisualizer
 
         viz = ConfigVisualizer(fluid_config, tmp_path, off_screen=True)
+        plotter = MagicMock()
+        monkeypatch.setitem(sys.modules, "pyvista", SimpleNamespace(Plotter=lambda **kwargs: plotter))
+        monkeypatch.setattr(viz, "_spatial_dim", lambda: ndim)
+        monkeypatch.setattr(viz, "_try_build_geometries", lambda *args, **kwargs: None)
+        monkeypatch.setattr(viz, "_draw_preview_sidebar", lambda _plotter: None)
+        monkeypatch.setattr(viz, "_populate_plotter", lambda *args: None)
 
-        class FakePlotter:
-            window_size = (1200, 800)
+        screenshot_path = tmp_path / "preview.png" if screenshot else None
+        viz.preview(screenshot_path=screenshot_path)
 
-            def __init__(self):
-                self.calls: list[dict[str, Any]] = []
-
-            def add_text(self, text, **kwargs):
-                self.calls.append({"text": text, **kwargs})
-                return None
-
-        fake_plotter = FakePlotter()
-        viz._add_config_info_text(fake_plotter, "3-D  •  Fluid Dynamics  •  VTP geometry", ndim=3)
-
-        assert len(fake_plotter.calls) == 1
-        position = fake_plotter.calls[0].get("position")
-        assert position == "upper_edge"
+        plotter.add_text.assert_not_called()
+        if screenshot:
+            plotter.screenshot.assert_called_once_with(str(screenshot_path))
+        else:
+            plotter.show.assert_called_once()
 
 
 class TestPreviewObservers:
@@ -2217,9 +2219,6 @@ assert max(frame.time for frame in final_frames.values()) > 0
             def _configure_default_view(self, plotter, ndim):
                 return None
 
-            def _add_config_info_text(self, plotter, config_info, ndim):
-                return None
-
             def _try_build_geometries(self, ndim, with_particles=False):
                 return None
 
@@ -2282,9 +2281,6 @@ assert max(frame.time for frame in final_frames.values()) > 0
                 return None
 
             def _configure_default_view(self, plotter, ndim):
-                return None
-
-            def _add_config_info_text(self, plotter, config_info, ndim):
                 return None
 
             def _try_build_geometries(self, ndim, with_particles=False):
@@ -2372,9 +2368,6 @@ assert max(frame.time for frame in final_frames.values()) > 0
                 return None
 
             def _configure_default_view(self, plotter, ndim):
-                return None
-
-            def _add_config_info_text(self, plotter, config_info, ndim):
                 return None
 
             def _try_build_geometries(self, ndim, with_particles=False):

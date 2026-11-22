@@ -642,9 +642,19 @@ _SHELL_COMMANDS = (
 )
 
 
+def _split_shell_command(text: str) -> list[str]:
+    if sys.platform != "win32":
+        return shlex.split(text)
+    lexer = shlex.shlex(text, posix=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    lexer.escape = ""
+    return list(lexer)
+
+
 def _shell_completion_matches(prefix: str, text: str) -> list[str]:
     try:
-        words = shlex.split(prefix)
+        words = _split_shell_command(prefix)
     except ValueError:
         words = prefix.split()
 
@@ -670,25 +680,74 @@ def _shell_completion_matches(prefix: str, text: str) -> list[str]:
     for match in matches:
         candidate = match
         if text.startswith("~"):
-            candidate = "~" + os.path.relpath(match, os.path.expanduser("~"))
+            relative = os.path.relpath(match, os.path.expanduser("~"))
+            candidate = "~" if relative == "." else os.path.join("~", relative)
         if os.path.isdir(match):
             candidate += "/"
         results.append(candidate)
     return sorted(results)
 
 
+def _windows_shell_completion_matches(line: str) -> list[str]:
+    start = 0
+    quote = None
+    token = []
+    for index, char in enumerate(line):
+        if quote:
+            if char == quote:
+                quote = None
+            else:
+                token.append(char)
+        elif char in "\"'":
+            quote = char
+        elif char.isspace():
+            start = index + 1
+            token = []
+        else:
+            token.append(char)
+
+    text = "".join(token)
+    prefix = line[:start]
+    matches = _shell_completion_matches(prefix, text)
+    if not prefix:
+        return matches
+
+    quoted = quote or line[start:start + 1] in ("'", '"') or any(
+        char.isspace() or char == "'" for match in matches for char in match
+    )
+    quote_char = line[start:start + 1]
+    if quote_char not in ("'", '"') or any(quote_char in match for match in matches):
+        quote_char = '"'
+    results = []
+    for match in matches:
+        if match.endswith("/") and "\\" in text and "/" not in text:
+            match = match[:-1] + "\\"
+        if quoted:
+            closing = "" if match.endswith(("/", "\\")) else quote_char
+            match = quote_char + match + closing
+        results.append(prefix + match)
+    return results
+
+
 def _shell_readline_completer(text: str, state: int) -> str | None:
     if readline is None:
         return None
-    matches = _shell_completion_matches(
-        readline.get_line_buffer()[: readline.get_begidx()], text
-    )
+    if sys.platform == "win32":
+        matches = _windows_shell_completion_matches(text)
+    else:
+        matches = _shell_completion_matches(
+            readline.get_line_buffer()[: readline.get_begidx()], text
+        )
     return matches[state] if state < len(matches) else None
 
 
 def _configure_shell_readline() -> None:
     if readline is None:
+        print("Shell completion and history are unavailable: readline is not installed.", file=sys.stderr)
         return
+    if sys.platform == "win32":
+        # pyreadline3 does not recognize quoted delimiters; complete the whole line.
+        readline.set_completer_delims("")
     readline.set_completer(_shell_readline_completer)
     readline.parse_and_bind("tab: complete")
 
@@ -768,7 +827,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             if translated_parts is not None:
                 parts = translated_parts
             else:
-                parts = shlex.split(line)
+                parts = _split_shell_command(line)
         except ValueError as exc:
             print(f"Invalid command syntax: {exc}", file=sys.stderr)
             continue
@@ -1322,13 +1381,13 @@ def _parse_shell_ai_cli_style(text: str) -> list[str] | None:
     if not stripped.startswith("/"):
         return None
 
-    parts = shlex.split(stripped)
+    parts = _split_shell_command(stripped)
     if not parts:
         return None
 
     command = parts[0][1:]
     valid_commands = {
-        "generate", "validate", "update", "run", "preview", "initialize-simulation",
+        "load", "generate", "validate", "update", "run", "preview", "initialize-simulation",
         "continue-to-run", "explore", "shell"
     }
     if command not in valid_commands:

@@ -17,6 +17,7 @@ dependencies = [
     "langgraph-checkpoint-sqlite>=3.1,<4.0",
     "pydantic>=2.0",
     "numpy>=1.21",
+    "pyreadline3>=3.5.4; sys_platform == 'win32'",
     "jsonschema>=4.20",
     "mcp>=1.30,<2",
 ]

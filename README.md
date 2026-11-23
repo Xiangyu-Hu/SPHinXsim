@@ -56,8 +56,22 @@ For the complete workflow, installation guidance, and MCP configuration, see [Na
 
 ## Quick start
 
+After following the [platform installation guide](docs/installation.md), install
+the desired extras. On Linux and macOS:
+
 ```bash
 python -m pip install -e '.[dev,cad,mcp,results,visualization]'
+```
+
+On Windows, the CI-tested installation omits the optional CAD extra:
+
+```powershell
+python -m pip install -e ".[dev,visualization]"
+```
+
+Then run:
+
+```bash
 sphinxsim --help
 python -m sphinxsim --help
 ```

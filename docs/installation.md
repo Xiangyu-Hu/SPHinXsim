@@ -23,6 +23,9 @@ $env:CMAKE_ARGS='-D CMAKE_TOOLCHAIN_FILE="' + "$pwd\..\vcpkg\scripts\buildsystem
 python -m pip install -v -e ".[dev,visualization]"
 ```
 
+The Windows CI installation omits the optional CAD extra; see the
+[Windows guide](installation-windows.md) for native DLL conflict details.
+
 - Install Python dev dependencies before running tests:
 
 ```bash

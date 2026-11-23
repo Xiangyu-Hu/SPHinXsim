@@ -3,6 +3,7 @@
 import json
 import importlib.util
 import importlib
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -817,3 +818,88 @@ class TestShellCompletion:
             "configs/",
         ]
         assert _shell_completion_matches("update ", "con") == []
+
+    def test_completes_home_relative_path(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("USERPROFILE" if sys.platform == "win32" else "HOME", str(tmp_path))
+        (tmp_path / "config.json").touch()
+        assert _shell_completion_matches("load ", "~/con") == [
+            str(Path("~") / "config.json")
+        ]
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows readline integration")
+    def test_windows_readline_completes_commands_and_paths(self, tmp_path, monkeypatch):
+        from sphinxsim import cli as cli_mod
+
+        directory = tmp_path / "folder with spaces"
+        directory.mkdir()
+        config = directory / "config file.json"
+        config.touch()
+        plain_config = tmp_path / "plain.json"
+        plain_config.touch()
+        monkeypatch.chdir(tmp_path)
+        readline = cli_mod.readline
+        assert readline is not None
+        mode = readline.rl.mode
+        old_completer = readline.get_completer()
+        old_delimiters = readline.get_completer_delims()
+        old_line = mode.l_buffer.get_line_text()
+        old_point = mode.l_buffer.point
+        try:
+            cli_mod._configure_shell_readline()
+            for typed, expected in [
+                ("val", "validate"),
+                ("/pre", "/preview"),
+                ("load folder", 'load "folder with spaces/'),
+                ('load "folder with spaces\\con', 'load "folder with spaces\\config file.json"'),
+                (f'load "{str(config)[:-5]}', f'load "{config}"'),
+                (f"load {str(plain_config)[:-5]}", f"load {plain_config}"),
+                ('/generate water "folder with spaces\\con', '/generate water "folder with spaces\\config file.json"'),
+                ('preview --screenshot "folder with spaces\\con', 'preview --screenshot "folder with spaces\\config file.json"'),
+            ]:
+                mode.l_buffer.set_line(typed)
+                matches = mode._get_completions()
+                assert matches == [expected]
+                assert typed[:mode.begidx] + matches[0] + typed[mode.endidx:] == expected
+                with patch.object(mode, "finalize"):
+                    mode.complete(None)
+                assert mode.l_buffer.get_line_text() == expected
+
+            (tmp_path / "folder-simple").mkdir()
+            mode.l_buffer.set_line("load fol")
+            matches = mode._get_completions()
+            assert matches == ['load "folder with spaces/', 'load "folder-simple/']
+            with patch.object(mode, "finalize"), patch.object(mode, "_display_completions"):
+                mode.complete(None)
+            assert mode.l_buffer.get_line_text() == 'load "folder'
+        finally:
+            readline.set_completer(old_completer)
+            readline.set_completer_delims(old_delimiters)
+            mode.l_buffer.set_line(old_line, old_point)
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows path parsing")
+    @pytest.mark.parametrize("command", ["load", "/load"])
+    @pytest.mark.parametrize("filename", ["config file.json", "config.json"])
+    def test_windows_shell_loads_backslash_path(self, tmp_path, command, filename, capsys):
+        config = tmp_path / filename
+        config.write_text(json.dumps(_valid_data()))
+        path = f'"{config}"' if " " in str(config) else str(config)
+        with patch("builtins.input", side_effect=[f"{command} {path}", "exit"]):
+            assert main(["shell"]) == 0
+        assert f"Loaded config: {config}" in capsys.readouterr().out
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows path parsing")
+    def test_windows_shell_preserves_backslashes(self):
+        from sphinxsim import cli as cli_mod
+
+        path = r"C:\Users\me\config.json"
+        assert cli_mod._split_shell_command(f"load {path}") == ["load", path]
+        assert cli_mod._parse_shell_ai_cli_style(f"/generate water {path}") == [
+            "generate", "water", path
+        ]
+
+    def test_missing_readline_reports_unavailable(self, capsys, monkeypatch):
+        from sphinxsim import cli as cli_mod
+
+        monkeypatch.setattr(cli_mod, "readline", None)
+        cli_mod._configure_shell_readline()
+        assert "completion and history are unavailable" in capsys.readouterr().err

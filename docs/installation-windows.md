@@ -11,12 +11,21 @@ Install:
 - Python 3
 
 Use x64 Native Tools Command Prompt for VS 2022 or Developer PowerShell.
+Windows CI uses Python 3.12. A fresh virtual environment avoids conflicts with
+packages already installed in your Python environment.
 
 ## Clone Repository
 
 ```powershell
 git clone --recurse-submodules https://github.com/<your-org>/SPHinXsim.git
 cd SPHinXsim
+```
+
+Create and activate a new Python environment:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ```
 
 ## Install vcpkg
@@ -50,6 +59,15 @@ For a pip-first workflow, install directly from source (this builds C++ extensio
 $env:CMAKE_ARGS='-D CMAKE_TOOLCHAIN_FILE="' + "$pwd\..\vcpkg\scripts\buildsystems\vcpkg.cmake" + '" -D CMAKE_C_COMPILER=cl -D CMAKE_CXX_COMPILER=cl'
 python -m pip install -v -e ".[dev,visualization]"
 ```
+
+This matches the Windows CI Python dependency selection. It does not install
+the optional `cad` extra: CAD modeling requires CadQuery and is not available
+without it. CadQuery and its CasADi dependency can load runtime DLLs
+that conflict with the SPHinXsim native bindings on Windows. If CadQuery is
+already installed, omitting the extra does not remove it; use a clean
+environment or, if you no longer need CadQuery there, run
+`python -m pip uninstall cadquery`.
+
 You may face the long-path issue in Windows System. If it is the case, you can follow the direction: 
 https://learn.microsoft.com/en-us/answers/questions/6011933/how-to-fix-long-path-long-file-names-in-windows-11.
 
@@ -91,7 +109,7 @@ Install Python package with dev dependencies:
 python -m pip install -e ".[dev]"
 ```
 
-To enable geometry preview (`sphinxsim preview`), also install:
+To match Windows CI and enable geometry preview (`sphinxsim preview`), also install:
 
 ```powershell
 python -m pip install -e ".[visualization]"

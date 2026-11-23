@@ -112,6 +112,24 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         assert first.GetVisibility()
         assert legend.GetEntryColor(0) == pytest.approx(initial_colour)
         event_filter.menu.close()
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
+        QtTest.QTest.qWait(50)
+        transparency = event_filter.menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-transparency")
+        options = {action.text(): action for action in transparency.actions()}
+        assert options["5% transparent"].isChecked()
+        options["Opaque (0%)"].trigger()
+        assert first.GetProperty().GetOpacity() == pytest.approx(1.0)
+        assert second.GetProperty().GetOpacity() == pytest.approx(0.95)
+        event_filter.menu.close()
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
+        QtTest.QTest.qWait(50)
+        transparency = event_filter.menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-transparency")
+        options = {action.text(): action for action in transparency.actions()}
+        assert options["Opaque (0%)"].isChecked()
+        options["5% transparent"].trigger()
+        assert first.GetProperty().GetOpacity() == pytest.approx(0.95)
+        options["Opaque (0%)"].trigger()
+        event_filter.menu.close()
         mesh = pv.Sphere()
         mesh.point_data["Pressure"] = [0.2] * mesh.n_points
         mesh.field_data["ScalingReference_Pressure"] = [3.0]
@@ -128,12 +146,76 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         assert replacement.GetMapper().GetScalarRange() == pytest.approx((-3, 3))
         assert controller.scalar_bars["GranularBody"].GetTitle() == "GranularBody: Pressure"
         event_filter.menu.close()
+        bar = controller.scalar_bars["GranularBody"]
+        left, bottom = bar.GetPositionCoordinate().GetComputedDoubleDisplayValue(renderer)
+        right, top = bar.GetPosition2Coordinate().GetComputedDoubleDisplayValue(renderer)
+        bar_x, bar_y = (left + right) / 2, (bottom + top) / 2
+        assert controller.scalar_bar_at(bar_x, bar_y) == "GranularBody"
+        bar_pos = QtCore.QPoint(round(bar_x * plotter.width() / width),
+                               round((height - bar_y) * plotter.height() / height))
+        old_menu = event_filter.menu
+        QtTest.QTest.mousePress(plotter, QtCore.Qt.MouseButton.RightButton, pos=bar_pos)
+        drag_end = bar_pos + QtCore.QPoint(30, 30)
+        QtTest.QTest.mouseMove(plotter, drag_end)
+        QtTest.QTest.mouseRelease(plotter, QtCore.Qt.MouseButton.RightButton, pos=drag_end)
+        QtTest.QTest.qWait(20)
+        assert event_filter.menu is old_menu
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=bar_pos)
+        QtTest.QTest.qWait(50)
+        menu = event_filter.menu
+        assert menu.objectName() == "sphinxsim-particle-colour-bar-menu"
+        palettes = {action.text(): action for action in menu.actions()}
+        assert palettes["Blue to red"].isChecked()
+        palettes["Viridis"].trigger()
+        assert controller.palettes["GranularBody"] == "Viridis"
+        assert replacement.GetMapper().GetLookupTable().GetColor(-3) == pytest.approx(
+            (0.267, 0.005, 0.329)
+        )
+        menu.close()
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=bar_pos)
+        QtTest.QTest.qWait(50)
+        palettes = {action.text(): action for action in event_filter.menu.actions()}
+        assert palettes["Viridis"].isChecked()
+        palettes["Grayscale"].trigger()
+        assert replacement.GetMapper().GetLookupTable().GetColor(-3) == pytest.approx((0, 0, 0))
+        palettes["Viridis"].trigger()
+        event_filter.menu.close()
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
+        QtTest.QTest.qWait(50)
+        representation = event_filter.menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-representation")
+        choices = {action.text(): action for action in representation.actions()}
+        assert choices["Points"].isChecked()
+        choices["Sphere splats"].trigger()
+        assert controller.sphere_splats == {"GranularBody"}
+        assert replacement.GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
+        assert replacement.GetMapper().GetScalarRange() == pytest.approx((-3, 3))
+        assert replacement.GetMapper().GetLookupTable().GetColor(-3) == pytest.approx(
+            (0.267, 0.005, 0.329)
+        )
+        event_filter.menu.close()
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
+        QtTest.QTest.qWait(50)
+        representation = event_filter.menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-representation")
+        choices = {action.text(): action for action in representation.actions()}
+        assert choices["Sphere splats"].isChecked()
+        choices["Points"].trigger()
+        assert not controller.sphere_splats
+        assert replacement.GetMapper().GetClassName() != "vtkOpenGLPointGaussianMapper"
+        assert replacement.GetMapper().GetScalarRange() == pytest.approx((-3, 3))
+        event_filter.menu.close()
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
+        QtTest.QTest.qWait(50)
+        representation = event_filter.menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-representation")
+        next(action for action in representation.actions() if action.text() == "Sphere splats").trigger()
+        event_filter.menu.close()
         controller.set_visible("GranularBody", False)
 
         replacement = plotter.add_mesh(mesh, name="particle-preview-GranularBody", color="red")
         controller.add_actor("GranularBody", replacement, mesh, initialized=True)
         assert not replacement.GetVisibility()
+        assert replacement.GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
         assert replacement.GetMapper().GetScalarVisibility()
+        assert replacement.GetProperty().GetOpacity() == pytest.approx(1.0)
         assert not controller.scalar_bars["GranularBody"].GetVisibility()
         controller.set_scene("first-run", config)
         controller.add_actor("GranularBody", replacement, mesh, initialized=True)
@@ -142,10 +224,16 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         controller.set_visible("GranularBody", True)
         assert replacement.GetVisibility()
         controller.set_visible("GranularBody", False)
+        assert controller.scalar_bar_at(bar_x, bar_y) is None
         controller.set_scene("second-run", config)
         controller.add_actor("GranularBody", replacement)
         assert replacement.GetVisibility()
+        assert replacement.GetMapper().GetClassName() != "vtkOpenGLPointGaussianMapper"
         assert not controller.colouring
+        assert not controller.palettes
+        assert not controller.sphere_splats
+        assert replacement.GetProperty().GetOpacity() == pytest.approx(0.95)
+        assert not controller.opaque_bodies
     finally:
         if event_filter.menu is not None:
             event_filter.menu.close()
@@ -175,6 +263,10 @@ def test_time_and_first_colour_legend_are_horizontally_aligned(window_size):
             time_display.update(body, mesh)
         plotter.show(auto_close=False, interactive_update=True)
         renderer = plotter.renderers[0]
+        for body, scalar_bar in controller.scalar_bars.items():
+            left, bottom = scalar_bar.GetPositionCoordinate().GetComputedDoubleDisplayValue(renderer)
+            right, top = scalar_bar.GetPosition2Coordinate().GetComputedDoubleDisplayValue(renderer)
+            assert controller.scalar_bar_at((left + right) / 2, (bottom + top) / 2) == body
         text = renderer.actors["particle-frame-time"]
         x, y = text.GetActualPositionCoordinate().GetComputedDoubleDisplayValue(renderer)
         bar = controller.scalar_bars["GranularBody"]

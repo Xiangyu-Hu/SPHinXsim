@@ -2,7 +2,7 @@
 
 PyVista is *not* required for most tests — mesh-building helpers are tested via
 a thin stub.  Tests that do require PyVista are skipped automatically when the
-library is not installed.
+library is not installed. Real plotter tests also require the desktop-test opt-in.
 """
 
 from __future__ import annotations
@@ -31,6 +31,11 @@ from sphinxsim.cli import main
 
 _DATA_DIR = Path(__file__).parent / "test_simulation" / "test_2d_simulation" / "data"
 _HEAT_TRANSFER_JSON = _DATA_DIR / "heat_transfer.json"
+
+requires_desktop = pytest.mark.skipif(
+    os.environ.get("SPHINXSIM_DESKTOP_TESTS") != "1",
+    reason="Real rendering requires a display; Linux CI runs this under Xvfb",
+)
 
 
 def _minimal_fluid_config() -> dict:
@@ -114,6 +119,277 @@ def heat_config() -> SimulationConfig:
 # ---------------------------------------------------------------------------
 # Annotations tests
 # ---------------------------------------------------------------------------
+
+def test_preview_element_actors_group_annotations_and_visualizations(
+    fluid_config, tmp_path
+):
+    from sphinxsim.visualization.preview import ConfigVisualizer
+
+    visualizer = ConfigVisualizer(fluid_config, tmp_path, off_screen=True)
+    annotation = object()
+    visualization = object()
+    visualizer._register_visualization_actor(("gravity",), visualization)
+    visualizer._annotation_label_actors = [
+        {"actor": annotation, "config_path": "gravity"}
+    ]
+
+    assert visualizer.preview_element_actors == {
+        "gravity": {
+            "visualization": [visualization],
+            "annotation": [annotation],
+        }
+    }
+
+
+@requires_desktop
+def test_particle_sphere_splats_render_and_survive_actor_replacement(fluid_config):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    fluid_config.geometries.global_resolution.particle_spacing = 0.2
+    mesh = pv.PolyData(np.array([[-0.2, 0, 0], [0.2, 0, 0]]))
+    mesh.point_data["Pressure"] = [0.0, 1.0]
+    plotter = pv.Plotter(off_screen=True, window_size=(400, 400))
+    plotter.set_background("black")
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", fluid_config)
+    try:
+        actor = plotter.add_mesh(mesh, name="particles", color="white", style="points", point_size=5)
+        controller.add_actor("WaterBody", actor, mesh, initialized=True)
+        original_mapper = actor.GetMapper()
+        plotter.camera_position = [(0, 0, 3), (0, 0, 0), (0, 1, 0)]
+        plotter.enable_parallel_projection()
+        plotter.camera.parallel_scale = 0.5
+        plotter.show(auto_close=False)
+        points_image = plotter.screenshot(return_img=True)
+
+        controller.set_sphere_splats("WaterBody", True)
+        assert actor.GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
+        assert actor.GetMapper().GetScaleFactor() == pytest.approx(0.1)
+        splats_image = plotter.screenshot(return_img=True)
+        assert np.count_nonzero(np.any(splats_image > 10, axis=2)) > (
+            2 * np.count_nonzero(np.any(points_image > 10, axis=2))
+        )
+
+        controller.set_colour("WaterBody", "Pressure")
+        coloured = plotter.screenshot(return_img=True)[100:300, 50:350, :3].astype(float)
+        assert np.any((coloured[:, :, 0] > 1.4 * coloured[:, :, 2]) & (coloured[:, :, 0] > 30))
+        assert np.any((coloured[:, :, 2] > 1.4 * coloured[:, :, 0]) & (coloured[:, :, 2] > 30))
+        controller.set_visible("WaterBody", False)
+        replacement = plotter.add_mesh(mesh.copy(), name="particles", color="white", style="points")
+        controller.add_actor("WaterBody", replacement, replacement.GetMapper().GetInput(), initialized=True)
+        assert replacement.GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
+        assert replacement.GetMapper().GetScalarVisibility()
+        assert not replacement.GetVisibility()
+        controller.set_sphere_splats("WaterBody", False)
+        assert replacement.GetMapper().GetClassName() != "vtkOpenGLPointGaussianMapper"
+        assert replacement.GetMapper().GetScalarVisibility()
+        assert not replacement.GetVisibility()
+
+        controller.set_scene("new-run", fluid_config)
+        assert not controller.sphere_splats
+        assert original_mapper.GetClassName() != "vtkOpenGLPointGaussianMapper"
+    finally:
+        plotter.close()
+
+
+@requires_desktop
+@pytest.mark.parametrize("splats", [False, True])
+@pytest.mark.parametrize("colour", [False, True])
+def test_particle_transparency_changes_rendered_opacity(fluid_config, splats, colour):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    fluid_config.geometries.global_resolution.particle_spacing = 0.2
+    mesh = pv.PolyData(np.array([[-0.2, 0, 0], [0.2, 0, 0]]))
+    mesh.point_data["Pressure"] = [0.0, 1.0]
+    plotter = pv.Plotter(off_screen=True, window_size=(400, 400))
+    plotter.set_background("black")
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", fluid_config)
+    try:
+        actor = plotter.add_mesh(mesh, name="particles", color="white", style="points", point_size=10)
+        controller.add_actor("WaterBody", actor, mesh, initialized=True)
+        if splats:
+            controller.set_sphere_splats("WaterBody", True)
+        if colour:
+            controller.set_colour("WaterBody", "Pressure")
+        plotter.camera_position = [(0, 0, 3), (0, 0, 0), (0, 1, 0)]
+        plotter.enable_parallel_projection()
+        plotter.camera.parallel_scale = 0.5
+        plotter.show(auto_close=False)
+        assert actor.GetProperty().GetOpacity() == pytest.approx(0.95)
+        transparent = plotter.screenshot(return_img=True)[100:300, 50:350]
+        controller.set_opaque("WaterBody", True)
+        assert actor.GetProperty().GetOpacity() == pytest.approx(1.0)
+        opaque = plotter.screenshot(return_img=True)[100:300, 50:350]
+        assert np.any(opaque > transparent)
+        controller.set_opaque("WaterBody", False)
+        assert actor.GetProperty().GetOpacity() == pytest.approx(0.95)
+    finally:
+        plotter.close()
+
+
+def test_particle_sphere_splat_spacing_estimate_and_invalid_cloud(fluid_config):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from sphinxsim.visualization.particle_visibility import _sphere_splat_radius
+
+    fluid_config.geometries.global_resolution.particle_spacing = None
+    mesh = pv.PolyData(np.array([[0, 0, 0], [0, 1, 0], [1, 0, 0], [1, 1, 0]], dtype=float))
+    assert _sphere_splat_radius(mesh, fluid_config) == pytest.approx(0.25)
+    point = pv.PolyData(np.array([[0, 0, 0]], dtype=float))
+    with pytest.raises(ValueError, match="Cannot estimate particle spacing"):
+        _sphere_splat_radius(point, fluid_config)
+
+
+@requires_desktop
+def test_particle_splat_invalid_frame_falls_back_and_recovers(fluid_config, caplog):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    fluid_config.geometries.global_resolution.particle_spacing = None
+    valid = pv.PolyData(np.array([[0, 0, 0], [1, 0, 0]], dtype=float))
+    invalid = pv.PolyData(np.array([[0, 0, 0]], dtype=float))
+    plotter = pv.Plotter(off_screen=True)
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", fluid_config)
+    try:
+        actor = plotter.add_mesh(invalid, name="particles", color="blue", style="points")
+        controller.add_actor("WaterBody", actor, invalid)
+        with pytest.raises(ValueError, match="Cannot estimate particle spacing"):
+            controller.set_sphere_splats("WaterBody", True)
+        assert not controller.sphere_splats
+
+        actor = plotter.add_mesh(valid, name="particles", color="blue", style="points")
+        controller.add_actor("WaterBody", actor, valid)
+        controller.set_sphere_splats("WaterBody", True)
+        actor = plotter.add_mesh(invalid, name="particles", color="blue", style="points")
+        controller.add_actor("WaterBody", actor, invalid)
+        assert actor.GetMapper().GetClassName() != "vtkOpenGLPointGaussianMapper"
+        assert "showing points" in caplog.text
+        assert controller.sphere_splats == {"WaterBody"}
+        actor = plotter.add_mesh(valid, name="particles", color="blue", style="points")
+        controller.add_actor("WaterBody", actor, valid)
+        assert actor.GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
+    finally:
+        plotter.close()
+
+
+@requires_desktop
+def test_particle_splat_selection_survives_live_and_replay(fluid_config, tmp_path):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from sphinxsim.results import ResultCatalog
+    from sphinxsim.visualization.live_particles import refresh_particle_actors
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+    from sphinxsim.visualization.preview_runtime import _ShellPreviewRuntime
+
+    mesh = pv.PolyData(np.array([[0, 0, 0], [1, 0, 0]], dtype=float))
+    mesh.point_data["Pressure"] = [0.0, 1.0]
+    mesh.field_data["TimeValue"] = [0.0]
+    first = tmp_path / "WaterBody_0000.vtp"
+    second = tmp_path / "WaterBody_0001.vtp"
+    mesh.save(first, binary=False)
+    plotter = pv.Plotter(off_screen=True)
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", fluid_config)
+    versions = {}
+    colours = {"WaterBody": "blue"}
+    try:
+        refresh_particle_actors(plotter, tmp_path, colours, versions, ResultCatalog(), controller)
+        controller.set_sphere_splats("WaterBody", True)
+        controller.set_colour("WaterBody", "Pressure")
+        controller.set_palette("WaterBody", "Viridis")
+        controller.set_opaque("WaterBody", True)
+        mesh.field_data["TimeValue"] = [1.0]
+        mesh.save(second, binary=False)
+        refresh_particle_actors(plotter, tmp_path, colours, versions, ResultCatalog(), controller)
+        assert controller.actors["WaterBody"].GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
+        assert controller.actors["WaterBody"].GetMapper().GetScalarVisibility()
+        assert controller.actors["WaterBody"].GetProperty().GetOpacity() == pytest.approx(1.0)
+        assert controller.actors["WaterBody"].GetMapper().GetLookupTable().GetColor(0) == pytest.approx(
+            (0.267, 0.005, 0.329)
+        )
+
+        runtime = _ShellPreviewRuntime()
+        runtime.plotter = plotter
+        runtime._particle_visibility = controller
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_colours = colours
+        runtime._live_replay_mode = True
+        runtime._live_playback_queue = [(0, {"WaterBody": first})]
+        runtime._refresh_live_particles()
+        assert controller.actors["WaterBody"].GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
+        assert controller.actors["WaterBody"].GetMapper().GetScalarVisibility()
+        assert controller.actors["WaterBody"].GetProperty().GetOpacity() == pytest.approx(1.0)
+        assert controller.palettes["WaterBody"] == "Viridis"
+        controller.set_scene("new-run", fluid_config)
+        replacement = plotter.add_mesh(mesh, name="particles", style="points", opacity=1.0)
+        controller.add_actor("WaterBody", replacement, mesh, initialized=True)
+        assert replacement.GetProperty().GetOpacity() == pytest.approx(0.95)
+        assert not controller.opaque_bodies
+        assert not controller.palettes
+    finally:
+        plotter.close()
+
+
+@requires_desktop
+def test_particle_palette_updates_per_body_and_representation(fluid_config):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    mesh = pv.PolyData(np.array([[-0.2, 0, 0], [0.2, 0, 0]]))
+    mesh.point_data["Pressure"] = [0.0, 1.0]
+    mesh.point_data["Velocity"] = [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]
+    plotter = pv.Plotter(off_screen=True, window_size=(400, 400))
+    plotter.set_background("black")
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", fluid_config)
+    try:
+        for body in ("WaterBody", "WallBoundary"):
+            actor = plotter.add_mesh(mesh.copy(), name=body, color="white", style="points", point_size=10)
+            controller.add_actor(body, actor, actor.GetMapper().GetInput(), initialized=True)
+            controller.set_colour(body, "Pressure")
+        water = controller.actors["WaterBody"]
+        wall = controller.actors["WallBoundary"]
+        wall.SetPosition(0, 0.5, 0)
+        plotter.camera_position = [(0, 0, 3), (0, 0, 0), (0, 1, 0)]
+        plotter.enable_parallel_projection()
+        plotter.camera.parallel_scale = 0.5
+        plotter.show(auto_close=False)
+        before = plotter.screenshot(return_img=True)[180:220, 100:300]
+        assert water.GetMapper().GetLookupTable().GetColor(0) == pytest.approx((0.23, 0.30, 0.75))
+        controller.set_palette("WaterBody", "Viridis")
+        after = plotter.screenshot(return_img=True)[180:220, 100:300]
+        assert np.any(before != after)
+        assert water.GetMapper().GetLookupTable().GetColor(0) == pytest.approx((0.267, 0.005, 0.329))
+        assert wall.GetMapper().GetLookupTable().GetColor(0) == pytest.approx((0.23, 0.30, 0.75))
+        assert controller.scalar_bars["WaterBody"].GetLookupTable() == water.GetMapper().GetLookupTable()
+        controller.set_sphere_splats("WaterBody", True)
+        rgba = controller.meshes["WaterBody"].point_data["_sphinxsim_colour_Pressure_rgba"]
+        assert rgba[0, :3] / 255.0 == pytest.approx((0.267, 0.005, 0.329), abs=0.005)
+        controller.set_colour("WaterBody", "Velocity")
+        assert water.GetMapper().GetLookupTable().GetColor(0) == pytest.approx((0.267, 0.005, 0.329))
+        controller.set_palette("WaterBody", "Grayscale")
+        assert water.GetMapper().GetLookupTable().GetColor(0) == pytest.approx((0, 0, 0))
+        assert water.GetMapper().GetLookupTable().GetColor(1) == pytest.approx((1, 1, 1))
+        controller.set_colour("WaterBody", None)
+        controller.set_colour("WaterBody", "Pressure")
+        assert controller.palettes["WaterBody"] == "Grayscale"
+        water_mesh = controller.meshes["WaterBody"]
+        controller.set_scene("run", fluid_config)
+        controller.add_actor("WaterBody", water, water_mesh, initialized=True)
+        assert water.GetMapper().GetLookupTable().GetColor(0) == pytest.approx((0, 0, 0))
+        with pytest.raises(ValueError, match="Unknown particle color palette"):
+            controller.set_palette("WaterBody", "invalid")
+    finally:
+        plotter.close()
+
 
 class TestBodyLabel:
     def test_fluid_body_label_includes_density(self, fluid_config):
@@ -722,27 +998,29 @@ class TestPreviewViewMode:
         assert "enable_parallel_projection" in calls
         assert "view_xy:False" in calls
 
-    def test_3d_config_info_is_centered_top(self, fluid_config, tmp_path):
+    @pytest.mark.parametrize("ndim", [2, 3])
+    @pytest.mark.parametrize("screenshot", [False, True])
+    def test_preview_has_no_config_info_overlay(
+        self, fluid_config, tmp_path, ndim, screenshot, monkeypatch
+    ):
         from sphinxsim.visualization.preview import ConfigVisualizer
 
         viz = ConfigVisualizer(fluid_config, tmp_path, off_screen=True)
+        plotter = MagicMock()
+        monkeypatch.setitem(sys.modules, "pyvista", SimpleNamespace(Plotter=lambda **kwargs: plotter))
+        monkeypatch.setattr(viz, "_spatial_dim", lambda: ndim)
+        monkeypatch.setattr(viz, "_try_build_geometries", lambda *args, **kwargs: None)
+        monkeypatch.setattr(viz, "_draw_preview_sidebar", lambda _plotter: None)
+        monkeypatch.setattr(viz, "_populate_plotter", lambda *args: None)
 
-        class FakePlotter:
-            window_size = (1200, 800)
+        screenshot_path = tmp_path / "preview.png" if screenshot else None
+        viz.preview(screenshot_path=screenshot_path)
 
-            def __init__(self):
-                self.calls: list[dict[str, Any]] = []
-
-            def add_text(self, text, **kwargs):
-                self.calls.append({"text": text, **kwargs})
-                return None
-
-        fake_plotter = FakePlotter()
-        viz._add_config_info_text(fake_plotter, "3-D  •  Fluid Dynamics  •  VTP geometry", ndim=3)
-
-        assert len(fake_plotter.calls) == 1
-        position = fake_plotter.calls[0].get("position")
-        assert position == "upper_edge"
+        plotter.add_text.assert_not_called()
+        if screenshot:
+            plotter.screenshot.assert_called_once_with(str(screenshot_path))
+        else:
+            plotter.show.assert_called_once()
 
 
 class TestPreviewObservers:
@@ -1516,7 +1794,8 @@ class TestShellPreview:
 import json
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
 from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.results import ResultCatalog
 from sphinxsim.visualization.preview import ConfigVisualizer
@@ -1539,7 +1818,15 @@ runtime._pending_runtime_config_path = runtime_config
 runtime._live_output_dir = vtp_dir
 runtime._live_particle_body_names = visualizer._particle_generation_body_names()
 runtime.plotter = MagicMock()
-assert runtime.initialize_simulation() == 0
+runtime._using_background_plotter = True
+runtime._animation_output_dir = vtp_dir
+runtime._animation_particle_body_names = set(runtime._live_particle_body_names)
+timer = MagicMock()
+with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))}):
+    assert runtime.replay_animation(relaxation=True) == 0
+    assert all("_ite_" in path.name for _, batch in runtime._live_playback_queue for path in batch.values())
+    assert runtime.initialize_simulation() == 0
+    timer.stop.assert_called_once()
 assert runtime._pending_initialized
 assert runtime_config.exists()
 frames = ResultCatalog().latest(vtp_dir, sorted(runtime._live_particle_body_names))
@@ -1547,6 +1834,7 @@ assert frames and all(frame.time == 0 for frame in frames.values())
 assert runtime.plotter.add_mesh.call_count == len(frames)
 assert any(call.args[0].point_data for call in runtime.plotter.add_mesh.call_args_list)
 assert runtime._live_run_thread is None
+runtime._using_background_plotter = False
 assert runtime.continue_to_run() == 0
 runtime._live_run_thread.join(timeout=60)
 assert not runtime._live_run_thread.is_alive()
@@ -1554,6 +1842,10 @@ assert runtime._animation_run_completed
 assert not runtime_config.exists()
 final_frames = ResultCatalog().latest(vtp_dir, sorted(runtime._live_particle_body_names))
 assert max(frame.time for frame in final_frames.values()) > 0
+runtime._using_background_plotter = True
+with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))}):
+    assert runtime.replay_animation() == 0
+    assert all("_ite_" not in path.name for _, batch in runtime._live_playback_queue for path in batch.values())
 """
         env = os.environ.copy()
         env["PYTHONPATH"] = str(project) + os.pathsep + env.get("PYTHONPATH", "")
@@ -1694,6 +1986,158 @@ assert max(frame.time for frame in final_frames.values()) > 0
                 runtime._refresh_live_particles()
 
         assert runtime.plotter.meshes == [str(path) for path in snapshots]
+
+    def test_live_playback_ignores_relaxation_snapshots(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_body_names = {"Water", "Water_Extra"}
+        runtime._live_run_thread = SimpleNamespace(is_alive=lambda: True)
+        for name in ("Water_ite_1.vtp", "Water_1.vtp", "Water_Extra_ite_1.vtp",
+                     "Water_Extra_1.vtp", "Water_2.vtp"):
+            (tmp_path / name).touch()
+
+        with patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=str)}):
+            for _ in range(4):
+                runtime._refresh_live_particles()
+
+        assert {Path(call.args[0]).name for call in runtime.plotter.add_mesh.call_args_list} == {
+            "Water_1.vtp", "Water_Extra_1.vtp", "Water_2.vtp"
+        }
+
+    def test_replay_separates_relaxation_from_simulation_and_preserves_pending(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        timer = MagicMock()
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        runtime._using_background_plotter = True
+        runtime._animation_output_dir = tmp_path
+        runtime._animation_particle_body_names = {"Water", "Water_Extra"}
+        runtime._pending_simulation = MagicMock()
+        for name in ("Water_ite_10.vtp", "Water_ite_2.vtp", "Water_2.vtp",
+                     "Water_Extra_ite_2.vtp", "Water_Extra_2.vtp", "Water_10.vtp"):
+            (tmp_path / name).touch()
+
+        with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))}):
+            assert runtime.replay_animation(relaxation=True) == 0
+            assert [step for step, _ in runtime._live_playback_queue] == [2, 10]
+            assert set(runtime._live_playback_queue[0][1]) == {"Water", "Water_Extra"}
+            assert all("_ite_" in path.name for _, batch in runtime._live_playback_queue
+                       for path in batch.values())
+            runtime._animation_run_completed = True
+            assert runtime.replay_animation() == 0
+            assert [step for step, _ in runtime._live_playback_queue] == [2, 10]
+            assert all("_ite_" not in path.name for _, batch in runtime._live_playback_queue
+                       for path in batch.values())
+        assert runtime._pending_simulation is not None
+
+    def test_initialization_stops_relaxation_timer_and_preserves_output_context(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._pending_simulation = MagicMock()
+        runtime.plotter = MagicMock()
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_body_names = {"WaterBody"}
+        runtime._live_refresh_timer = MagicMock()
+        timer = runtime._live_refresh_timer
+        runtime._live_replay_mode = True
+        runtime._live_playback_queue = [(1, {"WaterBody": tmp_path / "WaterBody_ite_1.vtp"})]
+        with patch.object(runtime, "_show_initialized_particles") as show:
+            assert runtime.initialize_simulation() == 0
+        timer.stop.assert_called_once()
+        assert runtime._live_output_dir == tmp_path
+        assert runtime._live_particle_body_names == {"WaterBody"}
+        assert not runtime._live_playback_queue
+        show.assert_called_once()
+
+    def test_completed_relaxation_playback_keeps_initialization_context(self, tmp_path):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        runtime._pending_simulation = MagicMock()
+        runtime._live_output_dir = tmp_path
+        runtime._live_particle_body_names = {"WaterBody"}
+        runtime._live_refresh_timer = MagicMock()
+        runtime._live_replay_mode = True
+        runtime._live_playback_queue = [(1, {"WaterBody": tmp_path / "WaterBody_ite_1.vtp"})]
+        with patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=str)}), \
+             patch.object(runtime, "_show_initialized_particles") as show:
+            runtime._refresh_live_particles()
+            assert runtime.initialize_simulation() == 0
+        assert runtime._live_output_dir == tmp_path
+        assert runtime._live_particle_body_names == {"WaterBody"}
+        show.assert_called_once()
+
+    def test_particle_preview_starts_relaxation_playback(self, tmp_path, fluid_config):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        runtime._using_background_plotter = True
+        visualizer = MagicMock()
+        visualizer._spatial_dim.return_value = 2
+        visualizer._try_build_geometries.return_value = tmp_path
+        visualizer._discover_latest_particle_vtps.return_value = {}
+        visualizer._particle_generation_body_names.return_value = {"WaterBody"}
+        simulation = MagicMock()
+        visualizer.take_particle_simulation.return_value = (simulation, None)
+        (tmp_path / "WaterBody_ite_1.vtp").touch()
+        timer = MagicMock()
+        with patch("sphinxsim.visualization.preview.ConfigVisualizer", return_value=visualizer), \
+             patch.dict(sys.modules, {
+                 "pyvista": MagicMock(),
+                 "qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer)),
+             }), \
+             patch.object(runtime, "_install_json_editor", return_value=True), \
+             patch.object(runtime, "_install_annotation_hover"):
+            assert runtime.show_or_update(
+                fluid_config, resolved_config_path=tmp_path / "case.json", with_particles=True
+            ) == 0
+
+        visualizer._discover_latest_particle_vtps.assert_called_once_with(tmp_path, generation_only=True)
+        assert runtime._pending_simulation is simulation
+        assert runtime._live_replay_mode
+        assert runtime._live_playback_queue[0][1]["WaterBody"].name == "WaterBody_ite_1.vtp"
+        timer.start.assert_called_once()
+
+    def test_relaxation_replay_reports_missing_snapshots(self, tmp_path, capsys):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._animation_output_dir = tmp_path
+        runtime._animation_particle_body_names = {"WaterBody"}
+        (tmp_path / "WaterBody_1.vtp").touch()
+        assert runtime.replay_animation(relaxation=True) == 1
+        assert "No relaxation particle snapshots" in capsys.readouterr().err
+
+    def test_automatic_relaxation_reports_unavailable_qt_without_failing_preview(
+        self, tmp_path, fluid_config, capsys
+    ):
+        from sphinxsim import cli as cli_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = MagicMock()
+        visualizer = MagicMock()
+        visualizer._spatial_dim.return_value = 2
+        visualizer._try_build_geometries.return_value = tmp_path
+        visualizer._discover_latest_particle_vtps.return_value = {}
+        visualizer._particle_generation_body_names.return_value = {"WaterBody"}
+        simulation = MagicMock()
+        visualizer.take_particle_simulation.return_value = (simulation, None)
+        (tmp_path / "WaterBody_ite_1.vtp").touch()
+        with patch("sphinxsim.visualization.preview.ConfigVisualizer", return_value=visualizer), \
+             patch.dict(sys.modules, {"pyvista": MagicMock()}), \
+             patch.object(runtime, "_install_annotation_hover"):
+            assert runtime.show_or_update(
+                fluid_config, resolved_config_path=tmp_path / "case.json", with_particles=True
+            ) == 0
+        assert runtime._pending_simulation is simulation
+        assert "Relaxation playback unavailable" in capsys.readouterr().err
 
     def test_shell_runtime_caps_live_refresh_at_25_fps(self):
         from sphinxsim import cli as cli_mod
@@ -1902,6 +2346,22 @@ assert max(frame.time for frame in final_frames.values()) > 0
 
         replay.assert_called_once_with()
 
+    def test_shell_relaxation_replay_and_slash_form_preserve_simulation(self):
+        from sphinxsim import cli as cli_mod
+
+        calls = []
+        with patch.object(cli_mod._ShellPreviewRuntime, "replay_animation",
+                          side_effect=lambda **kwargs: calls.append(kwargs)), \
+             patch.object(cli_mod._ShellPreviewRuntime, "initialize_simulation",
+                          side_effect=lambda: calls.append("initialize")), \
+             patch.object(cli_mod._ShellPreviewRuntime, "discard_pending_simulation",
+                          side_effect=lambda: calls.append("discard")), \
+             patch("builtins.input", side_effect=[
+                 "replay --relaxation", "/replay --relaxation", "initialize-simulation", "exit"
+             ]):
+            assert main(["shell"]) == 0
+        assert calls == [{"relaxation": True}, {"relaxation": True}, "initialize", "discard"]
+
     def test_shell_continue_to_run_accepts_refresh_interval(self):
         from sphinxsim import cli as cli_mod
 
@@ -1949,9 +2409,6 @@ assert max(frame.time for frame in final_frames.values()) > 0
                 return None
 
             def _configure_default_view(self, plotter, ndim):
-                return None
-
-            def _add_config_info_text(self, plotter, config_info, ndim):
                 return None
 
             def _try_build_geometries(self, ndim, with_particles=False):
@@ -2016,9 +2473,6 @@ assert max(frame.time for frame in final_frames.values()) > 0
                 return None
 
             def _configure_default_view(self, plotter, ndim):
-                return None
-
-            def _add_config_info_text(self, plotter, config_info, ndim):
                 return None
 
             def _try_build_geometries(self, ndim, with_particles=False):
@@ -2106,9 +2560,6 @@ assert max(frame.time for frame in final_frames.values()) > 0
                 return None
 
             def _configure_default_view(self, plotter, ndim):
-                return None
-
-            def _add_config_info_text(self, plotter, config_info, ndim):
                 return None
 
             def _try_build_geometries(self, ndim, with_particles=False):
@@ -2291,6 +2742,97 @@ assert max(frame.time for frame in final_frames.values()) > 0
         assert revealed_paths == ["geometries.oriented_boxes.0"]
         interactor.trigger_mouse_move(1, 1)
         assert actor.prop.size == 8
+
+    def test_hover_rebuild_rebinds_annotation_and_preserves_visibility(self):
+        from sphinxsim.visualization.preview_runtime import _ShellPreviewRuntime
+
+        class Actor:
+            def __init__(self):
+                self.visible = True
+
+            def GetMapper(self):
+                return object()
+
+            def GetVisibility(self):
+                return self.visible
+
+            def SetVisibility(self, visible):
+                self.visible = bool(visible)
+
+        class Interactor:
+            def __init__(self):
+                self.observers = {}
+
+            def AddObserver(self, event, callback):
+                self.observers[event] = callback
+                return event
+
+            def GetEventPosition(self):
+                return (20, 20)
+
+            def trigger(self, event):
+                self.observers[event](self, event)
+
+        class Coordinate:
+            def SetCoordinateSystemToWorld(self):
+                pass
+
+            def SetValue(self, *args):
+                pass
+
+            def GetComputedDisplayValue(self, renderer):
+                return (20, 20)
+
+        entry = {
+            "actor": Actor(),
+            "font_size": 8,
+            "points": [(0.0, 0.0, 0.0)],
+            "labels": ["label"],
+            "config_path": "gravity",
+            "label_options": {
+                "shape_color": (0.2, 0.2, 0.2),
+                "shape_opacity": 0.96,
+                "background_opacity": 0.96,
+            },
+        }
+
+        class Visualizer:
+            annotation_label_actors = [entry]
+
+            @property
+            def preview_element_actors(self):
+                return {"gravity": {"annotation": [entry["actor"]]}}
+
+        interactor = Interactor()
+        runtime = _ShellPreviewRuntime()
+        runtime._using_background_plotter = True
+        runtime.plotter = SimpleNamespace(
+            iren=SimpleNamespace(interactor=interactor),
+            renderer=object(),
+            remove_actor=lambda *args, **kwargs: None,
+            add_point_labels=MagicMock(side_effect=lambda *args, **kwargs: Actor()),
+        )
+        bindings = []
+        revealed = []
+        runtime._json_editor = {
+            "set_preview_elements": bindings.append,
+            "reveal_path": revealed.append,
+        }
+        visualizer = Visualizer()
+        with patch.dict(sys.modules, {"vtk": SimpleNamespace(vtkCoordinate=Coordinate)}):
+            runtime._install_annotation_hover(visualizer)
+
+        for key, value in entry["label_options"].items():
+            assert runtime.plotter.add_point_labels.call_args.kwargs[key] == value
+        runtime._json_editor["set_preview_elements"](visualizer.preview_element_actors)
+        assert bindings[-1]["gravity"]["annotation"] == [entry["actor"]]
+        interactor.trigger("MouseMoveEvent")
+        entry["actor"].SetVisibility(False)
+        interactor.trigger("MouseMoveEvent")
+        assert not entry["actor"].GetVisibility()
+        assert bindings[-1]["gravity"]["annotation"] == [entry["actor"]]
+        interactor.trigger("LeftButtonPressEvent")
+        assert revealed == []
 
     def test_shell_help_mentions_preview(self, build_temp_path, capsys):
         inputs = ["help", "exit"]
@@ -2817,6 +3359,76 @@ class _FakePyVista:
 
 class TestPreviewGravityArrow:
     """Tests that the gravity arrow is rendered in the preview plotter."""
+
+    def test_dambreak_emitter_annotation_has_visible_background(self, tmp_path, monkeypatch):
+        from sphinxsim.visualization.preview import ConfigVisualizer
+
+        config_path = Path(__file__).parent / "test_simulation" / "test_3d_simulation" / "data" / "dambreak.json"
+        config = SimulationConfig.model_validate_json(config_path.read_text())
+        viz = ConfigVisualizer(config, tmp_path, off_screen=True)
+        monkeypatch.setattr(
+            viz, "_load_oriented_box_mesh",
+            lambda ob, vtp_dir: _FakeMesh((0.4, 0.6, 1.4, 1.6, 0.1, 0.4)),
+        )
+        plotter = _FakePlotter()
+        with patch.dict(sys.modules, {"pyvista": _FakePyVista}):
+            viz._populate_plotter(plotter, vtp_dir=None)
+
+        emitter = next(
+            call for call in plotter.label_calls
+            if any("Emitter" in label for label in call["labels"])
+        )
+        assert emitter["fill_shape"]
+        assert emitter["shape_color"] == "grey"
+        assert emitter["shape_opacity"] == 1.0
+        observer = next(
+            call for call in plotter.label_calls if call["labels"] == ["Observer 1"]
+        )
+        assert observer["shape_opacity"] == 0.96
+
+    @requires_desktop
+    def test_dambreak_emitter_background_survives_hover_and_toggle(self, tmp_path, monkeypatch):
+        pv = pytest.importorskip("pyvista")
+        import numpy as np
+
+        from sphinxsim.visualization.preview import ConfigVisualizer
+        from sphinxsim.visualization.preview_runtime import _ShellPreviewRuntime
+
+        config_path = Path(__file__).parent / "test_simulation" / "test_3d_simulation" / "data" / "dambreak.json"
+        config = SimulationConfig.model_validate_json(config_path.read_text())
+        viz = ConfigVisualizer(config, tmp_path, off_screen=True)
+        monkeypatch.setattr(
+            viz, "_load_oriented_box_mesh",
+            lambda ob, vtp_dir: pv.Box(bounds=(0.4, 0.6, 1.4, 1.6, 0.1, 0.4)),
+        )
+        plotter = pv.Plotter(off_screen=True, window_size=(600, 400))
+        try:
+            viz._populate_plotter(plotter, vtp_dir=None)
+            entry = next(
+                item for item in viz.annotation_label_actors
+                if item["config_path"] == "geometries.oriented_boxes.0"
+            )
+            actor = entry["actor"]
+            mapper = actor.GetMapper()
+            assert mapper.GetBackgroundOpacity() == pytest.approx(1.0)
+            assert mapper.GetBackgroundColor() == pytest.approx((0.5, 0.5, 0.5), abs=0.01)
+            assert _ShellPreviewRuntime._set_label_font_size(actor, 12)
+
+            plotter.view_xy()
+            plotter.show(auto_close=False)
+            shown = plotter.screenshot(return_img=True)
+            actor.SetVisibility(False)
+            plotter.render()
+            hidden = plotter.screenshot(return_img=True)
+            changed = np.any(shown != hidden, axis=2)
+            grey = np.all((shown >= 120) & (shown <= 136), axis=2)
+            assert np.any(changed & grey)
+
+            actor.SetVisibility(True)
+            plotter.render()
+            assert np.any(plotter.screenshot(return_img=True) != hidden)
+        finally:
+            plotter.close()
 
     def test_gravity_arrow_added_when_gravity_set(self, fluid_config, tmp_path):
         """When gravity is set, _populate_plotter should add an arrow mesh."""

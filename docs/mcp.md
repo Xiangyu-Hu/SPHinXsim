@@ -1,12 +1,17 @@
 # Connect an external agent through MCP
 
-Build/install the native project following the [installation guide](installation.md),
-then install the required extras from the same checkout:
+Build/install the native project following the [installation guide](installation.md).
+On Linux and macOS, install the extras from the same checkout:
 
 ```sh
 python -m pip install '.[mcp,cad,results,visualization]'
 sphinxsim capabilities --json
 ```
+
+On Windows, use the CI-tested installation described in the
+[Windows guide](installation-windows.md) instead of installing `cad`. Without
+CadQuery, CAD modeling is unavailable; install the `results` extra
+separately if headless result export or quality checks are needed.
 
 Configure an MCP client with the **installed native CLI**, for example:
 

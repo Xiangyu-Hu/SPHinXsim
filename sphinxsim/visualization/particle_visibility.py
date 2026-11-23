@@ -8,8 +8,47 @@ from typing import Any
 import numpy as np
 
 from sphinxsim.visualization.particle_time import PARTICLE_OVERLAY_CENTER_Y
+from sphinxsim.visualization.preview import _PARTICLE_DEFAULT_OPACITY
 
 logger = logging.getLogger(__name__)
+
+_SPHERE_SPLAT_SHADER = (
+    "//VTK::Color::Impl\n"
+    "float dist = dot(offsetVCVSOutput.xy,offsetVCVSOutput.xy);\n"
+    "if (dist > 1.0) {\n"
+    "  discard;\n"
+    "} else {\n"
+    "  float scale = (1.0 - dist);\n"
+    "  ambientColor *= scale;\n"
+    "  diffuseColor *= scale;\n"
+    "}\n"
+)
+_DEFAULT_PALETTE = "Blue to red"
+_PARTICLE_PALETTES = {
+    _DEFAULT_PALETTE: (
+        (0.23, 0.30, 0.75), (0.87, 0.87, 0.87), (0.71, 0.02, 0.15),
+    ),
+    "Viridis": (
+        (0.267, 0.005, 0.329), (0.230, 0.322, 0.546), (0.128, 0.567, 0.551),
+        (0.369, 0.789, 0.383), (0.993, 0.906, 0.144),
+    ),
+    "Grayscale": ((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
+}
+
+
+def _sphere_splat_radius(mesh: Any, config: Any) -> float:
+    spacing = config.geometries.global_resolution.particle_spacing
+    if spacing is not None:
+        return float(spacing) * 0.5
+
+    bounds = mesh.bounds
+    extents = [abs(float(bounds[i + 1]) - float(bounds[i])) for i in (0, 2, 4)]
+    largest = max(extents)
+    active = [extent for extent in extents if extent > largest * 1e-8]
+    count = mesh.n_points
+    if not active or count <= 0 or not np.all(np.isfinite(active)):
+        raise ValueError("Cannot estimate particle spacing from this point cloud.")
+    return float(np.prod(active) / count) ** (1.0 / len(active)) * 0.5
 
 
 class ParticleVisibility:
@@ -25,14 +64,26 @@ class ParticleVisibility:
         self.legend: Any = None
         self.meshes: dict[str, Any] = {}
         self.colouring: dict[str, str] = {}
+        self.palettes: dict[str, str] = {}
+        self.sphere_splats: set[str] = set()
+        self.opaque_bodies: set[str] = set()
+        self._point_mappers: dict[str, tuple[Any, Any]] = {}
         self.scalar_bars: dict[str, Any] = {}
         self._colour_warnings: set[tuple[str, str]] = set()
 
     def set_scene(self, key: Any, config: Any, legend: Any = None) -> None:
         self._clear_scalar_bars()
         if key != self.scene_key:
+            for body in self.sphere_splats:
+                entry = self._point_mappers.get(body)
+                if entry is not None:
+                    entry[0].SetMapper(entry[1])
             self.hidden.clear()
             self.colouring.clear()
+            self.palettes.clear()
+            self.sphere_splats.clear()
+            self.opaque_bodies.clear()
+            self._point_mappers.clear()
             self._colour_warnings.clear()
             self.scene_key = key
         self.config = config
@@ -42,17 +93,66 @@ class ParticleVisibility:
         self.legend = legend
 
     def add_actor(self, body: str, actor: Any, mesh: Any = None, *, initialized: bool = False) -> None:
+        previous = self._point_mappers.get(body)
+        if previous is None or previous[0] is not actor:
+            self._point_mappers[body] = (actor, actor.GetMapper())
+            if body in self.sphere_splats:
+                try:
+                    self._set_actor_representation(body, actor, True)
+                except ValueError as exc:
+                    logger.warning("Cannot render sphere splats for %s: %s; showing points", body, exc)
         self.actors[body] = actor
         if initialized and mesh is not None:
             self.meshes[body] = mesh
         else:
             self.meshes.pop(body, None)
+        actor.GetProperty().SetOpacity(
+            1.0 if body in self.opaque_bodies else _PARTICLE_DEFAULT_OPACITY
+        )
         actor.SetVisibility(body not in self.hidden)
         if body in self.colouring:
             self._apply_colouring(body)
         if body not in self.bodies:
             self.bodies.add(body)
             self._update_legend()
+
+    def _set_actor_representation(self, body: str, actor: Any, splats: bool) -> None:
+        point_mapper = self._point_mappers[body][1]
+        if not splats:
+            actor.SetMapper(point_mapper)
+            return
+
+        mesh = point_mapper.GetInput()
+        if mesh is None:
+            raise ValueError("The particle mesh is unavailable.")
+        radius = _sphere_splat_radius(mesh, self.config)
+        from pyvista import PointGaussianMapper
+
+        mapper = PointGaussianMapper(emissive=False, scale_factor=radius)
+        mapper.dataset = mesh
+        mapper.SetSplatShaderCode(_SPHERE_SPLAT_SHADER)
+        mapper.ScalarVisibilityOff()
+        actor.SetMapper(mapper)
+
+    def set_sphere_splats(self, body: str, enabled: bool) -> None:
+        actor = self.actors[body]
+        self._set_actor_representation(body, actor, enabled)
+        if enabled:
+            self.sphere_splats.add(body)
+        else:
+            self.sphere_splats.discard(body)
+        if body in self.colouring:
+            self._apply_colouring(body)
+        self.plotter.render()
+
+    def set_opaque(self, body: str, opaque: bool) -> None:
+        actor = self.actors[body]
+        actor.GetProperty().SetOpacity(1.0 if opaque else _PARTICLE_DEFAULT_OPACITY)
+        if opaque:
+            self.opaque_bodies.add(body)
+        else:
+            self.opaque_bodies.discard(body)
+        self.plotter.render()
 
     def colourable_fields(self, body: str) -> dict[str, bool]:
         """Return point-data names and whether each is a vector magnitude."""
@@ -79,6 +179,15 @@ class ParticleVisibility:
             self.colouring.pop(body, None)
         else:
             self.colouring[body] = field
+        self._apply_colouring(body)
+        self.plotter.render()
+
+    def set_palette(self, body: str, palette: str) -> None:
+        if palette not in _PARTICLE_PALETTES:
+            raise ValueError(f"Unknown particle color palette: {palette!r}")
+        if body not in self.actors:
+            raise ValueError(f"Particle body {body!r} is unavailable")
+        self.palettes[body] = palette
         self._apply_colouring(body)
         self.plotter.render()
 
@@ -153,13 +262,26 @@ class ParticleVisibility:
 
         colour_map = vtkColorTransferFunction()
         colour_map.SetColorSpaceToRGB()
-        colour_map.AddRGBPoint(low, 0.23, 0.30, 0.75)
-        if not vector:
-            colour_map.AddRGBPoint((low + high) / 2, 0.87, 0.87, 0.87)
-        colour_map.AddRGBPoint(high, 0.71, 0.02, 0.15)
+        palette = self.palettes.get(body, _DEFAULT_PALETTE)
+        colours = _PARTICLE_PALETTES[palette]
+        if palette == _DEFAULT_PALETTE and vector:
+            colours = (colours[0], colours[-1])
+        for index, colour in enumerate(colours):
+            position = low + (high - low) * index / (len(colours) - 1)
+            colour_map.AddRGBPoint(position, *colour)
         colour_map.SetNanColor(0.5, 0.5, 0.5)
         array_name = "_sphinxsim_colour_" + field
-        mesh.point_data[array_name] = values
+        if body in self.sphere_splats and mapper.IsA("vtkPointGaussianMapper"):
+            from vtkmodules.util.numpy_support import numpy_to_vtk, vtk_to_numpy
+
+            # VTK's Gaussian mapper requires direct RGB(A), not mapped scalars.
+            rgba = colour_map.MapScalars(numpy_to_vtk(values, deep=True), 0, 0)
+            array_name += "_rgba"
+            mesh.point_data[array_name] = vtk_to_numpy(rgba)
+            mapper.SetColorModeToDirectScalars()
+        else:
+            mesh.point_data[array_name] = values
+            mapper.SetColorModeToMapScalars()
         mapper.SetScalarModeToUsePointFieldData()
         mapper.SelectColorArray(array_name)
         mapper.SetLookupTable(colour_map)
@@ -221,6 +343,17 @@ class ParticleVisibility:
         index = min(int((top - y) * len(names) / (top - bottom)), len(names) - 1)
         return names[index]
 
+    def scalar_bar_at(self, x: float, y: float) -> str | None:
+        renderer = self.plotter.renderers[0]
+        for body, bar in self.scalar_bars.items():
+            if not bar.GetVisibility():
+                continue
+            left, bottom = bar.GetPositionCoordinate().GetComputedDoubleDisplayValue(renderer)
+            right, top = bar.GetPosition2Coordinate().GetComputedDoubleDisplayValue(renderer)
+            if left <= x <= right and bottom <= y <= top:
+                return body
+        return None
+
 
 def install_particle_menu(widget: Any, controller: ParticleVisibility) -> Any:
     """Install a Qt event filter without stealing VTK's right-drag gesture."""
@@ -235,32 +368,62 @@ def install_particle_menu(widget: Any, controller: ParticleVisibility) -> Any:
             self.pressed = None
             self.menu = None
 
-        def _body_at(self, pos: Any) -> str | None:
+        def _target_at(self, pos: Any) -> tuple[str, str] | None:
             width, height = controller.plotter.render_window.GetSize()
             if not widget.width() or not widget.height():
                 return None
-            return controller.body_at(
-                pos.x() * width / widget.width(),
-                (widget.height() - pos.y()) * height / widget.height(),
-            )
+            x = pos.x() * width / widget.width()
+            y = (widget.height() - pos.y()) * height / widget.height()
+            body = controller.scalar_bar_at(x, y)
+            if body is not None:
+                return ("palette", body)
+            body = controller.body_at(x, y)
+            return ("particle", body) if body is not None else None
 
         def eventFilter(self, watched: Any, event: Any) -> bool:
             if event.type() == QtCore.QEvent.Type.MouseButtonPress:
                 if event.button() == QtCore.Qt.MouseButton.RightButton:
-                    self.pressed = (event.pos(), self._body_at(event.pos()))
+                    self.pressed = (event.pos(), self._target_at(event.pos()))
             elif event.type() == QtCore.QEvent.Type.MouseButtonRelease:
                 if event.button() == QtCore.Qt.MouseButton.RightButton and self.pressed:
-                    position, body = self.pressed
+                    position, target = self.pressed
                     self.pressed = None
-                    if (body is not None and body == self._body_at(event.pos())
+                    if (target is not None and target == self._target_at(event.pos())
                             and (event.pos() - position).manhattanLength()
                             <= QtWidgets.QApplication.startDragDistance()):
                         global_pos = widget.mapToGlobal(event.pos())
                         scene_key = controller.scene_key
+                        kind, body = target
+                        show_menu = self._show_palette_menu if kind == "palette" else self._show_menu
                         QtCore.QTimer.singleShot(
-                            0, lambda: self._show_menu(body, global_pos, scene_key)
+                            0, lambda: show_menu(body, global_pos, scene_key)
                         )
             return False
+
+        def _show_palette_menu(self, body: str, position: Any, scene_key: Any) -> None:
+            if scene_key != controller.scene_key or body not in controller.scalar_bars:
+                return
+            field = controller.colouring.get(body)
+            if self.menu is not None:
+                self.menu.close()
+                self.menu.deleteLater()
+            self.menu = QtWidgets.QMenu(widget)
+            self.menu.setObjectName("sphinxsim-particle-colour-bar-menu")
+            group = QtGui.QActionGroup(self.menu)
+            group.setExclusive(True)
+            for name in _PARTICLE_PALETTES:
+                action = self.menu.addAction(name)
+                action.setCheckable(True)
+                action.setChecked(controller.palettes.get(body, _DEFAULT_PALETTE) == name)
+                group.addAction(action)
+
+                def choose_palette(_checked: bool, selected: str = name) -> None:
+                    if (scene_key == controller.scene_key and body in controller.scalar_bars
+                            and controller.colouring.get(body) == field):
+                        controller.set_palette(body, selected)
+
+                action.triggered.connect(choose_palette)
+            self.menu.popup(position)
 
         def _show_menu(self, body: str, position: Any, scene_key: Any) -> None:
             if scene_key != controller.scene_key or body not in controller.bodies:
@@ -280,6 +443,39 @@ def install_particle_menu(widget: Any, controller: ParticleVisibility) -> Any:
                     controller.set_visible(body, visible)
 
             action.toggled.connect(toggle)
+            representation = self.menu.addMenu("Representation")
+            representation.setObjectName("sphinxsim-particle-representation")
+            representation_group = QtGui.QActionGroup(representation)
+            representation_group.setExclusive(True)
+            for label, splats in (("Points", False), ("Sphere splats", True)):
+                choice = representation.addAction(label)
+                choice.setCheckable(True)
+                choice.setChecked((body in controller.sphere_splats) == splats)
+                representation_group.addAction(choice)
+
+                def choose_representation(_checked: bool, enabled: bool = splats) -> None:
+                    if scene_key == controller.scene_key and body in controller.bodies:
+                        try:
+                            controller.set_sphere_splats(body, enabled)
+                        except ValueError as exc:
+                            QtWidgets.QMessageBox.warning(widget, "Particle representation", str(exc))
+
+                choice.triggered.connect(choose_representation)
+            transparency = self.menu.addMenu("Transparency")
+            transparency.setObjectName("sphinxsim-particle-transparency")
+            transparency_group = QtGui.QActionGroup(transparency)
+            transparency_group.setExclusive(True)
+            for label, opaque in (("Opaque (0%)", True), ("5% transparent", False)):
+                choice = transparency.addAction(label)
+                choice.setCheckable(True)
+                choice.setChecked((body in controller.opaque_bodies) == opaque)
+                transparency_group.addAction(choice)
+
+                def choose_opacity(_checked: bool, selected: bool = opaque) -> None:
+                    if scene_key == controller.scene_key and body in controller.bodies:
+                        controller.set_opaque(body, selected)
+
+                choice.triggered.connect(choose_opacity)
             fields = controller.colourable_fields(body)
             if body in controller.meshes:
                 submenu = self.menu.addMenu("Color by")

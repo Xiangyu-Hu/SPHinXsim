@@ -13,14 +13,8 @@ PyVista is required:
 pip install sphinxsim[visualization]
 ```
 
-For responsive persistent preview in interactive shell mode, install
-`pyvistaqt`:
-
-```bash
-pip install pyvistaqt
-```
-
-PySide6 and QtPy are installed with the base package.
+The extra includes `pyvistaqt` for responsive persistent preview in interactive
+shell mode. PySide6 and QtPy are installed with the base package.
 
 The compiled C++ extension (`_sphinxsys_core_2d` or `_sphinxsys_core_3d`) is
 required for preview geometry generation. The preview always attempts to build
@@ -41,7 +35,7 @@ only the C++ projects may leave the Python binding out of date.
 | Inlet/Outlet oriented boxes | Wireframe | Red |
 | Constraint region oriented boxes | Wireframe | Yellow |
 | System domain bounding box | Wireframe | White (10 % opacity) |
-| Generated particles (`--with-particles`) | Points | White (per-body colour) |
+| Generated particles (`--with-particles`) | Points by default; optional sphere splats | Per-body colour |
 
 Each shape and oriented box is labelled with an annotation that includes:
 
@@ -49,10 +43,11 @@ Each shape and oriented box is labelled with an annotation that includes:
 - **Oriented boxes**: BC type (emitter, bi-directional), inflow speed or pressure, and particle-relaxation constraints targeting that oriented box.
 - **Gravity**: shown in the lower-left corner when a gravity vector is defined.
 
-In an interactive preview window with the JSON editor open, hovering an
-annotation enlarges it. Clicking an annotation reveals and selects its
-corresponding configuration entry in the editor; this expands the entry's
-ancestors and clears the editor filter if needed to make the entry visible.
+In the Qt-backed shell Preview and desktop session, hovering an annotation
+enlarges it. Clicking an annotation reveals and selects its corresponding
+configuration entry in the editor; this expands the entry's ancestors and
+clears the editor filter if needed to make the entry visible. These annotation
+links are not currently connected in the Workbench.
 
 ## JSON editor menus
 
@@ -76,12 +71,17 @@ row; unavailable actions are dimmed. A menu may contain:
 | **Add as** | Choose the type of a new list entry when the list supports multiple variants. |
 | **Duplicate** / **Remove** | Duplicate or remove the selected list entry. |
 | **Move up** / **Move down** | Reorder the selected list entry within its list. |
+| **Show annotation** | Show or hide the preview annotation associated with the selected entry, when present. |
+| **Show visualization** | Show or hide the rendered preview element associated with the selected entry, when present. |
 
 For example, to duplicate a body, expand the appropriate body list, right-click
 the body entry, choose **Duplicate**, and edit the new entry. To add an optional
 setting, right-click its parent object and choose it under **Add property**.
 Adding or duplicating an entry may require further edits before the configuration
-passes validation. Errors are reported in the editor status area.
+passes validation. The annotation and visualization toggles are enabled only
+when the selected entry has a corresponding bound preview element. The shell
+Preview and desktop session provide these bindings; the Workbench does not
+currently connect them. Errors are reported in the editor status area.
 
 ### Tree menu, undo and saving
 
@@ -121,6 +121,27 @@ legend entry remains visible with a dimmed swatch when hidden, so it can be
 shown again. Hiding particles also hides that body's color bar. This affects
 only the display: it does not change the simulation or saved VTP files.
 
+### Particle representation
+
+Choose **Representation → Sphere splats** in a body's particle legend menu to
+render shaded, circular splats like ParaView's Sphere preset. **Points** is the
+default and restores the original display. The choice applies to that body and
+persists across its live and replayed frames in the same scene.
+
+The splat radius is half the configured particle spacing. If the spacing is
+unspecified, it is estimated from the particle cloud's bounds and point count.
+Rendering cost depends on the particle count, spacing, and graphics hardware.
+If spacing cannot be estimated for a later frame, that frame uses points and
+logs a warning; the splat selection is retried on subsequent frames. The
+selection resets when changing scenes.
+
+### Particle transparency
+
+Choose **Transparency → Opaque (0%)** or **5% transparent** for each body.
+The default is 5% transparent for both points and sphere splats. The choice
+persists across live and replayed frames in the same scene and resets when
+changing scenes.
+
 ### Color particles by an output attribute
 
 Particles are colored by body by default. In the shell, use
@@ -129,12 +150,18 @@ display initial solver output. Then right-click a body's **Particles** legend
 entry and choose **Color by**, followed by an attribute such as **Pressure**
 or **Velocity magnitude**. The Workbench offers the same menu when displaying
 solver output. Generated-particle previews have the visibility option but do
-not yet offer **Color by**.
+not yet offer **Color by**; their representation and transparency can still be
+changed.
 
 The submenu lists numeric scalar and vector point-data arrays present in that
 body's displayed solver snapshot, including integer arrays such as particle
 IDs. Vectors are colored by magnitude; matrices are not offered. The color bar
 identifies the body and variable. Select **Body color** to restore the default.
+
+Right-click a visible color bar to choose **Blue to red** (the default),
+**Viridis**, or **Grayscale**. The palette applies to that body, including
+points and sphere splats, and persists across its fields and frames in the same
+scene. Changing the palette does not change the color range.
 
 For an attribute with a valid saved [scaling reference](#particle-scaling-metadata),
 scalar colors use the fixed range `[-reference, reference]` and vector
@@ -159,9 +186,9 @@ iterations are not simulation times.
 sphinxsim preview path/to/config.json
 ```
 
-This opens an interactive PyVista window showing the geometry.  The original
-JSON file is passed directly to the C++ `SPHSimulation` — it is the single
-source of truth, no intermediate copy is written.
+This opens an interactive PyVista window showing the geometry. The preview
+writes a temporary runtime JSON from the validated configuration and uses it
+to build geometry; it does not modify the source JSON.
 
 ### Preview with generated particles
 
@@ -175,11 +202,12 @@ because particle generation can be expensive.
 
 When particles are shown:
 
-- Regular body shapes are hidden to keep the view clear.
+- Regular geometry shapes are hidden to keep the view clear.
 - Oriented boxes, constraints, observers, gravity, and all annotations remain visible.
 - One particle cloud is rendered per body, using the highest step VTP file
   (`BodyName_<step>.vtp` or `BodyName_ite_<step>.vtp`).
-- A small label shows the body name and step number for each particle cloud.
+- The legend identifies each particle cloud by body name. Solver snapshots
+  displayed during a live run or replay also show their physical time.
 
 This is useful for verifying particle distribution and spacing before running
 the full simulation.
@@ -273,6 +301,7 @@ sphinxsim> preview --with-particles
    Building C++ geometry; bounds cache fallback will be used if VTP meshes are unavailable.
    Particle generation overlay is enabled (--with-particles).
 ✅ Preview used C++ geometry (VTP meshes).
+▶️ Replaying 100 particle frames at up to 25 FPS.
 
 sphinxsim> initialize-simulation
 ✅ Simulation built
@@ -293,7 +322,7 @@ sphinxsim> run --with-animation
 This performs `preview --with-particles`, `initialize-simulation`, and
 `continue-to-run` on the same generated simulation. Plain `run` remains unchanged. Once the animated
 run or a manual `continue-to-run` completes, enter `replay` to play its
-recorded particle snapshots again at up to 25 FPS:
+recorded simulation snapshots again at up to 25 FPS:
 
 ```text
 sphinxsim> replay
@@ -306,14 +335,22 @@ correct 2D/3D camera (including the orthographic XY view for 2D). Wait until
 camera framing fixed while the particle snapshots animate.
 
 `preview` requires a config to be loaded first (via `load` or `generate`).
+After particle generation, `preview --with-particles` automatically plays
+relaxation snapshots (`_ite_` files) in the Qt-backed preview. To play them
+again, including before initialization, enter `replay --relaxation`. If Qt
+playback is unavailable, the preview remains usable and reports a warning.
+Simulation playback and plain `replay` exclude relaxation snapshots.
+All playback reads the shared output directory, so older files of the same
+kind may also be included.
 
 After `preview --with-particles`, the shell retains the generated-particle
 `SPHSimulation` instance and its temporary runtime config. The next command,
 `initialize-simulation`, builds and initializes that same instance, writes the
 initial body-state snapshots, and displays them without running the solver.
 `continue-to-run` then runs the initialized instance without generating
-particles or initializing again. Other shell commands discard the retained
-instance and its temporary config; use `run` when a fresh simulation from the
+particles or initializing again. `replay --relaxation` also preserves the
+instance, and initialization stops any active relaxation playback. Other shell
+commands discard the retained instance and its temporary config; use `run` when a fresh simulation from the
 saved config is intended. If displaying the initialized snapshots fails, the
 error is reported and the initialized simulation remains available for
 `continue-to-run`.
@@ -325,7 +362,7 @@ sphinxsim> continue-to-run --refresh-interval 2.5
 ```
 
 The default interval is `10` seconds and the value must be greater than zero.
-At each interval, the preview collects all available body-state VTP snapshots
+At each interval, the preview collects available simulation body-state VTP snapshots
 and plays them in sequence at up to 25 FPS. It then waits for another interval
 before collecting the next batch, allowing slower simulations to produce
 more output between playback batches. A snapshot is loaded only after its file

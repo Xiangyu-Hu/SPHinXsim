@@ -58,9 +58,11 @@ as result frames update.
 Changing to another run or case resets the choice; it never changes the
 simulation or its saved output.
 When solver frames are available, the same menu offers **Color by** for
-particle attributes and shows the frame's physical time. See the
+particle attributes, and the canvas shows the frame's physical time. The menu
+also offers points or sphere splats and two transparency settings; right-click
+a visible color bar to choose its palette. See the
 [particle legend guide](visualization.md#particle-legend-context-menu) for
-color ranges, playback behavior and missing attributes.
+defaults, color ranges, playback behavior and missing attributes.
 
 ## Edit and preview
 
@@ -74,7 +76,8 @@ color ranges, playback behavior and missing attributes.
   [#185](https://github.com/Xiangyu-Hu/SPHinXsim/pull/185).
 - Right-click a tree row for value, property and list actions. See the
   [JSON editor menu guide](visualization.md#json-editor-menus) for the available
-  actions and their prerequisites.
+  actions and their prerequisites. Annotation and visualization links to tree
+  entries are not currently connected in the Workbench.
 - Edit values, then **Validate** or **Save + Preview** (`Ctrl+S`). Invalid edits
   leave the saved file and last valid scene intact. **Preview draft** previews
   valid unsaved edits without saving them.

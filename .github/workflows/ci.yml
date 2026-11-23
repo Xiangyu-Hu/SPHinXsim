@@ -151,7 +151,7 @@ jobs:
           QT_QPA_PLATFORM: xcb
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
-          xvfb-run -a -s "-screen 0 1600x1000x24" pytest tests/runtime/test_desktop.py tests/test_agent_preview.py tests/test_workbench.py tests/test_particle_visibility.py -v -s
+          xvfb-run -a -s "-screen 0 1600x1000x24" pytest tests/runtime/test_desktop.py tests/test_agent_preview.py tests/test_workbench.py tests/test_particle_visibility.py tests/test_visualization.py -v -s
 
       - name: Run example tests (examples/)
         run: |
@@ -249,12 +249,7 @@ jobs:
         run: |
           $toolchain = "${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake" -replace '\\', '/'
           $env:CMAKE_ARGS = "-D CMAKE_TOOLCHAIN_FILE=$toolchain"
-          pip install -e ".[dev]"
-
-      - name: Install Qt preview dependencies (Windows)
-        shell: pwsh
-        run: |
-          pip install pyvistaqt PySide6
+          pip install -e ".[dev,visualization]"
 
       - name: Smoke test pyvistaqt BackgroundPlotter import (Windows)
         shell: pwsh
@@ -345,7 +340,7 @@ jobs:
       - name: Install Python package (editable with dev dependencies)
         run: |
           export CMAKE_ARGS="-D CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
-          pip install -e ".[dev]"
+          pip install -e ".[dev,visualization]"
 
       - name: Run unit tests (tests/, CI mock-LLM-only)
         env:
@@ -458,7 +453,7 @@ jobs:
           PYTHON_EXE=$(which python3)
           source /opt/intel/oneapi/setvars.sh --include-intel-llvm
           export CMAKE_ARGS="-D CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_COMPILER=icpx -D CMAKE_C_COMPILER_LAUNCHER=ccache -D CMAKE_CXX_COMPILER_LAUNCHER=ccache -D SPHINXSYS_USE_SYCL=ON"
-          "$PYTHON_EXE" -m pip install -e ".[dev]"
+          "$PYTHON_EXE" -m pip install -e ".[dev,visualization]"
 
       - name: Run unit tests (tests/)
         run: |

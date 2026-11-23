@@ -642,9 +642,19 @@ _SHELL_COMMANDS = (
 )
 
 
+def _split_shell_command(text: str) -> list[str]:
+    if sys.platform != "win32":
+        return shlex.split(text)
+    lexer = shlex.shlex(text, posix=True)
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    lexer.escape = ""
+    return list(lexer)
+
+
 def _shell_completion_matches(prefix: str, text: str) -> list[str]:
     try:
-        words = shlex.split(prefix)
+        words = _split_shell_command(prefix)
     except ValueError:
         words = prefix.split()
 
@@ -670,25 +680,74 @@ def _shell_completion_matches(prefix: str, text: str) -> list[str]:
     for match in matches:
         candidate = match
         if text.startswith("~"):
-            candidate = "~" + os.path.relpath(match, os.path.expanduser("~"))
+            relative = os.path.relpath(match, os.path.expanduser("~"))
+            candidate = "~" if relative == "." else os.path.join("~", relative)
         if os.path.isdir(match):
             candidate += "/"
         results.append(candidate)
     return sorted(results)
 
 
+def _windows_shell_completion_matches(line: str) -> list[str]:
+    start = 0
+    quote = None
+    token = []
+    for index, char in enumerate(line):
+        if quote:
+            if char == quote:
+                quote = None
+            else:
+                token.append(char)
+        elif char in "\"'":
+            quote = char
+        elif char.isspace():
+            start = index + 1
+            token = []
+        else:
+            token.append(char)
+
+    text = "".join(token)
+    prefix = line[:start]
+    matches = _shell_completion_matches(prefix, text)
+    if not prefix:
+        return matches
+
+    quoted = quote or line[start:start + 1] in ("'", '"') or any(
+        char.isspace() or char == "'" for match in matches for char in match
+    )
+    quote_char = line[start:start + 1]
+    if quote_char not in ("'", '"') or any(quote_char in match for match in matches):
+        quote_char = '"'
+    results = []
+    for match in matches:
+        if match.endswith("/") and "\\" in text and "/" not in text:
+            match = match[:-1] + "\\"
+        if quoted:
+            closing = "" if match.endswith(("/", "\\")) else quote_char
+            match = quote_char + match + closing
+        results.append(prefix + match)
+    return results
+
+
 def _shell_readline_completer(text: str, state: int) -> str | None:
     if readline is None:
         return None
-    matches = _shell_completion_matches(
-        readline.get_line_buffer()[: readline.get_begidx()], text
-    )
+    if sys.platform == "win32":
+        matches = _windows_shell_completion_matches(text)
+    else:
+        matches = _shell_completion_matches(
+            readline.get_line_buffer()[: readline.get_begidx()], text
+        )
     return matches[state] if state < len(matches) else None
 
 
 def _configure_shell_readline() -> None:
     if readline is None:
+        print("Shell completion and history are unavailable: readline is not installed.", file=sys.stderr)
         return
+    if sys.platform == "win32":
+        # pyreadline3 does not recognize quoted delimiters; complete the whole line.
+        readline.set_completer_delims("")
     readline.set_completer(_shell_readline_completer)
     readline.parse_and_bind("tab: complete")
 
@@ -716,7 +775,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             "Commands: load FILE, generate DESCRIPTION FILE, "
             "update [--patch-mode] [--dry-run] [--strict true|false] INSTRUCTION, "
             "validate, run [--with-animation], preview [--with-particles] [--screenshot FILE], "
-                "initialize-simulation, continue-to-run [--refresh-interval SECONDS], replay, explore QUESTION, exit"
+                "initialize-simulation, continue-to-run [--refresh-interval SECONDS], replay [--relaxation], explore QUESTION, exit"
     )
     print("Note: relative paths are resolved from the current directory first, then .build-temp/.")
 
@@ -758,7 +817,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             print("  initialize-simulation           - Build and initialize the retained particle preview")
             print("  continue-to-run [--refresh-interval SECONDS]")
             print("                                 - Run the initialized particle preview simulation")
-            print("  replay                          - Replay recorded particle snapshots at up to 25 FPS")
+            print("  replay [--relaxation]           - Replay simulation or relaxation snapshots at up to 25 FPS")
             print("  run [--with-animation]          - Run config; optionally preview particles and animate")
             print("  exit                            - Exit shell")
             continue
@@ -768,7 +827,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             if translated_parts is not None:
                 parts = translated_parts
             else:
-                parts = shlex.split(line)
+                parts = _split_shell_command(line)
         except ValueError as exc:
             print(f"Invalid command syntax: {exc}", file=sys.stderr)
             continue
@@ -778,8 +837,8 @@ def cmd_shell(args: argparse.Namespace) -> int:
 
         cmd = parts[0]
 
-        # Only the two lifecycle commands retain the particle-preview simulation.
-        if cmd not in {"initialize-simulation", "continue-to-run"}:
+        # Relaxation replay also retains the simulation for later initialization.
+        if cmd not in {"initialize-simulation", "continue-to-run"} and parts != ["replay", "--relaxation"]:
             preview_runtime.discard_pending_simulation()
 
         if cmd == "load":
@@ -974,10 +1033,13 @@ def cmd_shell(args: argparse.Namespace) -> int:
             continue
 
         if cmd == "replay":
-            if len(parts) != 1:
-                print("Usage: replay", file=sys.stderr)
+            if len(parts) == 1:
+                _ = preview_runtime.replay_animation()
+            elif parts == ["replay", "--relaxation"]:
+                _ = preview_runtime.replay_animation(relaxation=True)
+            else:
+                print("Usage: replay [--relaxation]", file=sys.stderr)
                 continue
-            _ = preview_runtime.replay_animation()
             continue
 
         if cmd == "run":
@@ -1322,14 +1384,14 @@ def _parse_shell_ai_cli_style(text: str) -> list[str] | None:
     if not stripped.startswith("/"):
         return None
 
-    parts = shlex.split(stripped)
+    parts = _split_shell_command(stripped)
     if not parts:
         return None
 
     command = parts[0][1:]
     valid_commands = {
-        "generate", "validate", "update", "run", "preview", "initialize-simulation",
-        "continue-to-run", "explore", "shell"
+        "load", "generate", "validate", "update", "run", "preview", "initialize-simulation",
+        "continue-to-run", "replay", "explore", "shell"
     }
     if command not in valid_commands:
         return None

@@ -21,6 +21,10 @@ not replace their domain-specific instructions.
    changes. Update directly related documentation and tests as appropriate.
 4. Verify the behavior with the narrowest meaningful test or check, and report
    what was and was not verified.
+   For subprocess-driven desktop tests, check child-process exit status promptly
+   and include its diagnostic logs in assertion output. When a worker's workspace
+   is outside the project checkout, use its explicit writable workspace as the
+   execution root; a common path can unexpectedly resolve to `/`.
 5. Before finishing, decide whether the investigation produced a verified,
    durable lesson that would help future work in the affected area:
    - If a relevant skill exists, update it with the concise reusable guidance.

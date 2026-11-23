@@ -103,6 +103,9 @@ def tick():
     if time.monotonic() > deadline:
         finish("Timed out at " + stage + ": " + window.statusBar().currentMessage())
         return
+    if stage == "startup" and window.chat_server and window.chat_server.process.poll() is not None:
+        finish(f"Chat server exited with status {window.chat_server.process.returncode}")
+        return
     if stage == "finished" or busy:
         return
     try:
@@ -191,7 +194,10 @@ def tick():
             assert window.run_job is not None
             stage = "run"
         elif stage == "run" and window.run_job.state() == QtCore.QProcess.ProcessState.NotRunning:
-            assert window.run_job.exitCode() == 0, "Native run failed; see manual_runs/*/solver.log"
+            solver_log = Path(window.run_job.property("output_dir")) / "solver.log"
+            assert window.run_job.exitCode() == 0, (
+                f"Native run failed; {solver_log}:\n{solver_log.read_text(encoding='utf-8', errors='replace')}"
+            )
             window._tick()
             assert window.observer is not None
             assert any(name.startswith("particle-preview-") for name in window.plotter.renderer.actors)

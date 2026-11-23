@@ -259,7 +259,11 @@ def test_real_workbench_desktop_chat_edit_preview_and_solver(tmp_path):
     result = subprocess.run([sys.executable, str(root / "tests/workbench_desktop_probe.py"), str(tmp_path)],
                             cwd=root, env=dict(os.environ, SPHINXSIM_LLM_PROVIDER="mock"),
                             capture_output=True, timeout=210)
-    assert result.returncode == 0, (result.stdout + result.stderr).decode("utf-8", errors="replace")
+    output = (result.stdout + result.stderr).decode("utf-8", errors="replace")
+    chat_log = tmp_path / "chat.log"
+    if result.returncode and chat_log.is_file():
+        output += "\n--- chat.log ---\n" + chat_log.read_text(encoding="utf-8", errors="replace")
+    assert result.returncode == 0, output
     evidence = json.loads((tmp_path / "probe.json").read_text(encoding="utf-8"))
     assert not evidence["errors"]
     assert len(evidence["checks"]) == 12

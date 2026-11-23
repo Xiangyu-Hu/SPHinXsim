@@ -682,6 +682,8 @@ def _shell_completion_matches(prefix: str, text: str) -> list[str]:
         if text.startswith("~"):
             relative = os.path.relpath(match, os.path.expanduser("~"))
             candidate = "~" if relative == "." else os.path.join("~", relative)
+        if sys.platform == "win32" and "/" in text and "\\" not in text:
+            candidate = candidate.replace("\\", "/")
         if os.path.isdir(match):
             candidate += "/"
         results.append(candidate)

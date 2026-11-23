@@ -861,7 +861,25 @@ class TestShellCompletion:
         monkeypatch.setenv("USERPROFILE" if sys.platform == "win32" else "HOME", str(tmp_path))
         (tmp_path / "config.json").touch()
         assert _shell_completion_matches("load ", "~/con") == [
-            str(Path("~") / "config.json")
+            "~/config.json"
+        ]
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows path separators")
+    def test_completes_windows_absolute_and_backslash_paths(self, tmp_path, monkeypatch):
+        nested_dir = tmp_path / "configs" / "nested"
+        nested_dir.mkdir(parents=True)
+        (nested_dir / "config.json").touch()
+        monkeypatch.chdir(tmp_path)
+
+        assert _shell_completion_matches("load ", "configs\\ne") == [
+            "configs\\nested/"
+        ]
+        assert _shell_completion_matches("load ", "configs\\nested\\con") == [
+            "configs\\nested\\config.json"
+        ]
+        forward_path = nested_dir.as_posix()
+        assert _shell_completion_matches("load ", f"{forward_path}/con") == [
+            f"{forward_path}/config.json"
         ]
 
     @pytest.mark.skipif(sys.platform != "win32", reason="Windows readline integration")
@@ -888,6 +906,7 @@ class TestShellCompletion:
                 ("val", "validate"),
                 ("/pre", "/preview"),
                 ("load folder", 'load "folder with spaces/'),
+                ('load "folder with spaces/con', 'load "folder with spaces/config file.json"'),
                 ('load "folder with spaces\\con', 'load "folder with spaces\\config file.json"'),
                 (f'load "{str(config)[:-5]}', f'load "{config}"'),
                 (f"load {str(plain_config)[:-5]}", f"load {plain_config}"),

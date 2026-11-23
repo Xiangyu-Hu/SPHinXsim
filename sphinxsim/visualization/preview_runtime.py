@@ -33,6 +33,19 @@ PROJECT_ROOT = Path(_find_project_root())
 _LIVE_PREVIEW_MAX_FPS = 25
 
 
+def _remove_temporary_file(path: Path | None, purpose: str) -> None:
+    if path is None:
+        return
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        warnings.warn(
+            f"Could not remove temporary {purpose} file {path}: {exc}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+
 def _write_validated_config(
     path: Path, config: SimulationConfig, content: str | None = None
 ) -> str:
@@ -50,16 +63,12 @@ def _write_validated_config(
             dir=path.parent,
             delete=False,
         ) as temporary_file:
-            temporary_file.write(content)
             temporary_path = Path(temporary_file.name)
-        os.replace(temporary_path, path)
-    except Exception:
-        if temporary_path is not None:
-            try:
-                temporary_path.unlink(missing_ok=True)
-            except OSError:
-                pass
-        raise
+            temporary_file.write(content)
+        os.replace(temporary_file.name, path)
+        temporary_path = None
+    finally:
+        _remove_temporary_file(temporary_path, "configuration")
     return content
 
 
@@ -153,11 +162,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._pending_initialized = False
         runtime_config_path = self._pending_runtime_config_path
         self._pending_runtime_config_path = None
-        if runtime_config_path is not None:
-            try:
-                runtime_config_path.unlink(missing_ok=True)
-            except OSError:
-                pass
+        _remove_temporary_file(runtime_config_path, "preview configuration")
 
     def _stop_live_refresh(self, *, preserve_context: bool = False) -> None:
         timer = self._live_refresh_timer
@@ -489,6 +494,9 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._pending_simulation = None
         self._pending_runtime_config_path = None
         self._pending_initialized = False
+        previous_thread = self._live_run_thread
+        run_thread: Thread | None = None
+        run_started = False
 
         try:
             print("\n🚀 Running simulation...")
@@ -503,14 +511,12 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                     print(f"❌ Continued run failed: {exc}", file=sys.stderr)
                 finally:
                     self._live_run_finished = True
-                    if runtime_config_path is not None:
-                        try:
-                            runtime_config_path.unlink(missing_ok=True)
-                        except OSError:
-                            pass
+                    _remove_temporary_file(runtime_config_path, "preview configuration")
 
-            self._live_run_thread = Thread(target=run_simulation, daemon=True)
-            self._live_run_thread.start()
+            run_thread = Thread(target=run_simulation, daemon=True)
+            self._live_run_thread = run_thread
+            run_thread.start()
+            run_started = True
             print(
                 f"ℹ️ Preview checks for new snapshots every {refresh_interval:g} seconds "
                 f"and plays each batch at up to {_LIVE_PREVIEW_MAX_FPS} FPS."
@@ -520,14 +526,10 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             print(f"❌ Continued run failed: {exc}", file=sys.stderr)
             return 1
         finally:
-            if self._live_run_thread is None:
-                del simulation
-                if runtime_config_path is not None:
-                    try:
-                        runtime_config_path.unlink(missing_ok=True)
-                    except OSError:
-                        pass
-
+            if not run_started:
+                if self._live_run_thread is run_thread:
+                    self._live_run_thread = previous_thread
+                _remove_temporary_file(runtime_config_path, "preview configuration")
 
     def pump_ui_events(self) -> None:
         """Keep the persistent preview responsive while shell work blocks."""
@@ -1002,6 +1004,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             ensure_shapes_rendered = getattr(visualizer, "_ensure_shapes_rendered", None)
             if ensure_shapes_rendered is not None:
                 ensure_shapes_rendered()
+            self.discard_pending_simulation()
             if with_particles:
                 self._animation_run_completed = False
                 pending_simulation = visualizer.take_particle_simulation()

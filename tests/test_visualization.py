@@ -730,6 +730,30 @@ class TestPreviewGeometryFailure:
 
         assert isinstance(exc_info.value.__cause__, AttributeError)
 
+    def test_geometry_config_temp_is_removed_when_serialization_fails(
+        self, fluid_config, tmp_path, monkeypatch
+    ):
+        import sphinxsim.visualization.preview as preview_mod
+
+        visualizer = preview_mod.ConfigVisualizer(
+            fluid_config,
+            tmp_path,
+            config_path=tmp_path / "source.json",
+            output_root=tmp_path / "output",
+        )
+        monkeypatch.setattr(
+            preview_mod, "load_sphinxsys_core_nd", lambda _ndim: SimpleNamespace()
+        )
+
+        def fail_dump(*_args, **_kwargs):
+            raise TypeError("serialization failed")
+
+        monkeypatch.setattr(preview_mod.json, "dump", fail_dump)
+        with pytest.raises(RuntimeError, match="geometry generation failed"):
+            visualizer._try_build_geometries(2, with_particles=True)
+
+        assert list(tmp_path.glob("sphinxsim_preview_*.json")) == []
+
     def test_persistent_preview_reports_geometry_build_failure(
         self, fluid_config, tmp_path, monkeypatch, capsys
     ):
@@ -1763,6 +1787,34 @@ class TestShellPreview:
         assert not (tmp_path / "runtime.json").exists()
         assert "native failure" in capsys.readouterr().err
 
+    def test_shell_continue_start_failure_releases_config(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        from sphinxsim import cli as cli_mod
+        from sphinxsim.visualization import preview_runtime as runtime_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._pending_simulation = MagicMock()
+        runtime._pending_initialized = True
+        runtime._pending_runtime_config_path = tmp_path / "runtime.json"
+        runtime._pending_runtime_config_path.write_text("{}", encoding="utf-8")
+        runtime._start_live_refresh = MagicMock()
+
+        class FailingThread:
+            def __init__(self, **_kwargs):
+                pass
+
+            def start(self):
+                raise RuntimeError("thread start failed")
+
+        monkeypatch.setattr(runtime_mod, "Thread", FailingThread)
+
+        assert runtime.continue_to_run() == 1
+        assert runtime._live_run_thread is None
+        assert runtime._pending_runtime_config_path is None
+        assert not (tmp_path / "runtime.json").exists()
+        assert "thread start failed" in capsys.readouterr().err
+
     def test_shell_initial_snapshot_error_keeps_initialized_simulation(self, tmp_path, capsys):
         from sphinxsim import cli as cli_mod
 
@@ -1778,6 +1830,42 @@ class TestShellPreview:
         assert "No initial body-state snapshots" in capsys.readouterr().err
         runtime.discard_pending_simulation()
         assert not runtime._pending_initialized
+
+    def test_config_writer_removes_temp_after_write_failure(self, tmp_path, monkeypatch):
+        from sphinxsim.visualization import preview_runtime as runtime_mod
+
+        config_path = tmp_path / "config.json"
+        config_path.write_text("original", encoding="utf-8")
+        real_named_temporary_file = runtime_mod.tempfile.NamedTemporaryFile
+        temporary_paths = []
+
+        class FailingTemporaryFile:
+            def __init__(self, *args, **kwargs):
+                self.handle = real_named_temporary_file(*args, **kwargs)
+                self.name = self.handle.name
+                temporary_paths.append(Path(self.name))
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_exc):
+                self.handle.close()
+
+            def write(self, _content):
+                raise OSError("write failed")
+
+        monkeypatch.setattr(
+            runtime_mod.tempfile, "NamedTemporaryFile", FailingTemporaryFile
+        )
+
+        with pytest.raises(OSError, match="write failed"):
+            runtime_mod._write_validated_config(
+                config_path, SimulationConfig(**_minimal_fluid_config()), "{}"
+            )
+
+        assert config_path.read_text(encoding="utf-8") == "original"
+        assert len(temporary_paths) == 1
+        assert not temporary_paths[0].exists()
 
     def test_native_initialization_writes_and_displays_body_states(self, tmp_path):
         pytest.importorskip("pyvista")
@@ -2510,6 +2598,82 @@ with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTi
 
         assert visualizer_paths == [config_a, config_b]
         assert [call.args[1] for call in refresh_editor.call_args_list] == [config_a, config_b]
+
+    def test_shell_runtime_removes_replaced_pending_simulation_config(self, tmp_path, monkeypatch):
+        from sphinxsim import cli as cli_mod
+
+        cfg = SimulationConfig(**_minimal_fluid_config())
+        old_config = tmp_path / "old-runtime.json"
+        new_config = tmp_path / "new-runtime.json"
+        old_config.write_text("{}", encoding="utf-8")
+        new_config.write_text("{}", encoding="utf-8")
+
+        class FakeVisualizer:
+            legend_actor = None
+
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def _spatial_dim(self):
+                return 2
+
+            def _try_build_geometries(self, _ndim, with_particles=False):
+                return None
+
+            def _discover_latest_particle_vtps(self, _vtp_dir, generation_only=False):
+                return {}
+
+            def _populate_plotter(self, *_args):
+                return None
+
+            def _configure_default_view(self, *_args):
+                return None
+
+            def take_particle_simulation(self):
+                return object(), new_config
+
+            def _particle_generation_body_names(self):
+                return []
+
+        class FakePlotter:
+            def clear(self):
+                return None
+
+            def add_axes(self):
+                return None
+
+            def show_grid(self, **_kwargs):
+                return None
+
+            def show(self, **_kwargs):
+                return None
+
+            def render(self):
+                return None
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = FakePlotter()
+        runtime._pending_simulation = object()
+        runtime._pending_runtime_config_path = old_config
+        runtime._install_annotation_hover = lambda _visualizer: None
+        runtime.replay_animation = MagicMock()
+
+        monkeypatch.setitem(sys.modules, "pyvista", SimpleNamespace())
+        monkeypatch.setitem(sys.modules, "pyvistaqt", None)
+        monkeypatch.setattr(cli_mod, "PROJECT_ROOT", tmp_path)
+
+        with patch("sphinxsim.visualization.preview.ConfigVisualizer", FakeVisualizer):
+            assert runtime.show_or_update(
+                cfg,
+                resolved_config_path=tmp_path / "config.json",
+                with_particles=True,
+            ) == 0
+
+        assert not old_config.exists()
+        assert new_config.exists()
+        assert runtime._pending_runtime_config_path == new_config
+        runtime.discard_pending_simulation()
+        assert not new_config.exists()
 
     def test_shell_runtime_preserves_editor_when_preview_reset_is_canceled(
         self, tmp_path, monkeypatch

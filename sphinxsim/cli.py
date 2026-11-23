@@ -67,6 +67,7 @@ from sphinxsim.llm import get_llm
 from sphinxsim.llm.common import LLMRepairWarning, dump_simulation_config_json
 from sphinxsim.visualization.preview_runtime import (
     _ShellPreviewRuntime,
+    _remove_temporary_file,
     _write_validated_config,
 )
 
@@ -402,21 +403,29 @@ def cmd_run(args: argparse.Namespace) -> int:
         config_path = PROJECT_ROOT / ".build-temp" / config_path
 
     # Write the Pydantic-validated config to a temp file before passing to C++.
-    validated_config_path: str | None = None
-    tmp_cfg = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".json", delete=False, prefix="sphinxsim_run_",
-        dir=str(config_path.parent),
-    )
+    validated_config_path: Path | None = None
+    config_written = False
     try:
-        tmp_cfg.write(config.model_dump_json(indent=2, exclude_none=True))
-        tmp_cfg.close()
-        validated_config_path = tmp_cfg.name
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".json",
+            delete=False,
+            prefix="sphinxsim_run_",
+            dir=str(config_path.parent),
+        ) as tmp_cfg:
+            validated_config_path = Path(tmp_cfg.name)
+            tmp_cfg.write(config.model_dump_json(indent=2, exclude_none=True))
+        config_written = True
     except OSError as exc:
         print(f"Error writing validated config: {exc}", file=sys.stderr)
         return 1
+    finally:
+        if not config_written:
+            _remove_temporary_file(validated_config_path, "validated run config")
 
+    assert validated_config_path is not None
     try:
-        sim = sph.SPHSimulation(validated_config_path)
+        sim = sph.SPHSimulation(str(validated_config_path))
         print(f"Preview runtime config written to: {validated_config_path}")
 
         # Preserve the legacy shared root unless an isolated run directory is requested.
@@ -490,11 +499,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     finally:
         # Always clean up the validated temp config.
-        if validated_config_path:
-            try:
-                os.unlink(validated_config_path)
-            except OSError:
-                pass
+        _remove_temporary_file(validated_config_path, "validated run config")
 
 
 def cmd_preview(args: argparse.Namespace) -> int:

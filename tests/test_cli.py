@@ -527,6 +527,41 @@ class TestCLIRun:
 
         assert rc == 0
         load_native.assert_called_once_with(3)
+        assert list(build_temp_path.glob("sphinxsim_run_*.json")) == []
+
+    def test_run_write_failure_cleans_temp_config(
+        self, build_temp_path, monkeypatch, capsys
+    ):
+        import sphinxsim.cli as cli_mod
+
+        config_path = self._write_valid_3d(build_temp_path)
+        real_named_temporary_file = cli_mod.tempfile.NamedTemporaryFile
+        temporary_paths = []
+
+        class FailingTemporaryFile:
+            def __init__(self, *args, **kwargs):
+                self.handle = real_named_temporary_file(*args, **kwargs)
+                self.name = self.handle.name
+                temporary_paths.append(Path(self.name))
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_exc):
+                self.handle.close()
+
+            def write(self, _content):
+                raise OSError("write failed")
+
+        monkeypatch.setattr(
+            cli_mod.tempfile, "NamedTemporaryFile", FailingTemporaryFile
+        )
+        with patch("sphinxsim.cli.load_sphinxsys_core_nd", return_value=_FakeNativeModule):
+            assert main(["run", str(config_path)]) == 1
+
+        assert len(temporary_paths) == 1
+        assert not temporary_paths[0].exists()
+        assert "write failed" in capsys.readouterr().err
 
     def test_run_accepts_isolated_output_directory(self, build_temp_path, capsys):
         p = self._write_valid_3d(build_temp_path)

@@ -117,7 +117,12 @@ Design rule:
   a completed simulation. Both read the shared output directory, which can
   contain older files of the same kind.
 - Other shell commands release the retained simulation and delete its temporary
-  runtime config.
+  runtime config. Replacing a preview also releases the previous simulation
+  and config before adopting a newly generated one.
+- Treat each temporary runtime config as an owned resource: record its path
+  immediately after creation, close the file before cleanup, and remove it on
+  failure or when its simulation is discarded or finishes. Transfer ownership
+  explicitly when retaining a particle simulation; report cleanup failures.
 
 ### Persistent preview runtime responsibilities
 - `_ShellPreviewRuntime` is implemented in

@@ -748,6 +748,9 @@ def _configure_shell_readline() -> None:
     if sys.platform == "win32":
         # pyreadline3 does not recognize quoted delimiters; complete the whole line.
         readline.set_completer_delims("")
+    else:
+        delimiters = readline.get_completer_delims().replace("/", "")
+        readline.set_completer_delims(delimiters)
     readline.set_completer(_shell_readline_completer)
     readline.parse_and_bind("tab: complete")
 

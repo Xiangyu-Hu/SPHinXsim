@@ -819,6 +819,44 @@ class TestShellCompletion:
         ]
         assert _shell_completion_matches("update ", "con") == []
 
+    def test_completes_nested_path_arguments(self, tmp_path, monkeypatch):
+        nested_dir = tmp_path / "configs" / "nested"
+        nested_dir.mkdir(parents=True)
+        (nested_dir / "config.json").touch()
+        monkeypatch.chdir(tmp_path)
+
+        assert _shell_completion_matches("load ", "configs/ne") == [
+            "configs/nested/"
+        ]
+        assert _shell_completion_matches("load ", "configs/nested/con") == [
+            "configs/nested/config.json"
+        ]
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="GNU readline integration")
+    def test_readline_completes_nested_paths(self, tmp_path, monkeypatch):
+        from sphinxsim import cli as cli_mod
+
+        nested_dir = tmp_path / "configs" / "nested"
+        nested_dir.mkdir(parents=True)
+        (nested_dir / "config.json").touch()
+        monkeypatch.chdir(tmp_path)
+        readline = cli_mod.readline
+        assert readline is not None
+        old_completer = readline.get_completer()
+        old_delimiters = readline.get_completer_delims()
+        try:
+            cli_mod._configure_shell_readline()
+            assert "/" not in readline.get_completer_delims()
+            monkeypatch.setattr(readline, "get_line_buffer", lambda: "load configs/ne")
+            monkeypatch.setattr(readline, "get_begidx", lambda: len("load "))
+
+            assert cli_mod._shell_readline_completer("configs/ne", 0) == (
+                "configs/nested/"
+            )
+        finally:
+            readline.set_completer(old_completer)
+            readline.set_completer_delims(old_delimiters)
+
     def test_completes_home_relative_path(self, tmp_path, monkeypatch):
         monkeypatch.setenv("USERPROFILE" if sys.platform == "win32" else "HOME", str(tmp_path))
         (tmp_path / "config.json").touch()

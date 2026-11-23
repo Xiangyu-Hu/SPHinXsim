@@ -43,6 +43,7 @@ class CharacteristicDimensionName(str, Enum):
     VISCOSITY = "Viscosity"
     VELOCITY = "Velocity"
     SPEED = "Speed"
+    VOLUMETRIC_FLOW_RATE = "VolumetricFlowRate"
     ANGULAR_VELOCITY = "AngularVelocity"
     GRAVITY = "Gravity"
     ACCELERATION = "Acceleration"
@@ -940,6 +941,9 @@ class FluidBoundaryConditionConfig(BaseModel):
     oriented_box: Optional[str] = Field(default=None, min_length=1)
     type: FluidBoundaryConditionType
     inflow_speed: Optional[float] = Field(default=None, gt=0)
+    inflow_rate: Optional[float] = Field(default=None, gt=0)
+    inflow_area: Optional[float] = Field(default=None, gt=0)
+    flow_rate_recording: Optional[str] = Field(default=None, min_length=1)
     temperature: Optional[float] = None
     pressure: Optional[float] = None
     velocity: Optional[ParabolicVelocityConfig] = None
@@ -966,10 +970,16 @@ class FluidBoundaryConditionConfig(BaseModel):
         if self.type == FluidBoundaryConditionType.EMITTER and self.inflow_speed is None:
             raise ValueError("emitter boundary condition requires inflow_speed")
         if self.type == FluidBoundaryConditionType.BI_DIRECTIONAL:
-            if (self.pressure is None) == (self.velocity is None):
-                raise ValueError("bi_directional boundary condition requires exactly one of pressure or velocity")
+            n_given = (self.pressure is not None) + (self.velocity is not None) + (self.inflow_rate is not None)
+            if n_given != 1:
+                raise ValueError("bi_directional boundary condition requires exactly one of pressure, velocity or inflow_rate")
         elif self.velocity is not None:
             raise ValueError("velocity is only supported for bi_directional boundary conditions")
+        if self.inflow_rate is not None:
+            if self.type != FluidBoundaryConditionType.BI_DIRECTIONAL:
+                raise ValueError("inflow_rate is only supported for bi_directional boundary conditions")
+            if self.inflow_area is None:
+                raise ValueError("inflow_rate requires inflow_area")
         if self.mass_fractions is not None:
             if self.type != FluidBoundaryConditionType.BI_DIRECTIONAL:
                 raise ValueError("mass_fractions are only supported for bi_directional boundary conditions")
@@ -1020,6 +1030,39 @@ class RestartConfig(BaseModel):
     restore_step: int = Field(..., ge=0)
     save_interval: int = Field(default=1000, gt=0)
     summary_enabled: bool = False
+
+
+class RegressionTestQuantityConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    recording: str = Field(..., min_length=1)
+    method: Literal["time_average", "ensemble_average", "dynamic_time_warping"]
+    threshold_mean: Optional[float | List[float]] = None
+    threshold_variance: Optional[float | List[float]] = None
+    threshold: Optional[float] = None
+    filter: bool = False
+
+
+class RegressionTestConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    generate_database: bool = False
+    quantities: List[RegressionTestQuantityConfig] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _validate_quantities(self) -> "RegressionTestConfig":
+        names = [q.recording for q in self.quantities]
+        if len(names) != len(set(names)):
+            raise ValueError("regression_test quantities must use unique recording names")
+        if self.generate_database:
+            for q in self.quantities:
+                required = ["threshold"] if q.method == "dynamic_time_warping" else ["threshold_mean", "threshold_variance"]
+                for name in required:
+                    if getattr(q, name) is None:
+                        raise ValueError(
+                            f"regression_test recording '{q.recording}' requires {name} for generating the database"
+                        )
+        return self
 
 
 class FluidDynamicsSolverConfig(BaseModel):
@@ -1102,6 +1145,7 @@ class SimulationConfig(BaseModel):
 
     solver_parameters: SolverParametersConfig
     restart: Optional[RestartConfig] = None
+    regression_test: Optional[RegressionTestConfig] = None
 
     def _infer_spatial_dim(self) -> int | None:
         """Infer spatial dimension from available vector-valued config fields."""
@@ -1366,6 +1410,22 @@ class SimulationConfig(BaseModel):
         for observer in self.observers:
             if observer.observed_body not in observed_names:
                 raise ValueError("observer observed_body must reference an existing fluid/continuum body")
+
+        # Regression-test references, in C++ a name that no recording claims only fails at the end time
+        if self.regression_test is not None:
+            recording_names = {observer.name for observer in self.observers}
+            recording_names |= {entry.name for entry in self.energy_recording}
+            recording_names |= {
+                bc.flow_rate_recording
+                for bc in self.fluid_boundary_conditions
+                if bc.flow_rate_recording is not None and bc.inflow_rate is not None
+            }
+            for quantity in self.regression_test.quantities:
+                if quantity.recording not in recording_names:
+                    raise ValueError(
+                        f"regression_test recording '{quantity.recording}' must reference an observer name, "
+                        "an energy_recording name or the flow_rate_recording of an inflow_rate boundary condition"
+                    )
 
         # Body-constraint references
         real_body_names = {body.name for body in self.continuum_bodies} | {body.name for body in self.solid_bodies}

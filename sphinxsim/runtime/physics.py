@@ -82,7 +82,7 @@ def reject_inactive_fields(payload):
     for index, boundary in enumerate(payload.get("fluid_boundary_conditions", [])):
         boundary_type = boundary.get("type")
         fields = {"emitter": "inflow_speed on_schedule multi_species_phases volume_fractions",
-                  "bi_directional": "pressure velocity mass_fractions",
+                  "bi_directional": "pressure velocity mass_fractions inflow_rate inflow_area flow_rate_recording",
                   "free_stream": "buffer_box disposer_box target_speed t_ref"}.get(boundary_type, "")
         if boundary_type in ("emitter", "bi_directional"):
             material = fluid_materials.get(boundary.get("body_name"), {})

@@ -3,6 +3,10 @@
 #include "io_base_ck.h"
 #include "sph_simulation.h"
 
+#ifdef SPHINXSIM_PROJECT
+#include "sphinxsim_project.h"
+#endif
+
 namespace SPH
 {
 //=================================================================================================//
@@ -213,6 +217,15 @@ void RecordingBuilder::buildEnergyRecordingIfPresent(
             // Converts the reduced quantity (computed from internally-scaled
             // Mass/Velocity/Acceleration) back to physical Joules.
             Real energy_scaling_ref = scaling_config.getScalingRef("Energy");
+#ifdef SPHINXSIM_PROJECT
+            if (BaseIO *extra_recorder = addExtraEnergyRecording(
+                    sph_system, config_manager, main_methods, name, energy_scaling_ref, body, *gravity))
+            {
+                energy_io.add(extra_recorder);
+                has_entries = true;
+                continue;
+            }
+#endif
             auto &recorder = main_methods.template addIODynamics<
                 ScaledReducedQuantityRecording, TotalMechanicalEnergyCK>(
                 energy_scaling_ref, body, *gravity);
@@ -276,6 +289,14 @@ IODynamicsGroup &RecordingBuilder::addObserveRecorder(
             auto &observer_relation = sph_system.getRelationByName<
                 Contact<Relation<ObserverBody, RealBody>>>(relation_name);
 
+#ifdef SPHINXSIM_PROJECT
+            if (BaseIO *extra_recorder = addExtraObserveRecorder(
+                    config_manager, main_methods, *observer_config, observer_relation))
+            {
+                observer_io.add(extra_recorder);
+                continue;
+            }
+#endif
             observer_io.add(addObserveRecorderWithVariableConfig(
                 scaling_config, observer_config->observed_variable_, main_methods, observer_relation));
         }

@@ -7,6 +7,10 @@
 
 #include "force_on_structure.h"
 #include "thermal_dynamics_builder.hpp"
+
+#ifdef SPHINXSIM_PROJECT
+#include "sphinxsim_project.h"
+#endif
 namespace SPH
 {
 using namespace fluid_dynamics;
@@ -67,6 +71,9 @@ void FluidSimulationBuilder::buildSimulation(SPHSimulation &sim, const json &con
     ConstraintBuilder::buildConstraintsIfPresent(sim, main_methods, config);
     buildInitialConditionIfPresent(sim, main_methods, config);
     buildRestartFromFileIfPresent(sim, main_methods, config);
+#ifdef SPHINXSIM_PROJECT
+    buildExtraRegressionTestIfPresent(sph_system, config_manager, sph_solver.getTimeStepper(), config);
+#endif
     FluidDynamicsBuilder::buildBoundaryConditionsIfPresent(sim, main_methods, config);
     FluidDynamicsBuilder::buildParticleDeletionIfPresent(sim, main_methods);
     FluidDynamicsBuilder::buildParticleSortIfPresent(sim, main_methods);

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<meanvariance>
+    <MeanValue_Element>
+        <Snapshot_MeanValue FlowRate_RightInlet_0="0.990102172" />
+    </MeanValue_Element>
+    <Variance_Element>
+        <Snapshot_Variance FlowRate_RightInlet_0="0.0027276366" />
+    </Variance_Element>
+</meanvariance>

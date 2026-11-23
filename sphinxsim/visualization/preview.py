@@ -655,7 +655,7 @@ class ConfigVisualizer:
             # body particle clouds if particle_generation is enabled.
             if with_particles and self.config.particle_generation.bodies:
                 sim = sph.SPHSimulation(str(runtime_config_path))
-                sim.resetOutputRoot(str(vtp_output_dir), True)
+                sim.resetOutputRoot(str(vtp_output_dir))
                 sim.buildGeometries()
                 sim.generateParticles()
 

@@ -64,7 +64,7 @@ inline void runSimulation(const fs::path &config, const fs::path &input_dir,
     SPH::SPHSimulation sim(config);
     SPH::IO::getEnvironment().resetInputFolder(input_dir.string(), true);
     if (reset_output)
-        sim.resetOutputRoot(output_root, true);
+        sim.resetOutputRoot(output_root);
     sim.buildGeometries();
     sim.generateParticles();
     sim.buildSimulation();

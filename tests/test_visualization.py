@@ -172,6 +172,15 @@ def test_particle_sphere_splats_render_and_survive_actor_replacement(fluid_confi
             2 * np.count_nonzero(np.any(points_image > 10, axis=2))
         )
 
+        controller.set_clip_plane("WaterBody", (0, 0, 0), (1, 0, 0))
+        controller.set_clipping("WaterBody", True)
+        clipped_image = plotter.screenshot(return_img=True)
+        assert actor.GetMapper().GetInput().GetNumberOfPoints() == 1
+        assert 0 < np.count_nonzero(np.any(clipped_image > 10, axis=2)) < (
+            np.count_nonzero(np.any(splats_image > 10, axis=2))
+        )
+        controller.set_clipping("WaterBody", False)
+
         controller.set_colour("WaterBody", "Pressure")
         coloured = plotter.screenshot(return_img=True)[100:300, 50:350, :3].astype(float)
         assert np.any((coloured[:, :, 0] > 1.4 * coloured[:, :, 2]) & (coloured[:, :, 0] > 30))
@@ -243,6 +252,84 @@ def test_particle_sphere_splat_spacing_estimate_and_invalid_cloud(fluid_config):
     point = pv.PolyData(np.array([[0, 0, 0]], dtype=float))
     with pytest.raises(ValueError, match="Cannot estimate particle spacing"):
         _sphere_splat_radius(point, fluid_config)
+
+
+def test_particle_clipping_is_independent_and_survives_actor_replacement(fluid_config):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from vtkmodules.vtkRenderingCore import vtkActor, vtkPolyDataMapper
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    mesh = pv.PolyData(np.array([[-1.0, 0, 0], [1.0, 0, 0]], dtype=float))
+
+    def actor_for(data):
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputData(data)
+        actor = vtkActor()
+        actor.SetMapper(mapper)
+        return actor
+
+    plotter = SimpleNamespace(render=MagicMock())
+    controller = ParticleVisibility(plotter)
+    controller._update_legend = MagicMock()
+    controller.set_scene("run", fluid_config)
+    water = actor_for(mesh)
+    wall = actor_for(mesh.copy())
+    controller.add_actor("WaterBody", water, mesh, initialized=True)
+    controller.add_actor("WallBoundary", wall, mesh, initialized=True)
+
+    controller.set_clip_plane(
+        "WaterBody", (0.25, 0.0, 0.0), (2.0, 0.0, 0.0), inverted=True
+    )
+    controller.set_clipping("WaterBody", True)
+    clipped_water = water.GetMapper().GetInput()
+    assert clipped_water.GetNumberOfPoints() == 1
+    assert clipped_water.GetPoint(0) == pytest.approx((1.0, 0.0, 0.0))
+    assert wall.GetMapper().GetInput().GetNumberOfPoints() == 2
+    with pytest.raises(ValueError, match="finite, non-zero length"):
+        controller.set_clip_plane("WallBoundary", (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+
+    controller.set_sphere_splats("WaterBody", True)
+    assert water.GetMapper().GetInput().GetNumberOfPoints() == 1
+    replacement = actor_for(mesh.copy())
+    controller.add_actor("WaterBody", replacement, mesh, initialized=True)
+    assert replacement.GetMapper().GetInput().GetNumberOfPoints() == 1
+
+    controller.set_scene("next-run", fluid_config)
+    assert not controller.clipped_bodies
+    assert replacement.GetMapper().GetInput().GetNumberOfPoints() == 2
+
+
+@requires_desktop
+def test_particle_clip_plane_changes_rendered_point_cloud(fluid_config):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    mesh = pv.PolyData(np.array([[-0.5, 0, 0], [0.5, 0, 0]], dtype=float))
+    plotter = pv.Plotter(off_screen=True, window_size=(400, 400))
+    plotter.set_background("black")
+    controller = ParticleVisibility(plotter)
+    controller._update_legend = lambda: None
+    controller.set_scene("run", fluid_config)
+    try:
+        actor = plotter.add_mesh(mesh, color="white", style="points", point_size=20)
+        controller.add_actor("WaterBody", actor, mesh)
+        plotter.camera_position = [(0, 0, 3), (0, 0, 0), (0, 1, 0)]
+        plotter.enable_parallel_projection()
+        plotter.camera.parallel_scale = 1
+        plotter.show(auto_close=False)
+        before = plotter.screenshot(return_img=True)
+
+        controller.set_clip_plane("WaterBody", (0, 0, 0), (1, 0, 0))
+        controller.set_clipping("WaterBody", True)
+        after = plotter.screenshot(return_img=True)
+
+        before_pixels = np.count_nonzero(np.any(before > 10, axis=2))
+        after_pixels = np.count_nonzero(np.any(after > 10, axis=2))
+        assert 0 < after_pixels < before_pixels
+    finally:
+        plotter.close()
 
 
 @requires_desktop

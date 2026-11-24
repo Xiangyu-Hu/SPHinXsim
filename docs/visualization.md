@@ -175,8 +175,8 @@ returns.
 Visibility and color selections persist as frames change during a run and
 shell replay. Switching to another case or run resets them. The preview also
 shows the physical time stored in the displayed solver snapshots; if bodies
-are displaying different times, they are listed separately. Generated-particle
-iterations are not simulation times.
+are displaying different times, the overlay shows the latest physical time.
+Generated-particle iterations are not simulation times.
 
 ## CLI usage
 

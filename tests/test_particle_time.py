@@ -24,7 +24,7 @@ def test_time_tracks_per_body_generation_missing_and_scene_reset(caplog):
     display.update("Wall", mesh(0))
     assert text(plotter) == "Time: 0 s"
     display.update("Water", mesh(0.125))
-    assert text(plotter) == "Time: Wall: 0 s, Water: 0.125 s"
+    assert text(plotter) == "Time: 0.125 s"
     display.update("Wall", mesh(0.125))
     assert text(plotter) == "Time: 0.125 s"
     display.update("Water", mesh(200), generation=True)

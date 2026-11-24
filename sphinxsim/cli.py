@@ -682,6 +682,8 @@ def _shell_completion_matches(prefix: str, text: str) -> list[str]:
         if text.startswith("~"):
             relative = os.path.relpath(match, os.path.expanduser("~"))
             candidate = "~" if relative == "." else os.path.join("~", relative)
+        if sys.platform == "win32" and "/" in text and "\\" not in text:
+            candidate = candidate.replace("\\", "/")
         if os.path.isdir(match):
             candidate += "/"
         results.append(candidate)
@@ -748,6 +750,9 @@ def _configure_shell_readline() -> None:
     if sys.platform == "win32":
         # pyreadline3 does not recognize quoted delimiters; complete the whole line.
         readline.set_completer_delims("")
+    else:
+        delimiters = readline.get_completer_delims().replace("/", "")
+        readline.set_completer_delims(delimiters)
     readline.set_completer(_shell_readline_completer)
     readline.parse_and_bind("tab: complete")
 

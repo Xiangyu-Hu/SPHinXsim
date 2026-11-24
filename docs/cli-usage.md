@@ -131,11 +131,14 @@ Configuration: WaterBody (fluid) + WallBoundary (solid)
 Goodbye!
 ```
 
-On interactive terminals, press **Tab** to complete shell commands and file
-arguments (such as `load` and `generate` paths). Use the **Up** and **Down**
-arrow keys to navigate commands entered during the current shell session.
+On interactive terminals, press **Tab** to complete shell commands and paths
+for file arguments such as `load`, `generate`, and `preview --screenshot`.
+Path completion works with nested directories and `~` paths; directories are
+completed with a trailing slash so you can continue into them. Use the **Up**
+and **Down** arrow keys to navigate commands entered during the current shell
+session.
 On Windows, the installed `pyreadline3` dependency provides this support.
-Windows paths may use backslashes; quote paths containing spaces.
+Windows paths may use forward slashes or backslashes; quote paths containing spaces.
 
 In shell mode you can also use slash-prefixed commands without quotes around the description, for example:
 

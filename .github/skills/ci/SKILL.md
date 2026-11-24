@@ -54,6 +54,9 @@ equivalent to the Linux native desktop and screenshot coverage.
   `SPHINXSIM_DESKTOP_TESTS=1`, even when `off_screen=True`: VTK's OpenGL
   initialization can abort without a display before pytest can catch an error.
   Include those tests in the Linux Xvfb step.
+- Install the `chatbot` extra in jobs that run the real workbench desktop smoke
+  test: its embedded Chainlit server starts in a child process using the same
+  Python environment as pytest.
 - If moving real desktop coverage to Windows, macOS, or the SYCL job, configure
   and validate an appropriate display/rendering backend there; do not assume
   that running `pytest tests/` provides a display.

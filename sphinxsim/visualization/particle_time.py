@@ -48,13 +48,8 @@ class ParticleTimeDisplay:
                 self.shown = False
             return
 
-        values = set(self.times.values())
-        if len(values) == 1:
-            text = f"Time: {next(iter(values)):.6g} s"
-        else:
-            text = "Time: " + ", ".join(
-                f"{name}: {value:.6g} s" for name, value in sorted(self.times.items())
-            )
+        current_time = max(self.times.values())
+        text = f"Time: {current_time:.6g} s"
         self.plotter.subplot(0, 0)
         actor = self.plotter.add_text(
             text, name=_TIME_ACTOR, position=(0.50, PARTICLE_OVERLAY_CENTER_Y),

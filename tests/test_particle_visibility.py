@@ -465,7 +465,7 @@ def test_native_initialized_particle_colouring_persists_into_replay(tmp_path, mo
         runtime._live_playback_queue = [(final.time, {"WaterBody": final.path})]
         runtime._refresh_live_particles()
         assert plotter.renderer.actors["particle-frame-time"].GetInput() == (
-            f"Time: WallBoundary: 0 s, WaterBody: {final.time:.6g} s"
+            f"Time: {final.time:.6g} s"
         )
         assert controller.colouring["WaterBody"] == "Pressure"
         assert controller.actors["WaterBody"].GetMapper().GetScalarRange() == pytest.approx(

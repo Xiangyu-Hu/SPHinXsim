@@ -291,6 +291,7 @@ def test_annotation_toggle_tracks_real_label_during_hover(editor):
 
 
 def test_desktop_result_binds_new_annotation_actors(editor, tmp_path, monkeypatch):
+    pytest.importorskip("pyvista")
     app, runtime, session, path = editor
     work = tmp_path / "job"
     result = work / "result"

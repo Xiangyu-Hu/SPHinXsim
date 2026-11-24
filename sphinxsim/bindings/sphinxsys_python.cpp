@@ -53,8 +53,29 @@ PYBIND11_MODULE(MODULE_NAME, m)
         .def("stepTo", &SPHSimulation::stepTo, py::arg("target_time"),
              "Advance simulation to target physical time")
         .def("stepBy", &SPHSimulation::stepBy, py::arg("interval"),
-             "Advance simulation by interval in physical time");
-
+             "Advance simulation by interval in physical time")
+          // NEW binding: add a Python-visible method named getPhysicalTime.
+          .def("getPhysicalTime",
+               // Connect that Python method to the C++ member-function pointer.
+               &SPHSimulation::getPhysicalTime,
+               "Return current physical simulation time")
+          // NEW binding: add a Python-visible method named getMeanVelocity
+          .def("getMeanVelocity",
+               // Connect the Python method to the C++ velocity-averaging implementation.
+               &SPHSimulation::getMeanVelocity,
+               // Name the Python argument so calls can use body_name=... .
+               py::arg("body_name"),
+               "Return arithmetic mean particle velocity of a body")
+          // NEW binding: register the Python method for changing horizontal control.
+          .def("setControlAcceleration",
+               // Connect Python invocation to the C++ force-update implementation.
+               &SPHSimulation::setControlAcceleration,
+               // Name the Python argument so calls can use body_name=... .
+               py::arg("body_name"),
+               // Expose the acceleration argument name ax.
+               py::arg("ax"),
+               // Close the .def call and the SPHSimulation method-registration chain.
+               "Set horizontal control acceleration for a body");
     // Bind geometry builder utilities
     py::class_<GeometryBuilder>(m, "GeometryBuilder")
         .def(py::init<const std::filesystem::path &>(), py::arg("config_path"),

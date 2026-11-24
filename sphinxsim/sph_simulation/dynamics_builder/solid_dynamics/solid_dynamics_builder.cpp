@@ -3,7 +3,11 @@
 #include "material_builder.h"
 #include "sph_simulation.h"
 #include "structure_surface_motion.h"
+#include "solid_constraint.hpp"
+#include "geometry_builder.h"
 
+#include <cmath>
+#include <stdexcept>
 namespace SPH
 {
 //=================================================================================================//
@@ -14,6 +18,9 @@ void SolidDynamicsBuilder::buildSolidsDynamicsIfPresentInFluid(
 {
     auto &sph_system = sim.getSPHSystem();
     auto &config_manager = sim.getConfigManager();
+    const json config = sim.loadConfig();
+    auto &scaling_config =
+        config_manager.getEntity<ScalingConfig>("ScalingConfig");
     auto &solid_bodies_config = config_manager.getEntity<SPHBodiesConfig>("SolidBodiesConfig");
     auto &time_stepper = sim.getSPHSolver().getTimeStepper();
     auto &solid_time_step = main_methods.addReduceDynamicsGroup<ReduceMin<Real>>();
@@ -22,6 +29,7 @@ void SolidDynamicsBuilder::buildSolidsDynamicsIfPresentInFluid(
     auto &elastic_correction_matrix = main_methods.addParticleDynamicsGroup();
     auto &solid_relaxation_1st_half = main_methods.addParticleDynamicsGroup();
     auto &solid_relaxation_2nd_half = main_methods.addParticleDynamicsGroup();
+    auto &solid_spring_constraints = main_methods.addParticleDynamicsGroup();
     auto &elastic_normal_direction = main_methods.addParticleDynamicsGroup();
 
     for (const auto &solid_config : solid_bodies_config)
@@ -31,6 +39,45 @@ void SolidDynamicsBuilder::buildSolidsDynamicsIfPresentInFluid(
 
         if (solid_body.isMatterMaterial<ElasticSolid>())
         {
+            if (config.contains("body_constraints"))
+            {
+                for (const auto &spring : config.at("body_constraints"))
+                {
+                    if (spring.at("type").get<std::string>() != "spring" ||
+                        spring.at("body_name").get<std::string>() != body_name)
+                    {
+                        continue;
+                    }
+
+                    const Real stiffness = scaling_config.jsonToReal(
+                        spring.at("stiffness"), "SpringStiffness");
+
+                    if (!std::isfinite(stiffness) || stiffness < Real(0.0))
+                    {
+                        throw std::runtime_error(
+                            "Spring stiffness must be finite and non-negative.");
+                    }
+
+                    if (spring.contains("region"))
+                    {
+                        auto &box = config_manager.getEntity<OrientedBox>(
+                            spring.at("region").get<std::string>());
+
+                        auto &body_part =
+                            solid_body.addBodyPart<OrientedBoxByParticle>(box);
+
+                        solid_spring_constraints.add(
+                            &main_methods.addStateDynamics<SpringConstrainCK>(
+                                body_part, stiffness));
+                    }
+                    else
+                    {
+                        solid_spring_constraints.add(
+                            &main_methods.addStateDynamics<SpringConstrainCK>(
+                                solid_body, stiffness));
+                    }
+                }
+            }
             initialize_displacement.add(
                 &main_methods.addStateDynamics<
                     FSI::InitializeDisplacementCK>(solid_body));
@@ -65,7 +112,10 @@ void SolidDynamicsBuilder::buildSolidsDynamicsIfPresentInFluid(
     if (initialize_displacement.hasDynamics())
     {
         auto &solid_relaxation = main_methods.addParticleDynamicsGroup();
-        solid_relaxation.add(&solid_relaxation_1st_half).add(&solid_relaxation_2nd_half);
+        solid_relaxation
+            .add(&solid_relaxation_1st_half)
+            .add(&solid_spring_constraints)
+            .add(&solid_relaxation_2nd_half);
 
         auto &initialization_pipeline = sim.getInitializationPipeline();
         initialization_pipeline.insert_hook(

@@ -468,6 +468,7 @@ def test_particle_rescale_ranges_persist_across_frames_and_reset_with_scene(flui
         plotter.close()
 
 
+@requires_desktop
 def test_particle_palette_updates_per_body_and_representation(fluid_config):
     pv = pytest.importorskip("pyvista")
     np = pytest.importorskip("numpy")

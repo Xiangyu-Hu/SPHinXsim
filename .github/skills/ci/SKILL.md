@@ -50,10 +50,14 @@ equivalent to the Linux native desktop and screenshot coverage.
 - Keep headless or mocked graphics tests in the general test suite when they
   are suitable for cross-platform execution. Tests requiring a real Qt display
   must have an explicit display setup in each CI job expected to run them.
-- Gate tests that construct a real PyVista plotter with
-  `SPHINXSIM_DESKTOP_TESTS=1`, even when `off_screen=True`: VTK's OpenGL
-  initialization can abort without a display before pytest can catch an error.
-  Include those tests in the Linux Xvfb step.
+- Audit tests that construct `pyvista.Plotter` or another real VTK render
+  window. Gate each such test with the suite's `requires_desktop` marker, which
+  skips it unless `SPHINXSIM_DESKTOP_TESTS=1`; `off_screen=True` is not a
+  substitute for this gate because PyVista/VTK may initialize OpenGL during
+  plotter construction and abort before pytest can catch an error. Keep these
+  tests in the ordinary test commands so they report as skipped, and include
+  their files in the Linux Xvfb desktop step so they run there. Apply the same
+  rule to any other CI job that runs tests without a display.
 - Install the `chatbot` extra in jobs that run the real workbench desktop smoke
   test: its embedded Chainlit server starts in a child process using the same
   Python environment as pytest.

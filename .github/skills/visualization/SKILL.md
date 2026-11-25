@@ -69,6 +69,10 @@ Design rule:
   and scene-population logic in `preview.py`.
 - The runtime uses `JsonEditorMixin` for the preview configuration dock. See the
   `json-editor` skill for editor UI and JSON round-tripping details.
+- When a persistent preview is rebuilt with the same spatial dimension, preserve
+  the current camera position and projection so actions such as
+  `preview --with-particles` do not unexpectedly reset the user's view. Let a
+  dimension change select its appropriate default view.
 - For JSON-editor preview toggles, `ConfigVisualizer` groups annotation and
   visualization actors by canonical dot-separated config path. The runtime
   clears this binding when rebuilding the plotter and rebinds it after scene
@@ -180,6 +184,14 @@ For each `config.body_constraints` item:
 
 ## Testing playbook
 Use `tests/test_visualization.py`.
+
+0. Run pytest tasks that share the same repository/temp environment serially.
+- Do not launch multiple pytest commands in parallel: the configured shared
+  pytest temporary root can be removed or reused by concurrent runs, causing
+  unrelated `tmp_path` setup failures such as `FileNotFoundError`.
+- Run one test command to completion before starting the next. If separate
+  suites need independent parallel runs, first give each invocation a distinct
+  `--basetemp` directory and ensure those directories are not shared.
 
 1. Label unit tests
 - Validate generated text content for each annotation function.

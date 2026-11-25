@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import os
@@ -86,6 +87,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self.plotter: Any | None = None
         self.last_signature: str | None = None
         self._using_background_plotter = False
+        self._preview_spatial_dim: int | None = None
         self._hover_interactor: Any | None = None
         self._hover_observer_tag: Any | None = None
         self._annotation_click_observer_tag: Any | None = None
@@ -854,6 +856,39 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             force=True,
         )
 
+    def _capture_camera_state(self) -> dict[str, Any] | None:
+        if self.plotter is None:
+            return None
+        try:
+            camera_position = self.plotter.camera_position
+            position = tuple(
+                tuple(float(coordinate) for coordinate in point)
+                for point in camera_position
+            )
+            if len(position) != 3:
+                return None
+            camera = self.plotter.camera
+            return {
+                "position": position,
+                "parallel_projection": bool(camera.parallel_projection),
+                "parallel_scale": float(camera.parallel_scale),
+                "view_angle": float(camera.view_angle),
+            }
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return None
+
+    def _restore_camera_state(self, state: dict[str, Any] | None) -> None:
+        if self.plotter is None or state is None:
+            return
+        try:
+            camera = self.plotter.camera
+            camera.parallel_projection = state["parallel_projection"]
+            camera.parallel_scale = state["parallel_scale"]
+            camera.view_angle = state["view_angle"]
+            self.plotter.camera_position = copy.deepcopy(state["position"])
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return
+
     def show_or_update(
         self,
         config: SimulationConfig,
@@ -901,6 +936,12 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         )
 
         ndim = visualizer._spatial_dim()
+        preserve_camera = (
+            self.plotter is not None
+            and self._using_background_plotter
+            and self._preview_spatial_dim == ndim
+        )
+        camera_state = self._capture_camera_state() if preserve_camera else None
         vtp_dir: Path | None = None
         latest_particle_vtps: dict[str, Path] = {}
 
@@ -1056,6 +1097,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             if configure_layout is not None:
                 configure_layout(self.plotter)
             visualizer._configure_default_view(self.plotter, ndim)
+            if preserve_camera:
+                self._restore_camera_state(camera_state)
             self.plotter.add_axes()
             self.plotter.show_grid(font_size=10, color=(0.25, 0.25, 0.25), bold=False)
 
@@ -1074,6 +1117,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 self.plotter.render()
             except Exception:
                 pass
+            self._preview_spatial_dim = ndim
             if with_particles and self._pending_simulation is not None:
                 self.replay_animation(relaxation=True, _automatic=True)
             return 0

@@ -2638,6 +2638,96 @@ with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTi
         assert rc == 0
         assert not runtime._using_background_plotter
 
+    def test_shell_particle_preview_preserves_current_camera(self, tmp_path, monkeypatch):
+        from sphinxsim import cli as cli_mod
+
+        cfg = SimulationConfig(**_minimal_fluid_config())
+
+        class FakeCamera:
+            parallel_projection = True
+            parallel_scale = 3.5
+            view_angle = 27.0
+
+        class FakePlotter:
+            def __init__(self):
+                self.camera = FakeCamera()
+                self.camera_position = [
+                    (4.0, 5.0, 6.0),
+                    (0.5, 0.5, 0.0),
+                    (0.0, 1.0, 0.0),
+                ]
+
+            def clear(self):
+                pass
+
+            def add_axes(self):
+                pass
+
+            def show_grid(self, **kwargs):
+                pass
+
+            def render(self):
+                pass
+
+        class FakeVisualizer:
+            used_cpp_bounds = False
+            legend_actor = None
+
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def _spatial_dim(self):
+                return 2
+
+            def _try_build_geometries(self, ndim, with_particles=False):
+                return None
+
+            def _discover_latest_particle_vtps(self, vtp_dir, generation_only=False):
+                return {}
+
+            def _populate_plotter(self, *args):
+                pass
+
+            def take_particle_simulation(self):
+                return None
+
+            def _particle_generation_body_names(self):
+                return []
+
+            def _configure_default_view(self, plotter, ndim):
+                plotter.camera_position = [
+                    (0.0, 0.0, 10.0),
+                    (0.0, 0.0, 0.0),
+                    (0.0, 1.0, 0.0),
+                ]
+                plotter.camera.parallel_scale = 10.0
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = FakePlotter()
+        runtime._using_background_plotter = True
+        runtime._preview_spatial_dim = 2
+        runtime._json_editor = {"refresh": lambda *_args: True}
+        monkeypatch.setitem(sys.modules, "pyvista", SimpleNamespace())
+        monkeypatch.setattr(cli_mod, "PROJECT_ROOT", tmp_path)
+
+        with patch("sphinxsim.visualization.preview.ConfigVisualizer", FakeVisualizer):
+            result = runtime.show_or_update(
+                cfg,
+                resolved_config_path=tmp_path / "config.json",
+                with_particles=True,
+                force=True,
+            )
+
+        assert result == 0
+        assert runtime.plotter.camera_position == (
+            (4.0, 5.0, 6.0),
+            (0.5, 0.5, 0.0),
+            (0.0, 1.0, 0.0),
+        )
+        assert runtime.plotter.camera.parallel_projection is True
+        assert runtime.plotter.camera.parallel_scale == 3.5
+        assert runtime.plotter.camera.view_angle == 27.0
+
     def test_shell_runtime_rebinds_editor_when_preview_path_changes(self, tmp_path, monkeypatch):
         """An existing editor must follow the newly loaded shell config file."""
         from sphinxsim import cli as cli_mod

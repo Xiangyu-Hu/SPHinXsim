@@ -65,6 +65,8 @@ class ParticleVisibility:
         self.meshes: dict[str, Any] = {}
         self.colouring: dict[str, str] = {}
         self.palettes: dict[str, str] = {}
+        self.rescale_ranges: dict[tuple[str, str], tuple[float, float]] = {}
+        self.rescale_modes: dict[tuple[str, str], str] = {}
         self.sphere_splats: set[str] = set()
         self.opaque_bodies: set[str] = set()
         self._point_mappers: dict[str, tuple[Any, Any]] = {}
@@ -81,6 +83,8 @@ class ParticleVisibility:
             self.hidden.clear()
             self.colouring.clear()
             self.palettes.clear()
+            self.rescale_ranges.clear()
+            self.rescale_modes.clear()
             self.sphere_splats.clear()
             self.opaque_bodies.clear()
             self._point_mappers.clear()
@@ -191,6 +195,43 @@ class ParticleVisibility:
         self._apply_colouring(body)
         self.plotter.render()
 
+    def rescale_to_current_range(self, body: str) -> None:
+        field = self.colouring.get(body)
+        if field is None or body not in self.scalar_bars:
+            raise ValueError(f"Particle color range is unavailable for {body!r}")
+        fields = self.colourable_fields(body)
+        if field not in fields:
+            raise ValueError(f"Particle field {field!r} is unavailable for {body!r}")
+        values = np.asarray(self.meshes[body].point_data[field]).astype(float)
+        if fields[field]:
+            values = np.linalg.norm(values, axis=1)
+        finite = values[np.isfinite(values)]
+        if not finite.size:
+            raise ValueError(f"Particle field {field!r} has no finite data for {body!r}")
+        low, high = float(finite.min()), float(finite.max())
+        if low == high:
+            padding = max(abs(low) * 0.01, 1e-12)
+            low, high = low - padding, high + padding
+        self._set_rescale_range(body, field, low, high, "current")
+
+    def set_prescribed_range(self, body: str, low: float, high: float) -> None:
+        field = self.colouring.get(body)
+        if field is None or body not in self.scalar_bars:
+            raise ValueError(f"Particle color range is unavailable for {body!r}")
+        self._set_rescale_range(body, field, low, high, "prescribed")
+
+    def _set_rescale_range(
+        self, body: str, field: str, low: float, high: float, mode: str
+    ) -> None:
+        low, high = float(low), float(high)
+        if not np.isfinite(low) or not np.isfinite(high) or low >= high:
+            raise ValueError("The minimum color range must be finite and less than the maximum.")
+        key = (body, field)
+        self.rescale_ranges[key] = (low, high)
+        self.rescale_modes[key] = mode
+        self._apply_colouring(body)
+        self.plotter.render()
+
     def _remove_scalar_bar(self, body: str) -> None:
         bar = self.scalar_bars.pop(body, None)
         if bar is not None:
@@ -256,6 +297,7 @@ class ParticleVisibility:
             if low == high:
                 padding = max(abs(low) * 0.01, 1e-12)
                 low, high = low - padding, high + padding
+        low, high = self.rescale_ranges.get((body, field), (low, high))
 
         from vtkmodules.vtkRenderingAnnotation import vtkScalarBarActor
         from vtkmodules.vtkRenderingCore import vtkColorTransferFunction
@@ -409,10 +451,12 @@ def install_particle_menu(widget: Any, controller: ParticleVisibility) -> Any:
                 self.menu.deleteLater()
             self.menu = QtWidgets.QMenu(widget)
             self.menu.setObjectName("sphinxsim-particle-colour-bar-menu")
-            group = QtGui.QActionGroup(self.menu)
+            presets = self.menu.addMenu("Color preset")
+            presets.setObjectName("sphinxsim-particle-colour-presets")
+            group = QtGui.QActionGroup(presets)
             group.setExclusive(True)
             for name in _PARTICLE_PALETTES:
-                action = self.menu.addAction(name)
+                action = presets.addAction(name)
                 action.setCheckable(True)
                 action.setChecked(controller.palettes.get(body, _DEFAULT_PALETTE) == name)
                 group.addAction(action)
@@ -423,6 +467,74 @@ def install_particle_menu(widget: Any, controller: ParticleVisibility) -> Any:
                         controller.set_palette(body, selected)
 
                 action.triggered.connect(choose_palette)
+            field = controller.colouring.get(body)
+            key = (body, field) if field is not None else None
+            rescale = self.menu.addMenu("Rescale")
+            rescale.setObjectName("sphinxsim-particle-rescale")
+            range_group = QtGui.QActionGroup(rescale)
+            range_group.setExclusive(True)
+            mode = controller.rescale_modes.get(key) if key is not None else None
+            current = rescale.addAction("Current range")
+            current.setObjectName("sphinxsim-particle-current-range")
+            current.setCheckable(True)
+            current.setChecked(mode == "current")
+            range_group.addAction(current)
+
+            def choose_current_range() -> None:
+                if (scene_key == controller.scene_key and body in controller.scalar_bars
+                        and controller.colouring.get(body) == field):
+                    controller.rescale_to_current_range(body)
+
+            current.triggered.connect(choose_current_range)
+            prescribed = rescale.addAction("Prescribed range...")
+            prescribed.setObjectName("sphinxsim-particle-prescribed-range")
+            prescribed.setCheckable(True)
+            prescribed.setChecked(mode == "prescribed")
+            range_group.addAction(prescribed)
+
+            def choose_prescribed_range() -> None:
+                if (scene_key != controller.scene_key or body not in controller.scalar_bars
+                        or controller.colouring.get(body) != field):
+                    return
+                actor = controller.actors.get(body)
+                if actor is None:
+                    return
+                low, high = actor.GetMapper().GetScalarRange()
+                dialog = QtWidgets.QDialog(widget)
+                dialog.setWindowTitle("Prescribed color range")
+                layout = QtWidgets.QFormLayout(dialog)
+                minimum = QtWidgets.QDoubleSpinBox(dialog)
+                minimum.setObjectName("sphinxsim-particle-range-minimum")
+                minimum.setRange(-1e100, 1e100)
+                minimum.setDecimals(12)
+                minimum.setValue(low)
+                maximum = QtWidgets.QDoubleSpinBox(dialog)
+                maximum.setObjectName("sphinxsim-particle-range-maximum")
+                maximum.setRange(-1e100, 1e100)
+                maximum.setDecimals(12)
+                maximum.setValue(high)
+                layout.addRow("Minimum", minimum)
+                layout.addRow("Maximum", maximum)
+                buttons = QtWidgets.QDialogButtonBox(
+                    QtWidgets.QDialogButtonBox.StandardButton.Ok
+                    | QtWidgets.QDialogButtonBox.StandardButton.Cancel,
+                    parent=dialog,
+                )
+                buttons.accepted.connect(dialog.accept)
+                buttons.rejected.connect(dialog.reject)
+                layout.addRow(buttons)
+                if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+                    current.setChecked(controller.rescale_modes.get(key) == "current")
+                    prescribed.setChecked(controller.rescale_modes.get(key) == "prescribed")
+                    return
+                try:
+                    controller.set_prescribed_range(body, minimum.value(), maximum.value())
+                except ValueError as exc:
+                    QtWidgets.QMessageBox.warning(widget, "Prescribed color range", str(exc))
+                    current.setChecked(controller.rescale_modes.get(key) == "current")
+                    prescribed.setChecked(controller.rescale_modes.get(key) == "prescribed")
+
+            prescribed.triggered.connect(choose_prescribed_range)
             self.menu.popup(position)
 
         def _show_menu(self, body: str, position: Any, scene_key: Any) -> None:

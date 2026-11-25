@@ -338,6 +338,49 @@ def test_particle_splat_selection_survives_live_and_replay(fluid_config, tmp_pat
 
 
 @requires_desktop
+def test_particle_rescale_ranges_persist_across_frames_and_reset_with_scene(fluid_config):
+    np = pytest.importorskip("numpy")
+    pv = pytest.importorskip("pyvista")
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    plotter = pv.Plotter(off_screen=True)
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", fluid_config)
+    try:
+        first = pv.PolyData(np.array([[0, 0, 0], [1, 0, 0]], dtype=float))
+        first.point_data["Pressure"] = [-2.0, 4.0]
+        first.field_data["ScalingReference_Pressure"] = [10.0]
+        actor = plotter.add_mesh(first, color="red")
+        controller.add_actor("WaterBody", actor, first, initialized=True)
+        controller.set_colour("WaterBody", "Pressure")
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((-10, 10))
+        controller.rescale_to_current_range("WaterBody")
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((-2, 4))
+
+        updated = pv.PolyData(np.array([[0, 0, 0], [1, 0, 0]], dtype=float))
+        updated.point_data["Pressure"] = [-100.0, 100.0]
+        actor = plotter.add_mesh(updated, color="red")
+        controller.add_actor("WaterBody", actor, updated, initialized=True)
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((-2, 4))
+
+        controller.set_prescribed_range("WaterBody", -1.5, 3.5)
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((-1.5, 3.5))
+        later = pv.PolyData(np.array([[0, 0, 0], [1, 0, 0]], dtype=float))
+        later.point_data["Pressure"] = [-5.0, 5.0]
+        actor = plotter.add_mesh(later, color="red")
+        controller.add_actor("WaterBody", actor, later, initialized=True)
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((-1.5, 3.5))
+
+        with pytest.raises(ValueError, match="minimum color range"):
+            controller.set_prescribed_range("WaterBody", 3.5, -1.5)
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((-1.5, 3.5))
+        controller.set_scene("new-config", fluid_config)
+        assert not controller.rescale_ranges
+        assert not controller.rescale_modes
+    finally:
+        plotter.close()
+
+
 def test_particle_palette_updates_per_body_and_representation(fluid_config):
     pv = pytest.importorskip("pyvista")
     np = pytest.importorskip("numpy")

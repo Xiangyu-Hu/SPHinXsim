@@ -86,6 +86,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._particle_time_display: Any | None = None
         self._particle_scene_path: Path | None = None
         self._particle_scene_generation = 0
+        self._particle_scene_config_signature: str | None = None
         self._pending_simulation: Any | None = None
         self._pending_runtime_config_path: Path | None = None
         self._pending_initialized = False
@@ -116,6 +117,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._particle_visibility = None
         self._particle_menu_filter = None
         self._particle_scene_path = None
+        self._particle_scene_config_signature = None
         self.last_signature = None
         self._using_background_plotter = False
 
@@ -924,9 +926,17 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 draw_sidebar(self.plotter)
             visualizer._populate_plotter(self.plotter, vtp_dir, latest_particle_vtps)
             if self._particle_visibility is not None:
-                if resolved_config_path != self._particle_scene_path or with_particles:
+                config_signature = json.dumps(
+                    config.model_dump(exclude_none=True), sort_keys=True
+                )
+                if (
+                    resolved_config_path != self._particle_scene_path
+                    or config_signature != self._particle_scene_config_signature
+                    or with_particles
+                ):
                     self._particle_scene_generation += 1
                     self._particle_scene_path = resolved_config_path
+                    self._particle_scene_config_signature = config_signature
                 self._particle_visibility.set_scene(
                     ("preview", self._particle_scene_generation), config, visualizer.legend_actor
                 )

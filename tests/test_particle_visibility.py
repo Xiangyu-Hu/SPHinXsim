@@ -46,6 +46,7 @@ def test_hidden_particle_does_not_change_other_legend_text_pixels():
 @pytest.mark.parametrize("surface", ["workbench", "shell"])
 def test_particle_legend_menu_and_actor_replacement(surface):
     pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
     pytest.importorskip("pyvistaqt")
     pytest.importorskip("PySide6")
     from PySide6 import QtCore, QtTest, QtWidgets
@@ -131,7 +132,7 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         options["Opaque (0%)"].trigger()
         event_filter.menu.close()
         mesh = pv.Sphere()
-        mesh.point_data["Pressure"] = [0.2] * mesh.n_points
+        mesh.point_data["Pressure"] = np.linspace(-2.0, 4.0, mesh.n_points)
         mesh.field_data["ScalingReference_Pressure"] = [3.0]
         replacement = plotter.add_mesh(mesh, name="particle-preview-GranularBody", color="red")
         controller.add_actor("GranularBody", replacement, mesh, initialized=True)
@@ -164,21 +165,53 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         QtTest.QTest.qWait(50)
         menu = event_filter.menu
         assert menu.objectName() == "sphinxsim-particle-colour-bar-menu"
-        palettes = {action.text(): action for action in menu.actions()}
+        presets = menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-colour-presets")
+        palettes = {action.text(): action for action in presets.actions()}
+        assert presets.title() == "Color preset"
         assert palettes["Blue to red"].isChecked()
         palettes["Viridis"].trigger()
         assert controller.palettes["GranularBody"] == "Viridis"
         assert replacement.GetMapper().GetLookupTable().GetColor(-3) == pytest.approx(
             (0.267, 0.005, 0.329)
         )
+        rescale = menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-rescale")
+        rescale_actions = {action.text(): action for action in rescale.actions()}
+        assert rescale_actions["Current range"].isCheckable()
+        assert rescale_actions["Prescribed range..."].isCheckable()
+        rescale_actions["Current range"].trigger()
+        assert controller.rescale_ranges[("GranularBody", "Pressure")] == pytest.approx((-2, 4))
+        assert replacement.GetMapper().GetScalarRange() == pytest.approx((-2, 4))
         menu.close()
         QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=bar_pos)
         QtTest.QTest.qWait(50)
-        palettes = {action.text(): action for action in event_filter.menu.actions()}
+        presets = event_filter.menu.findChild(
+            QtWidgets.QMenu, "sphinxsim-particle-colour-presets"
+        )
+        palettes = {action.text(): action for action in presets.actions()}
         assert palettes["Viridis"].isChecked()
         palettes["Grayscale"].trigger()
-        assert replacement.GetMapper().GetLookupTable().GetColor(-3) == pytest.approx((0, 0, 0))
+        assert replacement.GetMapper().GetLookupTable().GetColor(-2) == pytest.approx((0, 0, 0))
         palettes["Viridis"].trigger()
+        rescale = event_filter.menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-rescale")
+        rescale_actions = {action.text(): action for action in rescale.actions()}
+        assert rescale_actions["Current range"].isChecked()
+
+        def accept_prescribed_range():
+            dialog = QtWidgets.QApplication.activeModalWidget()
+            dialog.findChild(
+                QtWidgets.QDoubleSpinBox, "sphinxsim-particle-range-minimum"
+            ).setValue(-1.25)
+            dialog.findChild(
+                QtWidgets.QDoubleSpinBox, "sphinxsim-particle-range-maximum"
+            ).setValue(2.5)
+            buttons = dialog.findChild(QtWidgets.QDialogButtonBox)
+            buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).click()
+
+        QtCore.QTimer.singleShot(0, accept_prescribed_range)
+        rescale_actions["Prescribed range..."].trigger()
+        assert controller.rescale_ranges[("GranularBody", "Pressure")] == pytest.approx(
+            (-1.25, 2.5)
+        )
         event_filter.menu.close()
         QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
         QtTest.QTest.qWait(50)
@@ -188,7 +221,7 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         choices["Sphere splats"].trigger()
         assert controller.sphere_splats == {"GranularBody"}
         assert replacement.GetMapper().GetClassName() == "vtkOpenGLPointGaussianMapper"
-        assert replacement.GetMapper().GetScalarRange() == pytest.approx((-3, 3))
+        assert replacement.GetMapper().GetScalarRange() == pytest.approx((-1.25, 2.5))
         assert replacement.GetMapper().GetLookupTable().GetColor(-3) == pytest.approx(
             (0.267, 0.005, 0.329)
         )
@@ -201,7 +234,7 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         choices["Points"].trigger()
         assert not controller.sphere_splats
         assert replacement.GetMapper().GetClassName() != "vtkOpenGLPointGaussianMapper"
-        assert replacement.GetMapper().GetScalarRange() == pytest.approx((-3, 3))
+        assert replacement.GetMapper().GetScalarRange() == pytest.approx((-1.25, 2.5))
         event_filter.menu.close()
         QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
         QtTest.QTest.qWait(50)

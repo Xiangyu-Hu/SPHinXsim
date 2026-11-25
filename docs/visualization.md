@@ -158,19 +158,28 @@ body's displayed solver snapshot, including integer arrays such as particle
 IDs. Vectors are colored by magnitude; matrices are not offered. The color bar
 identifies the body and variable. Select **Body color** to restore the default.
 
-Right-click a visible color bar to choose **Blue to red** (the default),
-**Viridis**, or **Grayscale**. The palette applies to that body, including
-points and sphere splats, and persists across its fields and frames in the same
-scene. Changing the palette does not change the color range.
+Right-click a visible color bar and open **Color preset** to choose **Blue to
+red** (the default), **Viridis**, or **Grayscale**. The palette applies to that
+body, including points and sphere splats, and persists across its fields and
+frames in the same scene.
 
-For an attribute with a valid saved [scaling reference](#particle-scaling-metadata),
-scalar colors use the fixed range `[-reference, reference]` and vector
-magnitudes use `[0, reference]`; values outside the range use the end colors.
-Without a valid reference, including in older files, the range is calculated
-from each frame's finite values and may change between frames. If the selected
-attribute is absent or has no finite values, the body temporarily uses its
-body color. The selection is retained and applied again when the attribute
-returns.
+Use **Rescale → Current range** to capture and keep the finite minimum and
+maximum measured from the displayed data (vector magnitudes for vector
+fields), rather than the configured scaling reference. Or use
+**Rescale → Prescribed range** to enter a minimum and maximum. The selected
+range applies to that body's selected field and is retained across incoming
+frames. Each body and field keeps its own choice until changed or a new config
+is loaded.
+
+By default, an attribute with a valid saved
+[scaling reference](#particle-scaling-metadata) uses `[-reference, reference]`
+for scalar colors and `[0, reference]` for vector magnitudes; values outside the
+range use the end colors. Without a valid reference, including in older files,
+the range is calculated from each frame's finite values and may change between
+frames. A range selected under **Rescale** overrides these defaults for that
+body and field. If the selected attribute is absent or has no finite values,
+the body temporarily uses its body color. The color and range selections are
+retained and applied again when the attribute returns.
 
 Visibility and color selections persist as frames change during a run and
 shell replay. Switching to another case or run resets them. The preview also

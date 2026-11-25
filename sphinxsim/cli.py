@@ -780,7 +780,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             "Commands: load FILE, generate DESCRIPTION FILE, "
             "update [--patch-mode] [--dry-run] [--strict true|false] INSTRUCTION, "
             "validate, run [--with-animation], preview [--with-particles] [--screenshot FILE], "
-                "initialize-simulation, continue-to-run [--refresh-interval SECONDS], replay [--relaxation], explore QUESTION, exit"
+                "initialize-simulation, continue-to-run, replay [--relaxation], explore QUESTION, exit"
     )
     print("Note: relative paths are resolved from the current directory first, then .build-temp/.")
 
@@ -820,7 +820,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             print("  preview --with-particles        - Run particle generation and overlay particles")
             print("  preview --screenshot FILE        - Save a screenshot to FILE instead of interactive window")
             print("  initialize-simulation           - Build and initialize the retained particle preview")
-            print("  continue-to-run [--refresh-interval SECONDS]")
+            print("  continue-to-run")
             print("                                 - Run the initialized particle preview simulation")
             print("  replay [--relaxation]           - Replay simulation or relaxation snapshots at up to 25 FPS")
             print("  run [--with-animation]          - Run config; optionally preview particles and animate")
@@ -1019,22 +1019,13 @@ def cmd_shell(args: argparse.Namespace) -> int:
             continue
 
         if cmd == "continue-to-run":
-            refresh_interval = 10.0
-            if len(parts) == 3 and parts[1] == "--refresh-interval":
-                try:
-                    refresh_interval = float(parts[2])
-                except ValueError:
-                    refresh_interval = 0.0
-            elif len(parts) != 1:
+            if len(parts) != 1:
                 print(
-                    "Usage: continue-to-run [--refresh-interval SECONDS]",
+                    "Usage: continue-to-run",
                     file=sys.stderr,
                 )
                 continue
-            if refresh_interval <= 0.0:
-                print("Refresh interval must be greater than zero.", file=sys.stderr)
-                continue
-            _ = preview_runtime.continue_to_run(refresh_interval)
+            _ = preview_runtime.continue_to_run()
             continue
 
         if cmd == "replay":

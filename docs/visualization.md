@@ -307,9 +307,9 @@ sphinxsim> initialize-simulation
 ✅ Simulation built
 ✅ Simulation initialized
 
-sphinxsim> continue-to-run --refresh-interval 10
+sphinxsim> continue-to-run
 🚀 Running simulation...
-ℹ️ Preview checks for new snapshots every 10 seconds and plays each batch at up to 25 FPS.
+ℹ️ Preview checks for the latest body snapshots every 75 ms.
 ✅ Simulation completed successfully!
 ```
 
@@ -355,21 +355,14 @@ saved config is intended. If displaying the initialized snapshots fails, the
 error is reported and the initialized simulation remains available for
 `continue-to-run`.
 
-`continue-to-run` accepts an optional wall-clock refresh interval:
-
-```text
-sphinxsim> continue-to-run --refresh-interval 2.5
-```
-
-The default interval is `10` seconds and the value must be greater than zero.
-At each interval, the preview collects available simulation body-state VTP snapshots
-and plays them in sequence at up to 25 FPS. It then waits for another interval
-before collecting the next batch, allowing slower simulations to produce
-more output between playback batches. A snapshot is loaded only after its file
-size and modification time remain stable across checks, avoiding reads while
-the solver is still writing it. This uses `pyvistaqt` with the base package's
-PySide6 Qt backend. If a persistent preview cannot be opened, the simulation
-still continues but the window cannot refresh its particles live.
+`continue-to-run` checks for new snapshots every 75 ms. At each check, the
+preview looks up the latest complete body-state VTP
+for every body and refreshes any body with a newer file. It does not queue
+older frames for playback, so the view stays close to the current simulation
+state. Incomplete files are retried on the next check. This uses `pyvistaqt`
+with the base package's PySide6 Qt backend. If a persistent preview cannot be
+opened, the simulation still continues but the window cannot refresh its
+particles live.
 
 ## Python API
 

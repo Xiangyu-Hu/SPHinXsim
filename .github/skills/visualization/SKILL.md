@@ -107,11 +107,11 @@ Design rule:
   `initialize-simulation` calls `buildSimulation()` and `initializeSimulation()`
   and displays the initialized body-state snapshots; `continue-to-run` calls
   `run()` without reinitializing.
-- `continue-to-run` accepts `--refresh-interval SECONDS` with a default of
-  `10`. It runs the solver in a worker thread and, for a Qt-backed persistent
-  preview, uses a GUI-thread timer to replace particle actors from newer
-  completed body-state VTP snapshots. The interval is wall-clock time and must
-  be positive.
+- `continue-to-run` runs the solver in a worker thread and, for a Qt-backed
+  persistent preview, uses a GUI-thread timer to refresh each body's latest
+  complete VTP snapshot every 75 ms. It uses `ResultCatalog` and
+  `refresh_particle_actors`, does not queue stale live frames, and stops
+  polling when the solver thread ends.
 - Live simulation playback and plain `replay` exclude `_ite_` snapshots;
   `replay --relaxation` selects only `_ite_` snapshots and does not require
   a completed simulation. Both read the shared output directory, which can
@@ -202,8 +202,8 @@ Use `tests/test_visualization.py`.
   continued run and is deleted afterward.
 - Test that another shell command releases the retained simulation instead of
   allowing it to survive into a later workflow.
-- Test `--refresh-interval` parsing, including the default `10` seconds and
-  rejection of zero or negative values.
+- Test that `continue-to-run` uses a fixed 75 ms refresh interval and rejects
+  the removed `--refresh-interval` option.
 - Mock the GUI timer and VTP reader when testing live refresh. Do not mutate
   PyVista/VTK actors from the solver worker thread; timer callbacks own actor
   updates on the Qt GUI thread.

@@ -31,6 +31,7 @@ def _find_project_root(start: str | None = None) -> str:
 
 PROJECT_ROOT = Path(_find_project_root())
 _LIVE_PREVIEW_MAX_FPS = 25
+_LIVE_REFRESH_INTERVAL_MS = 75
 
 
 def _write_validated_config(
@@ -90,15 +91,12 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._pending_initialized = False
         self._live_run_thread: Thread | None = None
         self._live_refresh_timer: Any | None = None
-        self._live_run_finished = False
-        self._live_run_completion_woken = False
         self._live_output_dir: Path | None = None
         self._live_particle_body_names: set[str] = set()
         self._live_particle_colours: dict[str, Any] = {}
-        self._live_particle_versions: dict[str, float] = {}
-        self._live_particle_file_states: dict[Path, tuple[int, int]] = {}
+        self._live_particle_versions: dict[str, Any] = {}
+        self._live_result_catalog: Any | None = None
         self._live_playback_queue: list[tuple[float, dict[str, Path]]] = []
-        self._live_refresh_interval_ms = round(10.0 * 1000)
         self._live_replay_mode = False
         self._animation_output_dir: Path | None = None
         self._animation_particle_body_names: set[str] = set()
@@ -171,89 +169,57 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             self._live_output_dir = None
             self._live_particle_body_names = set()
             self._live_particle_colours = {}
-        self._live_run_finished = False
-        self._live_run_completion_woken = False
+        self._live_result_catalog = None
         self._live_particle_versions = {}
-        self._live_particle_file_states = {}
         self._live_playback_queue = []
         self._live_replay_mode = False
 
     def _refresh_live_particles(self) -> None:
-        """Play a stable snapshot batch or an explicitly requested replay."""
+        """Refresh the latest body snapshots or advance an explicitly requested replay."""
         if self.plotter is None or self._live_output_dir is None:
             return
 
-        from sphinxsim.visualization.preview import (
-            _PARTICLE_DEFAULT_OPACITY, _PARTICLE_POINT_SIZE, _particle_label,
-        )
-
         try:
-            import pyvista as pv
+            import pyvista  # noqa: F401
         except ImportError:
+            return
+
+        if not self._live_replay_mode:
+            from sphinxsim.visualization.live_particles import refresh_particle_actors
+
+            if self._live_result_catalog is None:
+                from sphinxsim.results import ResultCatalog
+
+                self._live_result_catalog = ResultCatalog()
+            refresh_particle_actors(
+                self.plotter,
+                self._live_output_dir,
+                self._live_particle_colours,
+                self._live_particle_versions,
+                self._live_result_catalog,
+                self._particle_visibility,
+                self._particle_time_display,
+            )
+            thread = self._live_run_thread
+            if thread is not None and not thread.is_alive():
+                self._stop_live_refresh()
+                self._live_run_thread = None
             return
 
         if self._live_replay_mode and not self._live_playback_queue:
             self._stop_live_refresh(preserve_context=True)
             return
 
-        if not self._live_replay_mode and not self._live_playback_queue:
-            batch: dict[float, dict[str, Path]] = {}
-            has_unstable_snapshot = False
-            for vtp_path in self._live_output_dir.glob("*.vtp"):
-                for body_name in sorted(self._live_particle_body_names, key=len, reverse=True):
-                    prefix = f"{body_name}_"
-                    if not vtp_path.stem.startswith(prefix):
-                        continue
-                    suffix = vtp_path.stem[len(prefix):]
-                    if suffix.startswith("ite_"):
-                        break
-                    try:
-                        sequence = float(suffix)
-                    except ValueError:
-                        break
-                    if not math.isfinite(sequence):
-                        break
-                    if sequence <= self._live_particle_versions.get(body_name, float("-inf")):
-                        break
-                    try:
-                        stat = vtp_path.stat()
-                    except OSError:
-                        break
-                    file_state = (stat.st_size, stat.st_mtime_ns)
-                    if (
-                        not self._live_run_finished
-                        and self._live_particle_file_states.get(vtp_path)
-                        != file_state
-                    ):
-                        self._live_particle_file_states[vtp_path] = file_state
-                        has_unstable_snapshot = True
-                        break
-                    batch.setdefault(sequence, {})[body_name] = vtp_path
-                    break
-
-            self._live_playback_queue = [
-                (sequence, body_snapshots)
-                for sequence, body_snapshots in sorted(batch.items())
-            ]
-            for sequence, body_snapshots in self._live_playback_queue:
-                for body_name in body_snapshots:
-                    self._live_particle_versions[body_name] = sequence
-
-            timer = self._live_refresh_timer
-            if self._live_playback_queue and timer is not None:
-                timer.setInterval(round(1000 / _LIVE_PREVIEW_MAX_FPS))
-            elif not self._live_playback_queue:
-                thread = self._live_run_thread
-                if thread is not None and not thread.is_alive() and not has_unstable_snapshot:
-                    self._stop_live_refresh()
-                    self._live_run_thread = None
-                return
-
         _, body_snapshots = self._live_playback_queue.pop(0)
         for body_name, vtp_path in body_snapshots.items():
             try:
+                from sphinxsim.visualization.preview import (
+                    _PARTICLE_DEFAULT_OPACITY, _PARTICLE_POINT_SIZE, _particle_label,
+                )
+
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", message=".*vtkXMLPolyDataReader.*")
+                    import pyvista as pv
                     mesh = pv.read(str(vtp_path))
             except Exception:
                 continue
@@ -277,17 +243,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         if self._live_replay_mode and not self._live_playback_queue:
             self._stop_live_refresh(preserve_context=True)
             print("✅ Particle animation replay completed.")
-        elif not self._live_playback_queue:
-            timer = self._live_refresh_timer
-            if timer is not None:
-                timer.setInterval(self._live_refresh_interval_ms)
 
-            thread = self._live_run_thread
-            if thread is not None and not thread.is_alive():
-                self._stop_live_refresh()
-                self._live_run_thread = None
-
-    def _start_live_refresh(self, refresh_interval: float) -> None:
+    def _start_live_refresh(self) -> None:
         timer = self._live_refresh_timer
         if timer is not None:
             try:
@@ -296,12 +253,11 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 pass
         self._live_refresh_timer = None
         self._live_particle_versions = {}
-        self._live_particle_file_states = {}
+        from sphinxsim.results import ResultCatalog
+
+        self._live_result_catalog = ResultCatalog()
         self._live_playback_queue = []
         self._live_replay_mode = False
-        self._live_run_finished = False
-        self._live_run_completion_woken = False
-        self._live_refresh_interval_ms = round(refresh_interval * 1000)
         if not self._using_background_plotter or self.plotter is None:
             return
         try:
@@ -309,17 +265,10 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         except ImportError:
             return
         timer = QtCore.QTimer()
-        timer.setInterval(round(refresh_interval * 1000))
+        timer.setInterval(_LIVE_REFRESH_INTERVAL_MS)
         timer.timeout.connect(self._refresh_live_particles)
         timer.start()
         self._live_refresh_timer = timer
-        if self._live_output_dir is not None:
-            for vtp_path in self._live_output_dir.glob("*.vtp"):
-                try:
-                    stat = vtp_path.stat()
-                except OSError:
-                    continue
-                self._live_particle_file_states[vtp_path] = (stat.st_size, stat.st_mtime_ns)
 
     def replay_animation(self, *, relaxation: bool = False, _automatic: bool = False) -> int:
         """Replay simulation or relaxation snapshots at no more than 25 FPS."""
@@ -475,8 +424,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             self._particle_time_display = ParticleTimeDisplay(self.plotter)
         self._particle_time_display.update(body, mesh, generation=generation)
 
-    def continue_to_run(self, refresh_interval: float = 10.0) -> int:
-        """Run the initialized simulation and play its particle snapshots."""
+    def continue_to_run(self) -> int:
+        """Run the initialized simulation and refresh the latest particle snapshots."""
         simulation = self._pending_simulation
         if simulation is None or not self._pending_initialized:
             print(
@@ -492,7 +441,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
 
         try:
             print("\n🚀 Running simulation...")
-            self._start_live_refresh(refresh_interval)
+            self._start_live_refresh()
 
             def run_simulation() -> None:
                 try:
@@ -502,7 +451,6 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 except Exception as exc:
                     print(f"❌ Continued run failed: {exc}", file=sys.stderr)
                 finally:
-                    self._live_run_finished = True
                     if runtime_config_path is not None:
                         try:
                             runtime_config_path.unlink(missing_ok=True)
@@ -512,8 +460,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             self._live_run_thread = Thread(target=run_simulation, daemon=True)
             self._live_run_thread.start()
             print(
-                f"ℹ️ Preview checks for new snapshots every {refresh_interval:g} seconds "
-                f"and plays each batch at up to {_LIVE_PREVIEW_MAX_FPS} FPS."
+                f"ℹ️ Preview checks for the latest body snapshots every "
+                f"{_LIVE_REFRESH_INTERVAL_MS} ms."
             )
             return 0
         except Exception as exc:
@@ -539,7 +487,6 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 app = getattr(self.plotter, "app", None)
                 if app is not None and hasattr(app, "processEvents"):
                     app.processEvents()
-                    self._wake_live_refresh_after_run()
                     return
 
                 try:
@@ -554,24 +501,12 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                     app = QApplication.instance()
                     if app is not None:
                         app.processEvents()
-                        self._wake_live_refresh_after_run()
                         return
 
             if hasattr(self.plotter, "render"):
                 self.plotter.render()
         except Exception:
             pass
-
-    def _wake_live_refresh_after_run(self) -> None:
-        """Poll completed-run snapshots promptly while the shell awaits input."""
-        timer = self._live_refresh_timer
-        if (
-            self._live_run_finished
-            and timer is not None
-            and not self._live_run_completion_woken
-        ):
-            timer.setInterval(round(1000 / _LIVE_PREVIEW_MAX_FPS))
-            self._live_run_completion_woken = True
 
     @staticmethod
     def _set_label_font_size(actor: Any, size: int) -> bool:

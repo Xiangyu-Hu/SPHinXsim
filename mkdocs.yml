@@ -12,6 +12,7 @@ nav:
       - Dambreak flow: learning/dambreak.md
       - Filling a tank: learning/filling-tank.md
       - Milling: learning/milling.md
+      - Two-phase dambreak flow: learning/two-phase-dambreak.md
   - AI & Agents:
       - AI Workbench: workbench.md
       - AgentCAE calibration: agent-cae.md

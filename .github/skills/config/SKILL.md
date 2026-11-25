@@ -69,6 +69,8 @@ SimulationConfig
 ├── extra_state_recording: List[ExtraStateRecordingConfig]
 ├── energy_recording: List[EnergyRecordingConfig]
 ├── restart: Optional[RestartConfig]
+├── regression_test: Optional[RegressionTestConfig]
+│   └── quantities: List[RegressionTestQuantityConfig]
 └── solver_parameters: SolverParametersConfig
     ├── fluid_dynamics: FluidDynamicsSolverConfig
     └── continuum_dynamics: ContinuumDynamicsSolverConfig
@@ -119,6 +121,7 @@ Current parser-aligned constraint:
 13. `solid_bodies[*].material.material_id_regions.regions[*].shape` must reference existing shapes
 14. Dimensional consistency across vectors (including gravity/observers, primitives, transforms, and active_strain center)
 15. 2D/3D compatibility checks: `multipolygon` is 2D-only; `triangle_mesh` is 3D-only
+16. `regression_test.quantities[*].recording` must reference an `observers` name, an `energy_recording` name, or the `flow_rate_recording` of an `inflow_rate` boundary condition
 
 ## Update Patch System
 

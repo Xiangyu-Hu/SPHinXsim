@@ -15,6 +15,24 @@ file(REMOVE_RECURSE ${BUILD_INPUT_PATH})
 file(MAKE_DIRECTORY ${BUILD_INPUT_PATH})
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/data/ DESTINATION ${BUILD_INPUT_PATH})
 
+# Regression test files, one folder per case named after its json stem. SPHinXsys reads the
+# database files from the input folder, i.e. the folder of the json, so they are copied there,
+# and restart/ and reload/ go to the output root of the case, ./<json stem>.
+file(GLOB REGRESSION_CASE_DIRS LIST_DIRECTORIES true "${CMAKE_CURRENT_SOURCE_DIR}/regression_test_tool/*")
+foreach(CASE_DIR ${REGRESSION_CASE_DIRS})
+    if(NOT IS_DIRECTORY ${CASE_DIR})
+        continue()
+    endif()
+    get_filename_component(CASE_NAME ${CASE_DIR} NAME)
+    file(GLOB DATABASE_FILES LIST_DIRECTORIES false "${CASE_DIR}/*")
+    file(COPY ${DATABASE_FILES} DESTINATION ${BUILD_INPUT_PATH})
+    foreach(CHECKPOINT_DIR restart reload)
+        if(IS_DIRECTORY "${CASE_DIR}/${CHECKPOINT_DIR}")
+            file(COPY "${CASE_DIR}/${CHECKPOINT_DIR}" DESTINATION "${EXECUTABLE_OUTPUT_PATH}/${CASE_NAME}")
+        endif()
+    endforeach()
+endforeach()
+
 if(SPHINXSIM_BUILD_PROJECT)
     if(EXISTS "${CMAKE_SOURCE_DIR}/project/simulation/3d_cases")  
         file(COPY ${CMAKE_SOURCE_DIR}/project/simulation/3d_cases/ DESTINATION ${BUILD_INPUT_PATH})

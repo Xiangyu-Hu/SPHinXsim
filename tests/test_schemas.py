@@ -1770,3 +1770,83 @@ class TestSimulationConfig:
         assert cfg.solid_bodies[0].is_moving is True
         assert cfg.body_constraints[0].mobilized_body == "pin"
         assert cfg.body_constraints[0].velocity is None
+
+    def test_3d_t_micromixer_flowrate_fixture_accepts_inflow_rate(self):
+        fixture_path = (
+            Path(__file__).parent.parent
+            / "project"
+            / "simulation"
+            / "3d_cases"
+            / "t_micromixer_flowrate.json"
+        )
+        cfg = SimulationConfig.model_validate(json.loads(fixture_path.read_text()))
+
+        inlet = cfg.fluid_boundary_conditions[0]
+        assert inlet.type.value == "bi_directional"
+        assert inlet.inflow_rate == pytest.approx(2.0e-8)
+        assert inlet.inflow_area == pytest.approx(math.pi * 0.00025**2, rel=1e-4)
+
+    def test_regression_test_is_optional_and_defaults_to_test_mode(self):
+        assert _make_minimal_fluid_config().regression_test is None
+        cfg = _make_minimal_fluid_config(regression_test={})
+        assert cfg.regression_test.generate_database is False
+        assert cfg.regression_test.quantities == []
+
+    def test_regression_test_accepts_observer_energy_and_flow_rate_recordings(self):
+        cfg = _make_minimal_fluid_config(
+            observers=[
+                {"name": "Obs", "observed_body": "WaterBody",
+                 "variable": {"real_type": "Pressure"}, "positions": [[0.5, 0.2]]},
+                {"name": "Probe", "observed_body": "WaterBody",
+                 "variable": {"vector_type": "Velocity"}, "positions": [[0.5, 0.2]]},
+            ],
+            energy_recording=[{"name": "WaterEnergy", "body": "WaterBody"}],
+            fluid_boundary_conditions=[
+                {"body_name": "WaterBody", "oriented_box": "Inlet", "type": "bi_directional",
+                 "inflow_rate": 1.0, "inflow_area": 0.1, "flow_rate_recording": "FlowRate_Inlet"}
+            ],
+            regression_test={
+                "generate_database": True,
+                "quantities": [
+                    {"recording": "FlowRate_Inlet", "method": "time_average",
+                     "threshold_mean": 0.005, "threshold_variance": 0.005},
+                    {"recording": "WaterEnergy", "method": "ensemble_average",
+                     "threshold_mean": 0.01, "threshold_variance": 0.01, "filter": True},
+                    {"recording": "Obs", "method": "dynamic_time_warping", "threshold": 1.0e-3},
+                    {"recording": "Probe", "method": "time_average",
+                     "threshold_mean": [0.01, 0.01], "threshold_variance": 0.01},
+                ],
+            },
+        )
+        assert [q.recording for q in cfg.regression_test.quantities] == [
+            "FlowRate_Inlet", "WaterEnergy", "Obs", "Probe"]
+
+    def test_regression_test_thresholds_only_required_for_generating_database(self):
+        quantity = {"recording": "Obs", "method": "time_average"}
+        _make_minimal_fluid_config(regression_test={"quantities": [quantity]})
+        with pytest.raises(ValidationError, match="threshold_mean"):
+            _make_minimal_fluid_config(regression_test={"generate_database": True, "quantities": [quantity]})
+
+    @pytest.mark.parametrize(
+        "quantity",
+        [
+            {"recording": "Obs", "method": "moving_average"},
+            {"recording": "", "method": "time_average"},
+            {"recording": "Obs", "method": "time_average", "tolerance": 0.1},
+            {"recording": "Obs", "method": "dynamic_time_warping", "threshold": [1.0e-3]},
+        ],
+    )
+    def test_regression_test_rejects_invalid_quantities(self, quantity):
+        with pytest.raises(ValidationError):
+            _make_minimal_fluid_config(regression_test={"quantities": [quantity]})
+
+    def test_regression_test_rejects_duplicated_recordings(self):
+        quantity = {"recording": "Obs", "method": "time_average"}
+        with pytest.raises(ValidationError, match="unique"):
+            _make_minimal_fluid_config(regression_test={"quantities": [quantity, dict(quantity)]})
+
+    def test_regression_test_rejects_unknown_recording(self):
+        with pytest.raises(ValidationError, match="must reference"):
+            _make_minimal_fluid_config(
+                regression_test={"quantities": [{"recording": "Missing", "method": "time_average"}]}
+            )

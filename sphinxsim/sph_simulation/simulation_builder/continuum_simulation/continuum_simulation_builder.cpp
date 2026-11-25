@@ -4,6 +4,10 @@
 #include "recording_builder.h"
 #include "sph_simulation.h"
 
+#ifdef SPHINXSIM_PROJECT
+#include "sphinxsim_project.h"
+#endif
+
 namespace SPH
 {
 //=================================================================================================//
@@ -49,6 +53,9 @@ void ContinuumSimulationBuilder::buildSimulation(SPHSimulation &sim, const json 
     //----------------------------------------------------------------------
     buildInitialConditionIfPresent(sim, main_methods, config);
     buildRestartFromFileIfPresent(sim, main_methods, config);
+#ifdef SPHINXSIM_PROJECT
+    buildExtraRegressionTestIfPresent(sph_system, config_manager, sph_solver.getTimeStepper(), config);
+#endif
     //----------------------------------------------------------------------
     // Constraints carried at last due to possible third-party dependencies.
     //----------------------------------------------------------------------

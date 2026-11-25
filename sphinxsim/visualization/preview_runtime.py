@@ -10,7 +10,7 @@ import tempfile
 import warnings
 from pathlib import Path
 from threading import Thread
-from typing import Any
+from typing import Any, Callable
 
 from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.json_editor import JsonEditorMixin
@@ -782,6 +782,78 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self.last_signature = signature
         return unchanged
 
+    def _simulation_properties_actions(
+        self,
+    ) -> list[tuple[str, str, Callable[[], int], Callable[[], bool]]]:
+        return [
+            (
+                "generate-particles",
+                "Generate particles",
+                self._generate_particles_from_editor,
+                self._can_generate_particles,
+            ),
+            (
+                "initialize-simulation",
+                "Initialize simulation",
+                self.initialize_simulation,
+                lambda: self._pending_simulation is not None
+                and not self._pending_initialized,
+            ),
+            (
+                "continue-to-run",
+                "Continue to run",
+                self.continue_to_run,
+                lambda: self._pending_simulation is not None
+                and self._pending_initialized,
+            ),
+            (
+                "replay-animation",
+                "Replay animation",
+                self.replay_animation,
+                lambda: self._animation_run_completed
+                and self._animation_output_dir is not None
+                and bool(self._animation_particle_body_names)
+                and not (
+                    self._live_run_thread is not None
+                    and self._live_run_thread.is_alive()
+                ),
+            ),
+        ]
+
+    def _can_generate_particles(self) -> bool:
+        editor = self._json_editor
+        get_config_path = editor.get("config_path") if isinstance(editor, dict) else None
+        if not callable(get_config_path):
+            return False
+        try:
+            return Path(get_config_path()).is_file()
+        except (OSError, TypeError, ValueError):
+            return False
+
+    def _generate_particles_from_editor(self) -> int:
+        editor = self._json_editor
+        get_config_path = editor.get("config_path") if isinstance(editor, dict) else None
+        if not callable(get_config_path):
+            return 1
+        try:
+            config_path = Path(get_config_path())
+            config = SimulationConfig.model_validate_json(
+                config_path.read_text(encoding="utf-8")
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            message = f"Could not load configuration for particle generation: {exc}"
+            status = editor.get("status")
+            if status is not None:
+                status.setText(message)
+            print(f"❌ {message}", file=sys.stderr)
+            return 1
+        return self.show_or_update(
+            config,
+            resolved_config_path=config_path,
+            with_particles=True,
+            force=True,
+        )
+
     def show_or_update(
         self,
         config: SimulationConfig,
@@ -805,6 +877,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 config,
                 config_path=resolved_config_path,
                 with_particles=with_particles,
+                simulation_actions=self._simulation_properties_actions(),
             )
             if not editor_refreshed:
                 print("Preview canceled; unapplied editor changes were preserved.")
@@ -898,6 +971,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                     config,
                     config_path=resolved_config_path,
                     with_particles=with_particles,
+                    simulation_actions=self._simulation_properties_actions(),
                 )
                 from qtpy import QtWidgets
                 if isinstance(self.plotter, QtWidgets.QWidget):

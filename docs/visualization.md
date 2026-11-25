@@ -142,6 +142,19 @@ The default is 5% transparent for both points and sphere splats. The choice
 persists across live and replayed frames in the same scene and resets when
 changing scenes.
 
+### Per-body particle clipping
+
+Choose **Clip particles → Enable clipping** to clip one body's particle cloud
+with a plane. Each body has an independent plane; **Configure clip plane...**
+sets its origin, normal, and whether to keep the opposite side. A new plane
+defaults to the center of that body's particle bounds, with an X-axis normal.
+Use the **+X**, **+Y**, and **+Z** buttons to set an axis-aligned normal.
+Particles are kept or hidden by their positions; sphere splats remain whole
+rather than being cut by the plane. Clipping is display-only: it does not alter
+body geometry, source VTP files, or simulation settings. The clip follows that
+body's particles across frames and representation changes, and resets when
+changing scenes.
+
 ### Color particles by an output attribute
 
 Particles are colored by body by default. In the shell, use

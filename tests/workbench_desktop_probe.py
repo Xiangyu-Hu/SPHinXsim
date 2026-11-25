@@ -79,19 +79,49 @@ def send_message(text):
     select_sidebar(window.chat_panel)
     script = """(() => {
         const el = document.querySelector('#chat-input') || document.querySelector('[contenteditable="true"]') || document.querySelector('textarea');
-        if (!el) return false;
-        el.focus(); return true;
+        if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
+        el.focus();
+        return document.activeElement === el;
     })()"""
+    ready_deadline = time.monotonic() + 20
+    def wait_for_input():
+        global busy
+        if time.monotonic() >= ready_deadline:
+            busy = False
+            finish("Chat input did not become ready before sending: " + text)
+            return
+        window.web.page().runJavaScript(script, focused)
+
     def focused(ok):
         global busy
         if not ok:
-            busy = False
+            QtCore.QTimer.singleShot(250, wait_for_input)
             return
+        QtCore.QTimer.singleShot(250, type_and_verify)
+
+    def type_and_verify():
+        global busy
         target = window.web.focusProxy() or window.web
         QtTest.QTest.keyClicks(target, text, delay=1)
         QtTest.QTest.keyClick(target, QtCore.Qt.Key.Key_Return)
-        busy = False
-    QtCore.QTimer.singleShot(100, lambda: window.web.page().runJavaScript(script, focused))
+        verify_deadline = time.monotonic() + 20
+
+        def verify_echo():
+            global busy
+            def inspected(page_text):
+                global busy
+                if text in page_text:
+                    busy = False
+                elif time.monotonic() >= verify_deadline:
+                    busy = False
+                    finish(f"Chat did not display the submitted message: {text}")
+                else:
+                    QtCore.QTimer.singleShot(250, verify_echo)
+            window.web.page().toPlainText(inspected)
+
+        QtCore.QTimer.singleShot(250, verify_echo)
+
+    QtCore.QTimer.singleShot(100, wait_for_input)
 
 
 def tick():
@@ -103,6 +133,9 @@ def tick():
     if time.monotonic() > deadline:
         finish("Timed out at " + stage + ": " + window.statusBar().currentMessage())
         return
+    if stage == "startup" and window.chat_server and window.chat_server.process.poll() is not None:
+        finish(f"Chat server exited with status {window.chat_server.process.returncode}")
+        return
     if stage == "finished" or busy:
         return
     try:
@@ -111,56 +144,61 @@ def tick():
             busy = True
             def inspect(text):
                 global stage, busy
+                if stage != "startup":
+                    return
+                if "SPHinXsim Workbench" not in text:
+                    busy = False
+                    return
+                stage = "inspecting"
                 busy = False
-                if "SPHinXsim Workbench" in text:
-                    result["checks"].append("native geometry and embedded Chainlit greeting rendered")
-                    from sphinxsim.json_editor import JsonPropertyEditor
-                    assert isinstance(window.editor, JsonPropertyEditor)
-                    assert window.centralWidget() is window.horizontal_split
-                    assert window.horizontal_split.orientation() == QtCore.Qt.Orientation.Horizontal
-                    assert window.horizontal_split.count() == 2
-                    assert window.side_tabs.count() == 2
-                    assert window.side_tabs.tabText(1) == "Chat"
-                    web, page, server_pid = window.web, window.web.page(), window.chat_server.process.pid
-                    select_sidebar(window.editor_panel)
-                    assert window.editor.isVisible() and not window.web.isVisible()
-                    assert window.editor.mapTo(window, QtCore.QPoint()).x() > window.viewport.mapTo(window, QtCore.QPoint()).x() + window.viewport.width()
-                    end_path = ("solver_parameters", "end_time")
-                    original_file = case.read_bytes()
-                    field = window.editor._fields[end_path]
-                    field.setText("invalid")
-                    window.save()
-                    assert case.read_bytes() == original_file
-                    field.setText("0.00006")
-                    assert json.loads(window.document.text)["solver_parameters"]["end_time"] == 0.00006
-                    assert window.validate()
-                    assert case.read_bytes() == original_file
-                    selected = window.editor._items[end_path]
-                    selected.parent().setExpanded(True)
-                    window.editor.tree.setCurrentItem(selected)
-                    window.editor.filter.setText("end_time")
-                    draft = window.document.text
-                    select_sidebar(window.chat_panel)
-                    assert window.web.isVisible() and not window.editor.isVisible()
-                    select_sidebar(window.editor_panel)
-                    assert window.document.text == draft
-                    assert window.editor.tree.currentItem() is selected
-                    assert window.editor.filter.text() == "end_time"
-                    assert window.web is web and window.web.page() is page
-                    assert window.chat_server.process.pid == server_pid
-                    assert window.side_tabs.tabText(0).endswith("*")
-                    window.editor.filter.clear()
-                    result["checks"].append("peer right-sidebar tabs switch by click without losing draft, editor selection or chat page")
-                    result["checks"].append("shared property tree edits the live draft and blocks saving invalid field values")
-                    assert len(window.plotter.renderers) == 1
-                    assert window.plotter.renderer.GetViewport() == (0.0, 0.0, 1.0, 1.0)
-                    assert not any("sidebar" in name for name in window.plotter.renderer.actors)
-                    import re
-                    assert not re.search(r"[\u4e00-\u9fff]", text), "Chainlit UI is not English"
-                    result["checks"].append("full-width single Preview has no Information sidebar; embedded chat uses English")
-                    window.grab().save(str(workspace / "startup.png"))
-                    stage = "proposal"
-                    send_message("/config change end time to 0.00008 seconds")
+                result["checks"].append("native geometry and embedded Chainlit greeting rendered")
+                from sphinxsim.json_editor import JsonPropertyEditor
+                assert isinstance(window.editor, JsonPropertyEditor)
+                assert window.centralWidget() is window.horizontal_split
+                assert window.horizontal_split.orientation() == QtCore.Qt.Orientation.Horizontal
+                assert window.horizontal_split.count() == 2
+                assert window.side_tabs.count() == 2
+                assert window.side_tabs.tabText(1) == "Chat"
+                web, page, server_pid = window.web, window.web.page(), window.chat_server.process.pid
+                select_sidebar(window.editor_panel)
+                assert window.editor.isVisible() and not window.web.isVisible()
+                assert window.editor.mapTo(window, QtCore.QPoint()).x() > window.viewport.mapTo(window, QtCore.QPoint()).x() + window.viewport.width()
+                end_path = ("solver_parameters", "end_time")
+                original_file = case.read_bytes()
+                field = window.editor._fields[end_path]
+                field.setText("invalid")
+                window.save()
+                assert case.read_bytes() == original_file
+                field.setText("0.00006")
+                assert json.loads(window.document.text)["solver_parameters"]["end_time"] == 0.00006
+                assert window.validate()
+                assert case.read_bytes() == original_file
+                selected = window.editor._items[end_path]
+                selected.parent().setExpanded(True)
+                window.editor.tree.setCurrentItem(selected)
+                window.editor.filter.setText("end_time")
+                draft = window.document.text
+                select_sidebar(window.chat_panel)
+                assert window.web.isVisible() and not window.editor.isVisible()
+                select_sidebar(window.editor_panel)
+                assert window.document.text == draft
+                assert window.editor.tree.currentItem() is selected
+                assert window.editor.filter.text() == "end_time"
+                assert window.web is web and window.web.page() is page
+                assert window.chat_server.process.pid == server_pid
+                assert window.side_tabs.tabText(0).endswith("*")
+                window.editor.filter.clear()
+                result["checks"].append("peer right-sidebar tabs switch by click without losing draft, editor selection or chat page")
+                result["checks"].append("shared property tree edits the live draft and blocks saving invalid field values")
+                assert len(window.plotter.renderers) == 1
+                assert window.plotter.renderer.GetViewport() == (0.0, 0.0, 1.0, 1.0)
+                assert not any("sidebar" in name for name in window.plotter.renderer.actors)
+                import re
+                assert not re.search(r"[\u4e00-\u9fff]", text), "Chainlit UI is not English"
+                result["checks"].append("full-width single Preview has no Information sidebar; embedded chat uses English")
+                window.grab().save(str(workspace / "startup.png"))
+                stage = "proposal"
+                send_message("/config change end time to 0.00008 seconds")
             window.web.page().toPlainText(inspect)
         elif stage == "proposal" and window.document.pending_proposal():
             original = window.document.path.read_text(encoding="utf-8")
@@ -191,7 +229,10 @@ def tick():
             assert window.run_job is not None
             stage = "run"
         elif stage == "run" and window.run_job.state() == QtCore.QProcess.ProcessState.NotRunning:
-            assert window.run_job.exitCode() == 0, "Native run failed; see manual_runs/*/solver.log"
+            solver_log = Path(window.run_job.property("output_dir")) / "solver.log"
+            assert window.run_job.exitCode() == 0, (
+                f"Native run failed; {solver_log}:\n{solver_log.read_text(encoding='utf-8', errors='replace')}"
+            )
             window._tick()
             assert window.observer is not None
             assert any(name.startswith("particle-preview-") for name in window.plotter.renderer.actors)

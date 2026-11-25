@@ -8,7 +8,7 @@ import sys
 import types
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal, Union, get_args, get_origin
+from typing import Any, Callable, Literal, Union, get_args, get_origin
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
@@ -30,6 +30,16 @@ from sphinxsim.json_editor.model import (
 from sphinxsim.llm.common import dump_simulation_config_json
 
 from qtpy import QtCore, QtGui, QtWidgets
+
+
+class _ClipboardUpdateReceiver(QtCore.QObject):
+    def __init__(self, parent: QtCore.QObject, callback: Callable[[], None]) -> None:
+        super().__init__(parent)
+        self._callback = callback
+
+    @QtCore.Slot()
+    def update(self) -> None:
+        self._callback()
 
 
 def _apply_payload_diff(raw: Any, base: Any, edited: Any) -> Any:
@@ -1512,7 +1522,8 @@ class JsonEditorMixin:
         value_actions["copy"].triggered.connect(copy_field_value)
         value_actions["paste"].triggered.connect(paste_field_value)
         remove_property_action.triggered.connect(remove_property)
-        QtWidgets.QApplication.clipboard().dataChanged.connect(update_array_actions)
+        clipboard_receiver = _ClipboardUpdateReceiver(tree, update_array_actions)
+        QtWidgets.QApplication.clipboard().dataChanged.connect(clipboard_receiver.update)
         update_settings_actions()
         filter_box.textChanged.connect(filter_items)
         def refresh_editor(

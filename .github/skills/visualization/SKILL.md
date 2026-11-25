@@ -85,7 +85,10 @@ Design rule:
   field and palette across replacement actors and frame updates in the same
   scene; a new scene resets these choices. Its Qt event filter maps widget
   coordinates to VTK legend/color-bar coordinates and preserves right-drag.
-  Palette changes must update both the particle mapper and its scalar bar.
+  Per-body clipping is display-only, applies to particle mappers only, and
+  follows actor replacements and representation changes; a new scene resets
+  clip settings. Palette changes must update both the particle mapper and its
+  scalar bar.
 - When changing runtime behavior, inspect the CLI, desktop session, and
   visualization test call sites. Prefer focused tests in
   `tests/test_visualization.py` and `tests/runtime/test_desktop.py` as
@@ -117,7 +120,12 @@ Design rule:
   a completed simulation. Both read the shared output directory, which can
   contain older files of the same kind.
 - Other shell commands release the retained simulation and delete its temporary
-  runtime config.
+  runtime config. Replacing a preview also releases the previous simulation
+  and config before adopting a newly generated one.
+- Treat each temporary runtime config as an owned resource: record its path
+  immediately after creation, close the file before cleanup, and remove it on
+  failure or when its simulation is discarded or finishes. Transfer ownership
+  explicitly when retaining a particle simulation; report cleanup failures.
 
 ### Persistent preview runtime responsibilities
 - `_ShellPreviewRuntime` is implemented in

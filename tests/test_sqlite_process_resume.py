@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -14,13 +15,22 @@ WORKER = PROJECT_ROOT / "tests" / "sqlite_resume_worker.py"
 
 
 def _run_worker(mode: str, root: Path) -> dict[str, object]:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join(
+        filter(None, (str(PROJECT_ROOT), env.get("PYTHONPATH", "")))
+    )
     completed = subprocess.run(
         [sys.executable, str(WORKER), mode, str(root)],
         cwd=PROJECT_ROOT,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
         timeout=60,
+        env=env,
+    )
+    assert completed.returncode == 0, (
+        f"Worker exited with status {completed.returncode}\n"
+        f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
     )
     return json.loads(completed.stdout.strip())
 

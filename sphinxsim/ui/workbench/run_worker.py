@@ -12,7 +12,7 @@ def main():
     os.chdir(args.project_root)
     from sphinxsim.agent.mcp_execution import MCPExecutionClient
     client = MCPExecutionClient(cwd=args.project_root,
-        root=os.path.commonpath([args.project_root, args.output]),
+        root=args.output,
         control_dir=args.output, default_timeout=3600)
     from pathlib import Path
     staged = client.prepare_case(args.case, Path(args.output) / "project" / "case.json")

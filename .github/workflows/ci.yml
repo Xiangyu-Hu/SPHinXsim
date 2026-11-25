@@ -136,7 +136,7 @@ jobs:
       - name: Install Python package (editable with dev dependencies)
         run: |
           export CMAKE_ARGS="-D CMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
-          pip install -e ".[dev,cad,mcp,results,visualization]"
+          pip install -e ".[dev,cad,chatbot,mcp,results,visualization]"
 
       - name: Run unit tests (tests/, including native operations)
         env:
@@ -148,6 +148,7 @@ jobs:
         env:
           SPHINXSIM_REQUIRE_NATIVE_TESTS: "1"
           SPHINXSIM_DESKTOP_TESTS: "1"
+          SPHINXSIM_RUN_WORKBENCH_DESKTOP: "1"
           QT_QPA_PLATFORM: xcb
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |

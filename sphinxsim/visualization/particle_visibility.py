@@ -69,17 +69,26 @@ class ParticleVisibility:
         self.rescale_modes: dict[tuple[str, str], str] = {}
         self.sphere_splats: set[str] = set()
         self.opaque_bodies: set[str] = set()
+        self.clipped_bodies: set[str] = set()
+        self.clip_origins: dict[str, tuple[float, float, float]] = {}
+        self.clip_normals: dict[str, tuple[float, float, float]] = {}
+        self.inverted_clip_bodies: set[str] = set()
         self._point_mappers: dict[str, tuple[Any, Any]] = {}
+        self._particle_meshes: dict[str, Any] = {}
         self.scalar_bars: dict[str, Any] = {}
         self._colour_warnings: set[tuple[str, str]] = set()
 
     def set_scene(self, key: Any, config: Any, legend: Any = None) -> None:
         self._clear_scalar_bars()
         if key != self.scene_key:
-            for body in self.sphere_splats:
+            for body, actor in self.actors.items():
                 entry = self._point_mappers.get(body)
                 if entry is not None:
-                    entry[0].SetMapper(entry[1])
+                    point_mapper = entry[1]
+                    mesh = self._particle_meshes.get(body)
+                    if mesh is not None:
+                        point_mapper.SetInputData(mesh)
+                    actor.SetMapper(point_mapper)
             self.hidden.clear()
             self.colouring.clear()
             self.palettes.clear()
@@ -87,7 +96,12 @@ class ParticleVisibility:
             self.rescale_modes.clear()
             self.sphere_splats.clear()
             self.opaque_bodies.clear()
+            self.clipped_bodies.clear()
+            self.clip_origins.clear()
+            self.clip_normals.clear()
+            self.inverted_clip_bodies.clear()
             self._point_mappers.clear()
+            self._particle_meshes.clear()
             self._colour_warnings.clear()
             self.scene_key = key
         self.config = config
@@ -99,12 +113,16 @@ class ParticleVisibility:
     def add_actor(self, body: str, actor: Any, mesh: Any = None, *, initialized: bool = False) -> None:
         previous = self._point_mappers.get(body)
         if previous is None or previous[0] is not actor:
-            self._point_mappers[body] = (actor, actor.GetMapper())
-            if body in self.sphere_splats:
-                try:
-                    self._set_actor_representation(body, actor, True)
-                except ValueError as exc:
-                    logger.warning("Cannot render sphere splats for %s: %s; showing points", body, exc)
+            point_mapper = actor.GetMapper()
+            self._point_mappers[body] = (actor, point_mapper)
+        else:
+            point_mapper = previous[1]
+        source_mesh = mesh if mesh is not None else point_mapper.GetInput()
+        source_mesh = self._wrap_particle_mesh(source_mesh)
+        if source_mesh is None:
+            self._particle_meshes.pop(body, None)
+        else:
+            self._particle_meshes[body] = source_mesh
         self.actors[body] = actor
         if initialized and mesh is not None:
             self.meshes[body] = mesh
@@ -114,11 +132,29 @@ class ParticleVisibility:
             1.0 if body in self.opaque_bodies else _PARTICLE_DEFAULT_OPACITY
         )
         actor.SetVisibility(body not in self.hidden)
+        self._refresh_particle_mesh(body)
+        if body in self.sphere_splats:
+            try:
+                self._set_actor_representation(body, actor, True)
+            except ValueError as exc:
+                logger.warning("Cannot render sphere splats for %s: %s; showing points", body, exc)
         if body in self.colouring:
             self._apply_colouring(body)
         if body not in self.bodies:
             self.bodies.add(body)
             self._update_legend()
+
+    @staticmethod
+    def _wrap_particle_mesh(mesh: Any) -> Any:
+        if mesh is None or (
+            hasattr(mesh, "points") and hasattr(mesh, "point_data")
+        ):
+            return mesh
+        if not hasattr(mesh, "GetNumberOfPoints"):
+            return mesh
+        from pyvista import wrap
+
+        return wrap(mesh)
 
     def _set_actor_representation(self, body: str, actor: Any, splats: bool) -> None:
         point_mapper = self._point_mappers[body][1]
@@ -126,14 +162,14 @@ class ParticleVisibility:
             actor.SetMapper(point_mapper)
             return
 
-        mesh = point_mapper.GetInput()
+        mesh = self._particle_meshes.get(body)
         if mesh is None:
             raise ValueError("The particle mesh is unavailable.")
         radius = _sphere_splat_radius(mesh, self.config)
         from pyvista import PointGaussianMapper
 
         mapper = PointGaussianMapper(emissive=False, scale_factor=radius)
-        mapper.dataset = mesh
+        mapper.dataset = point_mapper.GetInput()
         mapper.SetSplatShaderCode(_SPHERE_SPLAT_SHADER)
         mapper.ScalarVisibilityOff()
         actor.SetMapper(mapper)
@@ -148,6 +184,113 @@ class ParticleVisibility:
         if body in self.colouring:
             self._apply_colouring(body)
         self.plotter.render()
+
+    def clip_plane_settings(
+        self, body: str
+    ) -> tuple[tuple[float, float, float], tuple[float, float, float], bool]:
+        origin = self.clip_origins.get(body)
+        if origin is None:
+            mesh = self._particle_meshes.get(body)
+            if mesh is None:
+                mapper = self.actors[body].GetMapper()
+                mesh = self._wrap_particle_mesh(mapper.GetInput())
+            bounds = getattr(mesh, "bounds", None)
+            if bounds is None and mesh is not None and hasattr(mesh, "GetBounds"):
+                bounds = mesh.GetBounds()
+            try:
+                bounds = np.asarray(bounds, dtype=float)
+                if bounds.shape != (6,) or not np.all(np.isfinite(bounds)):
+                    raise ValueError
+                origin = tuple(
+                    (float(bounds[index]) + float(bounds[index + 1])) * 0.5
+                    for index in (0, 2, 4)
+                )
+            except (TypeError, ValueError):
+                origin = (0.0, 0.0, 0.0)
+        normal = self.clip_normals.get(body, (1.0, 0.0, 0.0))
+        return origin, normal, body in self.inverted_clip_bodies
+
+    def set_clip_plane(
+        self,
+        body: str,
+        origin: tuple[float, float, float],
+        normal: tuple[float, float, float],
+        *,
+        inverted: bool = False,
+    ) -> None:
+        if body not in self.bodies:
+            raise ValueError(f"Particle body {body!r} is unavailable")
+        try:
+            origin_values = np.asarray(origin, dtype=float)
+            normal_values = np.asarray(normal, dtype=float)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Clip plane origin and normal must be numeric 3D vectors") from exc
+        if (
+            origin_values.shape != (3,)
+            or normal_values.shape != (3,)
+            or not np.all(np.isfinite(origin_values))
+            or not np.all(np.isfinite(normal_values))
+        ):
+            raise ValueError("Clip plane origin and normal must be finite 3D vectors")
+        normal_length = float(np.linalg.norm(normal_values))
+        if not np.isfinite(normal_length) or normal_length == 0:
+            raise ValueError("Clip plane normal must have finite, non-zero length")
+
+        self.clip_origins[body] = tuple(float(value) for value in origin_values)
+        self.clip_normals[body] = tuple(float(value / normal_length) for value in normal_values)
+        if inverted:
+            self.inverted_clip_bodies.add(body)
+        else:
+            self.inverted_clip_bodies.discard(body)
+        self._refresh_particle_mesh(body)
+        self.plotter.render()
+
+    def set_clipping(self, body: str, enabled: bool) -> None:
+        if body not in self.bodies:
+            raise ValueError(f"Particle body {body!r} is unavailable")
+        if enabled:
+            if body not in self.clip_origins:
+                origin, normal, _ = self.clip_plane_settings(body)
+                self.clip_origins[body] = origin
+                self.clip_normals[body] = normal
+            self.clipped_bodies.add(body)
+        else:
+            self.clipped_bodies.discard(body)
+        self._refresh_particle_mesh(body)
+        self.plotter.render()
+
+    def _filtered_particle_mesh(self, body: str) -> Any:
+        mesh = self._particle_meshes.get(body)
+        if mesh is None or body not in self.clipped_bodies:
+            return mesh
+        points = np.asarray(mesh.points, dtype=float)
+        origin, normal, inverted = self.clip_plane_settings(body)
+        signed_distance = (points - np.asarray(origin)) @ np.asarray(normal)
+        keep = signed_distance >= 0 if inverted else signed_distance <= 0
+        import pyvista as pv
+
+        filtered = pv.PolyData(points[keep])
+        for name, values in mesh.point_data.items():
+            filtered.point_data[name] = np.asarray(values)[keep]
+        for name, values in mesh.field_data.items():
+            filtered.field_data[name] = np.asarray(values)
+        return filtered
+
+    def _refresh_particle_mesh(self, body: str) -> None:
+        entry = self._point_mappers.get(body)
+        if entry is None:
+            return
+        mesh = self._filtered_particle_mesh(body)
+        if mesh is None:
+            return
+        point_mapper = entry[1]
+        point_mapper.SetInputData(mesh)
+        point_mapper.Modified()
+        actor = self.actors.get(body)
+        if actor is not None and body in self.sphere_splats:
+            mapper = actor.GetMapper()
+            mapper.dataset = mesh
+            mapper.Modified()
 
     def set_opaque(self, body: str, opaque: bool) -> None:
         actor = self.actors[body]
@@ -324,6 +467,7 @@ class ParticleVisibility:
         else:
             mesh.point_data[array_name] = values
             mapper.SetColorModeToMapScalars()
+        self._refresh_particle_mesh(body)
         mapper.SetScalarModeToUsePointFieldData()
         mapper.SelectColorArray(array_name)
         mapper.SetLookupTable(colour_map)
@@ -555,6 +699,140 @@ def install_particle_menu(widget: Any, controller: ParticleVisibility) -> Any:
                     controller.set_visible(body, visible)
 
             action.toggled.connect(toggle)
+            clipping = self.menu.addMenu("Clip particles")
+            clipping.setObjectName("sphinxsim-particle-clipping")
+            clip_action = clipping.addAction("Enable clipping")
+            clip_action.setObjectName("sphinxsim-particle-clip-enabled")
+            clip_action.setCheckable(True)
+            clip_action.setChecked(body in controller.clipped_bodies)
+
+            def toggle_clipping(enabled: bool) -> None:
+                if scene_key == controller.scene_key and body in controller.bodies:
+                    controller.set_clipping(body, enabled)
+
+            clip_action.toggled.connect(toggle_clipping)
+            configure_action = clipping.addAction("Configure clip plane...")
+            configure_action.setObjectName("sphinxsim-particle-clip-configure")
+
+            def configure_clip_plane() -> None:
+                if scene_key != controller.scene_key or body not in controller.bodies:
+                    return
+                origin, normal, inverted = controller.clip_plane_settings(body)
+                dialog = QtWidgets.QDialog(widget)
+                dialog.setObjectName("sphinxsim-particle-clip-plane-dialog")
+                dialog.setWindowTitle(f"Clip particles: {body}")
+                dialog.setStyleSheet("""
+                    QDialog#sphinxsim-particle-clip-plane-dialog {
+                        background: #202329;
+                        color: #e6e8ec;
+                    }
+                    QLabel, QCheckBox {
+                        color: #e6e8ec;
+                    }
+                    QDoubleSpinBox {
+                        min-height: 22px;
+                        padding: 2px 6px;
+                        border: 1px solid #4b515c;
+                        border-radius: 3px;
+                        background: #181a1f;
+                        color: #e6e8ec;
+                    }
+                    QDoubleSpinBox:focus {
+                        border-color: #5794cf;
+                    }
+                    QCheckBox {
+                        spacing: 8px;
+                    }
+                    QCheckBox::indicator {
+                        width: 14px;
+                        height: 14px;
+                        border: 1px solid #4b515c;
+                        background: #181a1f;
+                    }
+                    QCheckBox::indicator:checked {
+                        background: #315f8c;
+                        border-color: #5794cf;
+                    }
+                    QPushButton {
+                        min-width: 56px;
+                        padding: 5px 10px;
+                        border: 1px solid #4a505b;
+                        border-radius: 3px;
+                        background: #24272d;
+                        color: #e6e8ec;
+                    }
+                    QPushButton:hover {
+                        background: #30343c;
+                        border-color: #75a9d0;
+                    }
+                    QPushButton:pressed {
+                        background: #315f8c;
+                        border-color: #80bde8;
+                    }
+                """)
+                layout = QtWidgets.QFormLayout(dialog)
+                fields: dict[str, QtWidgets.QDoubleSpinBox] = {}
+                for vector_name, vector, limit in (
+                    ("origin", origin, 1e12),
+                    ("normal", normal, 1e6),
+                ):
+                    for axis, value in zip("xyz", vector):
+                        field = QtWidgets.QDoubleSpinBox(dialog)
+                        field.setObjectName(f"sphinxsim-clip-{vector_name}-{axis}")
+                        field.setDecimals(6)
+                        field.setRange(-limit, limit)
+                        field.setSingleStep(0.1)
+                        field.setValue(value)
+                        fields[f"{vector_name}_{axis}"] = field
+                        layout.addRow(f"{vector_name.title()} {axis.upper()}", field)
+                preset_widget = QtWidgets.QWidget(dialog)
+                preset_layout = QtWidgets.QHBoxLayout(preset_widget)
+                preset_layout.setContentsMargins(0, 0, 0, 0)
+                for selected_axis in "xyz":
+                    preset = QtWidgets.QPushButton(f"+{selected_axis.upper()}", preset_widget)
+                    preset.setObjectName(
+                        f"sphinxsim-clip-normal-preset-{selected_axis}"
+                    )
+
+                    def select_normal(
+                        _checked: bool = False, axis: str = selected_axis
+                    ) -> None:
+                        for component in "xyz":
+                            fields[f"normal_{component}"].setValue(
+                                1.0 if component == axis else 0.0
+                            )
+
+                    preset.clicked.connect(select_normal)
+                    preset_layout.addWidget(preset)
+                layout.addRow("Normal preset", preset_widget)
+                invert = QtWidgets.QCheckBox("Keep the opposite side", dialog)
+                invert.setObjectName("sphinxsim-particle-clip-invert")
+                invert.setChecked(inverted)
+                layout.addRow(invert)
+                buttons = QtWidgets.QDialogButtonBox(
+                    QtWidgets.QDialogButtonBox.StandardButton.Ok
+                    | QtWidgets.QDialogButtonBox.StandardButton.Cancel,
+                    parent=dialog,
+                )
+                buttons.accepted.connect(dialog.accept)
+                buttons.rejected.connect(dialog.reject)
+                layout.addRow(buttons)
+                from sphinxsim.json_editor.editor import _set_windows_dark_title_bar
+
+                _set_windows_dark_title_bar(dialog)
+                if dialog.exec() != QtWidgets.QDialog.DialogCode.Accepted:
+                    return
+                try:
+                    controller.set_clip_plane(
+                        body,
+                        tuple(fields[f"origin_{axis}"].value() for axis in "xyz"),
+                        tuple(fields[f"normal_{axis}"].value() for axis in "xyz"),
+                        inverted=invert.isChecked(),
+                    )
+                except ValueError as exc:
+                    QtWidgets.QMessageBox.warning(widget, "Particle clipping", str(exc))
+
+            configure_action.triggered.connect(configure_clip_plane)
             representation = self.menu.addMenu("Representation")
             representation.setObjectName("sphinxsim-particle-representation")
             representation_group = QtGui.QActionGroup(representation)

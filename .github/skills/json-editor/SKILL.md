@@ -40,6 +40,9 @@ and round-tripping behavior, or code that integrates with the editor.
   and use the runtime's configured writer for saved content.
 - Preserve editor state behavior, including undo/revert, dirty-state handling,
   reload/discard confirmation, list editing, and preview refresh cancellation.
+- Bind callbacks from application-wide Qt signals through a `QObject` receiver
+  parented to the target widget; direct Python closures can outlive the editor
+  and access deleted Qt wrappers.
 - Preview bindings use `set_preview_elements` with canonical dot-separated
   paths mapped to annotation and visualization actor lists. Shell Preview and
   the desktop session rebind after scene rebuilds; do not keep stale actors.

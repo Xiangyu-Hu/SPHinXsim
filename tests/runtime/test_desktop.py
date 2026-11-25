@@ -97,6 +97,23 @@ def test_preview_hosts_the_shared_property_editor_widget(editor):
     assert not widget.save_shortcut.isEnabled()
 
 
+def test_clipboard_changes_do_not_update_a_destroyed_editor_tree(editor, monkeypatch):
+    app, runtime, _, _ = editor
+    tree = runtime._json_editor["tree"]
+    errors = []
+    monkeypatch.setattr(sys, "excepthook", lambda *error: errors.append(error))
+
+    tree.deleteLater()
+    QtCore.QCoreApplication.sendPostedEvents(
+        tree, QtCore.QEvent.Type.DeferredDelete
+    )
+    app.processEvents()
+    app.clipboard().setText(f"clipboard update {uuid.uuid4()}")
+    app.processEvents()
+
+    assert errors == []
+
+
 def test_annotation_reveal_expands_selects_and_filters_json_path(editor):
     app, runtime, _, _ = editor
     app.processEvents()
@@ -291,6 +308,7 @@ def test_annotation_toggle_tracks_real_label_during_hover(editor):
 
 
 def test_desktop_result_binds_new_annotation_actors(editor, tmp_path, monkeypatch):
+    pytest.importorskip("pyvista")
     app, runtime, session, path = editor
     work = tmp_path / "job"
     result = work / "result"

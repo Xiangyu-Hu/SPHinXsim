@@ -172,6 +172,15 @@ def test_particle_sphere_splats_render_and_survive_actor_replacement(fluid_confi
             2 * np.count_nonzero(np.any(points_image > 10, axis=2))
         )
 
+        controller.set_clip_plane("WaterBody", (0, 0, 0), (1, 0, 0))
+        controller.set_clipping("WaterBody", True)
+        clipped_image = plotter.screenshot(return_img=True)
+        assert actor.GetMapper().GetInput().GetNumberOfPoints() == 1
+        assert 0 < np.count_nonzero(np.any(clipped_image > 10, axis=2)) < (
+            np.count_nonzero(np.any(splats_image > 10, axis=2))
+        )
+        controller.set_clipping("WaterBody", False)
+
         controller.set_colour("WaterBody", "Pressure")
         coloured = plotter.screenshot(return_img=True)[100:300, 50:350, :3].astype(float)
         assert np.any((coloured[:, :, 0] > 1.4 * coloured[:, :, 2]) & (coloured[:, :, 0] > 30))
@@ -243,6 +252,84 @@ def test_particle_sphere_splat_spacing_estimate_and_invalid_cloud(fluid_config):
     point = pv.PolyData(np.array([[0, 0, 0]], dtype=float))
     with pytest.raises(ValueError, match="Cannot estimate particle spacing"):
         _sphere_splat_radius(point, fluid_config)
+
+
+def test_particle_clipping_is_independent_and_survives_actor_replacement(fluid_config):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from vtkmodules.vtkRenderingCore import vtkActor, vtkPolyDataMapper
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    mesh = pv.PolyData(np.array([[-1.0, 0, 0], [1.0, 0, 0]], dtype=float))
+
+    def actor_for(data):
+        mapper = vtkPolyDataMapper()
+        mapper.SetInputData(data)
+        actor = vtkActor()
+        actor.SetMapper(mapper)
+        return actor
+
+    plotter = SimpleNamespace(render=MagicMock())
+    controller = ParticleVisibility(plotter)
+    controller._update_legend = MagicMock()
+    controller.set_scene("run", fluid_config)
+    water = actor_for(mesh)
+    wall = actor_for(mesh.copy())
+    controller.add_actor("WaterBody", water, mesh, initialized=True)
+    controller.add_actor("WallBoundary", wall, mesh, initialized=True)
+
+    controller.set_clip_plane(
+        "WaterBody", (0.25, 0.0, 0.0), (2.0, 0.0, 0.0), inverted=True
+    )
+    controller.set_clipping("WaterBody", True)
+    clipped_water = water.GetMapper().GetInput()
+    assert clipped_water.GetNumberOfPoints() == 1
+    assert clipped_water.GetPoint(0) == pytest.approx((1.0, 0.0, 0.0))
+    assert wall.GetMapper().GetInput().GetNumberOfPoints() == 2
+    with pytest.raises(ValueError, match="finite, non-zero length"):
+        controller.set_clip_plane("WallBoundary", (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+
+    controller.set_sphere_splats("WaterBody", True)
+    assert water.GetMapper().GetInput().GetNumberOfPoints() == 1
+    replacement = actor_for(mesh.copy())
+    controller.add_actor("WaterBody", replacement, mesh, initialized=True)
+    assert replacement.GetMapper().GetInput().GetNumberOfPoints() == 1
+
+    controller.set_scene("next-run", fluid_config)
+    assert not controller.clipped_bodies
+    assert replacement.GetMapper().GetInput().GetNumberOfPoints() == 2
+
+
+@requires_desktop
+def test_particle_clip_plane_changes_rendered_point_cloud(fluid_config):
+    pv = pytest.importorskip("pyvista")
+    np = pytest.importorskip("numpy")
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    mesh = pv.PolyData(np.array([[-0.5, 0, 0], [0.5, 0, 0]], dtype=float))
+    plotter = pv.Plotter(off_screen=True, window_size=(400, 400))
+    plotter.set_background("black")
+    controller = ParticleVisibility(plotter)
+    controller._update_legend = lambda: None
+    controller.set_scene("run", fluid_config)
+    try:
+        actor = plotter.add_mesh(mesh, color="white", style="points", point_size=20)
+        controller.add_actor("WaterBody", actor, mesh)
+        plotter.camera_position = [(0, 0, 3), (0, 0, 0), (0, 1, 0)]
+        plotter.enable_parallel_projection()
+        plotter.camera.parallel_scale = 1
+        plotter.show(auto_close=False)
+        before = plotter.screenshot(return_img=True)
+
+        controller.set_clip_plane("WaterBody", (0, 0, 0), (1, 0, 0))
+        controller.set_clipping("WaterBody", True)
+        after = plotter.screenshot(return_img=True)
+
+        before_pixels = np.count_nonzero(np.any(before > 10, axis=2))
+        after_pixels = np.count_nonzero(np.any(after > 10, axis=2))
+        assert 0 < after_pixels < before_pixels
+    finally:
+        plotter.close()
 
 
 @requires_desktop
@@ -772,6 +859,30 @@ class TestPreviewGeometryFailure:
             visualizer._try_build_geometries(2)
 
         assert isinstance(exc_info.value.__cause__, AttributeError)
+
+    def test_geometry_config_temp_is_removed_when_serialization_fails(
+        self, fluid_config, tmp_path, monkeypatch
+    ):
+        import sphinxsim.visualization.preview as preview_mod
+
+        visualizer = preview_mod.ConfigVisualizer(
+            fluid_config,
+            tmp_path,
+            config_path=tmp_path / "source.json",
+            output_root=tmp_path / "output",
+        )
+        monkeypatch.setattr(
+            preview_mod, "load_sphinxsys_core_nd", lambda _ndim: SimpleNamespace()
+        )
+
+        def fail_dump(*_args, **_kwargs):
+            raise TypeError("serialization failed")
+
+        monkeypatch.setattr(preview_mod.json, "dump", fail_dump)
+        with pytest.raises(RuntimeError, match="geometry generation failed"):
+            visualizer._try_build_geometries(2, with_particles=True)
+
+        assert list(tmp_path.glob("sphinxsim_preview_*.json")) == []
 
     def test_persistent_preview_reports_geometry_build_failure(
         self, fluid_config, tmp_path, monkeypatch, capsys
@@ -1806,6 +1917,34 @@ class TestShellPreview:
         assert not (tmp_path / "runtime.json").exists()
         assert "native failure" in capsys.readouterr().err
 
+    def test_shell_continue_start_failure_releases_config(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        from sphinxsim import cli as cli_mod
+        from sphinxsim.visualization import preview_runtime as runtime_mod
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime._pending_simulation = MagicMock()
+        runtime._pending_initialized = True
+        runtime._pending_runtime_config_path = tmp_path / "runtime.json"
+        runtime._pending_runtime_config_path.write_text("{}", encoding="utf-8")
+        runtime._start_live_refresh = MagicMock()
+
+        class FailingThread:
+            def __init__(self, **_kwargs):
+                pass
+
+            def start(self):
+                raise RuntimeError("thread start failed")
+
+        monkeypatch.setattr(runtime_mod, "Thread", FailingThread)
+
+        assert runtime.continue_to_run() == 1
+        assert runtime._live_run_thread is None
+        assert runtime._pending_runtime_config_path is None
+        assert not (tmp_path / "runtime.json").exists()
+        assert "thread start failed" in capsys.readouterr().err
+
     def test_shell_initial_snapshot_error_keeps_initialized_simulation(self, tmp_path, capsys):
         from sphinxsim import cli as cli_mod
 
@@ -1821,6 +1960,42 @@ class TestShellPreview:
         assert "No initial body-state snapshots" in capsys.readouterr().err
         runtime.discard_pending_simulation()
         assert not runtime._pending_initialized
+
+    def test_config_writer_removes_temp_after_write_failure(self, tmp_path, monkeypatch):
+        from sphinxsim.visualization import preview_runtime as runtime_mod
+
+        config_path = tmp_path / "config.json"
+        config_path.write_text("original", encoding="utf-8")
+        real_named_temporary_file = runtime_mod.tempfile.NamedTemporaryFile
+        temporary_paths = []
+
+        class FailingTemporaryFile:
+            def __init__(self, *args, **kwargs):
+                self.handle = real_named_temporary_file(*args, **kwargs)
+                self.name = self.handle.name
+                temporary_paths.append(Path(self.name))
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_exc):
+                self.handle.close()
+
+            def write(self, _content):
+                raise OSError("write failed")
+
+        monkeypatch.setattr(
+            runtime_mod.tempfile, "NamedTemporaryFile", FailingTemporaryFile
+        )
+
+        with pytest.raises(OSError, match="write failed"):
+            runtime_mod._write_validated_config(
+                config_path, SimulationConfig(**_minimal_fluid_config()), "{}"
+            )
+
+        assert config_path.read_text(encoding="utf-8") == "original"
+        assert len(temporary_paths) == 1
+        assert not temporary_paths[0].exists()
 
     def test_native_initialization_writes_and_displays_body_states(self, tmp_path):
         pytest.importorskip("pyvista")
@@ -2521,6 +2696,82 @@ with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTi
 
         assert visualizer_paths == [config_a, config_b]
         assert [call.args[1] for call in refresh_editor.call_args_list] == [config_a, config_b]
+
+    def test_shell_runtime_removes_replaced_pending_simulation_config(self, tmp_path, monkeypatch):
+        from sphinxsim import cli as cli_mod
+
+        cfg = SimulationConfig(**_minimal_fluid_config())
+        old_config = tmp_path / "old-runtime.json"
+        new_config = tmp_path / "new-runtime.json"
+        old_config.write_text("{}", encoding="utf-8")
+        new_config.write_text("{}", encoding="utf-8")
+
+        class FakeVisualizer:
+            legend_actor = None
+
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def _spatial_dim(self):
+                return 2
+
+            def _try_build_geometries(self, _ndim, with_particles=False):
+                return None
+
+            def _discover_latest_particle_vtps(self, _vtp_dir, generation_only=False):
+                return {}
+
+            def _populate_plotter(self, *_args):
+                return None
+
+            def _configure_default_view(self, *_args):
+                return None
+
+            def take_particle_simulation(self):
+                return object(), new_config
+
+            def _particle_generation_body_names(self):
+                return []
+
+        class FakePlotter:
+            def clear(self):
+                return None
+
+            def add_axes(self):
+                return None
+
+            def show_grid(self, **_kwargs):
+                return None
+
+            def show(self, **_kwargs):
+                return None
+
+            def render(self):
+                return None
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = FakePlotter()
+        runtime._pending_simulation = object()
+        runtime._pending_runtime_config_path = old_config
+        runtime._install_annotation_hover = lambda _visualizer: None
+        runtime.replay_animation = MagicMock()
+
+        monkeypatch.setitem(sys.modules, "pyvista", SimpleNamespace())
+        monkeypatch.setitem(sys.modules, "pyvistaqt", None)
+        monkeypatch.setattr(cli_mod, "PROJECT_ROOT", tmp_path)
+
+        with patch("sphinxsim.visualization.preview.ConfigVisualizer", FakeVisualizer):
+            assert runtime.show_or_update(
+                cfg,
+                resolved_config_path=tmp_path / "config.json",
+                with_particles=True,
+            ) == 0
+
+        assert not old_config.exists()
+        assert new_config.exists()
+        assert runtime._pending_runtime_config_path == new_config
+        runtime.discard_pending_simulation()
+        assert not new_config.exists()
 
     def test_shell_runtime_preserves_editor_when_preview_reset_is_canceled(
         self, tmp_path, monkeypatch

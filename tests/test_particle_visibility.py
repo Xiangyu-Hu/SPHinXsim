@@ -95,9 +95,65 @@ def test_particle_legend_menu_and_actor_replacement(surface):
         assert menu is not None and menu.isVisible()
         action = menu.actions()[0]
         assert action.text() == "Show particles" and action.isChecked()
+        clipping = menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-clipping")
+        assert clipping is not None
+        clip_action = next(
+            item for item in clipping.actions()
+            if item.objectName() == "sphinxsim-particle-clip-enabled"
+        )
+        assert not clip_action.isChecked()
+        clip_action.trigger()
+        assert "GranularBody" in controller.clipped_bodies
+        assert first.GetMapper().GetInput().GetNumberOfPoints() < pv.Sphere().n_points
+        menu.close()
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
+        QtTest.QTest.qWait(50)
+        clipping = event_filter.menu.findChild(QtWidgets.QMenu, "sphinxsim-particle-clipping")
+        configure_action = next(
+            item for item in clipping.actions()
+            if item.objectName() == "sphinxsim-particle-clip-configure"
+        )
+        preset_values = []
+        dialog_styles = []
+
+        def choose_axis_presets():
+            dialog = app.activeModalWidget()
+            if dialog is None:
+                return
+            dialog_styles.append(dialog.styleSheet())
+            for axis in "xyz":
+                button = dialog.findChild(
+                    QtWidgets.QPushButton, f"sphinxsim-clip-normal-preset-{axis}"
+                )
+                normal_fields = [
+                    dialog.findChild(
+                        QtWidgets.QDoubleSpinBox, f"sphinxsim-clip-normal-{component}"
+                    )
+                    for component in "xyz"
+                ]
+                if button is None or any(field is None for field in normal_fields):
+                    preset_values.append(None)
+                    continue
+                button.click()
+                preset_values.append(tuple(field.value() for field in normal_fields))
+            dialog.accept()
+
+        QtCore.QTimer.singleShot(0, choose_axis_presets)
+        configure_action.trigger()
+        assert preset_values == [
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (0.0, 0.0, 1.0),
+        ]
+        assert "background: #202329" in dialog_styles[0]
+        assert controller.clip_normals["GranularBody"] == (0.0, 0.0, 1.0)
         legend = controller.legend
         initial_colour = legend.GetEntryColor(0)
         text = [legend.GetEntryString(i) for i in range(2)]
+        QtTest.QTest.mouseClick(plotter, QtCore.Qt.MouseButton.RightButton, pos=pos)
+        QtTest.QTest.qWait(50)
+        menu = event_filter.menu
+        action = menu.actions()[0]
         action.trigger()
         assert not first.GetVisibility()
         assert second.GetVisibility()

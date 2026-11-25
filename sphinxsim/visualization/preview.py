@@ -26,6 +26,7 @@ from __future__ import annotations
 import colorsys
 import json
 import tempfile
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -41,6 +42,20 @@ PREVIEW_SIDEBAR_BACKGROUND = (0.12, 0.14, 0.17)
 PREVIEW_TEXT_COLOUR = (0.90, 0.92, 0.95)
 PREVIEW_AXIS_COLOUR = (0.55, 0.59, 0.64)
 PREVIEW_GRAVITY_TEXT_COLOUR = (0.30, 0.82, 0.85)
+
+
+def _remove_temporary_file(path: Path | None) -> None:
+    if path is None:
+        return
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        warnings.warn(
+            f"Could not remove temporary preview config {path}: {exc}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
 
 if TYPE_CHECKING:
     from sphinxsim.config.schemas import (
@@ -323,8 +338,15 @@ class ConfigVisualizer:
         self._particle_simulation = None
         self._particle_runtime_config_path = None
         if simulation is None or runtime_config_path is None:
+            _remove_temporary_file(runtime_config_path)
             return None
         return simulation, runtime_config_path
+
+    def _discard_particle_simulation(self) -> None:
+        self._particle_simulation = None
+        runtime_config_path = self._particle_runtime_config_path
+        self._particle_runtime_config_path = None
+        _remove_temporary_file(runtime_config_path)
 
     # ------------------------------------------------------------------
     # Public API
@@ -599,14 +621,10 @@ class ConfigVisualizer:
         If VTPs are not produced, the builder-provided ``getShapeBounds()``
         cache is reused for preview rendering.
         """
+        self._discard_particle_simulation()
         if self.config_path is None:
             self._shape_bounds_cache = None
-            self._particle_simulation = None
-            self._particle_runtime_config_path = None
             return None
-
-        self._particle_simulation = None
-        self._particle_runtime_config_path = None
 
         try:
             sph = load_sphinxsys_core_nd(ndim)
@@ -628,16 +646,15 @@ class ConfigVisualizer:
 
         runtime_config_path: Path | None = None
         try:
-            tmp = tempfile.NamedTemporaryFile(
+            with tempfile.NamedTemporaryFile(
                 mode="w",
                 suffix=".json",
                 prefix="sphinxsim_preview_",
                 delete=False,
                 dir=str(self.config_path.parent),
-            )
-            json.dump(self.config.model_dump(exclude_none=True), tmp, indent=2)
-            tmp.close()
-            runtime_config_path = Path(tmp.name)
+            ) as tmp:
+                runtime_config_path = Path(tmp.name)
+                json.dump(self.config.model_dump(exclude_none=True), tmp, indent=2)
 
             if not with_particles:
                 builder = sph.GeometryBuilder(str(runtime_config_path))
@@ -681,10 +698,7 @@ class ConfigVisualizer:
                 runtime_config_path is not None
                 and runtime_config_path != self._particle_runtime_config_path
             ):
-                try:
-                    runtime_config_path.unlink()
-                except OSError:
-                    pass
+                _remove_temporary_file(runtime_config_path)
 
         # VTPs land in <vtp_output_dir>/output/
         if output_subdir.is_dir() and any(output_subdir.glob("Shape*.vtp")):

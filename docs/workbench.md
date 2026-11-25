@@ -59,8 +59,8 @@ Changing to another run or case resets the choice; it never changes the
 simulation or its saved output.
 When solver frames are available, the same menu offers **Color by** for
 particle attributes, and the canvas shows the frame's physical time. The menu
-also offers points or sphere splats and two transparency settings; right-click
-a visible color bar to choose its palette. See the
+also offers points or sphere splats, transparency, and per-body particle
+clipping; right-click a visible color bar to choose its palette. See the
 [particle legend guide](visualization.md#particle-legend-context-menu) for
 defaults, color ranges, playback behavior and missing attributes.
 

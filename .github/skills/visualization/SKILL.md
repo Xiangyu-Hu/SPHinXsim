@@ -85,15 +85,9 @@ Design rule:
   so editor bindings survive. VTK 9.3's Gaussian mapper requires direct RGBA
   colors; mapped scalar colors can crash during rendering. Preserve the color
   transfer function for the scalar bar when converting particle values to RGBA.
-- Live and replay frame updates should replace the input mesh on the existing
-  named particle actor rather than creating a new actor each frame. This keeps
-  JSON-editor visibility bindings and direct visibility choices attached, while
-  avoiding stale or duplicate particle actors.
-- Update the particle time overlay through its existing text actor instead of
-  recreating the actor for every body/frame; render once after applying a frame
-  batch to avoid flicker between per-body updates.
-- Keep particle scalar-bar actors attached while updating their lookup tables
-  and titles; remove them only when field coloring is disabled or unavailable.
+- Live/replay updates should reuse particle, time-overlay, and scalar-bar actors:
+  update particle inputs and labels in place, rendering once per frame batch.
+  Remove scalar bars only when field coloring is disabled or unavailable.
 - `ParticleVisibility` keeps each body's visibility, representation, opacity,
   field, palette, body/field color range, and per-body clipping across
   replacement actors and frame updates in the same scene; a new scene resets

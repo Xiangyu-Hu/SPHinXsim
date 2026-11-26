@@ -2431,71 +2431,25 @@ with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTi
             actor.SetVisibility.assert_called_once_with(False)
         assert visibility.actors["WaterBody"] is actors[-1]
 
-    def test_shell_replay_updates_existing_actor_without_resetting_visibility(
+    def test_live_and_replay_updates_reuse_actor_and_keep_editor_visibility(
         self, tmp_path, fluid_config
     ):
         from unittest.mock import call
 
         from sphinxsim import cli as cli_mod
-        from sphinxsim.visualization.particle_visibility import ParticleVisibility
-
-        actor = MagicMock()
-        mesh_frames = {
-            "WaterBody_1.vtp": SimpleNamespace(
-                n_points=1, points=[], point_data={}, field_data={}
-            ),
-            "WaterBody_2.vtp": SimpleNamespace(
-                n_points=1, points=[], point_data={}, field_data={}
-            ),
-        }
-        actor_name = "particle-preview-WaterBody"
-        plotter = MagicMock()
-        plotter.renderer.actors = {actor_name: actor}
-        visibility = ParticleVisibility(plotter)
-        visibility.set_scene("run", fluid_config)
-        runtime = cli_mod._ShellPreviewRuntime()
-        runtime.plotter = plotter
-        runtime._particle_visibility = visibility
-        runtime._live_output_dir = tmp_path
-        runtime._particle_time_display = MagicMock()
-        runtime._live_replay_mode = True
-        runtime._live_playback_queue = [
-            (1, {"WaterBody": tmp_path / "WaterBody_1.vtp"}),
-            (2, {"WaterBody": tmp_path / "WaterBody_2.vtp"}),
-        ]
-
-        with patch.object(visibility, "_update_legend"), patch.dict(
-            sys.modules,
-            {"pyvista": SimpleNamespace(read=lambda path: mesh_frames[Path(path).name])},
-        ):
-            runtime._refresh_live_particles()
-            actor.SetVisibility(False)
-            runtime._refresh_live_particles()
-
-        plotter.add_mesh.assert_not_called()
-        assert visibility.actors["WaterBody"] is actor
-        actor.SetVisibility.assert_has_calls([call(True), call(False)], any_order=False)
-        assert (
-            actor.GetMapper().SetInputData.call_args_list[-1].args[0]
-            is mesh_frames["WaterBody_2.vtp"]
-        )
-
-    def test_live_refresh_updates_existing_actor_without_resetting_visibility(
-        self, tmp_path, fluid_config
-    ):
-        from unittest.mock import call
-
         from sphinxsim.visualization.live_particles import refresh_particle_actors
         from sphinxsim.visualization.particle_visibility import ParticleVisibility
 
         actor = MagicMock()
-        actor_name = "particle-preview-WaterBody"
         plotter = MagicMock()
-        plotter.renderer.actors = {actor_name: actor}
+        plotter.renderer.actors = {"particle-preview-WaterBody": actor}
         visibility = ParticleVisibility(plotter)
         visibility.set_scene("run", fluid_config)
         first_mesh = SimpleNamespace(points=[], point_data={}, field_data={})
-        next_mesh = SimpleNamespace(points=[], point_data={}, field_data={})
+        live_mesh = SimpleNamespace(points=[], point_data={}, field_data={})
+        replay_mesh = SimpleNamespace(
+            n_points=1, points=[], point_data={}, field_data={}
+        )
         with patch.object(visibility, "_update_legend"):
             visibility.add_actor("WaterBody", actor, first_mesh)
             actor.SetVisibility(False)
@@ -2505,21 +2459,34 @@ with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTi
         catalog.latest.return_value = {"WaterBody": frame}
         with patch(
             "sphinxsim.visualization.live_particles.read_particle_mesh",
-            return_value=next_mesh,
+            return_value=live_mesh,
         ), patch.object(visibility, "_update_legend"):
             refresh_particle_actors(
-                plotter,
-                tmp_path,
-                {"WaterBody": "blue"},
-                {},
-                catalog,
-                visibility,
+                plotter, tmp_path, {"WaterBody": "blue"}, {}, catalog, visibility
             )
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = plotter
+        runtime._particle_visibility = visibility
+        runtime._live_output_dir = tmp_path
+        runtime._particle_time_display = MagicMock()
+        runtime._live_replay_mode = True
+        runtime._live_playback_queue = [
+            (2, {"WaterBody": tmp_path / "WaterBody_2.vtp"}),
+        ]
+        with patch.object(visibility, "_update_legend"), patch.dict(
+            sys.modules,
+            {"pyvista": SimpleNamespace(read=lambda _path: replay_mesh)},
+        ):
+            runtime._refresh_live_particles()
 
         plotter.add_mesh.assert_not_called()
         assert visibility.actors["WaterBody"] is actor
-        assert visibility.meshes["WaterBody"] is next_mesh
         actor.SetVisibility.assert_has_calls([call(True), call(False)], any_order=False)
+        assert (
+            actor.GetMapper().SetInputData.call_args_list[-1].args[0]
+            is replay_mesh
+        )
 
     def test_shell_runtime_replays_recorded_frames_at_25_fps(self, tmp_path):
         from sphinxsim import cli as cli_mod

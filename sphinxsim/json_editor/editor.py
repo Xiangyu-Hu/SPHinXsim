@@ -45,7 +45,7 @@ class _ClipboardUpdateReceiver(QtCore.QObject):
 class _SimulationPropertiesDock(QtWidgets.QDockWidget):
     def __init__(self, title: str, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(title, parent)
-        self._simulation_menu = QtWidgets.QMenu(self)
+        self._simulation_menu = QtWidgets.QMenu(self.window())
         self._simulation_menu.setObjectName("sphinxsim-simulation-properties-menu")
         self._simulation_menu.aboutToShow.connect(self._update_simulation_actions)
         self._simulation_actions: list[

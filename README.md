@@ -128,6 +128,24 @@ To ensure efficient and effective development, we prioritize addressing issues r
 
 You can also join us as a collaborator, enabling you to branch directly within the main repository and review pull requests.
 
+#### Developing with AI and external agents
+
+We welcome responsible usage of AI and external agents in developing SPHinXsim. There are several principles to follow in order to ensure that the development process is efficient and effective:
+
+1. **Incremental development**: Work with small, manageable changes and gradually build upon them. Each incremental changes should include testing and validation codes, and ensure full test suite carried out, to ensure that they work as intended and do not introduce any new issues or bugs. 
+
+2. **Building context**: Before implementing new features or making changes, communicate with AI agents and other developers to
+ensure that you have a clear understanding of the existing codebase and its architecture, especially on the context relevant to your changes.
+This will help you avoid introducing unnecessary complexity and ensure that your contributions align with the overall design of the project.
+During the development process, it is important to communicate with AI agents to ensure that the consistency between your intention and the agent's implementation.
+
+3. **Consistency and integrity**: Asking AI agents whether your changes are consistent with the existing codebase or whether the new feature can be considered as an component within a larger system is crucial. This will help maintain the integrity of the project and ensure that your contributions are well-integrated with the existing codebase.
+
+4. **Restraint and isolation**: Avoid making changes that are too broad or unrelated to the current development goals. Focus on the specific task at hand and ensure that your changes are well-defined and clearly documented.
+Specifically, for new feature on the SPHinXsim c++ side, only newly added codes are permitted and they should be isolated in the designated folder `project`, except very small templated interface pieces. For detailed design and implementation, please refer to the [SPHinXsim design document](/project/README.md). Other changes on the SPHinXsim c++ side requires communication with maintainers and approval from the team.
+
+5. **Testing and validation**: All changes should be thoroughly tested and validated to ensure that they work as intended and do not introduce any new issues or bugs. This includes running the full test suite and ensuring that all tests pass before submitting changes for review.
+
 Together, we can build a leading-edge multi-physics simulator open for all!
 
 If you have any further question, please contact <xiangyu.hu@tum.de>.

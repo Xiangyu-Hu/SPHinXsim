@@ -200,6 +200,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 from sphinxsim.results import ResultCatalog
 
                 self._live_result_catalog = ResultCatalog()
+            previous_versions = self._live_particle_versions.copy()
             refresh_particle_actors(
                 self.plotter,
                 self._live_output_dir,
@@ -209,6 +210,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 self._particle_visibility,
                 self._particle_time_display,
             )
+            if self._live_particle_versions != previous_versions:
+                self.plotter.render()
             thread = self._live_run_thread
             if thread is not None and not thread.is_alive():
                 self._stop_live_refresh()
@@ -219,13 +222,12 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             self._stop_live_refresh(preserve_context=True)
             return
 
+        from sphinxsim.visualization.live_particles import add_or_update_particle_actor
+
         _, body_snapshots = self._live_playback_queue.pop(0)
+        updated = False
         for body_name, vtp_path in body_snapshots.items():
             try:
-                from sphinxsim.visualization.preview import (
-                    _PARTICLE_DEFAULT_OPACITY, _PARTICLE_POINT_SIZE, _particle_label,
-                )
-
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", message=".*vtkXMLPolyDataReader.*")
                     import pyvista as pv
@@ -234,20 +236,19 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 continue
             if getattr(mesh, "n_points", None) == 0:
                 continue
-            actor = self.plotter.add_mesh(
+            updated = True
+            actor = add_or_update_particle_actor(
+                self.plotter,
+                body_name,
                 mesh,
-                name=f"particle-preview-{body_name}",
-                color=self._live_particle_colours.get(body_name),
-                opacity=_PARTICLE_DEFAULT_OPACITY,
-                style="points",
-                point_size=_PARTICLE_POINT_SIZE,
-                label=_particle_label(body_name),
-                reset_camera=False,
+                self._live_particle_colours.get(body_name),
             )
             generation = vtp_path.stem[len(body_name) + 1:].startswith("ite_")
             if self._particle_visibility is not None:
                 self._particle_visibility.add_actor(body_name, actor, mesh, initialized=not generation)
             self._update_particle_time(body_name, mesh, generation=generation)
+        if updated:
+            self.plotter.render()
 
         if self._live_replay_mode and not self._live_playback_queue:
             self._stop_live_refresh(preserve_context=True)
@@ -400,9 +401,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
 
     def _show_initialized_particles(self) -> None:
         from sphinxsim.results import ResultCatalog, read_particle_mesh
-        from sphinxsim.visualization.preview import (
-            _PARTICLE_DEFAULT_OPACITY, _PARTICLE_POINT_SIZE, _particle_label,
-        )
+        from sphinxsim.visualization.live_particles import add_or_update_particle_actor
 
         if self._live_output_dir is None:
             raise RuntimeError("The simulation output directory is unavailable.")
@@ -411,15 +410,11 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             raise RuntimeError(f"No initial body-state snapshots found in {self._live_output_dir}.")
         for body_name, frame in frames.items():
             mesh = read_particle_mesh(frame.path)
-            actor = self.plotter.add_mesh(
+            actor = add_or_update_particle_actor(
+                self.plotter,
+                body_name,
                 mesh,
-                name=f"particle-preview-{body_name}",
-                color=self._live_particle_colours.get(body_name),
-                opacity=_PARTICLE_DEFAULT_OPACITY,
-                style="points",
-                point_size=_PARTICLE_POINT_SIZE,
-                label=_particle_label(body_name),
-                reset_camera=False,
+                self._live_particle_colours.get(body_name),
             )
             if self._particle_visibility is not None:
                 self._particle_visibility.add_actor(body_name, actor, mesh, initialized=True)

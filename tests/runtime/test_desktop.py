@@ -120,8 +120,11 @@ def test_simulation_properties_simulation_menu_runs_registered_controls(editor):
     button.click()
     app.processEvents()
 
-    menu = dock.findChild(QtWidgets.QMenu, "sphinxsim-simulation-properties-menu")
+    menu = runtime.plotter.app_window.findChild(
+        QtWidgets.QMenu, "sphinxsim-simulation-properties-menu"
+    )
     assert menu is not None
+    assert menu.parentWidget() is runtime.plotter.app_window
     assert [action.text() for action in menu.actions()] == [
         "Generate particles",
         "Initialize simulation",
@@ -158,7 +161,9 @@ def test_shell_preview_simulation_menu_maps_to_lifecycle(editor, monkeypatch):
     assert button is not None
     button.click()
     app.processEvents()
-    menu = dock.findChild(QtWidgets.QMenu, "sphinxsim-simulation-properties-menu")
+    menu = runtime.plotter.app_window.findChild(
+        QtWidgets.QMenu, "sphinxsim-simulation-properties-menu"
+    )
     assert menu is not None
     assert [action.isEnabled() for action in menu.actions()] == [True, False, True, True]
     for action in menu.actions():

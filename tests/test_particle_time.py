@@ -13,6 +13,9 @@ def mesh(time=None):
 
 
 def text(plotter):
+    actor = plotter.add_text.return_value
+    if actor.SetInput.called:
+        return actor.SetInput.call_args.args[0]
     return plotter.add_text.call_args.args[0]
 
 
@@ -48,3 +51,14 @@ def test_invalid_or_missing_time_does_not_invent_a_time(caplog):
     display.update("Water", SimpleNamespace(field_data={"TimeValue": ["invalid"]}))
     plotter.add_text.assert_not_called()
     assert "no valid TimeValue" in caplog.text
+
+
+def test_time_overlay_actor_is_reused_and_updated_in_place():
+    plotter = MagicMock()
+    display = ParticleTimeDisplay(plotter)
+
+    display.update("Water", mesh(0))
+    display.update("Water", mesh(0.125))
+
+    plotter.add_text.assert_called_once()
+    plotter.add_text.return_value.SetInput.assert_called_once_with("Time: 0.125 s")

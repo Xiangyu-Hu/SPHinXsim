@@ -17,12 +17,14 @@ class ParticleTimeDisplay:
     def __init__(self, plotter: Any) -> None:
         self.plotter = plotter
         self.times: dict[str, float] = {}
+        self.actor: Any | None = None
         self.shown = False
 
     def reset(self) -> None:
         self.times.clear()
         if self.shown:
             self.plotter.remove_actor(_TIME_ACTOR, reset_camera=False, render=False)
+            self.actor = None
             self.shown = False
 
     def update(self, body: str, mesh: Any, *, generation: bool = False) -> None:
@@ -45,16 +47,20 @@ class ParticleTimeDisplay:
         if not self.times:
             if self.shown:
                 self.plotter.remove_actor(_TIME_ACTOR, reset_camera=False, render=False)
+                self.actor = None
                 self.shown = False
             return
 
         current_time = max(self.times.values())
         text = f"Time: {current_time:.6g} s"
-        self.plotter.subplot(0, 0)
-        actor = self.plotter.add_text(
-            text, name=_TIME_ACTOR, position=(0.50, PARTICLE_OVERLAY_CENTER_Y),
-            viewport=True, color="white", font_size=11,
-        )
-        actor.GetTextProperty().SetJustificationToCentered()
-        actor.GetTextProperty().SetVerticalJustificationToCentered()
+        if self.actor is None:
+            self.plotter.subplot(0, 0)
+            self.actor = self.plotter.add_text(
+                text, name=_TIME_ACTOR, position=(0.50, PARTICLE_OVERLAY_CENTER_Y),
+                viewport=True, color="white", font_size=11,
+            )
+            self.actor.GetTextProperty().SetJustificationToCentered()
+            self.actor.GetTextProperty().SetVerticalJustificationToCentered()
+        else:
+            self.actor.SetInput(text)
         self.shown = True

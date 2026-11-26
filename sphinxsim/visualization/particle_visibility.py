@@ -112,7 +112,8 @@ class ParticleVisibility:
 
     def add_actor(self, body: str, actor: Any, mesh: Any = None, *, initialized: bool = False) -> None:
         previous = self._point_mappers.get(body)
-        if previous is None or previous[0] is not actor:
+        is_new_actor = previous is None or previous[0] is not actor
+        if is_new_actor:
             point_mapper = actor.GetMapper()
             self._point_mappers[body] = (actor, point_mapper)
         else:
@@ -131,7 +132,8 @@ class ParticleVisibility:
         actor.GetProperty().SetOpacity(
             1.0 if body in self.opaque_bodies else _PARTICLE_DEFAULT_OPACITY
         )
-        actor.SetVisibility(body not in self.hidden)
+        if is_new_actor:
+            actor.SetVisibility(body not in self.hidden)
         self._refresh_particle_mesh(body)
         if body in self.sphere_splats:
             try:
@@ -397,17 +399,19 @@ class ParticleVisibility:
             bar.SetHeight(height)
 
     def _apply_colouring(self, body: str) -> None:
-        self._remove_scalar_bar(body)
         actor = self.actors.get(body)
         if actor is None:
+            self._remove_scalar_bar(body)
             return
         mapper = actor.GetMapper()
         field = self.colouring.get(body)
         if field is None:
+            self._remove_scalar_bar(body)
             mapper.ScalarVisibilityOff()
             return
         fields = self.colourable_fields(body)
         if field not in fields:
+            self._remove_scalar_bar(body)
             mapper.ScalarVisibilityOff()
             warning = (body, field)
             if warning not in self._colour_warnings:
@@ -421,6 +425,7 @@ class ParticleVisibility:
         values = np.linalg.norm(values.astype(float), axis=1) if vector else values.astype(float)
         finite = values[np.isfinite(values)]
         if not finite.size:
+            self._remove_scalar_bar(body)
             mapper.ScalarVisibilityOff()
             logger.warning("Particle field %r for %s has no finite values; showing body colour", field, body)
             return
@@ -473,13 +478,15 @@ class ParticleVisibility:
         mapper.SetLookupTable(colour_map)
         mapper.SetScalarRange(low, high)
         mapper.ScalarVisibilityOn()
-        bar = vtkScalarBarActor()
+        bar = self.scalar_bars.get(body)
+        if bar is None:
+            bar = vtkScalarBarActor()
+            self.scalar_bars[body] = bar
+            self.plotter.renderers[0].AddActor(bar)
         bar.SetLookupTable(colour_map)
         bar.SetTitle(f"{body}: {field}" + (" magnitude" if vector else ""))
         bar.SetOrientationToHorizontal()
         bar.SetNumberOfLabels(3)
-        self.plotter.renderers[0].AddActor(bar)
-        self.scalar_bars[body] = bar
         self._layout_scalar_bars()
 
     def set_visible(self, body: str, visible: bool) -> None:

@@ -1,7 +1,35 @@
 """Particle updates shared by continued Preview runs and Agent observers."""
 
 from sphinxsim.results import ResultCatalog, read_particle_mesh
-from sphinxsim.visualization.preview import _PARTICLE_DEFAULT_OPACITY, _PARTICLE_POINT_SIZE
+from sphinxsim.visualization.preview import (
+    _PARTICLE_DEFAULT_OPACITY,
+    _PARTICLE_POINT_SIZE,
+    _particle_label,
+)
+
+
+def add_or_update_particle_actor(plotter, body, mesh, colour, *, label=None):
+    name = f"particle-preview-{body}"
+    renderer = getattr(plotter, "renderer", None)
+    actors = getattr(renderer, "actors", None)
+    actor = actors.get(name) if isinstance(actors, dict) else None
+    if actor is None:
+        return plotter.add_mesh(
+            mesh,
+            name=name,
+            color=colour,
+            opacity=_PARTICLE_DEFAULT_OPACITY,
+            style="points",
+            point_size=_PARTICLE_POINT_SIZE,
+            label=label or _particle_label(body),
+            reset_camera=False,
+        )
+
+    mapper = actor.GetMapper()
+    mapper.SetInputData(mesh)
+    mapper.Modified()
+    actor.Modified()
+    return actor
 
 
 def refresh_particle_actors(plotter, output_dir, body_colours, versions, catalog, visibility=None,
@@ -15,10 +43,8 @@ def refresh_particle_actors(plotter, output_dir, body_colours, versions, catalog
             mesh = read_particle_mesh(frame.path)
         except (OSError, ValueError, RuntimeError):
             continue
-        actor = plotter.add_mesh(
-            mesh, name=f"particle-preview-{body}", color=body_colours[body],
-            opacity=_PARTICLE_DEFAULT_OPACITY, style="points", point_size=_PARTICLE_POINT_SIZE,
-            label=f"Particles: {body}", reset_camera=False,
+        actor = add_or_update_particle_actor(
+            plotter, body, mesh, body_colours[body], label=f"Particles: {body}"
         )
         if visibility is not None:
             visibility.add_actor(body, actor, mesh, initialized=not frame.generation)

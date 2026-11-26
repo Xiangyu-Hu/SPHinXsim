@@ -77,7 +77,8 @@ void FluidDynamicsBuilder::addBoundaryCondition(
         inflow_condition.add(&main_methods.template addStateDynamics<
                               EmitterInflowConditionCK, ConstantInflowSpeed>(
             emitter, scaling_config.jsonToReal(config.at("inflow_speed"), "Speed")));
-
+        auto &cancel_tvf = main_methods.template addStateDynamics<ConstantConstraintCK, Vecd>(
+            emitter, "KernelGradientIntegral", Vecd::Zero());
         auto &fix_constraint = main_methods.template addStateDynamics<
             FixConstraintCK>(emitter);
         auto &injection = main_methods.template addStateDynamics<
@@ -102,6 +103,14 @@ void FluidDynamicsBuilder::addBoundaryCondition(
             SimulationHookPoint::BoundaryCondition, [&]()
             { if(fluid_solver_config.emitter_on_)
                   inflow_condition.exec(); });
+
+        initialization_pipeline.insert_hook(
+            InitializationHookPoint::InitialAfterKernelGradientIntegral, [&]()
+            { cancel_tvf.exec(); });
+
+        simulation_pipeline.insert_hook(
+            SimulationHookPoint::AfterKernelGradientIntegral, [&]()
+            { cancel_tvf.exec(); });
 
         simulation_pipeline.insert_hook(
             SimulationHookPoint::PositionConstraint, [&]()

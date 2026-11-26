@@ -1,15 +1,42 @@
 {
   "simulation_type": "fluid_dynamics",
-  "log_level": "debug",
 
   "geometries": {
     "global_resolution": { "particle_spacing": 0.025 },
+    "primitives": [
+      {
+        "name": "EmitterBox",
+        "type": "box",
+        "half_size": [0.15, 0.0625],
+        "transform": {
+          "translation": [0.05, 1.0625],
+          "rotation_angle": 0.0
+        }
+      },
+      {
+        "name": "InnerWallBox",
+        "type": "bounding_box",
+        "lower_bound": [0.0, 0.0],
+        "upper_bound": [2.0, 1.3]
+      },
+      {
+        "name": "OutletLowerBox",
+        "type": "bounding_box",
+        "lower_bound": [2.0, 0.5],
+        "upper_bound": [2.3, 0.6]
+      },
+      {
+        "name": "OutletUpperBox",
+        "type": "bounding_box",
+        "lower_bound": [2.0, 0.8],
+        "upper_bound": [2.3, 0.9]
+      }
+    ],
     "shapes": [
       {
         "name": "WaterBody",
-        "type": "bounding_box",
-        "lower_bound": [-0.1, 1.0],
-        "upper_bound": [0.2, 1.125]
+        "type": "box",
+        "primitive": "EmitterBox"
       },
       {
         "name": "WallBoundary",
@@ -19,8 +46,7 @@
             "operation": "union",
             "type": "container_box",
             "inner_box": {
-              "lower_bound": [0.0, 0.0],
-              "upper_bound": [2.0, 1.3]
+              "primitive": "InnerWallBox"
             },
             "thickness": 0.1
           },
@@ -39,14 +65,34 @@
           {
             "operation": "union",
             "type": "bounding_box",
-            "lower_bound": [2.0, 0.5],
-            "upper_bound": [2.3, 0.6]
+            "primitive": "OutletLowerBox"
           },
           {
             "operation": "union",
             "type": "bounding_box",
-            "lower_bound": [2.0, 0.8],
-            "upper_bound": [2.3, 0.9]
+            "primitive": "OutletUpperBox"
+          }
+        ]
+      },
+      {
+        "name": "AirBody",
+        "type": "multipolygon",
+        "polygons": [
+          {
+            "operation": "union",
+            "type": "bounding_box",
+            "primitive": "InnerWallBox"
+          },
+          {
+            "operation": "subtraction",
+            "type": "box",
+            "primitive": "EmitterBox"
+          },
+          {
+            "operation": "union",
+            "type": "bounding_box",
+            "lower_bound": [2.0, 0.6],
+            "upper_bound": [2.3, 0.8]
           }
         ]
       }
@@ -55,17 +101,20 @@
       {
         "name": "Emitter",
         "type": "region",
-        "half_size": [0.15, 0.0625],
-        "transform": {
-          "translation": [0.05, 1.0625],
-          "rotation_angle": 0.0
-        }
+        "primitive": "EmitterBox"
       },
       {
         "name": "Disposer",
         "type": "boundary",
         "center": [2.295, 0.7],
         "normal": [1.0, 0.0],
+        "radius": 0.1
+      },
+      {
+        "name": "AirOutlet",
+        "type": "boundary",
+        "center": [2.3, 0.7],
+        "normal": [-1.0, 0.0],
         "radius": 0.1
       }
     ]
@@ -78,6 +127,9 @@
       {
         "name": "WallBoundary",
         "solid_body": {}
+      },
+      {
+        "name": "AirBody"
       }
     ],
     "relaxation_parameters": {
@@ -93,6 +145,15 @@
         "density": 1.0
       },
       "particle_reserve_factor": 350.0
+    },
+    {
+      "name": "AirBody",
+      "material": {
+        "type": "weakly_compressible_fluid",
+        "density": 0.001
+      },
+      "surface_type": "open_boundary",
+      "particle_reserve_factor": 0.1
     }
   ],
   "solid_bodies": [
@@ -118,6 +179,12 @@
       "body_name": "WaterBody",
       "oriented_box": "Disposer",
       "type": "disposer"
+    },
+    {
+      "body_name": "AirBody",
+      "type": "bi_directional",
+      "oriented_box": "AirOutlet",
+      "pressure": 0.0
     }
   ],
   "gravity": [0.0, -1.0],

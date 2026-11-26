@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import os
@@ -10,7 +11,7 @@ import tempfile
 import warnings
 from pathlib import Path
 from threading import Thread
-from typing import Any
+from typing import Any, Callable
 
 from sphinxsim.config.schemas import SimulationConfig
 from sphinxsim.json_editor import JsonEditorMixin
@@ -31,6 +32,7 @@ def _find_project_root(start: str | None = None) -> str:
 
 PROJECT_ROOT = Path(_find_project_root())
 _LIVE_PREVIEW_MAX_FPS = 25
+_LIVE_REFRESH_INTERVAL_MS = 75
 
 
 def _remove_temporary_file(path: Path | None, purpose: str) -> None:
@@ -85,6 +87,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self.plotter: Any | None = None
         self.last_signature: str | None = None
         self._using_background_plotter = False
+        self._preview_spatial_dim: int | None = None
         self._hover_interactor: Any | None = None
         self._hover_observer_tag: Any | None = None
         self._annotation_click_observer_tag: Any | None = None
@@ -94,20 +97,18 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._particle_time_display: Any | None = None
         self._particle_scene_path: Path | None = None
         self._particle_scene_generation = 0
+        self._particle_scene_config_signature: str | None = None
         self._pending_simulation: Any | None = None
         self._pending_runtime_config_path: Path | None = None
         self._pending_initialized = False
         self._live_run_thread: Thread | None = None
         self._live_refresh_timer: Any | None = None
-        self._live_run_finished = False
-        self._live_run_completion_woken = False
         self._live_output_dir: Path | None = None
         self._live_particle_body_names: set[str] = set()
         self._live_particle_colours: dict[str, Any] = {}
-        self._live_particle_versions: dict[str, float] = {}
-        self._live_particle_file_states: dict[Path, tuple[int, int]] = {}
+        self._live_particle_versions: dict[str, Any] = {}
+        self._live_result_catalog: Any | None = None
         self._live_playback_queue: list[tuple[float, dict[str, Path]]] = []
-        self._live_refresh_interval_ms = round(10.0 * 1000)
         self._live_replay_mode = False
         self._animation_output_dir: Path | None = None
         self._animation_particle_body_names: set[str] = set()
@@ -127,6 +128,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._particle_visibility = None
         self._particle_menu_filter = None
         self._particle_scene_path = None
+        self._particle_scene_config_signature = None
         self.last_signature = None
         self._using_background_plotter = False
 
@@ -176,89 +178,57 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             self._live_output_dir = None
             self._live_particle_body_names = set()
             self._live_particle_colours = {}
-        self._live_run_finished = False
-        self._live_run_completion_woken = False
+        self._live_result_catalog = None
         self._live_particle_versions = {}
-        self._live_particle_file_states = {}
         self._live_playback_queue = []
         self._live_replay_mode = False
 
     def _refresh_live_particles(self) -> None:
-        """Play a stable snapshot batch or an explicitly requested replay."""
+        """Refresh the latest body snapshots or advance an explicitly requested replay."""
         if self.plotter is None or self._live_output_dir is None:
             return
 
-        from sphinxsim.visualization.preview import (
-            _PARTICLE_DEFAULT_OPACITY, _PARTICLE_POINT_SIZE, _particle_label,
-        )
-
         try:
-            import pyvista as pv
+            import pyvista  # noqa: F401
         except ImportError:
+            return
+
+        if not self._live_replay_mode:
+            from sphinxsim.visualization.live_particles import refresh_particle_actors
+
+            if self._live_result_catalog is None:
+                from sphinxsim.results import ResultCatalog
+
+                self._live_result_catalog = ResultCatalog()
+            refresh_particle_actors(
+                self.plotter,
+                self._live_output_dir,
+                self._live_particle_colours,
+                self._live_particle_versions,
+                self._live_result_catalog,
+                self._particle_visibility,
+                self._particle_time_display,
+            )
+            thread = self._live_run_thread
+            if thread is not None and not thread.is_alive():
+                self._stop_live_refresh()
+                self._live_run_thread = None
             return
 
         if self._live_replay_mode and not self._live_playback_queue:
             self._stop_live_refresh(preserve_context=True)
             return
 
-        if not self._live_replay_mode and not self._live_playback_queue:
-            batch: dict[float, dict[str, Path]] = {}
-            has_unstable_snapshot = False
-            for vtp_path in self._live_output_dir.glob("*.vtp"):
-                for body_name in sorted(self._live_particle_body_names, key=len, reverse=True):
-                    prefix = f"{body_name}_"
-                    if not vtp_path.stem.startswith(prefix):
-                        continue
-                    suffix = vtp_path.stem[len(prefix):]
-                    if suffix.startswith("ite_"):
-                        break
-                    try:
-                        sequence = float(suffix)
-                    except ValueError:
-                        break
-                    if not math.isfinite(sequence):
-                        break
-                    if sequence <= self._live_particle_versions.get(body_name, float("-inf")):
-                        break
-                    try:
-                        stat = vtp_path.stat()
-                    except OSError:
-                        break
-                    file_state = (stat.st_size, stat.st_mtime_ns)
-                    if (
-                        not self._live_run_finished
-                        and self._live_particle_file_states.get(vtp_path)
-                        != file_state
-                    ):
-                        self._live_particle_file_states[vtp_path] = file_state
-                        has_unstable_snapshot = True
-                        break
-                    batch.setdefault(sequence, {})[body_name] = vtp_path
-                    break
-
-            self._live_playback_queue = [
-                (sequence, body_snapshots)
-                for sequence, body_snapshots in sorted(batch.items())
-            ]
-            for sequence, body_snapshots in self._live_playback_queue:
-                for body_name in body_snapshots:
-                    self._live_particle_versions[body_name] = sequence
-
-            timer = self._live_refresh_timer
-            if self._live_playback_queue and timer is not None:
-                timer.setInterval(round(1000 / _LIVE_PREVIEW_MAX_FPS))
-            elif not self._live_playback_queue:
-                thread = self._live_run_thread
-                if thread is not None and not thread.is_alive() and not has_unstable_snapshot:
-                    self._stop_live_refresh()
-                    self._live_run_thread = None
-                return
-
         _, body_snapshots = self._live_playback_queue.pop(0)
         for body_name, vtp_path in body_snapshots.items():
             try:
+                from sphinxsim.visualization.preview import (
+                    _PARTICLE_DEFAULT_OPACITY, _PARTICLE_POINT_SIZE, _particle_label,
+                )
+
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", message=".*vtkXMLPolyDataReader.*")
+                    import pyvista as pv
                     mesh = pv.read(str(vtp_path))
             except Exception:
                 continue
@@ -282,17 +252,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         if self._live_replay_mode and not self._live_playback_queue:
             self._stop_live_refresh(preserve_context=True)
             print("✅ Particle animation replay completed.")
-        elif not self._live_playback_queue:
-            timer = self._live_refresh_timer
-            if timer is not None:
-                timer.setInterval(self._live_refresh_interval_ms)
 
-            thread = self._live_run_thread
-            if thread is not None and not thread.is_alive():
-                self._stop_live_refresh()
-                self._live_run_thread = None
-
-    def _start_live_refresh(self, refresh_interval: float) -> None:
+    def _start_live_refresh(self) -> None:
         timer = self._live_refresh_timer
         if timer is not None:
             try:
@@ -301,12 +262,11 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 pass
         self._live_refresh_timer = None
         self._live_particle_versions = {}
-        self._live_particle_file_states = {}
+        from sphinxsim.results import ResultCatalog
+
+        self._live_result_catalog = ResultCatalog()
         self._live_playback_queue = []
         self._live_replay_mode = False
-        self._live_run_finished = False
-        self._live_run_completion_woken = False
-        self._live_refresh_interval_ms = round(refresh_interval * 1000)
         if not self._using_background_plotter or self.plotter is None:
             return
         try:
@@ -314,17 +274,10 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         except ImportError:
             return
         timer = QtCore.QTimer()
-        timer.setInterval(round(refresh_interval * 1000))
+        timer.setInterval(_LIVE_REFRESH_INTERVAL_MS)
         timer.timeout.connect(self._refresh_live_particles)
         timer.start()
         self._live_refresh_timer = timer
-        if self._live_output_dir is not None:
-            for vtp_path in self._live_output_dir.glob("*.vtp"):
-                try:
-                    stat = vtp_path.stat()
-                except OSError:
-                    continue
-                self._live_particle_file_states[vtp_path] = (stat.st_size, stat.st_mtime_ns)
 
     def replay_animation(self, *, relaxation: bool = False, _automatic: bool = False) -> int:
         """Replay simulation or relaxation snapshots at no more than 25 FPS."""
@@ -480,8 +433,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             self._particle_time_display = ParticleTimeDisplay(self.plotter)
         self._particle_time_display.update(body, mesh, generation=generation)
 
-    def continue_to_run(self, refresh_interval: float = 10.0) -> int:
-        """Run the initialized simulation and play its particle snapshots."""
+    def continue_to_run(self) -> int:
+        """Run the initialized simulation and refresh the latest particle snapshots."""
         simulation = self._pending_simulation
         if simulation is None or not self._pending_initialized:
             print(
@@ -500,7 +453,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
 
         try:
             print("\n🚀 Running simulation...")
-            self._start_live_refresh(refresh_interval)
+            self._start_live_refresh()
 
             def run_simulation() -> None:
                 try:
@@ -510,7 +463,6 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 except Exception as exc:
                     print(f"❌ Continued run failed: {exc}", file=sys.stderr)
                 finally:
-                    self._live_run_finished = True
                     _remove_temporary_file(runtime_config_path, "preview configuration")
 
             run_thread = Thread(target=run_simulation, daemon=True)
@@ -518,8 +470,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             run_thread.start()
             run_started = True
             print(
-                f"ℹ️ Preview checks for new snapshots every {refresh_interval:g} seconds "
-                f"and plays each batch at up to {_LIVE_PREVIEW_MAX_FPS} FPS."
+                f"ℹ️ Preview checks for the latest body snapshots every "
+                f"{_LIVE_REFRESH_INTERVAL_MS} ms."
             )
             return 0
         except Exception as exc:
@@ -541,7 +493,6 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 app = getattr(self.plotter, "app", None)
                 if app is not None and hasattr(app, "processEvents"):
                     app.processEvents()
-                    self._wake_live_refresh_after_run()
                     return
 
                 try:
@@ -556,24 +507,12 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                     app = QApplication.instance()
                     if app is not None:
                         app.processEvents()
-                        self._wake_live_refresh_after_run()
                         return
 
             if hasattr(self.plotter, "render"):
                 self.plotter.render()
         except Exception:
             pass
-
-    def _wake_live_refresh_after_run(self) -> None:
-        """Poll completed-run snapshots promptly while the shell awaits input."""
-        timer = self._live_refresh_timer
-        if (
-            self._live_run_finished
-            and timer is not None
-            and not self._live_run_completion_woken
-        ):
-            timer.setInterval(round(1000 / _LIVE_PREVIEW_MAX_FPS))
-            self._live_run_completion_woken = True
 
     @staticmethod
     def _set_label_font_size(actor: Any, size: int) -> bool:
@@ -845,6 +784,111 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self.last_signature = signature
         return unchanged
 
+    def _simulation_properties_actions(
+        self,
+    ) -> list[tuple[str, str, Callable[[], int], Callable[[], bool]]]:
+        return [
+            (
+                "generate-particles",
+                "Generate particles",
+                self._generate_particles_from_editor,
+                self._can_generate_particles,
+            ),
+            (
+                "initialize-simulation",
+                "Initialize simulation",
+                self.initialize_simulation,
+                lambda: self._pending_simulation is not None
+                and not self._pending_initialized,
+            ),
+            (
+                "continue-to-run",
+                "Continue to run",
+                self.continue_to_run,
+                lambda: self._pending_simulation is not None
+                and self._pending_initialized,
+            ),
+            (
+                "replay-animation",
+                "Replay animation",
+                self.replay_animation,
+                lambda: self._animation_run_completed
+                and self._animation_output_dir is not None
+                and bool(self._animation_particle_body_names)
+                and not (
+                    self._live_run_thread is not None
+                    and self._live_run_thread.is_alive()
+                ),
+            ),
+        ]
+
+    def _can_generate_particles(self) -> bool:
+        editor = self._json_editor
+        get_config_path = editor.get("config_path") if isinstance(editor, dict) else None
+        if not callable(get_config_path):
+            return False
+        try:
+            return Path(get_config_path()).is_file()
+        except (OSError, TypeError, ValueError):
+            return False
+
+    def _generate_particles_from_editor(self) -> int:
+        editor = self._json_editor
+        get_config_path = editor.get("config_path") if isinstance(editor, dict) else None
+        if not callable(get_config_path):
+            return 1
+        try:
+            config_path = Path(get_config_path())
+            config = SimulationConfig.model_validate_json(
+                config_path.read_text(encoding="utf-8")
+            )
+        except (OSError, TypeError, ValueError) as exc:
+            message = f"Could not load configuration for particle generation: {exc}"
+            status = editor.get("status")
+            if status is not None:
+                status.setText(message)
+            print(f"❌ {message}", file=sys.stderr)
+            return 1
+        return self.show_or_update(
+            config,
+            resolved_config_path=config_path,
+            with_particles=True,
+            force=True,
+        )
+
+    def _capture_camera_state(self) -> dict[str, Any] | None:
+        if self.plotter is None:
+            return None
+        try:
+            camera_position = self.plotter.camera_position
+            position = tuple(
+                tuple(float(coordinate) for coordinate in point)
+                for point in camera_position
+            )
+            if len(position) != 3:
+                return None
+            camera = self.plotter.camera
+            return {
+                "position": position,
+                "parallel_projection": bool(camera.parallel_projection),
+                "parallel_scale": float(camera.parallel_scale),
+                "view_angle": float(camera.view_angle),
+            }
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return None
+
+    def _restore_camera_state(self, state: dict[str, Any] | None) -> None:
+        if self.plotter is None or state is None:
+            return
+        try:
+            camera = self.plotter.camera
+            camera.parallel_projection = state["parallel_projection"]
+            camera.parallel_scale = state["parallel_scale"]
+            camera.view_angle = state["view_angle"]
+            self.plotter.camera_position = copy.deepcopy(state["position"])
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return
+
     def show_or_update(
         self,
         config: SimulationConfig,
@@ -868,6 +912,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 config,
                 config_path=resolved_config_path,
                 with_particles=with_particles,
+                simulation_actions=self._simulation_properties_actions(),
             )
             if not editor_refreshed:
                 print("Preview canceled; unapplied editor changes were preserved.")
@@ -891,6 +936,12 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         )
 
         ndim = visualizer._spatial_dim()
+        preserve_camera = (
+            self.plotter is not None
+            and self._using_background_plotter
+            and self._preview_spatial_dim == ndim
+        )
+        camera_state = self._capture_camera_state() if preserve_camera else None
         vtp_dir: Path | None = None
         latest_particle_vtps: dict[str, Path] = {}
 
@@ -961,6 +1012,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                     config,
                     config_path=resolved_config_path,
                     with_particles=with_particles,
+                    simulation_actions=self._simulation_properties_actions(),
                 )
                 from qtpy import QtWidgets
                 if isinstance(self.plotter, QtWidgets.QWidget):
@@ -991,9 +1043,17 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 draw_sidebar(self.plotter)
             visualizer._populate_plotter(self.plotter, vtp_dir, latest_particle_vtps)
             if self._particle_visibility is not None:
-                if resolved_config_path != self._particle_scene_path or with_particles:
+                config_signature = json.dumps(
+                    config.model_dump(exclude_none=True), sort_keys=True
+                )
+                if (
+                    resolved_config_path != self._particle_scene_path
+                    or config_signature != self._particle_scene_config_signature
+                    or with_particles
+                ):
                     self._particle_scene_generation += 1
                     self._particle_scene_path = resolved_config_path
+                    self._particle_scene_config_signature = config_signature
                 self._particle_visibility.set_scene(
                     ("preview", self._particle_scene_generation), config, visualizer.legend_actor
                 )
@@ -1037,6 +1097,8 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             if configure_layout is not None:
                 configure_layout(self.plotter)
             visualizer._configure_default_view(self.plotter, ndim)
+            if preserve_camera:
+                self._restore_camera_state(camera_state)
             self.plotter.add_axes()
             self.plotter.show_grid(font_size=10, color=(0.25, 0.25, 0.25), bold=False)
 
@@ -1055,6 +1117,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 self.plotter.render()
             except Exception:
                 pass
+            self._preview_spatial_dim = ndim
             if with_particles and self._pending_simulation is not None:
                 self.replay_animation(relaxation=True, _automatic=True)
             return 0

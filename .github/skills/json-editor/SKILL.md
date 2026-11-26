@@ -31,6 +31,11 @@ and round-tripping behavior, or code that integrates with the editor.
 - The desktop layer also accesses the editor hooks and tree. Check both CLI and
   desktop call sites before changing the `_json_editor` hook shape or refresh
   behavior.
+- The shell preview's "Simulation Properties" dock has a "Simulation ▾" menu
+  row above the filter for particle generation, initialization, continued run,
+  and animation replay controls. Keep it distinct from the tree-header
+  "Setting ▾" menu and wire it only for the shell preview runtime; native
+  desktop and Workbench have separate controls.
 - Qt is optional and is imported lazily when installing the editor. Preserve
   graceful operation when Qt is unavailable.
 - Preserve sparse source JSON when saving: only apply actual edits, avoid adding

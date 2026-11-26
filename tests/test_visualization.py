@@ -425,6 +425,50 @@ def test_particle_splat_selection_survives_live_and_replay(fluid_config, tmp_pat
 
 
 @requires_desktop
+def test_particle_rescale_ranges_persist_across_frames_and_reset_with_scene(fluid_config):
+    np = pytest.importorskip("numpy")
+    pv = pytest.importorskip("pyvista")
+    from sphinxsim.visualization.particle_visibility import ParticleVisibility
+
+    plotter = pv.Plotter(off_screen=True)
+    controller = ParticleVisibility(plotter)
+    controller.set_scene("run", fluid_config)
+    try:
+        first = pv.PolyData(np.array([[0, 0, 0], [1, 0, 0]], dtype=float))
+        first.point_data["Pressure"] = [-2.0, 4.0]
+        first.field_data["ScalingReference_Pressure"] = [10.0]
+        actor = plotter.add_mesh(first, color="red")
+        controller.add_actor("WaterBody", actor, first, initialized=True)
+        controller.set_colour("WaterBody", "Pressure")
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((-10, 10))
+        controller.rescale_to_current_range("WaterBody")
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((-2, 4))
+
+        updated = pv.PolyData(np.array([[0, 0, 0], [1, 0, 0]], dtype=float))
+        updated.point_data["Pressure"] = [-100.0, 100.0]
+        actor = plotter.add_mesh(updated, color="red")
+        controller.add_actor("WaterBody", actor, updated, initialized=True)
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((-2, 4))
+
+        controller.set_prescribed_range("WaterBody", -1.5, 3.5)
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((-1.5, 3.5))
+        later = pv.PolyData(np.array([[0, 0, 0], [1, 0, 0]], dtype=float))
+        later.point_data["Pressure"] = [-5.0, 5.0]
+        actor = plotter.add_mesh(later, color="red")
+        controller.add_actor("WaterBody", actor, later, initialized=True)
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((-1.5, 3.5))
+
+        with pytest.raises(ValueError, match="minimum color range"):
+            controller.set_prescribed_range("WaterBody", 3.5, -1.5)
+        assert actor.GetMapper().GetScalarRange() == pytest.approx((-1.5, 3.5))
+        controller.set_scene("new-config", fluid_config)
+        assert not controller.rescale_ranges
+        assert not controller.rescale_modes
+    finally:
+        plotter.close()
+
+
+@requires_desktop
 def test_particle_palette_updates_per_body_and_representation(fluid_config):
     pv = pytest.importorskip("pyvista")
     np = pytest.importorskip("numpy")
@@ -2064,32 +2108,22 @@ with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTi
             assert main(["shell"]) == 0
         run.assert_not_called()
 
-    def test_shell_runtime_plays_final_snapshots_when_run_finishes_before_refresh(self, tmp_path):
+    def test_shell_runtime_refreshes_after_run_finishes_before_next_poll(self, tmp_path):
         from sphinxsim import cli as cli_mod
 
         class FakeTimer:
             def __init__(self):
                 self.timeout = MagicMock()
                 self.interval = None
-                self.interval_updates = 0
 
             def setInterval(self, interval):
                 self.interval = interval
-                self.interval_updates += 1
 
             def start(self):
                 pass
 
             def stop(self):
                 pass
-
-        class FakePlotter:
-            def __init__(self):
-                self.meshes = []
-                self.app = SimpleNamespace(processEvents=lambda: None)
-
-            def add_mesh(self, mesh, **_kwargs):
-                self.meshes.append(mesh)
 
         class FakeSimulation:
             def buildSimulation(self):
@@ -2109,78 +2143,49 @@ with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTi
         runtime._using_background_plotter = True
         runtime._live_output_dir = tmp_path
         runtime._live_particle_body_names = {"WaterBody"}
-        runtime.plotter = FakePlotter()
+        runtime._live_particle_colours = {"WaterBody": "blue"}
+        runtime.plotter = MagicMock()
+        observed_colours = {}
+
+        def refresh(*args):
+            observed_colours.update(args[2])
 
         with patch.dict(
             sys.modules,
             {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))},
-        ):
-            assert runtime.continue_to_run(refresh_interval=30.0) == 0
+        ), patch.dict(sys.modules, {"pyvista": SimpleNamespace()}), patch(
+            "sphinxsim.visualization.live_particles.refresh_particle_actors",
+            side_effect=refresh,
+        ) as refresh_particles:
+            assert runtime.continue_to_run() == 0
             runtime._live_run_thread.join()
-            assert timer.interval == 30_000
             runtime.pump_ui_events()
             runtime.pump_ui_events()
-            assert timer.interval == 40
-            assert timer.interval_updates == 2
+            runtime._refresh_live_particles()
 
-            with patch.dict(
-                sys.modules,
-                {"pyvista": SimpleNamespace(read=lambda path: path)},
-            ):
-                runtime._refresh_live_particles()
-                runtime._refresh_live_particles()
-                runtime._refresh_live_particles()
-
-        assert runtime.plotter.meshes == [
-            str(tmp_path / "WaterBody_1.vtp"),
-            str(tmp_path / "WaterBody_2.vtp"),
-        ]
+        assert timer.interval == 75
+        refresh_particles.assert_called_once()
+        assert observed_colours == {"WaterBody": "blue"}
         assert runtime._live_refresh_timer is None
 
-    def test_shell_runtime_plays_particle_snapshots_in_sequence(self, tmp_path):
-        from sphinxsim import cli as cli_mod
-
-        class FakePlotter:
-            def __init__(self):
-                self.meshes = []
-
-            def add_mesh(self, mesh, **kwargs):
-                self.meshes.append(mesh)
-
-        runtime = cli_mod._ShellPreviewRuntime()
-        runtime.plotter = FakePlotter()
-        runtime._live_output_dir = tmp_path
-        runtime._live_particle_body_names = {"WaterBody"}
-        runtime._live_run_thread = SimpleNamespace(is_alive=lambda: True)
-        snapshots = [tmp_path / f"WaterBody_{step}.vtp" for step in range(3)]
-        for snapshot in snapshots:
-            snapshot.touch()
-
-        with patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=str)}):
-            for _ in range(6):
-                runtime._refresh_live_particles()
-
-        assert runtime.plotter.meshes == [str(path) for path in snapshots]
-
-    def test_live_playback_ignores_relaxation_snapshots(self, tmp_path):
+    def test_shell_runtime_refreshes_through_shared_particle_updater(self, tmp_path):
         from sphinxsim import cli as cli_mod
 
         runtime = cli_mod._ShellPreviewRuntime()
         runtime.plotter = MagicMock()
         runtime._live_output_dir = tmp_path
-        runtime._live_particle_body_names = {"Water", "Water_Extra"}
+        runtime._live_particle_body_names = {"WaterBody"}
         runtime._live_run_thread = SimpleNamespace(is_alive=lambda: True)
-        for name in ("Water_ite_1.vtp", "Water_1.vtp", "Water_Extra_ite_1.vtp",
-                     "Water_Extra_1.vtp", "Water_2.vtp"):
-            (tmp_path / name).touch()
 
-        with patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=str)}):
-            for _ in range(4):
+        with patch.dict(sys.modules, {"pyvista": SimpleNamespace()}), patch(
+            "sphinxsim.visualization.live_particles.refresh_particle_actors"
+        ) as refresh:
+            for _ in range(2):
                 runtime._refresh_live_particles()
 
-        assert {Path(call.args[0]).name for call in runtime.plotter.add_mesh.call_args_list} == {
-            "Water_1.vtp", "Water_Extra_1.vtp", "Water_2.vtp"
-        }
+        assert refresh.call_count == 2
+        assert refresh.call_args_list[0].args[4] is refresh.call_args_list[1].args[4]
+        assert runtime._live_refresh_timer is None
 
     def test_replay_separates_relaxation_from_simulation_and_preserves_pending(self, tmp_path):
         from sphinxsim import cli as cli_mod
@@ -2314,7 +2319,7 @@ with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTi
         assert runtime._pending_simulation is simulation
         assert "Relaxation playback unavailable" in capsys.readouterr().err
 
-    def test_shell_runtime_caps_live_refresh_at_25_fps(self):
+    def test_shell_runtime_polls_live_snapshots_every_75ms(self):
         from sphinxsim import cli as cli_mod
 
         class FakeTimer:
@@ -2335,21 +2340,18 @@ with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTi
         runtime._live_particle_body_names = {"WaterBody"}
         runtime._live_run_thread = SimpleNamespace(is_alive=lambda: True)
         runtime._using_background_plotter = True
-        snapshot_paths = [Path(f"WaterBody_{step}.vtp") for step in (1, 2)]
         with patch.dict(
             sys.modules,
             {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTimer=lambda: timer))},
-        ), patch.dict(sys.modules, {"pyvista": SimpleNamespace(read=str)}), patch.object(
-            Path, "glob", return_value=snapshot_paths
-        ), patch.object(Path, "stat", return_value=SimpleNamespace(st_size=1, st_mtime_ns=1)):
-            runtime._start_live_refresh(10.0)
-            assert timer.interval == 10_000
+        ), patch.dict(sys.modules, {"pyvista": SimpleNamespace()}), patch(
+            "sphinxsim.visualization.live_particles.refresh_particle_actors"
+        ) as refresh:
+            runtime._start_live_refresh()
+            assert timer.interval == 75
             runtime._refresh_live_particles()
-            assert timer.interval == 40
-            runtime._refresh_live_particles()
-            assert timer.interval == 10_000
+            assert timer.interval == 75
 
-        assert runtime.plotter.add_mesh.call_count == 2
+        refresh.assert_called_once()
 
     def test_shell_runtime_skips_empty_particle_mesh(self, tmp_path):
         from sphinxsim import cli as cli_mod
@@ -2537,14 +2539,24 @@ with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTi
             assert main(["shell"]) == 0
         assert calls == [{"relaxation": True}, {"relaxation": True}, "initialize", "discard"]
 
-    def test_shell_continue_to_run_accepts_refresh_interval(self):
+    def test_shell_continue_to_run_uses_fixed_refresh_interval(self):
+        from sphinxsim import cli as cli_mod
+
+        with patch.object(cli_mod._ShellPreviewRuntime, "continue_to_run", return_value=0) as continue_to_run:
+            with patch("builtins.input", side_effect=["continue-to-run", "exit"]):
+                assert main(["shell"]) == 0
+
+        continue_to_run.assert_called_once_with()
+
+    def test_shell_continue_to_run_rejects_removed_refresh_interval(self, capsys):
         from sphinxsim import cli as cli_mod
 
         with patch.object(cli_mod._ShellPreviewRuntime, "continue_to_run", return_value=0) as continue_to_run:
             with patch("builtins.input", side_effect=["continue-to-run --refresh-interval 2.5", "exit"]):
                 assert main(["shell"]) == 0
 
-        continue_to_run.assert_called_once_with(2.5)
+        continue_to_run.assert_not_called()
+        assert "Usage: continue-to-run" in capsys.readouterr().err
 
     def test_shell_runtime_releases_pending_simulation_for_other_command(self, build_temp_path):
         _, rel = self._write_config(build_temp_path)
@@ -2625,6 +2637,96 @@ with patch.dict(sys.modules, {"qtpy": SimpleNamespace(QtCore=SimpleNamespace(QTi
 
         assert rc == 0
         assert not runtime._using_background_plotter
+
+    def test_shell_particle_preview_preserves_current_camera(self, tmp_path, monkeypatch):
+        from sphinxsim import cli as cli_mod
+
+        cfg = SimulationConfig(**_minimal_fluid_config())
+
+        class FakeCamera:
+            parallel_projection = True
+            parallel_scale = 3.5
+            view_angle = 27.0
+
+        class FakePlotter:
+            def __init__(self):
+                self.camera = FakeCamera()
+                self.camera_position = [
+                    (4.0, 5.0, 6.0),
+                    (0.5, 0.5, 0.0),
+                    (0.0, 1.0, 0.0),
+                ]
+
+            def clear(self):
+                pass
+
+            def add_axes(self):
+                pass
+
+            def show_grid(self, **kwargs):
+                pass
+
+            def render(self):
+                pass
+
+        class FakeVisualizer:
+            used_cpp_bounds = False
+            legend_actor = None
+
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def _spatial_dim(self):
+                return 2
+
+            def _try_build_geometries(self, ndim, with_particles=False):
+                return None
+
+            def _discover_latest_particle_vtps(self, vtp_dir, generation_only=False):
+                return {}
+
+            def _populate_plotter(self, *args):
+                pass
+
+            def take_particle_simulation(self):
+                return None
+
+            def _particle_generation_body_names(self):
+                return []
+
+            def _configure_default_view(self, plotter, ndim):
+                plotter.camera_position = [
+                    (0.0, 0.0, 10.0),
+                    (0.0, 0.0, 0.0),
+                    (0.0, 1.0, 0.0),
+                ]
+                plotter.camera.parallel_scale = 10.0
+
+        runtime = cli_mod._ShellPreviewRuntime()
+        runtime.plotter = FakePlotter()
+        runtime._using_background_plotter = True
+        runtime._preview_spatial_dim = 2
+        runtime._json_editor = {"refresh": lambda *_args: True}
+        monkeypatch.setitem(sys.modules, "pyvista", SimpleNamespace())
+        monkeypatch.setattr(cli_mod, "PROJECT_ROOT", tmp_path)
+
+        with patch("sphinxsim.visualization.preview.ConfigVisualizer", FakeVisualizer):
+            result = runtime.show_or_update(
+                cfg,
+                resolved_config_path=tmp_path / "config.json",
+                with_particles=True,
+                force=True,
+            )
+
+        assert result == 0
+        assert runtime.plotter.camera_position == (
+            (4.0, 5.0, 6.0),
+            (0.5, 0.5, 0.0),
+            (0.0, 1.0, 0.0),
+        )
+        assert runtime.plotter.camera.parallel_projection is True
+        assert runtime.plotter.camera.parallel_scale == 3.5
+        assert runtime.plotter.camera.view_angle == 27.0
 
     def test_shell_runtime_rebinds_editor_when_preview_path_changes(self, tmp_path, monkeypatch):
         """An existing editor must follow the newly loaded shell config file."""

@@ -97,6 +97,77 @@ def test_preview_hosts_the_shared_property_editor_widget(editor):
     assert not widget.save_shortcut.isEnabled()
 
 
+def test_simulation_properties_simulation_menu_runs_registered_controls(editor):
+    app, runtime, _, _ = editor
+    hooks = runtime._json_editor
+    calls = []
+    hooks["set_simulation_actions"](
+        [
+            ("generate-particles", "Generate particles", lambda: calls.append("generate"), lambda: True),
+            ("initialize-simulation", "Initialize simulation", lambda: calls.append("initialize"), lambda: False),
+            ("continue-to-run", "Continue to run", lambda: calls.append("continue"), lambda: True),
+            ("replay-animation", "Replay animation", lambda: calls.append("replay"), lambda: True),
+        ]
+    )
+    dock = hooks["dock"]
+    app.processEvents()
+    button = dock.findChild(QtWidgets.QToolButton, "sphinxsim-simulation-menu-button")
+    assert button is not None
+    assert button.text() == "Simulation ▾"
+    assert hooks["widget"].layout().indexOf(
+        dock.findChild(QtWidgets.QWidget, "sphinxsim-simulation-menu-row")
+    ) == 0
+    button.click()
+    app.processEvents()
+
+    menu = dock.findChild(QtWidgets.QMenu, "sphinxsim-simulation-properties-menu")
+    assert menu is not None
+    assert [action.text() for action in menu.actions()] == [
+        "Generate particles",
+        "Initialize simulation",
+        "Continue to run",
+        "Replay animation",
+    ]
+    assert [action.isEnabled() for action in menu.actions()] == [True, False, True, True]
+    menu.actions()[0].trigger()
+    assert calls == ["generate"]
+    menu.hide()
+
+
+def test_shell_preview_simulation_menu_maps_to_lifecycle(editor, monkeypatch):
+    app, runtime, _, _ = editor
+    calls = []
+    monkeypatch.setattr(
+        runtime, "_generate_particles_from_editor", lambda: calls.append("generate")
+    )
+    monkeypatch.setattr(
+        runtime, "initialize_simulation", lambda: calls.append("initialize")
+    )
+    monkeypatch.setattr(runtime, "continue_to_run", lambda: calls.append("continue"))
+    monkeypatch.setattr(runtime, "replay_animation", lambda: calls.append("replay"))
+    runtime._pending_simulation = object()
+    runtime._pending_initialized = True
+    runtime._animation_run_completed = True
+    runtime._animation_output_dir = Path(".")
+    runtime._animation_particle_body_names = {"body"}
+    runtime._json_editor["set_simulation_actions"](
+        runtime._simulation_properties_actions()
+    )
+    dock = runtime._json_editor["dock"]
+    button = dock.findChild(QtWidgets.QToolButton, "sphinxsim-simulation-menu-button")
+    assert button is not None
+    button.click()
+    app.processEvents()
+    menu = dock.findChild(QtWidgets.QMenu, "sphinxsim-simulation-properties-menu")
+    assert menu is not None
+    assert [action.isEnabled() for action in menu.actions()] == [True, False, True, True]
+    for action in menu.actions():
+        action.trigger()
+
+    assert calls == ["generate", "continue", "replay"]
+    menu.hide()
+
+
 def test_clipboard_changes_do_not_update_a_destroyed_editor_tree(editor, monkeypatch):
     app, runtime, _, _ = editor
     tree = runtime._json_editor["tree"]

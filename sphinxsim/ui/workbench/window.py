@@ -418,8 +418,13 @@ class WorkbenchWindow(QtWidgets.QMainWindow):
             camera = (self.plotter.camera_position if self.observer is None
                       and self.preview_dimension == dimension and self.plotter.renderer.actors else None)
             visualizer.populate_existing_run(self.plotter, output)
+            scene_signature = json.dumps(
+                config.model_dump(exclude_none=True), sort_keys=True
+            )
             self.particle_visibility.set_scene(
-                ("preview", Path(snapshot["config_path"])), config, visualizer.legend_actor
+                ("preview", Path(snapshot["config_path"]), output, scene_signature),
+                config,
+                visualizer.legend_actor,
             )
             bodies = config.fluid_bodies + config.continuum_bodies + config.solid_bodies
             refresh_particle_actors(

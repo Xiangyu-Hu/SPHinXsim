@@ -171,19 +171,28 @@ body's displayed solver snapshot, including integer arrays such as particle
 IDs. Vectors are colored by magnitude; matrices are not offered. The color bar
 identifies the body and variable. Select **Body color** to restore the default.
 
-Right-click a visible color bar to choose **Blue to red** (the default),
-**Viridis**, or **Grayscale**. The palette applies to that body, including
-points and sphere splats, and persists across its fields and frames in the same
-scene. Changing the palette does not change the color range.
+Right-click a visible color bar and open **Color preset** to choose **Blue to
+red** (the default), **Viridis**, or **Grayscale**. The palette applies to that
+body, including points and sphere splats, and persists across its fields and
+frames in the same scene.
 
-For an attribute with a valid saved [scaling reference](#particle-scaling-metadata),
-scalar colors use the fixed range `[-reference, reference]` and vector
-magnitudes use `[0, reference]`; values outside the range use the end colors.
-Without a valid reference, including in older files, the range is calculated
-from each frame's finite values and may change between frames. If the selected
-attribute is absent or has no finite values, the body temporarily uses its
-body color. The selection is retained and applied again when the attribute
-returns.
+Use **Rescale → Current range** to capture and keep the finite minimum and
+maximum measured from the displayed data (vector magnitudes for vector
+fields), rather than the configured scaling reference. Or use
+**Rescale → Prescribed range** to enter a minimum and maximum. The selected
+range applies to that body's selected field and is retained across incoming
+frames. Each body and field keeps its own choice until changed or a new config
+is loaded.
+
+By default, an attribute with a valid saved
+[scaling reference](#particle-scaling-metadata) uses `[-reference, reference]`
+for scalar colors and `[0, reference]` for vector magnitudes; values outside the
+range use the end colors. Without a valid reference, including in older files,
+the range is calculated from each frame's finite values and may change between
+frames. A range selected under **Rescale** overrides these defaults for that
+body and field. If the selected attribute is absent or has no finite values,
+the body temporarily uses its body color. The color and range selections are
+retained and applied again when the attribute returns.
 
 Visibility and color selections persist as frames change during a run and
 shell replay. Switching to another case or run resets them. The preview also
@@ -320,9 +329,9 @@ sphinxsim> initialize-simulation
 ✅ Simulation built
 ✅ Simulation initialized
 
-sphinxsim> continue-to-run --refresh-interval 10
+sphinxsim> continue-to-run
 🚀 Running simulation...
-ℹ️ Preview checks for new snapshots every 10 seconds and plays each batch at up to 25 FPS.
+ℹ️ Preview checks for the latest body snapshots every 75 ms.
 ✅ Simulation completed successfully!
 ```
 
@@ -368,21 +377,14 @@ saved config is intended. If displaying the initialized snapshots fails, the
 error is reported and the initialized simulation remains available for
 `continue-to-run`.
 
-`continue-to-run` accepts an optional wall-clock refresh interval:
-
-```text
-sphinxsim> continue-to-run --refresh-interval 2.5
-```
-
-The default interval is `10` seconds and the value must be greater than zero.
-At each interval, the preview collects available simulation body-state VTP snapshots
-and plays them in sequence at up to 25 FPS. It then waits for another interval
-before collecting the next batch, allowing slower simulations to produce
-more output between playback batches. A snapshot is loaded only after its file
-size and modification time remain stable across checks, avoiding reads while
-the solver is still writing it. This uses `pyvistaqt` with the base package's
-PySide6 Qt backend. If a persistent preview cannot be opened, the simulation
-still continues but the window cannot refresh its particles live.
+`continue-to-run` checks for new snapshots every 75 ms. At each check, the
+preview looks up the latest complete body-state VTP
+for every body and refreshes any body with a newer file. It does not queue
+older frames for playback, so the view stays close to the current simulation
+state. Incomplete files are retried on the next check. This uses `pyvistaqt`
+with the base package's PySide6 Qt backend. If a persistent preview cannot be
+opened, the simulation still continues but the window cannot refresh its
+particles live.
 
 ## Python API
 

@@ -69,6 +69,10 @@ Design rule:
   and scene-population logic in `preview.py`.
 - The runtime uses `JsonEditorMixin` for the preview configuration dock. See the
   `json-editor` skill for editor UI and JSON round-tripping details.
+- When a persistent preview is rebuilt with the same spatial dimension, preserve
+  the current camera position and projection so actions such as
+  `preview --with-particles` do not unexpectedly reset the user's view. Let a
+  dimension change select its appropriate default view.
 - For JSON-editor preview toggles, `ConfigVisualizer` groups annotation and
   visualization actors by canonical dot-separated config path. The runtime
   clears this binding when rebuilding the plotter and rebinds it after scene
@@ -82,13 +86,15 @@ Design rule:
   colors; mapped scalar colors can crash during rendering. Preserve the color
   transfer function for the scalar bar when converting particle values to RGBA.
 - `ParticleVisibility` keeps each body's visibility, representation, opacity,
-  field and palette across replacement actors and frame updates in the same
-  scene; a new scene resets these choices. Its Qt event filter maps widget
+  field, palette, body/field color range, and per-body clipping across
+  replacement actors and frame updates in the same scene; a new scene resets
+  these choices. Current-range rescaling captures finite data extrema (vector
+  magnitudes for vectors), not the current mapper range or scaling reference.
+  Clipping is display-only, applies to particle mappers only, and follows actor
+  replacements and representation changes. The Qt event filter maps widget
   coordinates to VTK legend/color-bar coordinates and preserves right-drag.
-  Per-body clipping is display-only, applies to particle mappers only, and
-  follows actor replacements and representation changes; a new scene resets
-  clip settings. Palette changes must update both the particle mapper and its
-  scalar bar.
+  Palette and range changes must update both the particle mapper and its scalar
+  bar.
 - When changing runtime behavior, inspect the CLI, desktop session, and
   visualization test call sites. Prefer focused tests in
   `tests/test_visualization.py` and `tests/runtime/test_desktop.py` as
@@ -110,11 +116,11 @@ Design rule:
   `initialize-simulation` calls `buildSimulation()` and `initializeSimulation()`
   and displays the initialized body-state snapshots; `continue-to-run` calls
   `run()` without reinitializing.
-- `continue-to-run` accepts `--refresh-interval SECONDS` with a default of
-  `10`. It runs the solver in a worker thread and, for a Qt-backed persistent
-  preview, uses a GUI-thread timer to replace particle actors from newer
-  completed body-state VTP snapshots. The interval is wall-clock time and must
-  be positive.
+- `continue-to-run` runs the solver in a worker thread and, for a Qt-backed
+  persistent preview, uses a GUI-thread timer to refresh each body's latest
+  complete VTP snapshot every 75 ms. It uses `ResultCatalog` and
+  `refresh_particle_actors`, does not queue stale live frames, and stops
+  polling when the solver thread ends.
 - Live simulation playback and plain `replay` exclude `_ite_` snapshots;
   `replay --relaxation` selects only `_ite_` snapshots and does not require
   a completed simulation. Both read the shared output directory, which can
@@ -179,6 +185,14 @@ For each `config.body_constraints` item:
 ## Testing playbook
 Use `tests/test_visualization.py`.
 
+0. Run pytest tasks that share the same repository/temp environment serially.
+- Do not launch multiple pytest commands in parallel: the configured shared
+  pytest temporary root can be removed or reused by concurrent runs, causing
+  unrelated `tmp_path` setup failures such as `FileNotFoundError`.
+- Run one test command to completion before starting the next. If separate
+  suites need independent parallel runs, first give each invocation a distinct
+  `--basetemp` directory and ensure those directories are not shared.
+
 1. Label unit tests
 - Validate generated text content for each annotation function.
 - Prefer strict substring assertions for critical fields.
@@ -210,8 +224,8 @@ Use `tests/test_visualization.py`.
   continued run and is deleted afterward.
 - Test that another shell command releases the retained simulation instead of
   allowing it to survive into a later workflow.
-- Test `--refresh-interval` parsing, including the default `10` seconds and
-  rejection of zero or negative values.
+- Test that `continue-to-run` uses a fixed 75 ms refresh interval and rejects
+  the removed `--refresh-interval` option.
 - Mock the GUI timer and VTP reader when testing live refresh. Do not mutate
   PyVista/VTK actors from the solver worker thread; timer callbacks own actor
   updates on the Qt GUI thread.

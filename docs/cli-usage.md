@@ -165,7 +165,7 @@ Inside the shell, you can use the following commands:
 | `preview --with-particles` | Generate particles and automatically play their relaxation snapshots |
 | `preview --screenshot FILE` | Save a screenshot to FILE instead of opening an interactive window |
 | `initialize-simulation` | Build and initialize the retained particle-preview simulation and display its initial body-state snapshots |
-| `continue-to-run [--refresh-interval SECONDS]` | Run the initialized particle-preview simulation; collect snapshots every 10 seconds by default and play each batch at up to 25 FPS |
+| `continue-to-run` | Run the initialized particle-preview simulation; check each body's latest snapshot every 75 ms |
 | `run` | Build and execute the loaded config |
 | `run --with-animation` | Preview generated particles, continue that same simulation, and animate its snapshots |
 | `replay` | Replay simulation snapshots from the latest successful animated run at up to 25 FPS |
@@ -181,7 +181,7 @@ Notes:
 - In shell mode, `preview` keeps a persistent window and returns control to the prompt. Running `preview` again updates the same window.
 - `preview --with-particles` plays relaxation snapshots in the Qt-backed preview and retains its generated-particle simulation for `initialize-simulation`, followed by `continue-to-run`. `replay --relaxation` also retains it; other shell commands discard it. Initialization stops relaxation playback and displays the initial simulation state without running the solver.
 - `run` without options is unchanged. `run --with-animation` performs the equivalent of `preview --with-particles`, `initialize-simulation`, and `continue-to-run`.
-- `continue-to-run --refresh-interval SECONDS` sets the delay between checks for new body-state VTP files; the default is `10` seconds. At each check, all available snapshots are played in sequence at up to 25 FPS, then the preview waits for the next interval before collecting another batch. When the simulation finishes, the preview promptly checks and plays any remaining snapshots. Live refresh requires the Qt-backed persistent preview with `pyvistaqt`; the simulation still runs when that preview is unavailable, but its particles are not updated live.
+- `continue-to-run` checks each body's latest complete VTP file every 75 ms. When a newer snapshot is ready, the preview refreshes that body's particles immediately instead of queuing earlier snapshots for playback. Polling stops when the simulation terminates. Live refresh requires the Qt-backed persistent preview with `pyvistaqt`; the simulation still runs when that preview is unavailable, but its particles are not updated live.
 - Use `replay --relaxation` to replay the `_ite_` snapshots from particle generation, even before initialization. After a successful `run --with-animation` or `continue-to-run`, use `replay` for simulation snapshots only. Replay opens a Qt-backed window if needed, keeps the camera view fixed, and is capped at 25 FPS. Automatic playback is skipped with a warning if Qt playback is unavailable.
 - Particle output uses a shared directory. Filename filtering separates relaxation and simulation, but older snapshots of the same kind can still appear in playback.
 - For responsive persistent preview, install the `visualization` extra, which

@@ -182,6 +182,10 @@
     },
     {
       "body_name": "AirBody",
+      "type": "wall_bounding"
+    },
+    {
+      "body_name": "AirBody",
       "type": "bi_directional",
       "oriented_box": "AirOutlet",
       "pressure": 0.0

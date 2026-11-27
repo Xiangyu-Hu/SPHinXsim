@@ -43,7 +43,7 @@ class ConstantConstraintCK : public BaseLocalDynamics<DynamicsIdentifier>
     ConstantConstraintCK(DynamicsIdentifier &identifier, const std::string &variable_name,
                          const DataType &constrained_value)
         : BaseLocalDynamics<DynamicsIdentifier>(identifier),
-          dv_variable_(this->particles_->template getVariableByName<DataType>(variable_name)),
+          dv_variable_(this->particles_->template registerStateVariable<DataType>(variable_name)),
           constrained_value_(constrained_value) {};
     virtual ~ConstantConstraintCK() {};
 
@@ -53,7 +53,7 @@ class ConstantConstraintCK : public BaseLocalDynamics<DynamicsIdentifier>
         template <class ExecutionPolicy, class EncloserType>
         UpdateKernel(const ExecutionPolicy &ex_policy, EncloserType &encloser)
             : variable_(encloser.dv_variable_->DelegatedData(ex_policy)),
-              constrained_value_(encloser.constrained_value_){};
+              constrained_value_(encloser.constrained_value_) {};
 
         void update(size_t index_i, Real dt = 0.0)
         {

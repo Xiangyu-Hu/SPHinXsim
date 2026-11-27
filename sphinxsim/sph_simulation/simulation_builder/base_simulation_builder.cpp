@@ -27,7 +27,7 @@ VariableConfig parseVariableConfig(const json &config)
     throw std::runtime_error("parseVariableConfig not supported variable type.");
 }
 //=================================================================================================//
-SimulationBuilder::SimulationBuilder() : material_builder_ptr_(std::make_unique<MaterialBuilder>()) {}
+SimulationBuilder::SimulationBuilder() {}
 //=================================================================================================//
 SimulationBuilder::~SimulationBuilder() = default;
 //=================================================================================================//
@@ -52,7 +52,7 @@ void SimulationBuilder::buildFluidBodies(
 
         Shape &fluid_shape = config_manager.getEntity<Shape>(name);
         auto &fluid_body = sph_system.addBody<FluidBody>(fluid_shape, name);
-        material_builder_ptr_->addMaterial(config_manager, fluid_body, fb.at("material"));
+        MaterialBuilder::addMaterial(config_manager, fluid_body, fb.at("material"));
 
         if (fb.contains("surface_type"))
         {
@@ -85,7 +85,7 @@ void SimulationBuilder::buildContinuumBodies(
 
         Shape &shape = config_manager.getEntity<Shape>(name);
         auto &continuum_body = sph_system.addBody<RealBody>(shape, name);
-        material_builder_ptr_->addMaterial(config_manager, continuum_body, cb.at("material"));
+        MaterialBuilder::addMaterial(config_manager, continuum_body, cb.at("material"));
         continuum_body.generateParticles<BaseParticles, Reload>(name);
     }
 }
@@ -132,7 +132,7 @@ void SimulationBuilder::buildSolidBodies(
         Shape &solid_shape = config_manager.getEntity<Shape>(name);
         auto &solid_body = sph_system.addBody<SolidBody>(solid_shape, name);
         solid_body.defineAdaptationRatios(body_config.h_spacing_ratio_, body_config.refinement_to_global_);
-        material_builder_ptr_->addMaterial(config_manager, solid_body, sb.at("material"));
+        MaterialBuilder::addMaterial(config_manager, solid_body, sb.at("material"));
         if (!config_manager.hasEntity<Solid>(name + "RigidBody"))
             body_config.setDeformable();
 

@@ -205,11 +205,11 @@ void MaterialBuilder::addViscosity(EntityManager &config_manager, SPHBody &sph_b
 {
     Real mu_ref = 0.0;
     auto &scaling_config = config_manager.getEntity<ScalingConfig>("ScalingConfig");
-    Real denisty = sph_body.getMatterMaterial().ReferenceDensity();
+    Real density = sph_body.getMatterMaterial().ReferenceDensity();
 
     if (config.contains("Reynolds_number"))
     {
-        mu_ref = denisty / scaling_config.jsonToReal(config.at("Reynolds_number"), "Dimensionless");
+        mu_ref = density / scaling_config.jsonToReal(config.at("Reynolds_number"), "Dimensionless");
     }
     else
     {

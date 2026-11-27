@@ -350,7 +350,7 @@ void FluidDynamicsBuilder::buildSurfaceIndicationIfOpenBoundary(
         std::string surface_type = fluid_body.getSurfaceType();
         if (surface_type != "open_boundary" && surface_type != "free_stream")
         {
-            return;
+            continue;
         }
 
         auto &inner_relation = sph_system.getRelationByName<Inner<Relation<FluidBody>>>(body_name);

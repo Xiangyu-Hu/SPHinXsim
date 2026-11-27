@@ -169,7 +169,6 @@ class SimulationBuilder
     void buildRestartFromFileIfPresent(SPHSimulation &sim, MainMethods &main_methods, const json &config);
 
   private:
-    std::unique_ptr<MaterialBuilder> material_builder_ptr_;
     SolverCommonConfig parseSolverCommonConfig(const ScalingConfig &scaling_config, const json &config);
 
     void buildCellLinkedListDynamics(SPHSimulation &sim, MainMethods &main_methods, const json &config);

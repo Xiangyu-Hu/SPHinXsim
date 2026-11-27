@@ -49,17 +49,17 @@ struct ThermalBoundaryConfig
 class MaterialBuilder
 {
   public:
-    void addMaterial(EntityManager &config_manager, SPHBody &sph_body, const json &config);
+    static void addMaterial(EntityManager &config_manager, SPHBody &sph_body, const json &config);
     static StdVec<Real> parseMixtureFractions(const ScalingConfig &scaling_config, const json &config);
 
   private:
-    void addMatterMaterial(EntityManager &config_manager, SPHBody &sph_body, const json &config);
-    NamesAndDensities parseNamesAndDensities(const ScalingConfig &scaling_config, const json &config);
-    void addOtherMaterialProperties(EntityManager &config_manager, SPHBody &sph_body, const json &config);
-    void addViscosity(EntityManager &config_manager, SPHBody &sph_body, const json &config);
-    void addThermalProperties(EntityManager &config_manager, SPHBody &sph_body, const json &config);
-    ThermalBoundaryConfig parseThermalBoundaryConfig(const json &config);
-    Real getWeaklyCompressibleSoundSpeed(EntityManager &config_manager);
+    static void addMatterMaterial(EntityManager &config_manager, SPHBody &sph_body, const json &config);
+    static NamesAndDensities parseNamesAndDensities(const ScalingConfig &scaling_config, const json &config);
+    static void addOtherMaterialProperties(EntityManager &config_manager, SPHBody &sph_body, const json &config);
+    static void addViscosity(EntityManager &config_manager, SPHBody &sph_body, const json &config);
+    static void addThermalProperties(EntityManager &config_manager, SPHBody &sph_body, const json &config);
+    static ThermalBoundaryConfig parseThermalBoundaryConfig(const json &config);
+    static Real getWeaklyCompressibleSoundSpeed(EntityManager &config_manager);
 };
 } // namespace SPH
 #endif // MATERIAL_BUILDER_H

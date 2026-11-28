@@ -69,9 +69,12 @@ machine output; native execution diagnostics go to stderr or bounded job logs.
 
 ```sh
 sphinxsim capabilities --json
+sphinxsim templates --json
+sphinxsim init 2d/column_collapse project/config.json --root /workspace --json
 sphinxsim validate project/config.json --root /workspace --json
 sphinxsim compile specification.json -o reviewed-config.json --json
 sphinxsim geometry recipe.json -o project/models/candidate --json
+sphinxsim results project/config.json --output-dir project/run_01 --root /workspace --json
 ```
 
 Compilation accepts `{ "version": 1, "configuration": <native configuration> }`.

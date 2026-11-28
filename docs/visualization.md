@@ -272,6 +272,28 @@ Saves a screenshot of the preview to the specified file instead of opening an
 interactive window.  This automatically enables off-screen rendering, so
 `--off-screen` is implied and does not need to be passed separately.
 
+To render an off-screen screenshot of **completed or in-progress solver VTP output**
+(including scalar or vector magnitude coloring via `--color-by`), use `sphinxsim results`:
+
+```bash
+sphinxsim results path/to/config.json --output-dir runs/run_01 --screenshot pressure.png --color-by Pressure
+```
+
+### Live file and VTP watching (`--watch`)
+
+```bash
+sphinxsim preview path/to/config.json --watch
+sphinxsim preview path/to/config.json --watch --watch-output-dir runs/run_01
+```
+
+In `--watch` mode (available both as a direct CLI command and as `preview --watch`
+inside `sphinxsim shell`), the Qt-backed preview window polls `config.json` on disk
+and any specified output directory:
+
+- When `config.json` is modified externally (by an editor, CLI command, `ask`, or an external AI agent) and the docked property editor has **no unsaved local edits**, the property tree reloads and the geometry scene refreshes automatically.
+- If the docked property editor has **unsaved local edits**, local changes are preserved and a notice appears in the editor status bar until you save or reload.
+- When `--watch-output-dir` is provided (or active in the shell), new VTP snapshots stream onto the canvas automatically.
+
 Supported formats depend on your PyVista/VTK build, but typically include PNG,
 JPEG, and TIFF.
 

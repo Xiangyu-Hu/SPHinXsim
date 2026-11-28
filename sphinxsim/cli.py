@@ -1727,7 +1727,7 @@ COMPLETION_SCRIPTS = {
     local cur opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="generate validate update run preview explore shell capabilities compile geometry project job desktop mcp --help --version --generate-completion"
+    opts="templates init generate validate update ask run results preview explore shell agent capabilities compile geometry project job desktop mcp --help --version --generate-completion"
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
     return 0
 }
@@ -1737,13 +1737,18 @@ complete -F _sphinxsim_completion sphinxsim""",
 _sphinxsim() {
     local -a subcmds
     subcmds=(
+        'templates:List verified 2D and 3D reference templates'
+        'init:Initialize a JSON config and assets from a template'
         'generate:Generate a simulation config from a natural-language description'
         'validate:Validate a JSON simulation config against the schema'
         'update:Update an existing simulation config from an instruction'
+        'ask:Run an agentic turn over SPHinXsim CLI operations'
         'run:Run a simulation from a JSON config file'
+        'results:Summarize VTP frames, .dat time series, and quality checks'
         'preview:Render an interactive geometry/BC preview of a JSON config file'
         'explore:Ask schema/functionality questions using LLM'
         'shell:Interactive shell for config workflow'
+        'agent:Manage durable AgentCAE calibration workflows'
         'capabilities:Inspect schema and native routing evidence'
         'compile:Compile quantities into native configuration'
         'geometry:Generate verified CAD geometry'
@@ -1756,14 +1761,18 @@ _sphinxsim() {
 }
 _sphinxsim "$@" """,
 
-    "fish": """complete -c sphinxsim -f -a "generate" -d "Generate simulation config"
+    "fish": """complete -c sphinxsim -f -a "templates" -d "List reference templates"
+complete -c sphinxsim -f -a "init" -d "Initialize config from template"
+complete -c sphinxsim -f -a "generate" -d "Generate simulation config"
 complete -c sphinxsim -f -a "validate" -d "Validate JSON simulation config"
 complete -c sphinxsim -f -a "update" -d "Update existing simulation config"
+complete -c sphinxsim -f -a "ask" -d "Run agentic CLI turn"
 complete -c sphinxsim -f -a "run" -d "Run simulation from JSON config"
+complete -c sphinxsim -f -a "results" -d "Summarize simulation results"
 complete -c sphinxsim -f -a "preview" -d "Render interactive geometry/BC preview"
 complete -c sphinxsim -f -a "explore" -d "Ask schema/functionality questions"
 complete -c sphinxsim -f -a "shell" -d "Interactive shell workflow"
-complete -c sphinxsim -f -a "capabilities compile geometry project job desktop mcp" -d "Native application operations" """
+complete -c sphinxsim -f -a "agent capabilities compile geometry project job desktop mcp" -d "Native application operations" """
 }
 
 

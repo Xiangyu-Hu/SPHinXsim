@@ -7,9 +7,10 @@ CLI. See [Native CLI and external agents](agent-workflows.md).
 
 ## AI-assisted workflows
 
-Use the interactive shell's `generate`, `update`, and `explore` commands for
-prompt-assisted configuration authoring. Provider selection is shared through
-`SPHINXSIM_LLM_PROVIDER`; see [LLM testing](llm-testing.md) for setup examples.
+`config.json` on disk is the single source of truth for simulation inputs, and every operation is available directly from the `sphinxsim` CLI.
+
+- **Multi-step agentic CLI & shell (`ask`)**: Run `sphinxsim ask "<request>" -c config.json` (or `ask <request>` / `/ask <request>` inside `sphinxsim shell`) to execute multi-step workflows over in-process SPHinXsim operations (`templates`, `template_init`, `config_patch`, `validate`, `geometry`, `submit`/`job_*`, `results_summary`). Validated edits to `config.json` preserve formatting and write a `.bak` backup file.
+- **Single-step prompt commands**: Use `generate`, `update`, and `explore` in the CLI or interactive shell for direct prompt-assisted configuration authoring and schema Q&A. Provider selection is shared through `SPHINXSIM_LLM_PROVIDER`; see [LLM testing](llm-testing.md) for setup examples.
 
 For a graphical workflow with an embedded Chat panel, reviewed configuration
 proposals, and Preview, start the Workbench:
@@ -87,6 +88,8 @@ The easiest way to get started is the interactive shell:
 
 ```bash
 sphinxsim shell
+# or load a configuration immediately on startup:
+sphinxsim shell path/to/config.json
 ```
 
 This opens an interactive prompt where you can enter commands sequentially:
@@ -153,30 +156,41 @@ Inside the shell, you can use the following commands:
 
 | Command | Description |
 | --- | --- |
+| `templates [--json]` | List verified 2D and 3D reference templates |
+| `init TEMPLATE FILE [--overwrite]` | Initialize a config (and stage referenced `.stl`/`.dat` assets) from a template and load it |
 | `load FILE` | Load and validate an existing config file |
 | `generate "description" FILE` | Generate a new config and write it to FILE |
 | `update "instruction"` | Modify the loaded config with an instruction (e.g., "change end time to 5 s") |
 | `update --patch-mode "instruction"` | Apply operation-based patch updates |
 | `update --patch-mode --dry-run "instruction"` | Preview patch update without writing |
 | `update --patch-mode --strict false "instruction"` | Use non-strict patch apply behavior |
+| `ask [--dry-run] "request"` | Run a multi-step agentic turn over in-process SPHinXsim CLI operations (`/ask` and `?` also supported) |
 | `explore "question"` | Ask the configured LLM questions about the simulator schema and capabilities |
 | `validate` | Reload the loaded file from disk and validate it |
 | `preview` | Render an interactive geometry/BC preview of the loaded config |
+| `preview --watch [--watch-output-dir DIR]` | Watch `config.json` (and optional output VTPs) on disk and auto-refresh when clean |
 | `preview --with-particles` | Generate particles and automatically play their relaxation snapshots |
 | `preview --screenshot FILE` | Save a screenshot to FILE instead of opening an interactive window |
 | `initialize-simulation` | Build and initialize the retained particle-preview simulation and display its initial body-state snapshots |
 | `continue-to-run` | Run the initialized particle-preview simulation; check each body's latest snapshot every 75 ms |
-| `run` | Build and execute the loaded config |
+| `run [--output-dir DIR]` | Build and execute the loaded config (optionally writing to an isolated `DIR`) |
+| `run --detach [--json]` | Submit a persistent background job and save its reference to `.sphinxsim/last-job.json` |
 | `run --with-animation` | Preview generated particles, continue that same simulation, and animate its snapshots |
+| `job <status\|logs\|continue\|cancel\|results> [REF_JSON]` | Inspect or control a detached job (defaults to `.sphinxsim/last-job.json` when omitted) |
+| `results [--output-dir DIR] [--screenshot FILE] [--color-by FIELD] [--json]` | Summarize VTP frames, `.dat` observer/energy series, quality checks, and optional result screenshots |
+| `capabilities` / `compile` / `geometry` / `project` | Direct access to native structured SPHinXsim CLI subcommands |
+| `agent <start\|status\|approve\|report\|promote\|preview\|...>` | Manage AgentCAE calibration workflows, observe runs in the shell preview, or `promote` candidates back to `config.json` |
 | `replay` | Replay simulation snapshots from the latest successful animated run at up to 25 FPS |
 | `replay --relaxation` | Replay relaxation snapshots after particle preview at up to 25 FPS |
 | `help` | Show available commands |
 | `exit` | Quit the shell |
 
 Notes:
-- `sphinxsim shell` starts with no file loaded.
+- `sphinxsim shell` starts with no file loaded unless a path is passed (`sphinxsim shell case.json`).
 - Relative file paths inside the shell resolve from the current directory first, then fall back to `.build-temp/`.
-- In shell mode, slash-prefixed commands are also accepted, e.g. `/generate water dam break simulation config.json` or `/update simulate for 2 s`.
+- In shell mode, slash-prefixed commands are also accepted, e.g. `/init 2d/column_collapse case.json`, `/ask set end_time to 0.2 s`, or `/update simulate for 2 s`.
+- When `ask` initializes or generates a configuration while no file is loaded, the shell automatically loads that new configuration for subsequent `validate`, `preview`, `run`, and `results` commands.
+- `preview --watch` polls `config.json` on disk: external edits (from an IDE, CLI command, `update`, `ask`, or `agent promote`) automatically reload the property editor and rebuild the scene whenever there are no unsaved local GUI edits. If the GUI property tree has unsaved changes, local edits are preserved and a status notice is shown.
 - `validate` always reloads from disk, so external edits are picked up immediately.
 - In shell mode, `preview` keeps a persistent window and returns control to the prompt. Running `preview` again updates the same window.
 - `preview --with-particles` plays relaxation snapshots in the Qt-backed preview and retains its generated-particle simulation for `initialize-simulation`, followed by `continue-to-run`. `replay --relaxation` also retains it; other shell commands discard it. Initialization stops relaxation playback and displays the initial simulation state without running the solver.
@@ -206,6 +220,18 @@ In non-interactive direct commands (`sphinxsim update ...`), the same config-fir
 ## Direct commands (non-interactive)
 
 You can also run individual commands directly:
+
+### Templates and Init
+
+List verified 2D and 3D reference templates and initialize a working configuration (including any referenced `.stl`/`.dat` assets under `assets/`) without requiring an LLM:
+
+```bash
+sphinxsim templates
+sphinxsim templates --json
+
+sphinxsim init 2d/column_collapse case.json
+sphinxsim init 3d/fuel_tank fuel_case/case.json --overwrite
+```
 
 ### Generate
 
@@ -265,19 +291,47 @@ This:
 2. Returns a plain-text explanation of the simulator schema and capabilities
 3. Uses the same provider selection as `generate` and `update`
 
+### Ask (agentic CLI turn)
+
+Execute a multi-step agentic turn grounded on SPHinXsim's in-process CLI/MCP operations (`templates`, `template_init`, `config_patch`, `validate`, `geometry`, `submit`, `job_*`, `results_summary`):
+
+```bash
+sphinxsim ask "Set end_time to 0.2 s and validate the configuration" -c case.json
+sphinxsim ask "/mcp templates {}" --json
+```
+
+Options:
+- `-c FILE` / `--config FILE`: Active JSON configuration file
+- `--output-dir DIR`: Active simulation output directory
+- `--root DIR`: Explicit workspace root
+- `--dry-run`: Request dry-run previews without modifying files on disk
+- `--json`: Return structured `{ "ok": true, "data": { "answer": ..., "observations": ... } }` output
+
 ### Run
 
 Execute a validated simulation:
 
 ```bash
 sphinxsim run config.json
+sphinxsim run config.json --output-dir runs/run_01
+sphinxsim run config.json --detach --json
 ```
 
 This:
 1. Validates the config
 2. Builds SPHinXsys simulation components in C++
 3. Runs the simulation
-4. Saves output to `build-integrated/output`
+4. Saves output to `--output-dir` (or `.build-temp/test_simulation` by default)
+
+### Results
+
+Inspect saved VTP particle frames, observer and energy `.dat` time-series files, and output quality checks—or render an off-screen screenshot of solver frames:
+
+```bash
+sphinxsim results config.json --output-dir runs/run_01
+sphinxsim results config.json --output-dir runs/run_01 --json
+sphinxsim results config.json --output-dir runs/run_01 --screenshot pressure.png --color-by Pressure
+```
 
 ### Preview
 
@@ -285,6 +339,7 @@ Render an interactive 3-D geometry/BC preview before running the solver:
 
 ```bash
 sphinxsim preview config.json
+sphinxsim preview config.json --watch --watch-output-dir runs/run_01
 ```
 
 This:
@@ -297,6 +352,8 @@ Options:
 | Flag | Description |
 | --- | --- |
 | `--with-particles` | Also run particle generation and overlay the latest generated particles per body. Hides regular shapes; keeps oriented boxes and annotations. |
+| `--watch` | Watch `config.json` (and `--watch-output-dir`) on disk and automatically refresh when external edits or new VTPs arrive. |
+| `--watch-output-dir DIR` | Stream VTP frames from `DIR` into a `--watch` preview window. |
 | `--off-screen` | Render off-screen (no window) — useful for automated testing |
 | `--screenshot FILE` / `-s FILE` | Save a screenshot to FILE instead of opening a window. Implies `--off-screen`. |
 

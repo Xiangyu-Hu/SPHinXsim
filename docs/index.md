@@ -43,29 +43,31 @@ sphinxsim shell
 
 Inside the shell, you can:
 
-1. **Load** an existing config file: `load config.json`
+1. **Initialize from a verified template** (or load an existing file): `init 2d/column_collapse case.json` or `load config.json`
 2. **Generate** a simulation config from natural language: `generate "water dam break" config.json`
-3. **Validate** the config structure: `validate`
-4. **Update** it with further instructions: `update "simulate for 2 s"`
+3. **Preview with live disk watching**: `preview --watch`
+4. **Ask the CLI-grounded agent** (or apply single-step updates): `ask "set end_time to 0.2 s and validate"` or `update "simulate for 2 s"`
 5. **Explore** the simulator schema and capabilities: `explore what body types are supported?`
-6. **Run** the validated simulation: `run`
-7. **Update geometry or other fields**: `update "water flow with 5 mm resolution"`
-8. **Rerun preview or run** to rebuild from the updated config
+6. **Run** the validated simulation (synchronously or `--detach`): `run --output-dir run_01`
+7. **Inspect quantitative results & `.dat` observers**: `results --output-dir run_01`
 
-In shell mode, you can also use slash-prefixed commands without quotes around the description, for example `/generate water dam break config.json` or `/update simulate for 2 s`.
-In shell mode, `validate` reloads the loaded file from disk so external edits are picked up immediately.
+In shell mode, you can also use slash-prefixed commands without quotes around the description, for example `/init 2d/dambreak config.json`, `/ask set end_time to 2 s`, or `/update simulate for 2 s`.
+In shell mode, `validate` reloads the loaded file from disk so external edits are picked up immediately, and `preview --watch` automatically refreshes the open window when `config.json` changes on disk.
 Geometry edits stay config-driven in shell mode: update the JSON, then rerun `preview` or `run` to rebuild from the current file.
 
 Alternatively, you can use direct commands for non-interactive workflows:
 
+- `sphinxsim templates` / `sphinxsim init` — List verified 2D/3D cases and initialize a new config with its assets
 - `sphinxsim generate` — Create a config from description
 - `sphinxsim update` — Modify an existing config
+- `sphinxsim ask` — Run a multi-step agentic turn over SPHinXsim CLI operations
 - `sphinxsim explore` — Ask schema and functionality questions
 - `sphinxsim validate` — Check config validity
-- `sphinxsim run` — Execute a validated simulation
-- `sphinxsim preview` — Render an interactive geometry/BC preview before running
+- `sphinxsim run` — Execute a validated simulation (supports `--output-dir` and `--detach`)
+- `sphinxsim results` — Summarize VTP frames, `.dat` observer/energy series, quality checks, and result screenshots
+- `sphinxsim preview` — Render an interactive geometry/BC preview before running (supports `--watch`)
 - `sphinxsim workbench` — Open the desktop JSON Editor, Preview, and Chat
-- `sphinxsim agent` — Manage durable AgentCAE workflows
+- `sphinxsim agent` — Manage durable AgentCAE workflows and `promote` winning candidates back to `config.json`
 - `sphinxsim --generate-completion {bash|zsh|fish}` — Print shell completion scripts
 
 For detailed examples and all command options, see [CLI Usage](cli-usage.md).

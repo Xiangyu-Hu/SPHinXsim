@@ -55,11 +55,15 @@ Tool discovery includes the following authoring and analysis operations.
 
 | Operation | Input and result |
 | --- | --- |
+| `templates` | List verified 2D and 3D reference simulation templates |
+| `template_init` | Initialize a workspace configuration and referenced STL/data assets from a template |
 | `config_generate` | Generate validated native JSON into an explicit workspace file |
 | `config_update` | Update and validate a selected configuration before saving |
+| `config_patch` | Apply a validated `UpdatePatch` or instruction to `config.json` (preserving format and `.bak` backup) |
 | `config_propose` | Return a validated draft proposal and admission report |
 | `case_prepare` | Copy a configuration and stage its STL/data resources |
 | `set_friction_angle` | Update one plastic-continuum body using degrees |
+| `results_summary` | Summarize VTP frames, `.dat` observer/energy series, quality checks, and optional screenshots |
 | `analyze_result` | Evaluate a runout or declarative analysis plan |
 | `compare_results` | Compare completed measurements with a target |
 | `results_render` | Render a PNG from verified published geometry and particles |

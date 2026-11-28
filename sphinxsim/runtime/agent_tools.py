@@ -90,7 +90,94 @@ def call(service, name, arguments):
             sweep_id=arguments["sweep_id"], target_value=arguments["target_value"], samples=samples).model_dump(mode="json")
     if name == "results_render":
         return render(service, arguments)
+    if name == "templates":
+        from sphinxsim.templates import list_templates
+        return {"templates": list_templates()}
+    if name == "template_init":
+        from sphinxsim.templates import init_template
+        output = jobs.path(arguments["output"], exists=False)
+        result = init_template(arguments["template"], output, overwrite=bool(arguments.get("overwrite", False)))
+        return {**result, "config_file": arguments["output"]}
+    if name == "config_patch":
+        return patch_config_file(service, arguments)
+    if name == "results_summary":
+        from sphinxsim.results import render_run_results, summarize_run_results
+        config_path = jobs.path(arguments["config_file"])
+        output_dir = jobs.path(arguments["output_dir"])
+        summary = summarize_run_results(config_path, output_dir)
+        if arguments.get("screenshot"):
+            shot_path = jobs.path(arguments["screenshot"], exists=False)
+            summary["rendered"] = render_run_results(
+                config_path, output_dir, shot_path, color_by=arguments.get("color_by")
+            )
+        return summary
     raise ValueError("Unknown authoring or analysis operation")
+
+
+def patch_config_file(service, arguments):
+    import difflib
+    from sphinxsim.agent.store import AgentTaskStore
+    from sphinxsim.config.migrations import migrate_legacy_configuration
+    from sphinxsim.config.schemas import SimulationConfig
+    from sphinxsim.config.update_patch import UpdatePatch, apply_update_patch
+    from sphinxsim.json_editor.json_format import format_json_like_source
+    from sphinxsim.llm import get_llm
+
+    if not arguments.get("patch") and not arguments.get("description"):
+        raise ValueError("config_patch requires either 'patch' or 'description'")
+    path = service.jobs.path(arguments["config_file"])
+    original_text = path.read_bytes().decode("utf-8")
+    raw_payload = migrate_legacy_configuration(json.loads(original_text))
+    normalized, _ = check_config(raw_payload)
+    current_model = SimulationConfig.model_validate(normalized)
+
+    if arguments.get("patch") is not None:
+        parsed_patch = UpdatePatch.model_validate(arguments["patch"])
+    else:
+        with redirect_stdout(sys.stderr):
+            patch_payload = get_llm(arguments.get("provider")).update_patch(
+                current_model, arguments["description"], strict=True
+            )
+        parsed_patch = (
+            patch_payload
+            if isinstance(patch_payload, UpdatePatch)
+            else UpdatePatch.model_validate(patch_payload)
+        )
+
+    patch_result = apply_update_patch(raw_payload, parsed_patch, strict=True)
+    if patch_result.errors:
+        raise ValueError("\n".join(patch_result.errors))
+
+    checked, report = check_config(patch_result.updated)
+    SimulationConfig.model_validate(checked)
+    updated_text = format_json_like_source(patch_result.updated, original_text, path)
+    diff = "".join(
+        difflib.unified_diff(
+            original_text.splitlines(True),
+            updated_text.splitlines(True),
+            fromfile=f"a/{arguments['config_file']}",
+            tofile=f"b/{arguments['config_file']}",
+        )
+    )
+    dry_run = bool(arguments.get("dry_run", False))
+    backup_rel = None
+    if not dry_run and updated_text != original_text:
+        backup_path = path.with_name(path.name + ".bak")
+        AgentTaskStore._atomic_write(backup_path, original_text)
+        AgentTaskStore._atomic_write(path, updated_text)
+        backup_rel = backup_path.relative_to(service.root).as_posix()
+
+    return {
+        "config_file": arguments["config_file"],
+        "changed": updated_text != original_text,
+        "applied": not dry_run and updated_text != original_text,
+        "dry_run": dry_run,
+        "backup_file": backup_rel,
+        "operations": patch_result.summary,
+        "diff": diff,
+        "report": report,
+        "sha256": hash_file(path),
+    }
 
 
 def prepare_case(service, source, output):

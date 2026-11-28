@@ -65,6 +65,16 @@ TOOLS = {
             ["friction_angle_degrees", "run_id", "analysis_id", "metrics"])}}, ["sweep_id", "target_value", "samples"])),
     "results_render": ("Render a PNG from verified published geometry and particle frames of an explicit job.", schema({
         "reference": REFERENCE, "output": PATH}, ["reference", "output"])),
+    "templates": ("List verified 2D and 3D reference simulation templates.", schema({})),
+    "template_init": ("Initialize a workspace configuration and referenced STL/data assets from a verified template.", schema({
+        "template": {"type": "string", "minLength": 1, "maxLength": 128}, "output": PATH,
+        "overwrite": {"type": "boolean"}}, ["template", "output"])),
+    "config_patch": ("Apply a validated UpdatePatch (e.g. {\"operations\": [{\"op\": \"set_value\", \"path\": \"solver_parameters.end_time\", \"value\": 0.2}]}) or natural-language description to a workspace configuration, preserving formatting and writing a .bak backup.", schema({
+        "config_file": PATH, "patch": OBJECT, "description": {"type": "string", "minLength": 1, "maxLength": 16000},
+        "dry_run": {"type": "boolean"}, "provider": {"enum": ["mock", "ollama", "openai", "nvidia_nim"]}}, ["config_file"])),
+    "results_summary": ("Summarize VTP frames, observer/energy .dat series, and saved-output quality checks for an output directory.", schema({
+        "config_file": PATH, "output_dir": PATH, "screenshot": PATH,
+        "color_by": {"type": "string", "minLength": 1, "maxLength": 128}}, ["config_file", "output_dir"])),
     "workbench": ("Inspect the connected Workbench draft, propose a revision-bound edit, or observe an explicit workflow.", schema({
         "operation": {"enum": ["status", "propose", "observe"]}, "revision": {"type": "string"},
         "configuration": OBJECT, "instruction": {"type": "string"}, "workflow_id": {"type": "string"}}, ["operation"])),
@@ -144,8 +154,9 @@ class Operations:
                 return client.request("/proposal", {"revision": arguments["revision"],
                     "payload": arguments["configuration"], "instruction": arguments["instruction"]})
             return client.observe(arguments["workflow_id"])
-        if name in ("config_generate", "config_update", "config_propose", "case_prepare", "set_friction_angle",
-                    "analyze_result", "compare_results", "results_render"):
+        if name in ("config_generate", "config_update", "config_propose", "config_patch", "case_prepare",
+                    "set_friction_angle", "analyze_result", "compare_results", "results_render",
+                    "templates", "template_init", "results_summary"):
             from .runtime.agent_tools import call
             return call(self, name, arguments)
         methods = {"job_status": self.jobs.status, "job_logs": self.jobs.logs,

@@ -60,8 +60,8 @@ def _execute(args):
             payload["output"] = Path(args.output).resolve().relative_to(root).as_posix()
         result = operations.call("geometry", payload)
     elif command in ("run", "preview"):
-        if command == "preview" and (args.screenshot or args.off_screen):
-            raise ValueError("Structured job previews do not render screenshots; use native preview without --json/--detach or desktop screenshot")
+        if command == "preview" and (args.screenshot or args.off_screen or getattr(args, "watch", False)):
+            raise ValueError("Structured job previews do not render screenshots or watch windows; use native preview without --json/--detach or desktop screenshot")
         if args.output and not args.request:
             raise ValueError("--output is the work directory for --request; local jobs return their own immutable result references")
         if args.request:
@@ -117,6 +117,25 @@ def _execute(args):
             atomic_json(output, result["configuration"])
     elif command == "capabilities":
         result = operations.call(command, {"include_schema": args.include_schema})
+    elif command == "templates":
+        result = operations.call("templates", {})
+    elif command == "init":
+        output_path = Path(args.config_file).resolve()
+        result = operations.call("template_init", {
+            "template": args.template,
+            "output": output_path.relative_to(root).as_posix(),
+            "overwrite": bool(args.overwrite),
+        })
+    elif command == "results":
+        payload = {
+            "config_file": Path(args.config_file).resolve(strict=True).relative_to(root).as_posix(),
+            "output_dir": Path(args.output_dir).resolve(strict=True).relative_to(root).as_posix(),
+        }
+        if args.screenshot:
+            payload["screenshot"] = Path(args.screenshot).resolve().relative_to(root).as_posix()
+        if args.color_by:
+            payload["color_by"] = args.color_by
+        result = operations.call("results_summary", payload)
     elif command == "project":
         result = operations.call("project_inspect", {"config_file": args.config_file})
     elif command == "job":
@@ -140,11 +159,13 @@ def register(subparsers):
         parser.add_argument("--root", default=None, help="Explicit workspace root (default: current directory).")
         parser.set_defaults(func=execute)
 
-    for name in ("validate", "run", "preview"):
+    for name in ("validate", "run", "preview", "templates", "init", "results"):
+        if name not in subparsers.choices:
+            continue
         parser = subparsers.choices[name]
         parser.add_argument("--json", action="store_true", help="Use the structured application operation.")
         parser.add_argument("--root", default=None, help="Explicit workspace root (default: current directory).")
-        if name != "validate":
+        if name in ("run", "preview"):
             parser.set_defaults(config_file=None)
             parser.add_argument("--request", help="Execute an explicit frozen JSON request under an external supervisor.")
             parser.add_argument("-o", "--output", help="Work directory containing the frozen project/ for --request.")

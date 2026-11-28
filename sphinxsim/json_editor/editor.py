@@ -51,13 +51,20 @@ class _SimulationPropertiesDock(QtWidgets.QDockWidget):
         self._simulation_actions: list[
             tuple[QtWidgets.QAction, Callable[[], bool]]
         ] = []
+        self._render_menu = QtWidgets.QMenu(self.window())
+        self._render_menu.setObjectName("sphinxsim-render-menu")
+        self._render_menu.aboutToShow.connect(self._update_render_actions)
+        self._render_actions: list[
+            tuple[QtWidgets.QAction, Callable[[], bool]]
+        ] = []
         self._editor_content: QtWidgets.QWidget | None = None
         self._simulation_row: QtWidgets.QWidget | None = None
         self._simulation_button: QtWidgets.QToolButton | None = None
+        self._render_button: QtWidgets.QToolButton | None = None
 
     def set_editor_content(self, content: QtWidgets.QWidget) -> None:
         self._editor_content = content
-        if self._simulation_actions:
+        if self._simulation_actions or self._render_actions:
             self._install_simulation_button()
 
     def set_simulation_actions(
@@ -71,7 +78,23 @@ class _SimulationPropertiesDock(QtWidgets.QDockWidget):
             action.setObjectName(f"sphinxsim-simulation-{action_id}")
             action.triggered.connect(lambda _checked=False, invoke=callback: invoke())
             self._simulation_actions.append((action, enabled))
-        if self._simulation_actions:
+        if self._simulation_actions or self._render_actions:
+            self._install_simulation_button()
+        elif self._simulation_row is not None:
+            self._simulation_row.hide()
+
+    def set_render_actions(
+        self,
+        actions: list[tuple[str, str, Callable[[], Any], Callable[[], bool]]],
+    ) -> None:
+        self._render_menu.clear()
+        self._render_actions.clear()
+        for action_id, label, callback, enabled in actions:
+            action = self._render_menu.addAction(label)
+            action.setObjectName(f"sphinxsim-render-{action_id}")
+            action.triggered.connect(lambda _checked=False, invoke=callback: invoke())
+            self._render_actions.append((action, enabled))
+        if self._simulation_actions or self._render_actions:
             self._install_simulation_button()
         elif self._simulation_row is not None:
             self._simulation_row.hide()
@@ -79,36 +102,56 @@ class _SimulationPropertiesDock(QtWidgets.QDockWidget):
     def _install_simulation_button(self) -> None:
         if self._editor_content is None:
             return
+        button_style = (
+            "QToolButton { min-height: 26px; padding: 2px 9px; "
+            "background: #24272d; color: #f0f2f5; border: 1px solid #4a505b; "
+            "border-radius: 3px; }"
+            "QToolButton:hover { background: #30343c; border-color: #75a9d0; }"
+            "QToolButton:pressed { background: #315f8c; border-color: #80bde8; }"
+        )
         if self._simulation_row is None:
             row = QtWidgets.QWidget(self._editor_content)
             row.setObjectName("sphinxsim-simulation-menu-row")
             layout = QtWidgets.QHBoxLayout(row)
             layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(0)
+            layout.setSpacing(6)
             button = QtWidgets.QToolButton(row)
             button.setObjectName("sphinxsim-simulation-menu-button")
             button.setText("Simulation ▾")
-            button.setStyleSheet(
-                "QToolButton { min-height: 26px; padding: 2px 9px; "
-                "background: #24272d; color: #f0f2f5; border: 1px solid #4a505b; "
-                "border-radius: 3px; }"
-                "QToolButton:hover { background: #30343c; border-color: #75a9d0; }"
-                "QToolButton:pressed { background: #315f8c; border-color: #80bde8; }"
-            )
+            button.setStyleSheet(button_style)
             button.clicked.connect(
                 lambda: self._simulation_menu.popup(
                     button.mapToGlobal(QtCore.QPoint(0, button.height()))
                 )
             )
+            render_btn = QtWidgets.QToolButton(row)
+            render_btn.setObjectName("sphinxsim-render-menu-button")
+            render_btn.setText("Render ▾")
+            render_btn.setStyleSheet(button_style)
+            render_btn.clicked.connect(
+                lambda: self._render_menu.popup(
+                    render_btn.mapToGlobal(QtCore.QPoint(0, render_btn.height()))
+                )
+            )
             layout.addWidget(button, 0, QtCore.Qt.AlignmentFlag.AlignLeft)
+            layout.addWidget(render_btn, 0, QtCore.Qt.AlignmentFlag.AlignLeft)
             layout.addStretch(1)
             self._editor_content.layout().insertWidget(0, row)
             self._simulation_row = row
             self._simulation_button = button
+            self._render_button = render_btn
+        if self._simulation_button is not None:
+            self._simulation_button.setVisible(bool(self._simulation_actions))
+        if self._render_button is not None:
+            self._render_button.setVisible(bool(self._render_actions))
         self._simulation_row.show()
 
     def _update_simulation_actions(self) -> None:
         for action, enabled in self._simulation_actions:
+            action.setEnabled(enabled())
+
+    def _update_render_actions(self) -> None:
+        for action, enabled in self._render_actions:
             action.setEnabled(enabled())
 
 
@@ -514,6 +557,9 @@ class JsonEditorMixin:
         simulation_actions: list[
             tuple[str, str, Callable[[], Any], Callable[[], bool]]
         ] | None = None,
+        render_actions: list[
+            tuple[str, str, Callable[[], Any], Callable[[], bool]]
+        ] | None = None,
     ) -> bool:
         """Create or rebind the save-only property editor for a preview config.
 
@@ -527,6 +573,9 @@ class JsonEditorMixin:
             set_simulation_actions = self._json_editor.get("set_simulation_actions")
             if simulation_actions is not None and callable(set_simulation_actions):
                 set_simulation_actions(simulation_actions)
+            set_render_actions = self._json_editor.get("set_render_actions")
+            if render_actions is not None and callable(set_render_actions):
+                set_render_actions(render_actions)
             refresh = self._json_editor.get("refresh")
             if callable(refresh):
                 return refresh(config, config_path, with_particles) is not False
@@ -559,6 +608,8 @@ class JsonEditorMixin:
         dock = _SimulationPropertiesDock("Simulation Properties", app_window)
         if simulation_actions is not None:
             dock.set_simulation_actions(simulation_actions)
+        if render_actions is not None:
+            dock.set_render_actions(render_actions)
         if editor_host is not None:
             self._embedded_json_dock = dock
         dock.setObjectName("sphinxsim-json-editor")
@@ -1716,6 +1767,7 @@ class JsonEditorMixin:
             "settings_actions": settings_actions,
             "settings_menu": settings_menu,
             "set_simulation_actions": dock.set_simulation_actions,
+            "set_render_actions": dock.set_render_actions,
             "config_path": lambda: editor_state["config_path"],
         }
         return True

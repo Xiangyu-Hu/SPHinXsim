@@ -64,6 +64,7 @@ python -m sphinxsim agent --workspace .build-temp/agent approve column_020 --jso
 python -m sphinxsim agent --workspace .build-temp/agent resume column_020 --json
 python -m sphinxsim agent --workspace .build-temp/agent cancel column_020 --json
 python -m sphinxsim agent --workspace .build-temp/agent report column_020 --json
+python -m sphinxsim agent --workspace .build-temp/agent promote column_020 case.json --json
 python -m sphinxsim agent --workspace .build-temp/agent execution column_020
 python -m sphinxsim agent --workspace .build-temp/agent events column_020
 python -m sphinxsim agent --workspace .build-temp/agent results column_020

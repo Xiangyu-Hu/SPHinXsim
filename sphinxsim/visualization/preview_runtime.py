@@ -116,12 +116,29 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._animation_config: SimulationConfig | None = None
         self._animation_config_path: Path | None = None
         self._animation_run_completed = False
+        self._watch_timer: Any | None = None
+        self._watch_config_path: Path | None = None
+        self._watch_config_digest: str | None = None
+        self._watch_output_dir: Path | None = None
+        self._watch_with_particles = False
+        self._watch_particle_versions: dict[str, Any] = {}
+        self._watch_particle_colours: dict[str, Any] = {}
+        self._watch_result_catalog: Any | None = None
+        self._agent_observer: Any | None = None
+        self._watching_guard = False
+        self._last_vtp_dir: Path | None = None
+        self._last_particle_vtps: dict[str, Path] = {}
+        self._last_shape_bounds: dict[str, Any] | None = None
+        self._last_config: SimulationConfig | None = None
+        self._last_config_path: Path | None = None
 
     def _reset_preview_state(self) -> None:
         """Forget all state associated with a closed preview window."""
         self._remove_hover_observer()
+        self.stop_file_watch()
         self._stop_live_refresh()
         self.discard_pending_simulation()
+        self._agent_observer = None
         self.plotter = None
         self._particle_time_display = None
         self._json_editor = None
@@ -131,6 +148,11 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._particle_scene_config_signature = None
         self.last_signature = None
         self._using_background_plotter = False
+        self._last_vtp_dir = None
+        self._last_particle_vtps = {}
+        self._last_shape_bounds = None
+        self._last_config = None
+        self._last_config_path = None
 
     def _on_preview_window_closed(self, *_args: Any) -> None:
         """Handle a user closing the Qt window outside the shell command loop."""
@@ -165,6 +187,234 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         runtime_config_path = self._pending_runtime_config_path
         self._pending_runtime_config_path = None
         _remove_temporary_file(runtime_config_path, "preview configuration")
+
+    def stop_file_watch(self) -> None:
+        """Stop polling a watched configuration file and output directory."""
+        timer = self._watch_timer
+        self._watch_timer = None
+        if timer is not None:
+            try:
+                timer.stop()
+            except Exception:
+                pass
+        self._watch_config_path = None
+        self._watch_config_digest = None
+        self._watch_output_dir = None
+        self._watch_particle_versions = {}
+        self._watch_particle_colours = {}
+        self._watch_result_catalog = None
+
+    @staticmethod
+    def _digest_file(path: Path) -> str | None:
+        import hashlib
+
+        try:
+            return hashlib.sha256(path.read_bytes()).hexdigest()
+        except OSError:
+            return None
+
+    def _update_watch_colours(self, config: SimulationConfig) -> None:
+        from sphinxsim.visualization.preview import _body_colour
+
+        bodies = config.fluid_bodies + config.continuum_bodies + config.solid_bodies
+        self._watch_particle_colours = {
+            body.name: _body_colour(body.name, config) for body in bodies
+        }
+
+    def check_watched_files(self) -> bool:
+        """Poll watched ``config.json`` and ``output_dir`` once; return True if updated."""
+        if self._watching_guard:
+            return False
+        self._watching_guard = True
+        changed = False
+        try:
+            if self._agent_observer is not None and self.plotter is not None:
+                try:
+                    self._agent_observer.tick()
+                    return True
+                except Exception:
+                    return False
+
+            config_path = self._watch_config_path
+            if config_path is not None and config_path.is_file():
+                digest = self._digest_file(config_path)
+                if digest is not None and digest != self._watch_config_digest:
+                    editor = self._json_editor
+                    is_dirty = (
+                        editor.get("is_dirty")
+                        if isinstance(editor, dict)
+                        else None
+                    )
+                    if callable(is_dirty) and is_dirty():
+                        status = editor.get("status") if isinstance(editor, dict) else None
+                        if status is not None:
+                            status.setText(
+                                "External change detected on disk. Reload or save when ready."
+                            )
+                    else:
+                        try:
+                            from sphinxsim.config.migrations import migrate_legacy_configuration
+                            from sphinxsim.runtime.physics import check_config
+
+                            raw = migrate_legacy_configuration(
+                                json.loads(config_path.read_text(encoding="utf-8"))
+                            )
+                            normalized, _ = check_config(raw)
+                            updated_cfg = SimulationConfig.model_validate(normalized)
+                            self._watch_config_digest = digest
+                            self._update_watch_colours(updated_cfg)
+                            rc = self.show_or_update(
+                                updated_cfg,
+                                resolved_config_path=config_path,
+                                with_particles=self._watch_with_particles,
+                                force=True,
+                            )
+                            if rc == 0:
+                                changed = True
+                        except Exception as exc:
+                            print(
+                                f"⚠️ Watched config {config_path} has errors; retaining last valid scene: {exc}",
+                                file=sys.stderr,
+                            )
+                            self._watch_config_digest = digest
+
+            output_dir = self._watch_output_dir
+            if (
+                output_dir is not None
+                and self.plotter is not None
+                and output_dir.exists()
+                and self._watch_particle_colours
+            ):
+                from sphinxsim.visualization.live_particles import refresh_particle_actors
+
+                if self._watch_result_catalog is None:
+                    from sphinxsim.results import ResultCatalog
+
+                    self._watch_result_catalog = ResultCatalog()
+                if self._particle_time_display is None:
+                    from sphinxsim.visualization.particle_time import ParticleTimeDisplay
+
+                    self._particle_time_display = ParticleTimeDisplay(self.plotter)
+                before = dict(self._watch_particle_versions)
+                refresh_particle_actors(
+                    self.plotter,
+                    output_dir,
+                    self._watch_particle_colours,
+                    self._watch_particle_versions,
+                    self._watch_result_catalog,
+                    self._particle_visibility,
+                    self._particle_time_display,
+                )
+                if self._watch_particle_versions != before:
+                    try:
+                        self.plotter.render()
+                    except Exception:
+                        pass
+                    changed = True
+            return changed
+        finally:
+            self._watching_guard = False
+
+    def start_file_watch(
+        self,
+        config_path: Path,
+        *,
+        config: SimulationConfig | None = None,
+        output_dir: Path | None = None,
+        with_particles: bool = False,
+        interval_ms: int = 500,
+    ) -> bool:
+        """Start watching *config_path* and optional *output_dir* for disk updates."""
+        self.stop_file_watch()
+        self._agent_observer = None
+        resolved = Path(config_path).resolve()
+        self._watch_config_path = resolved
+        self._watch_config_digest = self._digest_file(resolved)
+        self._watch_output_dir = Path(output_dir).resolve() if output_dir is not None else None
+        self._watch_with_particles = with_particles
+        self._watch_particle_versions = {}
+        if config is not None:
+            self._update_watch_colours(config)
+        elif resolved.is_file():
+            try:
+                from sphinxsim.config.migrations import migrate_legacy_configuration
+                from sphinxsim.runtime.physics import check_config
+
+                normalized, _ = check_config(
+                    migrate_legacy_configuration(json.loads(resolved.read_text(encoding="utf-8")))
+                )
+                self._update_watch_colours(SimulationConfig.model_validate(normalized))
+            except Exception:
+                self._watch_particle_colours = {}
+
+        if self._watch_output_dir is not None and self.plotter is not None:
+            self.check_watched_files()
+
+        if not self._using_background_plotter or self.plotter is None:
+            return False
+        try:
+            from qtpy import QtCore
+        except ImportError:
+            return False
+        timer = QtCore.QTimer()
+        timer.setInterval(max(100, int(interval_ms)))
+        timer.timeout.connect(self.check_watched_files)
+        timer.start()
+        self._watch_timer = timer
+        return True
+
+    def observe_agent_workflow(self, workspace: Path, workflow_id: str) -> int:
+        """Observe an AgentCAE workflow directly inside the persistent shell preview."""
+        from sphinxsim.visualization.agent_preview import (
+            AgentPreviewObserver,
+            WorkflowPreviewSource,
+        )
+
+        resolved_workspace = Path(workspace).resolve()
+        workflow_file = resolved_workspace / "store/workflows" / workflow_id / "workflow.json"
+        if not workflow_file.is_file():
+            raise ValueError(f"Workflow {workflow_id!r} not found in {resolved_workspace}")
+        source = WorkflowPreviewSource(resolved_workspace, workflow_id)
+
+        if self.plotter is None:
+            if sys.platform.startswith("linux"):
+                os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
+            from pyvistaqt import BackgroundPlotter
+            from sphinxsim.visualization.particle_visibility import (
+                ParticleVisibility,
+                install_particle_menu,
+            )
+
+            self.plotter = BackgroundPlotter(
+                title=f"SPHinXsim - Agent Preview ({workflow_id})",
+                show=True,
+                shape=(1, 2),
+                border=False,
+                window_size=(1400, 800),
+                update_app_icon=False,
+            )
+            self._using_background_plotter = True
+            self._watch_preview_window_close()
+            self._particle_visibility = ParticleVisibility(self.plotter)
+            self._particle_menu_filter = install_particle_menu(
+                self.plotter, self._particle_visibility
+            )
+
+        self.stop_file_watch()
+        self._stop_live_refresh()
+        self._agent_observer = AgentPreviewObserver(
+            source, self.plotter, PROJECT_ROOT, self._particle_visibility
+        )
+        self.check_watched_files()
+        if self._using_background_plotter:
+            from qtpy import QtCore
+
+            timer = QtCore.QTimer()
+            timer.setInterval(750)
+            timer.timeout.connect(self.check_watched_files)
+            timer.start()
+            self._watch_timer = timer
+        return 0
 
     def _stop_live_refresh(self, *, preserve_context: bool = False) -> None:
         timer = self._live_refresh_timer
@@ -817,6 +1067,166 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             ),
         ]
 
+    def _render_menu_actions(
+        self,
+    ) -> list[tuple[str, str, Callable[[], int], Callable[[], bool]]]:
+        return [
+            (
+                "cycles-render",
+                "Render with Cycles…",
+                lambda: self._interactive_cycles_action(fluid_surface=False, bundle_only=False),
+                lambda: self._last_config is not None and self._last_config_path is not None,
+            ),
+            (
+                "cycles-fluid-surface",
+                "Render fluid surface with Cycles…",
+                lambda: self._interactive_cycles_action(fluid_surface=True, bundle_only=False),
+                lambda: self._last_config is not None
+                and self._last_config_path is not None
+                and bool(getattr(self._last_config, "fluid_bodies", ())),
+            ),
+            (
+                "cycles-export-bundle",
+                "Export Cycles scene bundle…",
+                lambda: self._interactive_cycles_action(fluid_surface=False, bundle_only=True),
+                lambda: self._last_config is not None and self._last_config_path is not None,
+            ),
+        ]
+
+    def _active_particle_vtp_map(self) -> dict[str, Path]:
+        """Collect the most recent VTP file per body displayed in the active preview."""
+        versions = self._live_particle_versions or self._watch_particle_versions
+        if versions:
+            out: dict[str, Path] = {}
+            for body, ver in versions.items():
+                if isinstance(ver, tuple) and ver and Path(str(ver[0])).is_file():
+                    out[body] = Path(str(ver[0]))
+            if out:
+                return out
+        return {b: p for b, p in self._last_particle_vtps.items() if p.is_file()}
+
+    def export_or_render_cycles(
+        self,
+        *,
+        screenshot_path: str | Path | None = None,
+        save_bundle: str | Path | None = None,
+        save_blend: str | Path | None = None,
+        color_by: str | None = None,
+        samples: int = 64,
+        resolution: str | tuple[int, int] | None = None,
+        fluid_surface: bool = False,
+        transparent_bg: bool = False,
+        apply_overlay: bool = True,
+        blender_executable: str | Path | None = None,
+    ) -> dict[str, Any]:
+        """Export or render the live interactive preview state via Blender Cycles."""
+        from sphinxsim.visualization.cycles_export import CyclesSceneState
+        from sphinxsim.visualization.cycles_runner import render_preview_with_cycles
+
+        if self._last_config is None or self._last_config_path is None:
+            raise RuntimeError("No active preview scene is loaded to export or render.")
+
+        live_state = CyclesSceneState.from_particle_visibility(
+            self._particle_visibility,
+            camera_state=self._capture_camera_state(),
+        )
+        particle_map = self._active_particle_vtp_map()
+        vtp_source = self._last_vtp_dir or self._live_output_dir or self._watch_output_dir or self._animation_output_dir
+        return render_preview_with_cycles(
+            self._last_config,
+            self._last_config_path,
+            project_root=PROJECT_ROOT,
+            screenshot_path=screenshot_path,
+            save_bundle=save_bundle,
+            save_blend=save_blend,
+            with_particles=bool(particle_map),
+            vtp_dir=vtp_source,
+            particle_vtps=particle_map or None,
+            shape_bounds=self._last_shape_bounds,
+            scene_state=live_state,
+            color_by=color_by,
+            samples=samples,
+            resolution=resolution,
+            fluid_surface=fluid_surface,
+            transparent_bg=transparent_bg,
+            apply_overlay=apply_overlay,
+            blender_executable=blender_executable,
+        )
+
+    def _interactive_cycles_action(self, *, fluid_surface: bool, bundle_only: bool) -> int:
+        from qtpy import QtWidgets
+        from sphinxsim.visualization.cycles_runner import find_blender_executable
+
+        parent = getattr(self.plotter, "app_window", None)
+        status = self._json_editor.get("status") if isinstance(self._json_editor, dict) else None
+        blender_bin = None if bundle_only else find_blender_executable()
+
+        if bundle_only or blender_bin is None:
+            if not bundle_only and blender_bin is None:
+                reply = QtWidgets.QMessageBox.question(
+                    parent,
+                    "Blender Not Found Locally",
+                    "Blender was not found on PATH (or SPHINXSIM_BLENDER_EXECUTABLE).\n\n"
+                    "Would you like to export a portable Cycles Scene Bundle directory instead?",
+                )
+                if reply != QtWidgets.QMessageBox.StandardButton.Yes:
+                    return 0
+            chosen_dir = QtWidgets.QFileDialog.getExistingDirectory(
+                parent,
+                "Select Destination Directory for Cycles Scene Bundle",
+                str(self._last_config_path.parent if self._last_config_path else Path.cwd()),
+            )
+            if not chosen_dir:
+                return 0
+            try:
+                res = self.export_or_render_cycles(
+                    save_bundle=chosen_dir,
+                    fluid_surface=fluid_surface,
+                )
+                msg = f"Exported Cycles bundle to {res['bundle_dir']}"
+                if status is not None:
+                    status.setText(msg)
+                print(f"📦 {msg}\n   Render with: {res['render_command']}")
+                return 0
+            except Exception as exc:
+                if status is not None:
+                    status.setText(f"Cycles export failed: {exc}")
+                QtWidgets.QMessageBox.warning(parent, "Cycles Export Error", str(exc))
+                return 1
+
+        default_file = str(
+            (self._last_config_path.parent if self._last_config_path else Path.cwd()) / "cycles_render.png"
+        )
+        chosen_file, _ = QtWidgets.QFileDialog.getSaveFileName(
+            parent,
+            "Save Blender Cycles Render",
+            default_file,
+            "PNG Images (*.png)",
+        )
+        if not chosen_file:
+            return 0
+        if not chosen_file.lower().endswith(".png"):
+            chosen_file += ".png"
+        if status is not None:
+            status.setText("Rendering with Blender Cycles…")
+        self.pump_ui_events()
+        try:
+            res = self.export_or_render_cycles(
+                screenshot_path=chosen_file,
+                fluid_surface=fluid_surface,
+                blender_executable=blender_bin,
+            )
+            msg = f"Saved Cycles render ({res.get('backend', 'CPU')}) to {res['file']}"
+            if status is not None:
+                status.setText(msg)
+            print(f"📸 {msg}")
+            return 0
+        except Exception as exc:
+            if status is not None:
+                status.setText(f"Cycles render failed: {exc}")
+            QtWidgets.QMessageBox.warning(parent, "Cycles Render Error", str(exc))
+            return 1
+
     def _can_generate_particles(self) -> bool:
         editor = self._json_editor
         get_config_path = editor.get("config_path") if isinstance(editor, dict) else None
@@ -908,6 +1318,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 config_path=resolved_config_path,
                 with_particles=with_particles,
                 simulation_actions=self._simulation_properties_actions(),
+                render_actions=self._render_menu_actions(),
             )
             if not editor_refreshed:
                 print("Preview canceled; unapplied editor changes were preserved.")
@@ -948,6 +1359,11 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 latest_particle_vtps = visualizer._discover_latest_particle_vtps(
                     vtp_dir, generation_only=True
                 )
+            self._last_vtp_dir = vtp_dir
+            self._last_particle_vtps = dict(latest_particle_vtps)
+            self._last_shape_bounds = getattr(visualizer, "_shape_bounds_cache", None)
+            self._last_config = config
+            self._last_config_path = resolved_config_path
             ensure_geometry_available = getattr(
                 visualizer, "_ensure_shape_geometry_available", None
             )
@@ -1008,6 +1424,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                     config_path=resolved_config_path,
                     with_particles=with_particles,
                     simulation_actions=self._simulation_properties_actions(),
+                    render_actions=self._render_menu_actions(),
                 )
                 from qtpy import QtWidgets
                 if isinstance(self.plotter, QtWidgets.QWidget):

@@ -92,6 +92,21 @@ def configure_agent_parser(subparsers, project_root: Path) -> None:
     report.add_argument("--json", action="store_true")
     report.set_defaults(func=cmd_agent_report)
 
+    promote = commands.add_parser(
+        "promote",
+        help="Write a workflow's best or selected candidate configuration to a target JSON file.",
+    )
+    promote.add_argument("workflow_id")
+    promote.add_argument("config_path", help="Destination JSON file to update or create.")
+    promote.add_argument(
+        "--candidate",
+        default="best",
+        help="Select 'best' (default) or a 1-based iteration number.",
+    )
+    promote.add_argument("--dry-run", action="store_true")
+    promote.add_argument("--json", action="store_true")
+    promote.set_defaults(func=cmd_agent_promote)
+
     extractor = commands.add_parser(
         "extractor",
         help="Plan and run safe declarative VTP extractors.",
@@ -247,6 +262,108 @@ def cmd_agent_report(args: argparse.Namespace) -> int:
         return _status_code(report.status.value)
     except (AgentServiceError, OSError, ValueError) as exc:
         print(f"Agent report failed: {exc}", file=sys.stderr)
+        return 1
+
+
+def cmd_agent_promote(args: argparse.Namespace) -> int:
+    import difflib
+    from .agent.store import AgentTaskStore
+    from .config.migrations import migrate_legacy_configuration
+    from .config.schemas import SimulationConfig
+    from .json_editor.json_format import format_json_like_source
+    from .runtime.export_vtp import hash_file
+    from .runtime.physics import check_config
+    from .templates import init_template
+
+    workspace = Path(args.workspace).resolve()
+    workflow_file = workspace / "store" / "workflows" / args.workflow_id / "workflow.json"
+    if not workflow_file.is_file():
+        print(f"Agent promote failed: workflow {args.workflow_id!r} not found in {workspace}", file=sys.stderr)
+        return 1
+
+    try:
+        workflow_data = json.loads(workflow_file.read_text(encoding="utf-8"))
+        iterations = workflow_data.get("iterations", [])
+        if not iterations:
+            raise ValueError(f"Workflow {args.workflow_id!r} has no completed candidate iterations")
+
+        choice = str(args.candidate).strip().lower()
+        if choice == "best":
+            selected = min(iterations, key=lambda item: item["absolute_error"])
+        else:
+            idx = int(choice)
+            selected = next((item for item in iterations if item["iteration"] == idx), None)
+            if selected is None:
+                raise ValueError(f"Iteration {idx} not found in workflow {args.workflow_id!r}")
+
+        candidate_path = Path(selected["case_path"]).resolve()
+        if not candidate_path.is_file():
+            raise ValueError(f"Candidate configuration not found: {candidate_path}")
+
+        candidate_payload = migrate_legacy_configuration(
+            json.loads(candidate_path.read_text(encoding="utf-8"))
+        )
+        checked, _ = check_config(candidate_payload)
+        SimulationConfig.model_validate(checked)
+
+        target_path = Path(args.config_path).resolve()
+        if target_path.suffix.lower() != ".json":
+            raise ValueError("Destination config_path must end with .json")
+
+        existing_text = target_path.read_bytes().decode("utf-8") if target_path.is_file() else ""
+        reference_text = existing_text or candidate_path.read_bytes().decode("utf-8")
+        formatted = format_json_like_source(
+            candidate_payload,
+            reference_text,
+            target_path if target_path.is_file() else candidate_path,
+        )
+        diff = "".join(
+            difflib.unified_diff(
+                existing_text.splitlines(True),
+                formatted.splitlines(True),
+                fromfile=f"a/{target_path.name}" if existing_text else "/dev/null",
+                tofile=f"b/{target_path.name}",
+            )
+        )
+
+        backup_path = None
+        if not args.dry_run:
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            if existing_text and existing_text != formatted:
+                backup_path = target_path.with_name(target_path.name + ".bak")
+                AgentTaskStore._atomic_write(backup_path, existing_text)
+            AgentTaskStore._atomic_write(target_path, formatted)
+
+        payload = {
+            "workflow_id": args.workflow_id,
+            "iteration": selected["iteration"],
+            "parameter_value": selected["parameter_value"],
+            "metric_value": selected["metric_value"],
+            "absolute_error": selected["absolute_error"],
+            "source_case": str(candidate_path),
+            "config_file": str(target_path),
+            "applied": not args.dry_run,
+            "dry_run": bool(args.dry_run),
+            "backup_file": str(backup_path) if backup_path is not None else None,
+            "diff": diff,
+            "sha256": hash_file(target_path) if target_path.is_file() else None,
+        }
+        if args.json:
+            print(json.dumps(payload, indent=2))
+        else:
+            mode = "Dry run for" if args.dry_run else "Promoted"
+            print(
+                f"{mode} workflow {args.workflow_id} (iteration {selected['iteration']}, "
+                f"parameter={selected['parameter_value']:g}, error={selected['absolute_error']:g}) "
+                f"-> {target_path}"
+            )
+            if backup_path is not None:
+                print(f"Backup written to: {backup_path}")
+            if diff:
+                print(diff.rstrip())
+        return 0
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        print(f"Agent promote failed: {exc}", file=sys.stderr)
         return 1
 
 

@@ -152,7 +152,7 @@ jobs:
           QT_QPA_PLATFORM: xcb
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
-          xvfb-run -a -s "-screen 0 1600x1000x24" pytest tests/runtime/test_desktop.py tests/test_agent_preview.py tests/test_workbench.py tests/test_particle_visibility.py tests/test_visualization.py -v -s
+          xvfb-run -a -s "-screen 0 1600x1000x24" pytest tests/runtime/test_desktop.py tests/test_agent_preview.py tests/test_workbench.py tests/test_particle_visibility.py tests/test_visualization.py tests/test_cli_templates_results.py tests/test_shell_agent_hardening.py -v -s
 
       - name: Run example tests (examples/)
         run: |

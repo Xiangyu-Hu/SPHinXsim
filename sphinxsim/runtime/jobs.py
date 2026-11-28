@@ -215,6 +215,24 @@ class JobStore:
             stream.seek(max(0, path.stat().st_size - 16384))
             return {"text": stream.read(16384).decode(errors="replace")}
 
+    def wait(self, job_id, *, timeout_seconds=120.0, poll_interval=0.25):
+        if not 0.0 <= float(timeout_seconds) <= 86400.0:
+            raise ValueError("timeout_seconds must be between 0 and 86400")
+        if not 0.05 <= float(poll_interval) <= 60.0:
+            raise ValueError("poll_interval must be between 0.05 and 60")
+        deadline = time.monotonic() + float(timeout_seconds)
+        state = self.status(job_id)
+        while state["state"] not in TERMINAL and state["state"] != "waiting":
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return {**state, "timed_out": True, "reference": self.reference(job_id)}
+            time.sleep(min(float(poll_interval), remaining))
+            state = self.status(job_id)
+        result = {**state, "timed_out": False, "reference": self.reference(job_id)}
+        if state["state"] in ("failed", "interrupted"):
+            result["logs_tail"] = self.logs(job_id)["text"][-4096:]
+        return result
+
     def results(self, job_id):
         work = self.job_path(job_id)
         state = self.status(job_id)

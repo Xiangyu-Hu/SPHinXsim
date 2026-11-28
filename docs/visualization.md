@@ -7,7 +7,7 @@ an intuitive picture of what the simulation will run.
 
 ## Requirements
 
-PyVista is required:
+Interactive preview and VTK screenshots require PyVista:
 
 ```bash
 pip install sphinxsim[visualization]
@@ -15,6 +15,8 @@ pip install sphinxsim[visualization]
 
 The extra includes `pyvistaqt` for responsive persistent preview in interactive
 shell mode. PySide6 and QtPy are installed with the base package.
+
+Optional high-quality path-traced rendering (`--renderer cycles` or **Render ▾** in the interactive preview dock) uses [Blender](https://www.blender.org/) 3.6 LTS or 4.x+ as an isolated background subprocess (`blender` on `PATH` or `SPHINXSIM_BLENDER_EXECUTABLE=/path/to/blender`), while portable Cycles scene bundles (`--save-bundle DIR`) can be exported with base `sphinxsim` alone (no Blender or PyVista required).
 
 The compiled C++ extension (`_sphinxsys_core_2d` or `_sphinxsys_core_3d`) is
 required for preview geometry generation. The preview always attempts to build
@@ -55,6 +57,11 @@ The Qt-backed shell Preview and the [Workbench](workbench.md) use a searchable
 **Setting / Value** tree to edit the loaded configuration. Expand a group to
 find its fields, or use the filter to narrow the tree. Boolean, numeric and
 enumerated values use controls appropriate to their types.
+
+At the top of the shell Preview's **Simulation Properties** dock, two action menus sit above the property tree:
+
+- **Simulation ▾**: lifecycle controls (**Generate particles**, **Initialize simulation**, **Continue to run**, **Replay animation**).
+- **Render ▾**: high-quality Cycles output (**Render with Cycles…**, **Render fluid surface with Cycles…**, **Export Cycles scene bundle…**), capturing the live viewport camera, hidden bodies, clip planes, active field coloring, palette, and rescale range.
 
 ### Right-click a setting
 
@@ -271,6 +278,77 @@ sphinxsim preview path/to/config.json -s preview.png
 Saves a screenshot of the preview to the specified file instead of opening an
 interactive window.  This automatically enables off-screen rendering, so
 `--off-screen` is implied and does not need to be passed separately.
+
+To render an off-screen screenshot of **completed or in-progress solver VTP output**
+(including scalar or vector magnitude coloring via `--color-by` and frame selection
+via `--frame latest|first|<index>`), use `sphinxsim results`:
+
+```bash
+sphinxsim results path/to/config.json --output-dir runs/run_01 --screenshot pressure.png --color-by Pressure --frame latest
+sphinxsim results path/to/config.json --output-dir runs/run_01 --screenshot t0.png --frame first
+```
+
+## High-quality ray-traced rendering with Blender Cycles
+
+Both `sphinxsim results` and `sphinxsim preview` (as well as `sphinxsim shell`, the interactive preview **Render ▾** menu, and MCP operations `results_summary` / `results_render`) integrate with **Blender's Cycles** path-tracing engine via an isolated Scene Bundle workflow (`scene.json` + content-addressed `.bin` buffers).
+
+Because SPHinXsim exports a self-contained binary scene bundle rather than importing `bpy` in-process, there are no Python version or native C++ library conflicts—and portable Cycles bundles can even be exported on headless HPC nodes where neither Blender nor PyVista is installed.
+
+### Requirements for Cycles rendering
+
+- **Local ray-traced rendering (`--renderer cycles`)**: Install Blender 3.6 LTS or 4.x and ensure `blender` is on `PATH` (or set `SPHINXSIM_BLENDER_EXECUTABLE=/path/to/blender`, or pass `--blender /path/to/blender`). GPU acceleration (`OPTIX`, `CUDA`, `HIP`, `ONEAPI`, `METAL`) and OpenImageDenoise (`OIDN`) are probed automatically with graceful CPU fallback.
+- **Portable bundle export (`--save-bundle DIR`)**: Works out of the box with base `sphinxsim` (NumPy + PySide6); neither Blender nor PyVista is required to export a bundle.
+
+### Rendering simulation results with Cycles
+
+```bash
+# Ray-trace analytical particle spheres colored by Velocity magnitude (with 2D Qt colorbar & time HUD)
+sphinxsim results case.json --output-dir runs/run_01 \
+  --renderer cycles --screenshot velocity_cycles.png \
+  --color-by Velocity --samples 128 --resolution 1920x1080
+
+# Reconstruct a smooth refractive water mesh via Blender Geometry Nodes + transparent film alpha
+sphinxsim results case.json --output-dir runs/run_01 \
+  --renderer cycles --fluid-surface --transparent-bg \
+  --screenshot dam_break_water.png --save-blend dam_break.blend
+
+# Render all solver snapshots as an animation frame sequence in a single Blender invocation
+sphinxsim results case.json --output-dir runs/run_01 \
+  --renderer cycles --frame all --screenshot renders/sequence
+
+# Headless cluster export (no Blender required on the compute node)
+sphinxsim results case.json --output-dir runs/run_01 \
+  --save-bundle ./cycles_bundle --color-by Pressure
+```
+
+### Rendering or exporting from the interactive preview
+
+1. **Interactive GUI (`Render ▾` menu)**: In `sphinxsim shell` (after running `preview`) or `sphinxsim preview --watch`, click **Render ▾** next to **Simulation ▾** in the **Simulation Properties** dock:
+   - **Render with Cycles…** — captures your exact live PyVista camera (`ORTHO` or `PERSP`), hidden bodies, active `Color by` field, palette (`Blue to red`, `Viridis`, `Grayscale`), custom rescale range, and per-body clip planes, then renders a denoised Cycles PNG (or offers to export a Scene Bundle if Blender is not installed locally).
+   - **Render fluid surface with Cycles…** — same live camera/clip state with procedural Geometry Nodes fluid surface reconstruction (`Points to Volume` → `Volume to Mesh`) for fluid bodies.
+   - **Export Cycles scene bundle…** — exports a self-contained directory (`scene.json` + `.bin` buffers) ready to render on any workstation with Blender.
+2. **Shell prompt**: While the interactive preview window is open in `sphinxsim shell`, running `preview --renderer cycles -s figure1.png` (or `preview --save-bundle ./bundle`) automatically captures your live interactive camera and particle visibility/clip state.
+
+### Cycles visual parity and shading
+
+- **Camera**: Maps VTK's `(camera_position, focal_point, view_up)` and vertical frustum (`sensor_fit="VERTICAL"`) 1-to-1 to Cycles (`ORTHO` for 2D cases, `PERSP` for 3D cases).
+- **Particles & Colormaps**: Uses native Cycles `PointCloud` analytical BVH spheres (`radius = 0.5 * particle_spacing`, with automatic `Mesh to Points` fallback on Blender 3.6 LTS) and `Attribute → Map Range → ColorRamp → Principled BSDF` shaders matching `ScalingReference_<field>` and interactive rescale ranges.
+- **Solid Walls & Lighting**: Enclosing solid walls use translucent acrylic shaders so interior fluid/continuum particles remain clearly lit, paired with scale-invariant directional studio lighting, a 3D ground shadow catcher, and a headless Qt 2D HUD compositor (`--no-overlay` to omit).
+
+### Live file and VTP watching (`--watch`)
+
+```bash
+sphinxsim preview path/to/config.json --watch
+sphinxsim preview path/to/config.json --watch --watch-output-dir runs/run_01
+```
+
+In `--watch` mode (available both as a direct CLI command and as `preview --watch`
+inside `sphinxsim shell`), the Qt-backed preview window polls `config.json` on disk
+and any specified output directory:
+
+- When `config.json` is modified externally (by an editor, CLI command, `ask`, or an external AI agent) and the docked property editor has **no unsaved local edits**, the property tree reloads and the geometry scene refreshes automatically.
+- If the docked property editor has **unsaved local edits**, local changes are preserved and a notice appears in the editor status bar until you save or reload.
+- When `--watch-output-dir` is provided (or active in the shell), new VTP snapshots stream onto the canvas automatically.
 
 Supported formats depend on your PyVista/VTK build, but typically include PNG,
 JPEG, and TIFF.

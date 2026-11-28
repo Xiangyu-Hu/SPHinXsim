@@ -69,9 +69,13 @@ machine output; native execution diagnostics go to stderr or bounded job logs.
 
 ```sh
 sphinxsim capabilities --json
+sphinxsim templates --json
+sphinxsim init 2d/column_collapse project/config.json --root /workspace --json
 sphinxsim validate project/config.json --root /workspace --json
 sphinxsim compile specification.json -o reviewed-config.json --json
 sphinxsim geometry recipe.json -o project/models/candidate --json
+sphinxsim results project/config.json --output-dir project/run_01 --root /workspace --json
+sphinxsim results project/config.json --output-dir project/run_01 --save-bundle project/cycles_bundle --color-by Velocity --root /workspace --json
 ```
 
 Compilation accepts `{ "version": 1, "configuration": <native configuration> }`.
@@ -113,8 +117,10 @@ sphinxsim project project/config.json --root /workspace --json
 sphinxsim preview project/config.json --with-particles --detach --root /workspace --json
 sphinxsim run project/config.json --detach --root /workspace --json
 sphinxsim job status reference.json --root /workspace --json
+sphinxsim job wait reference.json --timeout 120 --root /workspace --json
 sphinxsim job continue reference.json --root /workspace --json
 sphinxsim job results reference.json --root /workspace --json
+sphinxsim restore project/config.json --root /workspace --json
 ```
 
 `--json`/`--detach` select headless job publication for run/preview. For the
@@ -207,7 +213,11 @@ Only complete VTP snapshots are decoded; unfinished files are retried. Results
 can remain available after a failed execution and are marked partial when incomplete.
 Bodies can be fluids or continua; counts may vary per frame and fields are taken
 from actual output. `results_inspect` returns bounded summaries and verified
-resource references, not every frame in the model context.
+resource references, not every frame in the model context. For high-quality visual
+deliverables, `results_summary` and `results_render` also accept `renderer: "cycles"`
+(invoking an isolated `blender --background` subprocess when Blender is installed)
+or `save_bundle` (exporting a portable `scene.json` + content-addressed `.bin`
+Cycles bundle without requiring Blender or PyVista on the compute host).
 
 Quality reports inspect saved outputs: finite data, output time coverage,
 particle counts, supported domain checks and penetration into supported static

@@ -682,6 +682,35 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_restore(args: argparse.Namespace) -> int:
+    """Restore a configuration file atomically from its .bak backup."""
+    from sphinxsim.operations import Operations
+
+    config_path = _resolve_preview_config_path(args.config_file).resolve()
+    if not config_path.is_file():
+        print(f"File not found: {config_path}", file=sys.stderr)
+        return 1
+    root = _workspace_root_for(config_path, getattr(args, "root", None))
+    try:
+        ops = Operations(root)
+        result = ops.call(
+            "config_restore",
+            {
+                "config_file": config_path.relative_to(root).as_posix(),
+                "dry_run": bool(getattr(args, "dry_run", False)),
+            },
+        )
+    except (OSError, ValueError) as exc:
+        print(f"Error restoring config: {exc}", file=sys.stderr)
+        return 1
+
+    action = "Dry run restore for" if result["dry_run"] else "✅ Restored"
+    print(f"{action} {config_path} from {result['backup_file']}")
+    if result["diff"]:
+        print(result["diff"].rstrip())
+    return 0
+
+
 def cmd_results(args: argparse.Namespace) -> int:
     """Summarize VTP frames, observer/energy .dat files, and optional screenshots."""
     from sphinxsim.results import AnalysisError, render_run_results, summarize_run_results
@@ -701,6 +730,7 @@ def cmd_results(args: argparse.Namespace) -> int:
                 output_dir,
                 Path(args.screenshot),
                 color_by=getattr(args, "color_by", None),
+                frame=getattr(args, "frame", None) or "latest",
                 project_root=PROJECT_ROOT,
             )
     except (AnalysisError, ImportError, OSError, ValueError, RuntimeError) as exc:
@@ -774,7 +804,7 @@ def _run_agentic_turn(
 
     provider = normalize_llm_provider()
     llm = get_llm(provider)
-    client = InProcessOperationsClient(root)
+    client = InProcessOperationsClient(root, read_only=dry_run)
 
     history = list(
         messages
@@ -784,8 +814,8 @@ def _run_agentic_turn(
                 "content": (
                     "You are the SPHinXsim CLI assistant. JSON configuration files on disk "
                     "are the single source of truth. Use the discovered SPHinXsim operations "
-                    "to inspect templates/capabilities, initialize or patch config.json, "
-                    "validate inputs, submit/inspect jobs, and summarize VTP/.dat results. "
+                    "to inspect templates/capabilities/docs, read or patch config.json, "
+                    "validate inputs, submit/wait/inspect jobs, and summarize VTP/.dat results. "
                     "Report exact file paths and numerical evidence."
                 ),
             }
@@ -798,7 +828,21 @@ def _run_agentic_turn(
         "dry_run": dry_run,
     }
     if config_path is not None and config_path.resolve().is_relative_to(root):
-        ctx_payload["active_config_file"] = config_path.resolve().relative_to(root).as_posix()
+        rel_cfg = config_path.resolve().relative_to(root).as_posix()
+        ctx_payload["active_config_file"] = rel_cfg
+        if config_path.is_file():
+            try:
+                from sphinxsim.config.migrations import migrate_legacy_configuration
+                from sphinxsim.runtime.physics import check_config
+
+                normalized, _ = check_config(
+                    migrate_legacy_configuration(json.loads(config_path.read_text(encoding="utf-8")))
+                )
+                SimulationConfig.model_validate(normalized)
+                ctx_payload["active_config_valid"] = True
+            except Exception as exc:
+                ctx_payload["active_config_valid"] = False
+                ctx_payload["active_config_error"] = f"{type(exc).__name__}: {exc}"
     if output_dir is not None and output_dir.resolve().is_relative_to(root):
         ctx_payload["active_output_dir"] = output_dir.resolve().relative_to(root).as_posix()
     last_job = root / ".sphinxsim" / "last-job.json"
@@ -897,6 +941,8 @@ _SHELL_COMMANDS = (
     "load",
     "templates",
     "init",
+    "restore",
+    "undo",
     "generate",
     "update",
     "validate",
@@ -1106,6 +1152,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             print("Commands:")
             print("  templates [--json]              - List verified 2D/3D reference templates")
             print("  init TEMPLATE FILE [--overwrite]- Initialize config + assets from a template and load it")
+            print("  restore [FILE] [--dry-run]      - Restore config from .bak backup (alias: undo)")
             print("  load FILE                       - Load an existing config file")
             print("  generate DESCRIPTION FILE       - Generate new config via LLM and save to FILE")
             print("  update INSTRUCTION              - Modify loaded config via LLM")
@@ -1126,9 +1173,9 @@ def cmd_shell(args: argparse.Namespace) -> int:
             print("  replay [--relaxation]           - Replay simulation or relaxation snapshots at up to 25 FPS")
             print("  run [--with-animation] [--output-dir DIR] [--detach]")
             print("                                 - Run config synchronously, with animation, or detached")
-            print("  job <status|logs|continue|cancel|results> [REF_JSON]")
-            print("                                 - Inspect or control a detached job (defaults to latest)")
-            print("  results [--output-dir DIR] [--screenshot FILE] [--color-by FIELD] [--json]")
+            print("  job <status|logs|wait|continue|cancel|results> [REF_JSON]")
+            print("                                 - Inspect, wait on, or control a detached job (defaults to latest)")
+            print("  results [--output-dir DIR] [--screenshot FILE] [--color-by FIELD] [--frame FRAME] [--json]")
             print("                                 - Summarize VTP frames, .dat series, and quality checks")
             print("  capabilities / compile / geometry / project / agent ...")
             print("                                 - Direct access to native SPHinXsim CLI subcommands")
@@ -1232,6 +1279,20 @@ def cmd_shell(args: argparse.Namespace) -> int:
                 shell_sim = None
                 if not as_json:
                     print(f"✅ Loaded config: {config_path}")
+            continue
+
+        if cmd in {"restore", "undo"}:
+            pos = [tok for tok in parts[1:] if not tok.startswith("-")]
+            flags = [tok for tok in parts[1:] if tok.startswith("-")]
+            target_cfg = _shell_resolve_config_path(pos[0]) if pos else config_path
+            if target_cfg is None:
+                print("No config loaded. Run 'load FILE' or pass a config file.", file=sys.stderr)
+                continue
+            sub_args = ["restore", str(target_cfg.resolve()), *flags]
+            if "--json" in flags and "--root" not in flags:
+                sub_args.extend(["--root", str(_workspace_root_for(target_cfg, explicit_root))])
+            if _safe_cli_call(sub_args) == 0 and preview_runtime._watch_config_path is not None:
+                preview_runtime.check_watched_files()
             continue
 
         if cmd == "load":
@@ -1495,6 +1556,8 @@ def cmd_shell(args: argparse.Namespace) -> int:
                     atomic_json(ref_file, submitted["reference"])
                     last_job_ref_file = ref_file
                     active_output_dir = ops.jobs.job_path(submitted["reference"]["job_id"])
+                    if preview_runtime._watch_config_path is not None:
+                        preview_runtime._watch_output_dir = active_output_dir
                     if as_json:
                         print(json.dumps({"ok": True, "data": submitted}))
                     else:
@@ -1530,6 +1593,8 @@ def cmd_shell(args: argparse.Namespace) -> int:
                 else PROJECT_ROOT / ".build-temp" / "test_simulation"
             )
             active_output_dir = output_dir
+            if preview_runtime._watch_config_path is not None:
+                preview_runtime._watch_output_dir = active_output_dir
 
             # Persistent preview keeps native UI/runtime state alive in-process.
             # Run simulation in an isolated subprocess to avoid state leakage.
@@ -1614,12 +1679,24 @@ def cmd_shell(args: argparse.Namespace) -> int:
 
         if cmd == "job":
             if len(parts) < 2:
-                print("Usage: job <status|logs|continue|cancel|results> [REF_JSON] [--json]", file=sys.stderr)
+                print("Usage: job <status|logs|wait|continue|cancel|results> [REF_JSON] [--timeout S] [--json]", file=sys.stderr)
                 continue
             action = parts[1]
             rest = list(parts[2:])
             root = _workspace_root_for(config_path, explicit_root)
-            has_ref = any(not tok.startswith("-") for tok in rest)
+            # Identify positional ref file (ignoring flag values like --timeout 30)
+            has_ref = False
+            skip_next = False
+            for tok in rest:
+                if skip_next:
+                    skip_next = False
+                    continue
+                if tok in {"--timeout", "--root"}:
+                    skip_next = True
+                    continue
+                if not tok.startswith("-"):
+                    has_ref = True
+                    break
             if not has_ref:
                 candidate_ref = last_job_ref_file or (root / ".sphinxsim" / "last-job.json")
                 if not candidate_ref.is_file():
@@ -1727,7 +1804,7 @@ COMPLETION_SCRIPTS = {
     local cur opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    opts="templates init generate validate update ask run results preview explore shell agent capabilities compile geometry project job desktop mcp --help --version --generate-completion"
+    opts="templates init restore generate validate update ask run results preview explore shell agent capabilities compile geometry project job desktop mcp --help --version --generate-completion"
     COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
     return 0
 }
@@ -1822,6 +1899,15 @@ def _build_parser() -> argparse.ArgumentParser:
     init_p.add_argument("--overwrite", action="store_true", help="Overwrite destination if it exists.")
     init_p.set_defaults(func=cmd_init)
 
+    # restore
+    rest_p = subparsers.add_parser(
+        "restore",
+        help="Restore a JSON config file atomically from its .bak backup.",
+    )
+    rest_p.add_argument("config_file", nargs="?", default="config.json", help="Path to JSON config file.")
+    rest_p.add_argument("--dry-run", action="store_true", help="Preview restoration diff without writing.")
+    rest_p.set_defaults(func=cmd_restore)
+
     # results
     res_p = subparsers.add_parser(
         "results",
@@ -1844,6 +1930,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--color-by",
         default=None,
         help="Point-data scalar or vector field name to color particles by when rendering.",
+    )
+    res_p.add_argument(
+        "--frame",
+        default="latest",
+        help="Select 'latest' (default), 'first', or a 0-based/negative frame index for --screenshot.",
     )
     res_p.set_defaults(func=cmd_results)
 
@@ -2011,7 +2102,7 @@ def _parse_shell_ai_cli_style(text: str) -> list[str] | None:
 
     command = parts[0][1:]
     valid_commands = {
-        "load", "templates", "init", "generate", "validate", "update", "run",
+        "load", "templates", "init", "restore", "undo", "generate", "validate", "update", "run",
         "preview", "results", "capabilities", "compile", "geometry", "project",
         "job", "agent", "ask", "initialize-simulation", "continue-to-run",
         "replay", "explore", "shell",
@@ -2046,7 +2137,7 @@ def main(argv: list[str] | None = None, *, publish_json=None) -> int:
     structured = any(getattr(args, key, None) for key in ("json", "detach", "request", "root", "output", "submission_id"))
     policy_changed = any(getattr(args, key, default) != default for key, default in
                          (("lease_seconds", 600), ("refresh_seconds", 10), ("wall_seconds", 3600)))
-    if args.command in ("validate", "run", "preview", "templates", "init", "results") and (structured or policy_changed):
+    if args.command in ("validate", "run", "preview", "templates", "init", "restore", "results") and (structured or policy_changed):
         if args.command == "results" and getattr(args, "output_dir", None) is None:
             args.output_dir = str(PROJECT_ROOT / ".build-temp" / "test_simulation")
         from sphinxsim.commands import execute

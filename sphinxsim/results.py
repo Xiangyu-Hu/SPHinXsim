@@ -674,12 +674,75 @@ def summarize_run_results(
     return result
 
 
+def _select_body_frames(
+    data_dir: Path,
+    body_names: Sequence[str],
+    frame_selector: str,
+) -> dict[str, ResultFrame]:
+    """Select ``latest``, ``first``, or 0-based/negative frame index per body."""
+    selector = frame_selector.strip().lower()
+    if selector == "latest":
+        return ResultCatalog().latest(data_dir, list(body_names), include_generation=True)
+
+    reader = VTPPositionReader()
+    vtp_files = sorted(data_dir.glob("*.vtp"))
+    selected_frames: dict[str, ResultFrame] = {}
+    for body_name in body_names:
+        candidates: list[tuple[bool, float, Path]] = []
+        prefix = f"{body_name}_"
+        for path in vtp_files:
+            matched = None
+            for cand in sorted(body_names, key=len, reverse=True):
+                if path.stem.startswith(f"{cand}_"):
+                    matched = cand
+                    break
+            if matched != body_name:
+                continue
+            suffix = path.stem[len(prefix):]
+            generation = suffix.startswith("ite_")
+            try:
+                if generation:
+                    t_val = float(suffix[4:])
+                else:
+                    t_val = reader._read_time_value(path)
+                if math.isfinite(t_val):
+                    candidates.append((generation, t_val, path.resolve()))
+            except (AnalysisError, ValueError):
+                continue
+
+        solver_only = [item for item in candidates if not item[0]]
+        pool = solver_only if solver_only else candidates
+        pool.sort(key=lambda item: (item[1], item[2].name))
+        if not pool:
+            continue
+        if selector == "first":
+            gen, t_val, chosen = pool[0]
+        else:
+            try:
+                idx = int(selector)
+            except ValueError as exc:
+                raise AnalysisError(
+                    f"Invalid --frame selector {frame_selector!r}; use 'latest', 'first', or an integer index"
+                ) from exc
+            if idx < -len(pool) or idx >= len(pool):
+                raise AnalysisError(
+                    f"Frame index {idx} out of range for {body_name!r} ({len(pool)} frames available)"
+                )
+            gen, t_val, chosen = pool[idx]
+        stat = chosen.stat()
+        selected_frames[body_name] = ResultFrame(
+            body_name, chosen, t_val, gen, (stat.st_size, stat.st_mtime_ns)
+        )
+    return selected_frames
+
+
 def render_run_results(
     config_path: str | Path,
     output_dir: str | Path,
     screenshot_path: str | Path,
     *,
     color_by: str | None = None,
+    frame: str = "latest",
     project_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Render an off-screen PNG of an existing simulation output directory."""
@@ -690,7 +753,10 @@ def render_run_results(
     from sphinxsim.runtime.export_vtp import hash_file
     from sphinxsim.runtime.physics import check_config
     from sphinxsim.templates import _default_project_root
-    from sphinxsim.visualization.live_particles import refresh_particle_actors
+    from sphinxsim.visualization.live_particles import (
+        add_or_update_particle_actor,
+        refresh_particle_actors,
+    )
     from sphinxsim.visualization.particle_time import ParticleTimeDisplay
     from sphinxsim.visualization.particle_visibility import ParticleVisibility
     from sphinxsim.visualization.preview import (
@@ -731,21 +797,36 @@ def render_run_results(
         )
         visualizer.populate_existing_run(plotter, data_dir.parent if data_dir.name == "output" else data_dir)
         visibility = ParticleVisibility(plotter)
-        visibility.set_scene(("results-render", resolved_config, data_dir), config, visualizer.legend_actor)
+        visibility.set_scene(("results-render", resolved_config, data_dir, frame), config, visualizer.legend_actor)
         time_display = ParticleTimeDisplay(plotter)
         bodies = config.fluid_bodies + config.continuum_bodies + config.solid_bodies
         colours = {body.name: _body_colour(body.name, config) for body in bodies}
         versions: dict[str, Any] = {}
         visualizer._select_subplot(plotter, 0)
-        frames = refresh_particle_actors(
-            plotter,
-            data_dir,
-            colours,
-            versions,
-            ResultCatalog(),
-            visibility,
-            time_display,
-        )
+        if frame.strip().lower() == "latest":
+            frames = refresh_particle_actors(
+                plotter,
+                data_dir,
+                colours,
+                versions,
+                ResultCatalog(),
+                visibility,
+                time_display,
+            )
+        else:
+            frames = _select_body_frames(data_dir, list(colours), frame)
+            for body_name, selected_frame in frames.items():
+                mesh = read_particle_mesh(selected_frame.path)
+                actor = add_or_update_particle_actor(
+                    plotter,
+                    body_name,
+                    mesh,
+                    colours[body_name],
+                    label=f"Particles: {body_name}",
+                )
+                visibility.add_actor(body_name, actor, mesh, initialized=not selected_frame.generation)
+                time_display.update(body_name, mesh, generation=selected_frame.generation)
+                versions[body_name] = (str(selected_frame.path), selected_frame.version)
         if not frames:
             raise AnalysisError(f"No particle VTP snapshots found in {data_dir}")
 
@@ -787,4 +868,5 @@ def render_run_results(
         "bodies_rendered": sorted(frames),
         "color_by": color_by,
         "coloured_bodies": coloured_bodies,
+        "frame": frame,
     }

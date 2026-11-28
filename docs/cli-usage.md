@@ -158,6 +158,7 @@ Inside the shell, you can use the following commands:
 | --- | --- |
 | `templates [--json]` | List verified 2D and 3D reference templates |
 | `init TEMPLATE FILE [--overwrite]` | Initialize a config (and stage referenced `.stl`/`.dat` assets) from a template and load it |
+| `restore [FILE] [--dry-run]` | Restore a config atomically from its `.bak` backup (`undo` alias also supported) |
 | `load FILE` | Load and validate an existing config file |
 | `generate "description" FILE` | Generate a new config and write it to FILE |
 | `update "instruction"` | Modify the loaded config with an instruction (e.g., "change end time to 5 s") |
@@ -176,8 +177,8 @@ Inside the shell, you can use the following commands:
 | `run [--output-dir DIR]` | Build and execute the loaded config (optionally writing to an isolated `DIR`) |
 | `run --detach [--json]` | Submit a persistent background job and save its reference to `.sphinxsim/last-job.json` |
 | `run --with-animation` | Preview generated particles, continue that same simulation, and animate its snapshots |
-| `job <status\|logs\|continue\|cancel\|results> [REF_JSON]` | Inspect or control a detached job (defaults to `.sphinxsim/last-job.json` when omitted) |
-| `results [--output-dir DIR] [--screenshot FILE] [--color-by FIELD] [--json]` | Summarize VTP frames, `.dat` observer/energy series, quality checks, and optional result screenshots |
+| `job <status\|logs\|wait\|continue\|cancel\|results> [REF_JSON]` | Inspect, wait on, or control a detached job (defaults to `.sphinxsim/last-job.json` when omitted) |
+| `results [--output-dir DIR] [--screenshot FILE] [--color-by FIELD] [--frame FRAME] [--json]` | Summarize VTP frames, `.dat` observer/energy series, quality checks, and optional result screenshots (`--frame latest\|first\|N`) |
 | `capabilities` / `compile` / `geometry` / `project` | Direct access to native structured SPHinXsim CLI subcommands |
 | `agent <start\|status\|approve\|report\|promote\|preview\|...>` | Manage AgentCAE calibration workflows, observe runs in the shell preview, or `promote` candidates back to `config.json` |
 | `replay` | Replay simulation snapshots from the latest successful animated run at up to 25 FPS |

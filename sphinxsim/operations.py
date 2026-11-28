@@ -10,8 +10,13 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
+from sphinxsim.config.update_patch import UpdatePatch
+
 
 CONTRACT = json.loads(files("sphinxsim.runtime").joinpath("schemas/contracts-v1.json").read_text())
+_RAW_PATCH_SCHEMA = UpdatePatch.model_json_schema()
+_PATCH_DEFS = _RAW_PATCH_SCHEMA.get("$defs", {})
+_PATCH_BODY_SCHEMA = {k: v for k, v in _RAW_PATCH_SCHEMA.items() if k != "$defs"}
 OBJECT = {"type": "object"}
 PATH = {"type": "string", "minLength": 1, "maxLength": 240}
 REFERENCE = {"type": "object", "properties": {
@@ -39,6 +44,9 @@ TOOLS = {
     "job_logs": ("Read at most the last 16 KiB of native logs.", schema({"reference": REFERENCE}, ["reference"])),
     "job_continue": ("Continue the same frozen particle instance within its lease, idempotently.", schema({"reference": REFERENCE}, ["reference"])),
     "job_cancel": ("Explicitly cancel this calculation; disconnecting does not cancel it.", schema({"reference": REFERENCE}, ["reference"])),
+    "job_wait": ("Wait up to timeout_seconds for an explicit job to reach a terminal or waiting state, including bounded logs on failure.", schema({
+        "reference": REFERENCE, "timeout_seconds": {"type": "number", "minimum": 0, "maximum": 86400},
+        "poll_interval": {"type": "number", "minimum": 0.05, "maximum": 60}}, ["reference"])),
     "results_inspect": ("Verify published hashes and report saved-output quality limits.", schema({"reference": REFERENCE}, ["reference"])),
     "config_generate": ("Generate and validate native configuration from an explicit description, then save it to the selected workspace file.", schema({
         "description": {"type": "string", "minLength": 1, "maxLength": 16000}, "output": PATH,
@@ -69,12 +77,24 @@ TOOLS = {
     "template_init": ("Initialize a workspace configuration and referenced STL/data assets from a verified template.", schema({
         "template": {"type": "string", "minLength": 1, "maxLength": 128}, "output": PATH,
         "overwrite": {"type": "boolean"}}, ["template", "output"])),
-    "config_patch": ("Apply a validated UpdatePatch (e.g. {\"operations\": [{\"op\": \"set_value\", \"path\": \"solver_parameters.end_time\", \"value\": 0.2}]}) or natural-language description to a workspace configuration, preserving formatting and writing a .bak backup.", schema({
-        "config_file": PATH, "patch": OBJECT, "description": {"type": "string", "minLength": 1, "maxLength": 16000},
-        "dry_run": {"type": "boolean"}, "provider": {"enum": ["mock", "ollama", "openai", "nvidia_nim"]}}, ["config_file"])),
+    "config_read": ("Read a workspace configuration file (even if invalid JSON) or a verified template, returning raw text and validation diagnostics.", schema({
+        "config_file": PATH, "template": {"type": "string", "minLength": 1, "maxLength": 128}})),
+    "config_patch": ("Apply a validated UpdatePatch (ops: set_value, merge_object, append_item, upsert_item, rename_item_key with dot-paths), full replacement configuration, or natural-language description to config.json, preserving formatting and writing a .bak backup.", {
+        **schema({
+            "config_file": PATH, "patch": _PATCH_BODY_SCHEMA, "configuration": OBJECT,
+            "description": {"type": "string", "minLength": 1, "maxLength": 16000},
+            "dry_run": {"type": "boolean"}, "provider": {"enum": ["mock", "ollama", "openai", "nvidia_nim"]}},
+            ["config_file"]),
+        "$defs": _PATCH_DEFS}),
+    "config_restore": ("Restore a workspace configuration atomically from its .bak backup file (swapping current contents into .bak for redo).", schema({
+        "config_file": PATH, "dry_run": {"type": "boolean"}}, ["config_file"])),
+    "search_docs": ("Search offline SPHinXsim documentation, tutorials, tool contracts, and reference templates by keyword.", schema({
+        "query": {"type": "string", "minLength": 1, "maxLength": 512},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, ["query"])),
     "results_summary": ("Summarize VTP frames, observer/energy .dat series, and saved-output quality checks for an output directory.", schema({
         "config_file": PATH, "output_dir": PATH, "screenshot": PATH,
-        "color_by": {"type": "string", "minLength": 1, "maxLength": 128}}, ["config_file", "output_dir"])),
+        "color_by": {"type": "string", "minLength": 1, "maxLength": 128},
+        "frame": {"type": "string", "minLength": 1, "maxLength": 32}}, ["config_file", "output_dir"])),
     "workbench": ("Inspect the connected Workbench draft, propose a revision-bound edit, or observe an explicit workflow.", schema({
         "operation": {"enum": ["status", "propose", "observe"]}, "revision": {"type": "string"},
         "configuration": OBJECT, "instruction": {"type": "string"}, "workflow_id": {"type": "string"}}, ["operation"])),
@@ -154,11 +174,18 @@ class Operations:
                 return client.request("/proposal", {"revision": arguments["revision"],
                     "payload": arguments["configuration"], "instruction": arguments["instruction"]})
             return client.observe(arguments["workflow_id"])
-        if name in ("config_generate", "config_update", "config_propose", "config_patch", "case_prepare",
-                    "set_friction_angle", "analyze_result", "compare_results", "results_render",
-                    "templates", "template_init", "results_summary"):
+        if name in ("config_generate", "config_update", "config_propose", "config_read", "config_patch",
+                    "config_restore", "case_prepare", "set_friction_angle", "analyze_result",
+                    "compare_results", "results_render", "templates", "template_init",
+                    "search_docs", "results_summary"):
             from .runtime.agent_tools import call
             return call(self, name, arguments)
+        if name == "job_wait":
+            return self.jobs.wait(
+                self.jobs.resolve(arguments["reference"]),
+                timeout_seconds=arguments.get("timeout_seconds", 120.0),
+                poll_interval=arguments.get("poll_interval", 0.25),
+            )
         methods = {"job_status": self.jobs.status, "job_logs": self.jobs.logs,
                    "job_continue": self.jobs.continue_job, "job_cancel": self.jobs.cancel,
                    "results_inspect": self.jobs.results}

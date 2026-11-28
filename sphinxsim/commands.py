@@ -126,6 +126,11 @@ def _execute(args):
             "output": output_path.relative_to(root).as_posix(),
             "overwrite": bool(args.overwrite),
         })
+    elif command == "restore":
+        result = operations.call("config_restore", {
+            "config_file": Path(args.config_file).resolve(strict=True).relative_to(root).as_posix(),
+            "dry_run": bool(getattr(args, "dry_run", False)),
+        })
     elif command == "results":
         payload = {
             "config_file": Path(args.config_file).resolve(strict=True).relative_to(root).as_posix(),
@@ -135,12 +140,17 @@ def _execute(args):
             payload["screenshot"] = Path(args.screenshot).resolve().relative_to(root).as_posix()
         if args.color_by:
             payload["color_by"] = args.color_by
+        if getattr(args, "frame", None):
+            payload["frame"] = args.frame
         result = operations.call("results_summary", payload)
     elif command == "project":
         result = operations.call("project_inspect", {"config_file": args.config_file})
     elif command == "job":
         name = "results_inspect" if args.action == "results" else "job_" + args.action
-        result = operations.call(name, {"reference": read_json(args.request_file)})
+        job_payload = {"reference": read_json(args.request_file)}
+        if args.action == "wait" and getattr(args, "timeout", None) is not None:
+            job_payload["timeout_seconds"] = float(args.timeout)
+        result = operations.call(name, job_payload)
     elif command == "desktop":
         payload = read_json(args.request_file)
         if "operation" in payload and payload["operation"] != args.action:
@@ -159,7 +169,7 @@ def register(subparsers):
         parser.add_argument("--root", default=None, help="Explicit workspace root (default: current directory).")
         parser.set_defaults(func=execute)
 
-    for name in ("validate", "run", "preview", "templates", "init", "results"):
+    for name in ("validate", "run", "preview", "templates", "init", "restore", "results"):
         if name not in subparsers.choices:
             continue
         parser = subparsers.choices[name]
@@ -190,8 +200,9 @@ def register(subparsers):
     project.add_argument("config_file")
     structured(project)
     job = subparsers.add_parser("job", help="Operate on a JSON job reference returned by submission.")
-    job.add_argument("action", choices=("status", "logs", "continue", "cancel", "results"))
+    job.add_argument("action", choices=("status", "logs", "wait", "continue", "cancel", "results"))
     job.add_argument("request_file", help="JSON job reference file, or - for stdin.")
+    job.add_argument("--timeout", type=float, default=None, help="Maximum seconds to wait for 'job wait' (default: 120).")
     structured(job)
     desktop = subparsers.add_parser("desktop", help="Serve or operate the native application; remote input is an external integration.")
     actions = desktop.add_subparsers(dest="action", required=True)

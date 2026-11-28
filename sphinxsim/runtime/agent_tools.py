@@ -98,8 +98,14 @@ def call(service, name, arguments):
         output = jobs.path(arguments["output"], exists=False)
         result = init_template(arguments["template"], output, overwrite=bool(arguments.get("overwrite", False)))
         return {**result, "config_file": arguments["output"]}
+    if name == "config_read":
+        return read_config_or_template(service, arguments)
     if name == "config_patch":
         return patch_config_file(service, arguments)
+    if name == "config_restore":
+        return restore_config_file(service, arguments)
+    if name == "search_docs":
+        return search_local_docs(arguments)
     if name == "results_summary":
         from sphinxsim.results import render_run_results, summarize_run_results
         config_path = jobs.path(arguments["config_file"])
@@ -108,10 +114,174 @@ def call(service, name, arguments):
         if arguments.get("screenshot"):
             shot_path = jobs.path(arguments["screenshot"], exists=False)
             summary["rendered"] = render_run_results(
-                config_path, output_dir, shot_path, color_by=arguments.get("color_by")
+                config_path,
+                output_dir,
+                shot_path,
+                color_by=arguments.get("color_by"),
+                frame=arguments.get("frame", "latest"),
             )
         return summary
     raise ValueError("Unknown authoring or analysis operation")
+
+
+def read_config_or_template(service, arguments):
+    from sphinxsim.config.migrations import migrate_legacy_configuration
+    from sphinxsim.config.schemas import SimulationConfig
+    from sphinxsim.templates import resolve_template
+
+    has_file = bool(arguments.get("config_file"))
+    has_tmpl = bool(arguments.get("template"))
+    if has_file == has_tmpl:
+        raise ValueError("Provide exactly one of 'config_file' or 'template'")
+
+    if has_tmpl:
+        entry = resolve_template(arguments["template"])
+        path = Path(entry["source_path"]).resolve()
+        label = entry["id"]
+    else:
+        path = service.jobs.path(arguments["config_file"])
+        label = arguments["config_file"]
+
+    if path.stat().st_size > 1 << 20:
+        raise ValueError("Configuration file exceeds 1 MiB")
+    raw_text = path.read_text(encoding="utf-8", errors="replace")
+    valid = False
+    report = None
+    error = None
+    try:
+        parsed = json.loads(raw_text)
+        migrated = migrate_legacy_configuration(parsed)
+        normalized, report = check_config(migrated)
+        SimulationConfig.model_validate(normalized)
+        valid = True
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
+
+    return {
+        "source": label,
+        "text": raw_text,
+        "valid": valid,
+        "report": report,
+        "error": error,
+        "sha256": hash_file(path),
+    }
+
+
+def restore_config_file(service, arguments):
+    import difflib
+    from sphinxsim.agent.store import AgentTaskStore
+    from sphinxsim.config.migrations import migrate_legacy_configuration
+    from sphinxsim.config.schemas import SimulationConfig
+
+    path = service.jobs.path(arguments["config_file"])
+    backup_path = path.with_name(path.name + ".bak")
+    if backup_path.is_symlink() or not backup_path.is_file():
+        raise ValueError(f"No backup file found for {arguments['config_file']} ({backup_path.name})")
+
+    current_text = path.read_bytes().decode("utf-8")
+    backup_text = backup_path.read_bytes().decode("utf-8")
+    migrated = migrate_legacy_configuration(json.loads(backup_text))
+    normalized, report = check_config(migrated)
+    SimulationConfig.model_validate(normalized)
+
+    diff = "".join(
+        difflib.unified_diff(
+            current_text.splitlines(True),
+            backup_text.splitlines(True),
+            fromfile=f"a/{arguments['config_file']}",
+            tofile=f"b/{arguments['config_file']} (restored)",
+        )
+    )
+    dry_run = bool(arguments.get("dry_run", False))
+    if not dry_run:
+        AgentTaskStore._atomic_write(backup_path, current_text)
+        AgentTaskStore._atomic_write(path, backup_text)
+
+    return {
+        "config_file": arguments["config_file"],
+        "backup_file": backup_path.relative_to(service.root).as_posix(),
+        "restored": not dry_run,
+        "dry_run": dry_run,
+        "diff": diff,
+        "report": report,
+        "sha256": hash_file(path),
+    }
+
+
+def search_local_docs(arguments):
+    from sphinxsim.agent.capabilities import build_capability_registry
+    from sphinxsim.agent.knowledge import KnowledgeDocument, build_default_knowledge_base
+    from sphinxsim.agent.tools import build_builtin_tool_registry
+    from sphinxsim.templates import _default_project_root, list_templates
+
+    root = _default_project_root()
+    registry = build_builtin_tool_registry()
+    capabilities = build_capability_registry(registry)
+    kb = build_default_knowledge_base(root, registry, capabilities)
+
+    extra_docs: list[KnowledgeDocument] = []
+    docs_dir = root / "docs"
+    if docs_dir.is_dir():
+        for md_path in sorted(docs_dir.rglob("*.md")):
+            try:
+                rel = md_path.relative_to(root).as_posix()
+                doc_id = "doc." + rel.replace("/", ".").replace(" ", "_")
+                if any(existing.document_id == doc_id for existing in kb.documents):
+                    continue
+                text = md_path.read_text(encoding="utf-8", errors="replace")[:16000]
+                if not text.strip():
+                    continue
+                title = next(
+                    (line.lstrip("# ").strip() for line in text.splitlines() if line.startswith("#")),
+                    md_path.stem,
+                )
+                extra_docs.append(
+                    KnowledgeDocument(
+                        document_id=doc_id,
+                        title=title or md_path.stem,
+                        text=text,
+                        source=rel,
+                        tags=["docs", md_path.parent.name],
+                    )
+                )
+            except Exception:
+                continue
+
+    for tmpl in list_templates(root):
+        doc_id = "template." + tmpl["id"].replace("/", ".")
+        extra_docs.append(
+            KnowledgeDocument(
+                document_id=doc_id,
+                title=f"Template {tmpl['id']} ({tmpl['dimension']}D {tmpl['simulation_type']})",
+                text=(
+                    f"Reference template {tmpl['id']}: {tmpl['dimension']}D {tmpl['simulation_type']}. "
+                    f"Bodies: {', '.join(tmpl['bodies'])}. "
+                    f"Assets: {', '.join(tmpl['assets']) or 'none'}."
+                ),
+                source=tmpl["id"],
+                tags=["template", tmpl["simulation_type"], f"{tmpl['dimension']}d"],
+            )
+        )
+
+    from sphinxsim.agent.knowledge import LocalKnowledgeBase
+
+    full_kb = LocalKnowledgeBase([*kb.documents, *extra_docs], version="1.1")
+    limit = int(arguments.get("limit", 5))
+    matches = full_kb.retrieve(arguments["query"], limit=limit)
+    return {
+        "query": arguments["query"],
+        "matches": [
+            {
+                "id": item.document.document_id,
+                "title": item.document.title,
+                "source": item.document.source,
+                "score": round(item.score, 3),
+                "matched_terms": item.matched_terms,
+                "excerpt": item.document.text[:1200],
+            }
+            for item in matches
+        ],
+    }
 
 
 def patch_config_file(service, arguments):
@@ -123,34 +293,51 @@ def patch_config_file(service, arguments):
     from sphinxsim.json_editor.json_format import format_json_like_source
     from sphinxsim.llm import get_llm
 
-    if not arguments.get("patch") and not arguments.get("description"):
-        raise ValueError("config_patch requires either 'patch' or 'description'")
+    has_patch = arguments.get("patch") is not None
+    has_config = arguments.get("configuration") is not None
+    has_desc = bool(arguments.get("description"))
+    if not (has_patch or has_config or has_desc):
+        raise ValueError("config_patch requires 'patch', 'configuration', or 'description'")
+
     path = service.jobs.path(arguments["config_file"])
     original_text = path.read_bytes().decode("utf-8")
-    raw_payload = migrate_legacy_configuration(json.loads(original_text))
-    normalized, _ = check_config(raw_payload)
-    current_model = SimulationConfig.model_validate(normalized)
 
-    if arguments.get("patch") is not None:
-        parsed_patch = UpdatePatch.model_validate(arguments["patch"])
+    if has_config:
+        updated_raw = migrate_legacy_configuration(deepcopy(arguments["configuration"]))
+        summary_ops = {"replace_configuration": 1}
+        format_ref = original_text
+        try:
+            json.loads(original_text)
+        except Exception:
+            format_ref = json.dumps(updated_raw, indent=2) + "\n"
     else:
-        with redirect_stdout(sys.stderr):
-            patch_payload = get_llm(arguments.get("provider")).update_patch(
-                current_model, arguments["description"], strict=True
+        raw_payload = migrate_legacy_configuration(json.loads(original_text))
+        normalized, _ = check_config(raw_payload)
+        current_model = SimulationConfig.model_validate(normalized)
+
+        if has_patch:
+            parsed_patch = UpdatePatch.model_validate(arguments["patch"])
+        else:
+            with redirect_stdout(sys.stderr):
+                patch_payload = get_llm(arguments.get("provider")).update_patch(
+                    current_model, arguments["description"], strict=True
+                )
+            parsed_patch = (
+                patch_payload
+                if isinstance(patch_payload, UpdatePatch)
+                else UpdatePatch.model_validate(patch_payload)
             )
-        parsed_patch = (
-            patch_payload
-            if isinstance(patch_payload, UpdatePatch)
-            else UpdatePatch.model_validate(patch_payload)
-        )
 
-    patch_result = apply_update_patch(raw_payload, parsed_patch, strict=True)
-    if patch_result.errors:
-        raise ValueError("\n".join(patch_result.errors))
+        patch_result = apply_update_patch(raw_payload, parsed_patch, strict=True)
+        if patch_result.errors:
+            raise ValueError("\n".join(patch_result.errors))
+        updated_raw = patch_result.updated
+        summary_ops = patch_result.summary
+        format_ref = original_text
 
-    checked, report = check_config(patch_result.updated)
+    checked, report = check_config(updated_raw)
     SimulationConfig.model_validate(checked)
-    updated_text = format_json_like_source(patch_result.updated, original_text, path)
+    updated_text = format_json_like_source(updated_raw, format_ref, path)
     diff = "".join(
         difflib.unified_diff(
             original_text.splitlines(True),
@@ -173,7 +360,7 @@ def patch_config_file(service, arguments):
         "applied": not dry_run and updated_text != original_text,
         "dry_run": dry_run,
         "backup_file": backup_rel,
-        "operations": patch_result.summary,
+        "operations": summary_ops,
         "diff": diff,
         "report": report,
         "sha256": hash_file(path),

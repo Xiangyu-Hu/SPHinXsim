@@ -57,13 +57,17 @@ Tool discovery includes the following authoring and analysis operations.
 | --- | --- |
 | `templates` | List verified 2D and 3D reference simulation templates |
 | `template_init` | Initialize a workspace configuration and referenced STL/data assets from a template |
+| `config_read` | Read raw text and validation diagnostics of a workspace configuration (even if broken JSON) or template |
 | `config_generate` | Generate validated native JSON into an explicit workspace file |
 | `config_update` | Update and validate a selected configuration before saving |
-| `config_patch` | Apply a validated `UpdatePatch` or instruction to `config.json` (preserving format and `.bak` backup) |
+| `config_patch` | Apply a validated `UpdatePatch`, replacement config, or instruction to `config.json` (with `.bak` backup) |
+| `config_restore` | Atomically restore `config.json` from its `.bak` backup (swapping current contents for redo) |
 | `config_propose` | Return a validated draft proposal and admission report |
+| `search_docs` | Search offline SPHinXsim documentation, tutorials, tool contracts, and templates by keyword |
 | `case_prepare` | Copy a configuration and stage its STL/data resources |
 | `set_friction_angle` | Update one plastic-continuum body using degrees |
-| `results_summary` | Summarize VTP frames, `.dat` observer/energy series, quality checks, and optional screenshots |
+| `job_wait` | Wait up to `timeout_seconds` for a job to reach a terminal or waiting state (returning logs on failure) |
+| `results_summary` | Summarize VTP frames, `.dat` observer/energy series, quality checks, and `--frame` screenshots |
 | `analyze_result` | Evaluate a runout or declarative analysis plan |
 | `compare_results` | Compare completed measurements with a target |
 | `results_render` | Render a PNG from verified published geometry and particles |

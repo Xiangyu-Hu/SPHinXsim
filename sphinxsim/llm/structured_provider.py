@@ -76,11 +76,21 @@ class ExistingLLMStructuredBackend:
             content = self.llm._post_chat(messages=messages, temperature=0.0)
             return self._parse_text(content)
         if self.provider_name == "openai":
-            response = self.llm.client.chat.completions.create(
-                model=self.llm.model,
-                messages=messages,
-                temperature=0,
-            )
+            try:
+                response = self.llm.client.chat.completions.create(
+                    model=self.llm.model,
+                    messages=messages,
+                    temperature=0,
+                    response_format={"type": "json_object"},
+                )
+            except Exception as exc:
+                if "response_format" not in str(exc) and not isinstance(exc, TypeError):
+                    raise
+                response = self.llm.client.chat.completions.create(
+                    model=self.llm.model,
+                    messages=messages,
+                    temperature=0,
+                )
             content = response.choices[0].message.content or ""
             return self._parse_text(content)
         raise StructuredProviderError(

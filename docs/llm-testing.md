@@ -6,6 +6,9 @@ This project uses two distinct LLM test paths so local development can exercise 
 
 | Test area | Local | CI |
 | --- | --- | --- |
+| `tests/test_cli_templates_results.py` | Deterministic CLI templates, `init`, `results`, and `preview --watch` | Deterministic (`mock`) |
+| `tests/test_shell_agent.py` | Multi-turn `ask`, CLI/shell isomorphism, detached jobs, `agent promote` | Deterministic (`mock` + scripted backend) |
+| `tests/test_shell_agent_hardening.py` | Enforced `--dry-run`, broken-JSON `config_read` repair, `restore`, `job_wait`, `search_docs`, schema-repair retries, multimodal fallback | Deterministic (`mock` + adversarial backend) |
 | `tests/test_ollama_llm.py` | Mocked only | Mocked only |
 | `tests/test_ollama_llm_integration.py` | Live Ollama when available, otherwise skipped | Skipped |
 | `examples/test_nlp_to_simulation.py` | Mocked case plus live Ollama case when available | Mocked case only, live Ollama skipped |

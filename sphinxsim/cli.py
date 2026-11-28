@@ -1816,6 +1816,7 @@ _sphinxsim() {
     subcmds=(
         'templates:List verified 2D and 3D reference templates'
         'init:Initialize a JSON config and assets from a template'
+        'restore:Atomically restore a JSON config from its .bak backup'
         'generate:Generate a simulation config from a natural-language description'
         'validate:Validate a JSON simulation config against the schema'
         'update:Update an existing simulation config from an instruction'
@@ -1840,6 +1841,7 @@ _sphinxsim "$@" """,
 
     "fish": """complete -c sphinxsim -f -a "templates" -d "List reference templates"
 complete -c sphinxsim -f -a "init" -d "Initialize config from template"
+complete -c sphinxsim -f -a "restore" -d "Restore config from .bak backup"
 complete -c sphinxsim -f -a "generate" -d "Generate simulation config"
 complete -c sphinxsim -f -a "validate" -d "Validate JSON simulation config"
 complete -c sphinxsim -f -a "update" -d "Update existing simulation config"

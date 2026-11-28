@@ -116,8 +116,10 @@ sphinxsim project project/config.json --root /workspace --json
 sphinxsim preview project/config.json --with-particles --detach --root /workspace --json
 sphinxsim run project/config.json --detach --root /workspace --json
 sphinxsim job status reference.json --root /workspace --json
+sphinxsim job wait reference.json --timeout 120 --root /workspace --json
 sphinxsim job continue reference.json --root /workspace --json
 sphinxsim job results reference.json --root /workspace --json
+sphinxsim restore project/config.json --root /workspace --json
 ```
 
 `--json`/`--detach` select headless job publication for run/preview. For the

@@ -191,7 +191,7 @@ Notes:
 - Relative file paths inside the shell resolve from the current directory first, then fall back to `.build-temp/`.
 - In shell mode, slash-prefixed commands are also accepted, e.g. `/init 2d/column_collapse case.json`, `/ask set end_time to 0.2 s`, or `/update simulate for 2 s`.
 - When `ask` initializes or generates a configuration while no file is loaded, the shell automatically loads that new configuration for subsequent `validate`, `preview`, `run`, and `results` commands.
-- `preview --watch` polls `config.json` on disk: external edits (from an IDE, CLI command, `update`, `ask`, or `agent promote`) automatically reload the property editor and rebuild the scene whenever there are no unsaved local GUI edits. If the GUI property tree has unsaved changes, local edits are preserved and a status notice is shown.
+- `preview --watch` polls `config.json` on disk: external edits (from an IDE, CLI command, `update`, `ask`, or `agent promote`) automatically reload the property editor and rebuild the scene whenever there are no unsaved local GUI edits. If the GUI property tree has unsaved changes, local edits are preserved and a status notice is shown. Starting `run --output-dir DIR` or `run --detach` while `preview --watch` is active automatically streams new VTP snapshots from that run directory.
 - `validate` always reloads from disk, so external edits are picked up immediately.
 - In shell mode, `preview` keeps a persistent window and returns control to the prompt. Running `preview` again updates the same window.
 - `preview --with-particles` plays relaxation snapshots in the Qt-backed preview and retains its generated-particle simulation for `initialize-simulation`, followed by `continue-to-run`. `replay --relaxation` also retains it; other shell commands discard it. Initialization stops relaxation playback and displays the initial simulation state without running the solver.
@@ -233,6 +233,18 @@ sphinxsim templates --json
 sphinxsim init 2d/column_collapse case.json
 sphinxsim init 3d/fuel_tank fuel_case/case.json --overwrite
 ```
+
+### Restore (atomic `.bak` rollback and redo)
+
+Every validated edit applied by `config_patch` (`ask`) or `agent promote` writes a `<config.json>.bak` backup. Use `restore` (or `restore` / `undo` in `sphinxsim shell`) to atomically swap `config.json` and `<config.json>.bak`:
+
+```bash
+sphinxsim restore case.json --dry-run
+sphinxsim restore case.json
+sphinxsim restore case.json --root /workspace --json
+```
+
+Running `restore` a second time swaps the two files again (acting as redo).
 
 ### Generate
 
@@ -294,19 +306,24 @@ This:
 
 ### Ask (agentic CLI turn)
 
-Execute a multi-step agentic turn grounded on SPHinXsim's in-process CLI/MCP operations (`templates`, `template_init`, `config_patch`, `validate`, `geometry`, `submit`, `job_*`, `results_summary`):
+Execute a multi-step agentic turn grounded on SPHinXsim's in-process CLI/MCP operations (`templates`, `template_init`, `config_read`, `config_patch`, `config_restore`, `search_docs`, `validate`, `geometry`, `submit`, `job_wait`, `job_*`, `results_summary`):
 
 ```bash
 sphinxsim ask "Set end_time to 0.2 s and validate the configuration" -c case.json
+sphinxsim ask --dry-run "Preview changing particle_spacing to 0.005" -c case.json
 sphinxsim ask "/mcp templates {}" --json
 ```
 
 Options:
-- `-c FILE` / `--config FILE`: Active JSON configuration file
+- `-c FILE` / `--config FILE`: Active JSON configuration file (even if syntax- or schema-broken, allowing `config_read` + `config_patch` repair)
 - `--output-dir DIR`: Active simulation output directory
 - `--root DIR`: Explicit workspace root
-- `--dry-run`: Request dry-run previews without modifying files on disk
+- `--dry-run`: Code-enforced read-only mode (blocks mutating tools and forces `dry_run=True` on `config_patch` / `config_restore`)
 - `--json`: Return structured `{ "ok": true, "data": { "answer": ..., "observations": ... } }` output
+
+Notes:
+- Malformed or schema-invalid tool selections are automatically retried up to two times with schema-repair feedback.
+- Inline base64 image payloads are stripped from text observations, while rendered PNGs (`results_summary` with `screenshot` or `results_render`) are forwarded as multimodal `ChatAttachment` images to vision-capable models (falling back automatically to text-only on `mock` or text-only models).
 
 ### Run
 
@@ -326,12 +343,13 @@ This:
 
 ### Results
 
-Inspect saved VTP particle frames, observer and energy `.dat` time-series files, and output quality checks—or render an off-screen screenshot of solver frames:
+Inspect saved VTP particle frames, observer and energy `.dat` time-series files, and output quality checks—or render an off-screen screenshot of a selected solver frame (`--frame latest|first|<index>`):
 
 ```bash
 sphinxsim results config.json --output-dir runs/run_01
 sphinxsim results config.json --output-dir runs/run_01 --json
-sphinxsim results config.json --output-dir runs/run_01 --screenshot pressure.png --color-by Pressure
+sphinxsim results config.json --output-dir runs/run_01 --screenshot pressure.png --color-by Pressure --frame latest
+sphinxsim results config.json --output-dir runs/run_01 --screenshot initial.png --frame first
 ```
 
 ### Preview
@@ -457,6 +475,21 @@ sphinxsim shell
 ```
 
 This case uses continuum dynamics with a `plastic_continuum` material model for granular/soil behavior.
+
+### Example 8: CLI-first template, watch, run, results, and restore workflow
+
+```bash
+sphinxsim shell
+> templates
+> init 2d/column_collapse case.json
+> preview --watch
+> ask --dry-run "Change end_time to 0.05 s"
+> ask "Change end_time to 0.05 s and validate"
+> run --output-dir runs/collapse_01
+> results --output-dir runs/collapse_01
+> undo
+> exit
+```
 
 ## LLM provider selection
 

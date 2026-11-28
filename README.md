@@ -79,9 +79,15 @@ python -m sphinxsim --help
 ### Interface options
 
 ```bash
-# Shell / terminal workflow
+# CLI-first workflow (config.json as single source of truth)
 sphinxsim capabilities --json
+sphinxsim templates --json
+sphinxsim init 2d/column_collapse project/config.json --root /workspace --json
 sphinxsim validate project/config.json --root /workspace --json
+sphinxsim results project/config.json --output-dir project/run_01 --root /workspace --json
+
+# Interactive & agentic shell workflow
+sphinxsim shell
 
 # Python / CLI entry point
 python -m sphinxsim --help

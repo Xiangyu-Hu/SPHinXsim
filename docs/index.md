@@ -58,13 +58,14 @@ Geometry edits stay config-driven in shell mode: update the JSON, then rerun `pr
 Alternatively, you can use direct commands for non-interactive workflows:
 
 - `sphinxsim templates` / `sphinxsim init` — List verified 2D/3D cases and initialize a new config with its assets
+- `sphinxsim restore` — Atomically roll back (or redo) `config.json` from `<config.json>.bak` (`undo` in `shell`)
 - `sphinxsim generate` — Create a config from description
 - `sphinxsim update` — Modify an existing config
-- `sphinxsim ask` — Run a multi-step agentic turn over SPHinXsim CLI operations
+- `sphinxsim ask` — Run a multi-step agentic turn over SPHinXsim CLI operations (supports `--dry-run`)
 - `sphinxsim explore` — Ask schema and functionality questions
 - `sphinxsim validate` — Check config validity
-- `sphinxsim run` — Execute a validated simulation (supports `--output-dir` and `--detach`)
-- `sphinxsim results` — Summarize VTP frames, `.dat` observer/energy series, quality checks, and result screenshots
+- `sphinxsim run` / `sphinxsim job` — Execute a validated simulation (`--output-dir`, `--detach`, `job wait/status/logs/cancel/results`)
+- `sphinxsim results` — Summarize VTP frames, `.dat` observer/energy series, quality checks, and `--frame` result screenshots
 - `sphinxsim preview` — Render an interactive geometry/BC preview before running (supports `--watch`)
 - `sphinxsim workbench` — Open the desktop JSON Editor, Preview, and Chat
 - `sphinxsim agent` — Manage durable AgentCAE workflows and `promote` winning candidates back to `config.json`

@@ -273,10 +273,12 @@ interactive window.  This automatically enables off-screen rendering, so
 `--off-screen` is implied and does not need to be passed separately.
 
 To render an off-screen screenshot of **completed or in-progress solver VTP output**
-(including scalar or vector magnitude coloring via `--color-by`), use `sphinxsim results`:
+(including scalar or vector magnitude coloring via `--color-by` and frame selection
+via `--frame latest|first|<index>`), use `sphinxsim results`:
 
 ```bash
-sphinxsim results path/to/config.json --output-dir runs/run_01 --screenshot pressure.png --color-by Pressure
+sphinxsim results path/to/config.json --output-dir runs/run_01 --screenshot pressure.png --color-by Pressure --frame latest
+sphinxsim results path/to/config.json --output-dir runs/run_01 --screenshot t0.png --frame first
 ```
 
 ### Live file and VTP watching (`--watch`)

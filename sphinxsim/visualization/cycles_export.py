@@ -347,6 +347,21 @@ def _read_vtp_ascii_xml(path: Path) -> VTPBundleData:
     )
 
 
+def _has_non_3d_points_header(path: Path) -> bool:
+    """Detect ASCII <Points> arrays with NumberOfComponents != 3 (rejected by vtkPoints)."""
+    try:
+        with path.open("rb") as handle:
+            head = handle.read(4096).decode("utf-8", errors="ignore")
+    except OSError:
+        return False
+    pts_idx = head.find("<Points")
+    if pts_idx < 0:
+        return False
+    end_idx = head.find("</Points>", pts_idx)
+    snippet = head[pts_idx : (end_idx if end_idx > pts_idx else pts_idx + 512)]
+    return 'NumberOfComponents="2"' in snippet or "NumberOfComponents='2'" in snippet
+
+
 def read_vtp_bundle_data(path: str | Path, *, prefer_vtk: bool = True) -> VTPBundleData:
     """Read geometry, point fields, and field metadata from a complete VTP file."""
     source = Path(path)
@@ -357,10 +372,10 @@ def read_vtp_bundle_data(path: str | Path, *, prefer_vtk: bool = True) -> VTPBun
         raise ValueError(f"VTP file is incomplete (missing closing </VTKFile>): {source}")
 
     data: VTPBundleData | None = None
-    if prefer_vtk:
+    if prefer_vtk and not _has_non_3d_points_header(source):
         try:
             data = _read_vtp_with_vtk(source)
-        except ImportError:
+        except (ImportError, ValueError):
             data = None
 
     if data is None:

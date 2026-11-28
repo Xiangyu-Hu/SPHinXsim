@@ -13,6 +13,10 @@ from typing import Any
 
 import numpy as np
 import pytest
+
+if sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 from PySide6 import QtGui, QtWidgets
 
 from sphinxsim.cli import main as cli_main
@@ -46,14 +50,19 @@ def _write_ascii_particle_vtp(
     *,
     time_value: float = 0.25,
     dim: int = 2,
+    points_components: int = 3,
     vel_ref: float = 4.0,
     press_ref: float = 1500.0,
 ) -> None:
-    if dim == 2:
+    if points_components == 2:
         pts_txt = "0.1 0.1  0.3 0.1  0.1 0.4  0.4 0.6"
-        vel_txt = "1.0 0.0  0.0 2.0  3.0 4.0  0.0 0.0"
+    elif dim == 2:
+        pts_txt = "0.1 0.1 0.0  0.3 0.1 0.0  0.1 0.4 0.0  0.4 0.6 0.0"
     else:
         pts_txt = "0.1 0.1 0.1  0.3 0.1 0.2  0.1 0.4 0.3  0.4 0.6 0.4"
+    if dim == 2:
+        vel_txt = "1.0 0.0  0.0 2.0  3.0 4.0  0.0 0.0"
+    else:
         vel_txt = "1.0 0.0 0.0  0.0 2.0 0.0  0.0 3.0 4.0  0.0 0.0 0.0"
     press_txt = "-500.0 0.0 750.0 1200.0"
     xml = f"""<?xml version="1.0"?>
@@ -66,7 +75,7 @@ def _write_ascii_particle_vtp(
     </FieldData>
     <Piece Name="WaterBody" NumberOfPoints="4" NumberOfVerts="0" NumberOfLines="0" NumberOfStrips="0" NumberOfPolys="0">
       <Points>
-        <DataArray type="Float32" Name="Position" NumberOfComponents="{dim}" format="ascii">{pts_txt}</DataArray>
+        <DataArray type="Float32" Name="Position" NumberOfComponents="{points_components}" format="ascii">{pts_txt}</DataArray>
       </Points>
       <PointData>
         <DataArray type="Float32" Name="Velocity" NumberOfComponents="{dim}" format="ascii">{vel_txt}</DataArray>
@@ -399,16 +408,23 @@ def _make_fake_blender(*, allow_pointcloud_add: bool = True):
 
 def test_pure_python_vtp_reader_2d_3d_and_incomplete(tmp_path: Path) -> None:
     p_vtp = tmp_path / "WaterBody_0001.vtp"
-    _write_ascii_particle_vtp(p_vtp, time_value=0.35, dim=2, vel_ref=3.5, press_ref=900.0)
-    data = read_vtp_bundle_data(p_vtp, prefer_vtk=False)
-
-    assert data.points.shape == (4, 3)
-    assert data.points.dtype == np.float32
-    assert np.allclose(data.points[:, 2], 0.0)
-    assert data.time_value == pytest.approx(0.35)
-    assert data.point_data["Velocity"].shape == (4, 2)
-    assert data.point_data["Pressure"].shape == (4,)
-    assert float(data.field_data["ScalingReference_Velocity"].ravel()[0]) == pytest.approx(3.5)
+    _write_ascii_particle_vtp(
+        p_vtp,
+        time_value=0.35,
+        dim=2,
+        points_components=2,
+        vel_ref=3.5,
+        press_ref=900.0,
+    )
+    for prefer_vtk in (False, True):
+        data = read_vtp_bundle_data(p_vtp, prefer_vtk=prefer_vtk)
+        assert data.points.shape == (4, 3)
+        assert data.points.dtype == np.float32
+        assert np.allclose(data.points[:, 2], 0.0)
+        assert data.time_value == pytest.approx(0.35)
+        assert data.point_data["Velocity"].shape == (4, 2)
+        assert data.point_data["Pressure"].shape == (4,)
+        assert float(data.field_data["ScalingReference_Velocity"].ravel()[0]) == pytest.approx(3.5)
 
     s_vtp = tmp_path / "ShapeWallBoundary.vtp"
     _write_ascii_shape_vtp(s_vtp)
@@ -655,29 +671,30 @@ def test_cli_mcp_and_fake_blender_end_to_end(tmp_path: Path, monkeypatch: pytest
     assert (ws / "mcp_bundle" / "scene.json").is_file()
 
     # 3. Actionable error when --renderer cycles --screenshot is requested with no Blender binary
-    monkeypatch.setenv("PATH", "")
-    monkeypatch.delenv("SPHINXSIM_BLENDER_EXECUTABLE", raising=False)
-    rc_missing = cli_main(
-        [
-            "results",
-            str(cfg_file),
-            "--output-dir",
-            str(ws / "run_01"),
-            "--renderer",
-            "cycles",
-            "--screenshot",
-            str(ws / "missing.png"),
-        ]
-    )
+    from unittest.mock import patch
+
+    with patch("sphinxsim.visualization.cycles_runner.find_blender_executable", return_value=None):
+        rc_missing = cli_main(
+            [
+                "results",
+                str(cfg_file),
+                "--output-dir",
+                str(ws / "run_01"),
+                "--renderer",
+                "cycles",
+                "--screenshot",
+                str(ws / "missing.png"),
+            ]
+        )
     assert rc_missing == 1
     err_text = capsys.readouterr().err
     assert "SPHINXSIM_BLENDER_EXECUTABLE" in err_text
     assert "--save-bundle" in err_text
 
-    # 4. End-to-end subprocess orchestration with a mock executable Blender wrapper
-    fake_blender = tmp_path / "fake_blender.py"
+    # 4. End-to-end subprocess orchestration with a cross-platform mock Blender launcher
+    fake_blender_py = tmp_path / "fake_blender_worker_entry.py"
     repo_root = Path(__file__).resolve().parents[1]
-    fake_blender.write_text(
+    fake_blender_py.write_text(
         f"""#!{sys.executable}
 import sys
 sys.path.insert(0, {str(repo_root)!r})
@@ -701,7 +718,15 @@ print("SPHINXSIM_CYCLES_RESULT:" + json.dumps(summary))
 """,
         encoding="utf-8",
     )
-    fake_blender.chmod(fake_blender.stat().st_mode | stat.S_IXUSR)
+    if os.name == "nt":
+        fake_blender = tmp_path / "fake_blender.cmd"
+        fake_blender.write_text(
+            f'@echo off\r\n"{sys.executable}" "{fake_blender_py}" %*\r\n',
+            encoding="utf-8",
+        )
+    else:
+        fake_blender = fake_blender_py
+        fake_blender.chmod(fake_blender.stat().st_mode | stat.S_IXUSR)
 
     rendered_png = ws / "cycles_final.png"
     saved_blend = ws / "cycles_final.blend"

@@ -32,6 +32,8 @@ and runs these files under Xvfb with software rendering:
 - `tests/test_workbench.py`
 - `tests/test_particle_visibility.py`
 - `tests/test_visualization.py`
+- `tests/test_cli_templates_results.py`
+- `tests/test_shell_agent_hardening.py`
 
 The Linux SYCL job runs the unit and example suites but does not currently have
 that dedicated Xvfb desktop-graphics step.

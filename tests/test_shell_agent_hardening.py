@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+requires_desktop = pytest.mark.skipif(
+    os.environ.get("SPHINXSIM_DESKTOP_TESTS") != "1",
+    reason="Real VTK off-screen OpenGL rendering requires SPHINXSIM_DESKTOP_TESTS=1",
+)
 
 from sphinxsim.cli import _ShellPreviewRuntime, cmd_ask, cmd_shell, main
 from sphinxsim.llm.chat_attachments import UnsupportedAttachmentError, message_attachments
@@ -331,8 +337,60 @@ def test_base64_stripping_and_multimodal_attachment_with_fallback(tmp_path):
 
 
 def test_results_frame_selector_and_watch_output_dir_autosync(tmp_path, monkeypatch, capsys):
-    pytest.importorskip("pyvista")
     monkeypatch.chdir(tmp_path)
+    case = tmp_path / "case.json"
+    assert main(["init", "2d/column_collapse", str(case)]) == 0
+    capsys.readouterr()
+
+    out_dir = tmp_path / "sim_frames"
+    vtp_dir = out_dir / "output"
+    vtp_dir.mkdir(parents=True)
+    for idx, t_val in enumerate((0.0, 0.1), start=1):
+        (vtp_dir / f"GranularBody_{idx:04d}.vtp").write_text(
+            f"""<VTKFile type="PolyData" version="1.0"><PolyData>
+            <FieldData><DataArray type="Float64" Name="TimeValue" format="ascii">{t_val}</DataArray></FieldData>
+            <Piece Name="GranularBody" NumberOfPoints="2">
+              <PointData><DataArray type="Float64" Name="Pressure" format="ascii">1.0 2.0</DataArray></PointData>
+              <Points><DataArray type="Float64" Name="Position" NumberOfComponents="3" format="ascii">0.1 0.1 0 0.2 0.1 0</DataArray></Points>
+            </Piece></PolyData></VTKFile>""",
+            encoding="utf-8",
+        )
+
+    bundle_first = tmp_path / "first_bundle"
+    assert main([
+        "results", str(case), "--output-dir", str(out_dir),
+        "--save-bundle", str(bundle_first), "--frame", "first",
+        "--root", str(tmp_path), "--json",
+    ]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["data"]["rendered"]["frame"] == "first"
+    assert (bundle_first / "scene.json").is_file()
+
+    # Out-of-range frame index fails cleanly without requiring an OpenGL display
+    assert main([
+        "results", str(case), "--output-dir", str(out_dir),
+        "--save-bundle", str(tmp_path / "bad_bundle"), "--frame", "99",
+    ]) == 1
+    assert "out of range" in capsys.readouterr().err
+
+    # Verify shell auto-syncs preview_runtime._watch_output_dir when `run --output-dir` runs after `preview --watch`
+    runtime2 = _ShellPreviewRuntime()
+    with (
+        patch.dict("sys.modules", {"pyvista": MagicMock()}),
+        patch("sphinxsim.cli._ShellPreviewRuntime", return_value=runtime2),
+        patch.object(_ShellPreviewRuntime, "show_or_update", return_value=0),
+        patch.object(_ShellPreviewRuntime, "close", lambda self=None: None),
+        patch("sphinxsim.cli.load_sphinxsys_core_nd", side_effect=ImportError("no native ext")),
+        patch("sphinxsim.cli.cmd_run", return_value=0),
+        patch("builtins.input", side_effect=[f"load {case}", "preview --watch", f"run --output-dir {out_dir}", "exit"]),
+    ):
+        assert main(["shell"]) == 0
+    assert runtime2._watch_output_dir == out_dir.resolve()
+
+
+@requires_desktop
+def test_results_vtk_screenshot_frame_selector(tmp_path, capsys):
+    pytest.importorskip("pyvista")
     case = tmp_path / "case.json"
     assert main(["init", "2d/column_collapse", str(case)]) == 0
     capsys.readouterr()
@@ -360,36 +418,3 @@ def test_results_frame_selector_and_watch_output_dir_autosync(tmp_path, monkeypa
     payload = json.loads(capsys.readouterr().out)
     assert payload["data"]["rendered"]["frame"] == "first"
     assert shot_first.is_file()
-
-    # Out-of-range frame index fails cleanly
-    assert main([
-        "results", str(case), "--output-dir", str(out_dir),
-        "--screenshot", str(tmp_path / "bad.png"), "--frame", "99",
-    ]) == 1
-    assert "out of range" in capsys.readouterr().err
-
-    # Verify shell auto-syncs preview_runtime._watch_output_dir when `run --output-dir` runs after `preview --watch`
-    runtime = _ShellPreviewRuntime()
-    with (
-        patch.dict("sys.modules", {"pyvista": MagicMock()}),
-        patch("sphinxsim.cli._ShellPreviewRuntime", return_value=runtime),
-        patch.object(_ShellPreviewRuntime, "show_or_update", return_value=0),
-        patch("sphinxsim.cli.load_sphinxsys_core_nd", side_effect=ImportError("no native ext")),
-        patch("sphinxsim.cli.cmd_run", return_value=0),
-        patch("builtins.input", side_effect=[f"load {case}", "preview --watch", f"run --output-dir {out_dir}", "exit"]),
-    ):
-        assert main(["shell"]) == 0
-        # Before close() resets state, check during run or patch close
-    # Re-verify with close patched so we inspect _watch_output_dir directly
-    runtime2 = _ShellPreviewRuntime()
-    with (
-        patch.dict("sys.modules", {"pyvista": MagicMock()}),
-        patch("sphinxsim.cli._ShellPreviewRuntime", return_value=runtime2),
-        patch.object(_ShellPreviewRuntime, "show_or_update", return_value=0),
-        patch.object(_ShellPreviewRuntime, "close", lambda self=None: None),
-        patch("sphinxsim.cli.load_sphinxsys_core_nd", side_effect=ImportError("no native ext")),
-        patch("sphinxsim.cli.cmd_run", return_value=0),
-        patch("builtins.input", side_effect=[f"load {case}", "preview --watch", f"run --output-dir {out_dir}", "exit"]),
-    ):
-        assert main(["shell"]) == 0
-    assert runtime2._watch_output_dir == out_dir.resolve()

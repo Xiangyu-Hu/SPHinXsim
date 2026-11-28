@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
 from sphinxsim.cli import _ShellPreviewRuntime, main
+
+requires_desktop = pytest.mark.skipif(
+    os.environ.get("SPHINXSIM_DESKTOP_TESTS") != "1",
+    reason="Real VTK off-screen OpenGL rendering requires SPHINXSIM_DESKTOP_TESTS=1",
+)
 
 
 def _write_vtp_with_fields(
@@ -154,6 +160,7 @@ def test_results_summarizes_vtp_dat_and_quality(tmp_path, capsys):
     assert "WaterBody" in human
 
 
+@requires_desktop
 def test_results_screenshot_with_color_by(tmp_path, capsys):
     pytest.importorskip("pyvista")
     case = tmp_path / "case.json"

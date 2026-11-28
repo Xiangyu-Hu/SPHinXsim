@@ -171,14 +171,14 @@ Inside the shell, you can use the following commands:
 | `preview` | Render an interactive geometry/BC preview of the loaded config |
 | `preview --watch [--watch-output-dir DIR]` | Watch `config.json` (and optional output VTPs) on disk and auto-refresh when clean |
 | `preview --with-particles` | Generate particles and automatically play their relaxation snapshots |
-| `preview --screenshot FILE` | Save a screenshot to FILE instead of opening an interactive window |
+| `preview --screenshot FILE [--renderer vtk\|cycles] [--fluid-surface] [--save-bundle DIR]` | Save a VTK or Blender Cycles screenshot to FILE, or export a portable Cycles scene bundle |
 | `initialize-simulation` | Build and initialize the retained particle-preview simulation and display its initial body-state snapshots |
 | `continue-to-run` | Run the initialized particle-preview simulation; check each body's latest snapshot every 75 ms |
 | `run [--output-dir DIR]` | Build and execute the loaded config (optionally writing to an isolated `DIR`) |
 | `run --detach [--json]` | Submit a persistent background job and save its reference to `.sphinxsim/last-job.json` |
 | `run --with-animation` | Preview generated particles, continue that same simulation, and animate its snapshots |
 | `job <status\|logs\|wait\|continue\|cancel\|results> [REF_JSON]` | Inspect, wait on, or control a detached job (defaults to `.sphinxsim/last-job.json` when omitted) |
-| `results [--output-dir DIR] [--screenshot FILE] [--color-by FIELD] [--frame FRAME] [--json]` | Summarize VTP frames, `.dat` observer/energy series, quality checks, and optional result screenshots (`--frame latest\|first\|N`) |
+| `results [--output-dir DIR] [--screenshot FILE] [--renderer vtk\|cycles] [--fluid-surface] [--save-bundle DIR] [--color-by FIELD] [--frame FRAME] [--json]` | Summarize VTP frames, `.dat` observer/energy series, quality checks, and optional VTK or Blender Cycles renders (`--frame latest\|first\|all\|N`) |
 | `capabilities` / `compile` / `geometry` / `project` | Direct access to native structured SPHinXsim CLI subcommands |
 | `agent <start\|status\|approve\|report\|promote\|preview\|...>` | Manage AgentCAE calibration workflows, observe runs in the shell preview, or `promote` candidates back to `config.json` |
 | `replay` | Replay simulation snapshots from the latest successful animated run at up to 25 FPS |
@@ -343,13 +343,15 @@ This:
 
 ### Results
 
-Inspect saved VTP particle frames, observer and energy `.dat` time-series files, and output quality checks—or render an off-screen screenshot of a selected solver frame (`--frame latest|first|<index>`):
+Inspect saved VTP particle frames, observer and energy `.dat` time-series files, and output quality checks—or render off-screen VTK screenshots, ray-traced **Blender Cycles** images (`--renderer cycles`), `.blend` project files (`--save-blend`), or portable Cycles scene bundles (`--save-bundle`):
 
 ```bash
 sphinxsim results config.json --output-dir runs/run_01
 sphinxsim results config.json --output-dir runs/run_01 --json
 sphinxsim results config.json --output-dir runs/run_01 --screenshot pressure.png --color-by Pressure --frame latest
-sphinxsim results config.json --output-dir runs/run_01 --screenshot initial.png --frame first
+sphinxsim results config.json --output-dir runs/run_01 --renderer cycles --screenshot cycles_vel.png --color-by Velocity --samples 128
+sphinxsim results config.json --output-dir runs/run_01 --renderer cycles --fluid-surface --screenshot water.png --save-blend scene.blend
+sphinxsim results config.json --output-dir runs/run_01 --save-bundle ./cycles_bundle --color-by Velocity
 ```
 
 ### Preview
@@ -375,6 +377,15 @@ Options:
 | `--watch-output-dir DIR` | Stream VTP frames from `DIR` into a `--watch` preview window. |
 | `--off-screen` | Render off-screen (no window) — useful for automated testing |
 | `--screenshot FILE` / `-s FILE` | Save a screenshot to FILE instead of opening a window. Implies `--off-screen`. |
+| `--renderer {vtk,cycles}` | Choose `vtk` (PyVista, default) or `cycles` (Blender Cycles ray-traced rendering). |
+| `--samples INT` | Ray-tracing samples per pixel for `--renderer cycles` (default: `64`). |
+| `--resolution WxH` | Output resolution for Cycles renders, e.g. `1920x1080` (default: `1600x900`). |
+| `--fluid-surface` | Reconstruct smooth refractive fluid meshes via Blender Geometry Nodes for `fluid_bodies`. |
+| `--transparent-bg` | Render Cycles output with a transparent alpha background and ground shadow catcher. |
+| `--no-overlay` | Omit the 2D Qt scientific HUD (colorbar, physical time, legend) on Cycles PNG outputs. |
+| `--save-bundle DIR` | Export a portable Cycles Scene Bundle (`scene.json` + `.bin` buffers) without requiring Blender. |
+| `--save-blend FILE` | Save the constructed `.blend` project file via Blender. |
+| `--blender PATH` | Override the Blender executable path (defaults to `$SPHINXSIM_BLENDER_EXECUTABLE` or `PATH`). |
 
 Requires the optional `[visualization]` extra:
 
@@ -489,6 +500,24 @@ sphinxsim shell
 > results --output-dir runs/collapse_01
 > undo
 > exit
+```
+
+### Example 9: High-quality rendering and portable HPC bundle export with Blender Cycles
+
+```bash
+# On a workstation with Blender installed (PATH or SPHINXSIM_BLENDER_EXECUTABLE):
+sphinxsim results case.json --output-dir runs/collapse_01 \
+  --renderer cycles --screenshot collapse_vel.png \
+  --color-by Velocity --samples 128 --resolution 1920x1080
+
+# Smooth Geometry Nodes fluid surface + .blend project file:
+sphinxsim results dambreak.json --output-dir runs/dambreak_01 \
+  --renderer cycles --fluid-surface --transparent-bg \
+  --screenshot water.png --save-blend dambreak.blend
+
+# On a headless compute node without Blender or PyVista installed:
+sphinxsim results case.json --output-dir runs/collapse_01 \
+  --save-bundle ./cycles_bundle --color-by Velocity
 ```
 
 ## LLM provider selection

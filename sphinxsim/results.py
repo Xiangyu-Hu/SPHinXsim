@@ -739,13 +739,49 @@ def _select_body_frames(
 def render_run_results(
     config_path: str | Path,
     output_dir: str | Path,
-    screenshot_path: str | Path,
+    screenshot_path: str | Path | None = None,
     *,
     color_by: str | None = None,
     frame: str = "latest",
     project_root: str | Path | None = None,
+    renderer: str = "vtk",
+    samples: int = 64,
+    resolution: str | tuple[int, int] | None = None,
+    fluid_surface: bool = False,
+    transparent_bg: bool = False,
+    apply_overlay: bool = True,
+    save_bundle: str | Path | None = None,
+    save_blend: str | Path | None = None,
+    blender_executable: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Render an off-screen PNG of an existing simulation output directory."""
+    """Render an off-screen PNG (or Cycles scene bundle/.blend) of a simulation output directory."""
+    use_cycles = (
+        str(renderer or "vtk").strip().lower() == "cycles"
+        or save_bundle is not None
+        or save_blend is not None
+    )
+    if use_cycles:
+        from sphinxsim.visualization.cycles_runner import render_results_with_cycles
+
+        return render_results_with_cycles(
+            config_path,
+            output_dir,
+            screenshot_path,
+            save_bundle=save_bundle,
+            save_blend=save_blend,
+            color_by=color_by,
+            frame=frame,
+            samples=samples,
+            resolution=resolution,
+            fluid_surface=fluid_surface,
+            transparent_bg=transparent_bg,
+            apply_overlay=apply_overlay,
+            blender_executable=blender_executable,
+        )
+
+    if screenshot_path is None:
+        raise AnalysisError("screenshot_path is required when rendering with the VTK backend")
+
     import pyvista as pv
 
     from sphinxsim.config.migrations import migrate_legacy_configuration

@@ -54,8 +54,13 @@ Design rule:
 - `sphinxsim/visualization/preview_runtime.py`
 - `sphinxsim/visualization/particle_visibility.py`
 - `sphinxsim/visualization/annotations.py`
+- `sphinxsim/visualization/cycles_export.py`
+- `sphinxsim/visualization/blender_cycles_worker.py`
+- `sphinxsim/visualization/cycles_runner.py`
+- `sphinxsim/visualization/cycles_overlay.py`
 - `tests/test_visualization.py`
 - `tests/test_particle_visibility.py`
+- `tests/test_cycles_visualization.py`
 - `tests/runtime/test_desktop.py`
 
 ### Preview responsibilities

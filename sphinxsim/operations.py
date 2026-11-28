@@ -71,8 +71,13 @@ TOOLS = {
             "friction_angle_degrees": {"type": "number", "minimum": 0, "exclusiveMaximum": 90},
             "run_id": {"type": "string"}, "analysis_id": {"type": "string"}, "metrics": OBJECT},
             ["friction_angle_degrees", "run_id", "analysis_id", "metrics"])}}, ["sweep_id", "target_value", "samples"])),
-    "results_render": ("Render a PNG from verified published geometry and particle frames of an explicit job.", schema({
-        "reference": REFERENCE, "output": PATH}, ["reference", "output"])),
+    "results_render": ("Render a PNG (via VTK or Blender Cycles) or export a portable Cycles scene bundle from verified published geometry and particle frames of an explicit job.", schema({
+        "reference": REFERENCE, "output": PATH, "renderer": {"enum": ["vtk", "cycles"]},
+        "color_by": {"type": "string", "minLength": 1, "maxLength": 128},
+        "samples": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "resolution": {"type": "string", "minLength": 5, "maxLength": 32},
+        "fluid_surface": {"type": "boolean"}, "transparent_bg": {"type": "boolean"},
+        "save_bundle": PATH}, ["reference"])),
     "templates": ("List verified 2D and 3D reference simulation templates.", schema({})),
     "template_init": ("Initialize a workspace configuration and referenced STL/data assets from a verified template.", schema({
         "template": {"type": "string", "minLength": 1, "maxLength": 128}, "output": PATH,
@@ -91,10 +96,18 @@ TOOLS = {
     "search_docs": ("Search offline SPHinXsim documentation, tutorials, tool contracts, and reference templates by keyword.", schema({
         "query": {"type": "string", "minLength": 1, "maxLength": 512},
         "limit": {"type": "integer", "minimum": 1, "maximum": 10}}, ["query"])),
-    "results_summary": ("Summarize VTP frames, observer/energy .dat series, and saved-output quality checks for an output directory.", schema({
+    "results_summary": ("Summarize VTP frames, observer/energy .dat series, and saved-output quality checks for an output directory, with optional VTK or Blender Cycles rendering/bundle export.", schema({
         "config_file": PATH, "output_dir": PATH, "screenshot": PATH,
         "color_by": {"type": "string", "minLength": 1, "maxLength": 128},
-        "frame": {"type": "string", "minLength": 1, "maxLength": 32}}, ["config_file", "output_dir"])),
+        "frame": {"type": "string", "minLength": 1, "maxLength": 32},
+        "renderer": {"enum": ["vtk", "cycles"]},
+        "samples": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "resolution": {"type": "string", "minLength": 5, "maxLength": 32},
+        "fluid_surface": {"type": "boolean"},
+        "transparent_bg": {"type": "boolean"},
+        "no_overlay": {"type": "boolean"},
+        "save_bundle": PATH,
+        "save_blend": PATH}, ["config_file", "output_dir"])),
     "workbench": ("Inspect the connected Workbench draft, propose a revision-bound edit, or observe an explicit workflow.", schema({
         "operation": {"enum": ["status", "propose", "observe"]}, "revision": {"type": "string"},
         "configuration": OBJECT, "instruction": {"type": "string"}, "workflow_id": {"type": "string"}}, ["operation"])),

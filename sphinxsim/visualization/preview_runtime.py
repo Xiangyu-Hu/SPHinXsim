@@ -126,6 +126,11 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._watch_result_catalog: Any | None = None
         self._agent_observer: Any | None = None
         self._watching_guard = False
+        self._last_vtp_dir: Path | None = None
+        self._last_particle_vtps: dict[str, Path] = {}
+        self._last_shape_bounds: dict[str, Any] | None = None
+        self._last_config: SimulationConfig | None = None
+        self._last_config_path: Path | None = None
 
     def _reset_preview_state(self) -> None:
         """Forget all state associated with a closed preview window."""
@@ -143,6 +148,11 @@ class _ShellPreviewRuntime(JsonEditorMixin):
         self._particle_scene_config_signature = None
         self.last_signature = None
         self._using_background_plotter = False
+        self._last_vtp_dir = None
+        self._last_particle_vtps = {}
+        self._last_shape_bounds = None
+        self._last_config = None
+        self._last_config_path = None
 
     def _on_preview_window_closed(self, *_args: Any) -> None:
         """Handle a user closing the Qt window outside the shell command loop."""
@@ -1057,6 +1067,166 @@ class _ShellPreviewRuntime(JsonEditorMixin):
             ),
         ]
 
+    def _render_menu_actions(
+        self,
+    ) -> list[tuple[str, str, Callable[[], int], Callable[[], bool]]]:
+        return [
+            (
+                "cycles-render",
+                "Render with Cycles…",
+                lambda: self._interactive_cycles_action(fluid_surface=False, bundle_only=False),
+                lambda: self._last_config is not None and self._last_config_path is not None,
+            ),
+            (
+                "cycles-fluid-surface",
+                "Render fluid surface with Cycles…",
+                lambda: self._interactive_cycles_action(fluid_surface=True, bundle_only=False),
+                lambda: self._last_config is not None
+                and self._last_config_path is not None
+                and bool(getattr(self._last_config, "fluid_bodies", ())),
+            ),
+            (
+                "cycles-export-bundle",
+                "Export Cycles scene bundle…",
+                lambda: self._interactive_cycles_action(fluid_surface=False, bundle_only=True),
+                lambda: self._last_config is not None and self._last_config_path is not None,
+            ),
+        ]
+
+    def _active_particle_vtp_map(self) -> dict[str, Path]:
+        """Collect the most recent VTP file per body displayed in the active preview."""
+        versions = self._live_particle_versions or self._watch_particle_versions
+        if versions:
+            out: dict[str, Path] = {}
+            for body, ver in versions.items():
+                if isinstance(ver, tuple) and ver and Path(str(ver[0])).is_file():
+                    out[body] = Path(str(ver[0]))
+            if out:
+                return out
+        return {b: p for b, p in self._last_particle_vtps.items() if p.is_file()}
+
+    def export_or_render_cycles(
+        self,
+        *,
+        screenshot_path: str | Path | None = None,
+        save_bundle: str | Path | None = None,
+        save_blend: str | Path | None = None,
+        color_by: str | None = None,
+        samples: int = 64,
+        resolution: str | tuple[int, int] | None = None,
+        fluid_surface: bool = False,
+        transparent_bg: bool = False,
+        apply_overlay: bool = True,
+        blender_executable: str | Path | None = None,
+    ) -> dict[str, Any]:
+        """Export or render the live interactive preview state via Blender Cycles."""
+        from sphinxsim.visualization.cycles_export import CyclesSceneState
+        from sphinxsim.visualization.cycles_runner import render_preview_with_cycles
+
+        if self._last_config is None or self._last_config_path is None:
+            raise RuntimeError("No active preview scene is loaded to export or render.")
+
+        live_state = CyclesSceneState.from_particle_visibility(
+            self._particle_visibility,
+            camera_state=self._capture_camera_state(),
+        )
+        particle_map = self._active_particle_vtp_map()
+        vtp_source = self._last_vtp_dir or self._live_output_dir or self._watch_output_dir or self._animation_output_dir
+        return render_preview_with_cycles(
+            self._last_config,
+            self._last_config_path,
+            project_root=PROJECT_ROOT,
+            screenshot_path=screenshot_path,
+            save_bundle=save_bundle,
+            save_blend=save_blend,
+            with_particles=bool(particle_map),
+            vtp_dir=vtp_source,
+            particle_vtps=particle_map or None,
+            shape_bounds=self._last_shape_bounds,
+            scene_state=live_state,
+            color_by=color_by,
+            samples=samples,
+            resolution=resolution,
+            fluid_surface=fluid_surface,
+            transparent_bg=transparent_bg,
+            apply_overlay=apply_overlay,
+            blender_executable=blender_executable,
+        )
+
+    def _interactive_cycles_action(self, *, fluid_surface: bool, bundle_only: bool) -> int:
+        from qtpy import QtWidgets
+        from sphinxsim.visualization.cycles_runner import find_blender_executable
+
+        parent = getattr(self.plotter, "app_window", None)
+        status = self._json_editor.get("status") if isinstance(self._json_editor, dict) else None
+        blender_bin = None if bundle_only else find_blender_executable()
+
+        if bundle_only or blender_bin is None:
+            if not bundle_only and blender_bin is None:
+                reply = QtWidgets.QMessageBox.question(
+                    parent,
+                    "Blender Not Found Locally",
+                    "Blender was not found on PATH (or SPHINXSIM_BLENDER_EXECUTABLE).\n\n"
+                    "Would you like to export a portable Cycles Scene Bundle directory instead?",
+                )
+                if reply != QtWidgets.QMessageBox.StandardButton.Yes:
+                    return 0
+            chosen_dir = QtWidgets.QFileDialog.getExistingDirectory(
+                parent,
+                "Select Destination Directory for Cycles Scene Bundle",
+                str(self._last_config_path.parent if self._last_config_path else Path.cwd()),
+            )
+            if not chosen_dir:
+                return 0
+            try:
+                res = self.export_or_render_cycles(
+                    save_bundle=chosen_dir,
+                    fluid_surface=fluid_surface,
+                )
+                msg = f"Exported Cycles bundle to {res['bundle_dir']}"
+                if status is not None:
+                    status.setText(msg)
+                print(f"📦 {msg}\n   Render with: {res['render_command']}")
+                return 0
+            except Exception as exc:
+                if status is not None:
+                    status.setText(f"Cycles export failed: {exc}")
+                QtWidgets.QMessageBox.warning(parent, "Cycles Export Error", str(exc))
+                return 1
+
+        default_file = str(
+            (self._last_config_path.parent if self._last_config_path else Path.cwd()) / "cycles_render.png"
+        )
+        chosen_file, _ = QtWidgets.QFileDialog.getSaveFileName(
+            parent,
+            "Save Blender Cycles Render",
+            default_file,
+            "PNG Images (*.png)",
+        )
+        if not chosen_file:
+            return 0
+        if not chosen_file.lower().endswith(".png"):
+            chosen_file += ".png"
+        if status is not None:
+            status.setText("Rendering with Blender Cycles…")
+        self.pump_ui_events()
+        try:
+            res = self.export_or_render_cycles(
+                screenshot_path=chosen_file,
+                fluid_surface=fluid_surface,
+                blender_executable=blender_bin,
+            )
+            msg = f"Saved Cycles render ({res.get('backend', 'CPU')}) to {res['file']}"
+            if status is not None:
+                status.setText(msg)
+            print(f"📸 {msg}")
+            return 0
+        except Exception as exc:
+            if status is not None:
+                status.setText(f"Cycles render failed: {exc}")
+            QtWidgets.QMessageBox.warning(parent, "Cycles Render Error", str(exc))
+            return 1
+
     def _can_generate_particles(self) -> bool:
         editor = self._json_editor
         get_config_path = editor.get("config_path") if isinstance(editor, dict) else None
@@ -1148,6 +1318,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 config_path=resolved_config_path,
                 with_particles=with_particles,
                 simulation_actions=self._simulation_properties_actions(),
+                render_actions=self._render_menu_actions(),
             )
             if not editor_refreshed:
                 print("Preview canceled; unapplied editor changes were preserved.")
@@ -1188,6 +1359,11 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                 latest_particle_vtps = visualizer._discover_latest_particle_vtps(
                     vtp_dir, generation_only=True
                 )
+            self._last_vtp_dir = vtp_dir
+            self._last_particle_vtps = dict(latest_particle_vtps)
+            self._last_shape_bounds = getattr(visualizer, "_shape_bounds_cache", None)
+            self._last_config = config
+            self._last_config_path = resolved_config_path
             ensure_geometry_available = getattr(
                 visualizer, "_ensure_shape_geometry_available", None
             )
@@ -1248,6 +1424,7 @@ class _ShellPreviewRuntime(JsonEditorMixin):
                     config_path=resolved_config_path,
                     with_particles=with_particles,
                     simulation_actions=self._simulation_properties_actions(),
+                    render_actions=self._render_menu_actions(),
                 )
                 from qtpy import QtWidgets
                 if isinstance(self.plotter, QtWidgets.QWidget):

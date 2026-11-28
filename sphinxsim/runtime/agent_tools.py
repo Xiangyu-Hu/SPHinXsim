@@ -111,14 +111,27 @@ def call(service, name, arguments):
         config_path = jobs.path(arguments["config_file"])
         output_dir = jobs.path(arguments["output_dir"])
         summary = summarize_run_results(config_path, output_dir)
-        if arguments.get("screenshot"):
-            shot_path = jobs.path(arguments["screenshot"], exists=False)
+        has_render_request = any(
+            arguments.get(k) for k in ("screenshot", "save_bundle", "save_blend")
+        )
+        if has_render_request:
+            shot_path = jobs.path(arguments["screenshot"], exists=False) if arguments.get("screenshot") else None
+            bundle_path = jobs.path(arguments["save_bundle"], exists=False) if arguments.get("save_bundle") else None
+            blend_path = jobs.path(arguments["save_blend"], exists=False) if arguments.get("save_blend") else None
             summary["rendered"] = render_run_results(
                 config_path,
                 output_dir,
                 shot_path,
                 color_by=arguments.get("color_by"),
                 frame=arguments.get("frame", "latest"),
+                renderer=arguments.get("renderer", "vtk"),
+                samples=int(arguments.get("samples", 64)),
+                resolution=arguments.get("resolution"),
+                fluid_surface=bool(arguments.get("fluid_surface", False)),
+                transparent_bg=bool(arguments.get("transparent_bg", False)),
+                apply_overlay=not bool(arguments.get("no_overlay", False)),
+                save_bundle=bundle_path,
+                save_blend=blend_path,
             )
         return summary
     raise ValueError("Unknown authoring or analysis operation")
@@ -421,9 +434,6 @@ def prepare_case(service, source, output):
 
 
 def render(service, arguments):
-    import numpy as np
-    import pyvista as pv
-
     jobs = service.jobs
     job_id = jobs.resolve(arguments["reference"])
     publication = jobs.results(job_id)
@@ -434,8 +444,42 @@ def render(service, arguments):
     directory = jobs.job_path(job_id) / "result"
     manifest = json.loads((directory / publication["manifest"]).read_text(encoding="utf-8"))
     from sphinxsim.config.schemas import SimulationConfig
-    from sphinxsim.visualization.preview import _body_colour
     config = SimulationConfig.model_validate_json((jobs.job_path(job_id) / "effective-config.json").read_text(encoding="utf-8"))
+
+    use_cycles = arguments.get("renderer") == "cycles" or bool(arguments.get("save_bundle"))
+    if use_cycles:
+        from sphinxsim.visualization.cycles_runner import render_job_manifest_with_cycles
+        output = jobs.path(arguments["output"], exists=False) if arguments.get("output") else None
+        bundle_dir = jobs.path(arguments["save_bundle"], exists=False) if arguments.get("save_bundle") else None
+        if output is None and bundle_dir is None:
+            raise ValueError("Provide 'output' and/or 'save_bundle' for Cycles results_render")
+        cycles_res = render_job_manifest_with_cycles(
+            directory,
+            manifest,
+            config,
+            output,
+            save_bundle=bundle_dir,
+            color_by=arguments.get("color_by"),
+            samples=int(arguments.get("samples", 64)),
+            resolution=arguments.get("resolution"),
+            fluid_surface=bool(arguments.get("fluid_surface", False)),
+            transparent_bg=bool(arguments.get("transparent_bg", False)),
+        )
+        if output is not None and output.is_file():
+            cycles_res["file"] = arguments["output"]
+            cycles_res["content"] = [{
+                "type": "image",
+                "mimeType": "image/png",
+                "data": base64.b64encode(output.read_bytes()).decode("ascii"),
+            }]
+        return cycles_res
+
+    if not arguments.get("output"):
+        raise ValueError("'output' is required when rendering with the VTK backend")
+    import numpy as np
+    import pyvista as pv
+    from sphinxsim.visualization.preview import _body_colour
+
     output = jobs.path(arguments["output"], exists=False)
     output.parent.mkdir(parents=True, exist_ok=True)
     plotter = pv.Plotter(off_screen=True)

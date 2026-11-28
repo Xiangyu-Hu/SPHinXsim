@@ -38,6 +38,8 @@ python -m pip install -e ".[dev]"
 python -m pip install -e ".[visualization]"
 ```
 
+- Optional: to enable high-quality ray-traced rendering via `--renderer cycles`, install [Blender](https://www.blender.org/) (3.6 LTS or 4.x+) and ensure `blender` is on `PATH` (or set `SPHINXSIM_BLENDER_EXECUTABLE=/path/to/blender`). Exporting portable Cycles scene bundles (`--save-bundle DIR`) works out of the box with base `sphinxsim` and does not require Blender or PyVista on the host machine.
+
   See [Visualization](visualization.md) for details.
 
 - Optional: enable CLI shell completion.

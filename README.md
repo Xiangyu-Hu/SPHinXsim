@@ -37,7 +37,7 @@ From a single specification, users and external agents can validate inputs, gene
 * Native CLI, shell, and MCP interfaces for interactive and automated use
 * CAD-driven geometry generation and validation before execution
 * Optional Python integration via pybind11 for embedded workflows
-* Visualization and result inspection with [PyVista](https://pyvista.org/)
+* Interactive preview and result inspection with [PyVista](https://pyvista.org/), plus high-quality ray-traced rendering and portable scene export for [Blender Cycles](https://www.cycles-renderer.org/)
 * Heterogeneous CPU/GPU execution with [SYCL](https://www.khronos.org/sycl/)
 
 ### SPHinXsim Agent

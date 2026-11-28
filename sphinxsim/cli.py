@@ -503,7 +503,60 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_preview(args: argparse.Namespace) -> int:
-    """Render an interactive geometry/BC preview of a JSON config file."""
+    """Render an interactive geometry/BC preview (or Cycles render/bundle) of a JSON config file."""
+    renderer = str(getattr(args, "renderer", "vtk") or "vtk").strip().lower()
+    save_bundle = getattr(args, "save_bundle", None)
+    save_blend = getattr(args, "save_blend", None)
+    screenshot_path = getattr(args, "screenshot", None)
+    with_particles = getattr(args, "with_particles", False)
+    use_cycles = renderer == "cycles" or save_bundle is not None or save_blend is not None
+
+    config_path = Path(args.config_file)
+    config, rc = _load_config(config_path)
+    if rc != 0:
+        return rc
+    assert config is not None
+    resolved_config_path = _resolve_preview_config_path(args.config_file)
+
+    if use_cycles:
+        if screenshot_path is None and save_bundle is None and save_blend is None:
+            print(
+                "❌ Cycles preview requires at least one output target: "
+                "--screenshot FILE, --save-bundle DIR, or --save-blend FILE.",
+                file=sys.stderr,
+            )
+            return 1
+        from sphinxsim.visualization.cycles_runner import render_preview_with_cycles
+
+        print(f"🖼  Building Blender Cycles preview for: {resolved_config_path}")
+        try:
+            rendered = render_preview_with_cycles(
+                config,
+                resolved_config_path,
+                project_root=PROJECT_ROOT,
+                screenshot_path=screenshot_path,
+                save_bundle=save_bundle,
+                save_blend=save_blend,
+                with_particles=with_particles,
+                samples=int(getattr(args, "samples", 64)),
+                resolution=getattr(args, "resolution", None),
+                fluid_surface=bool(getattr(args, "fluid_surface", False)),
+                transparent_bg=bool(getattr(args, "transparent_bg", False)),
+                apply_overlay=not bool(getattr(args, "no_overlay", False)),
+                blender_executable=getattr(args, "blender", None),
+            )
+        except Exception as exc:
+            print(f"❌ Cycles preview failed: {exc}", file=sys.stderr)
+            return 1
+        if rendered.get("bundle_dir"):
+            print(f"📦 Cycles scene bundle saved to: {rendered['bundle_dir']}")
+            print(f"   Render command: {rendered['render_command']}")
+        if rendered.get("saved_blend"):
+            print(f"🧱 Blender project saved to: {rendered['saved_blend']}")
+        if rendered.get("file"):
+            print(f"📸 Cycles render saved to: {rendered['file']}")
+        return 0
+
     try:
         import pyvista  # noqa: F401
     except ImportError:
@@ -514,19 +567,9 @@ def cmd_preview(args: argparse.Namespace) -> int:
         )
         return 1
 
-    config_path = Path(args.config_file)
-    config, rc = _load_config(config_path)
-    if rc != 0:
-        return rc
-    assert config is not None
-
-    resolved_config_path = _resolve_preview_config_path(args.config_file)
-
     from sphinxsim.visualization.preview import ConfigVisualizer
 
     off_screen = getattr(args, "off_screen", False)
-    screenshot_path = getattr(args, "screenshot", None)
-    with_particles = getattr(args, "with_particles", False)
     watch_mode = getattr(args, "watch", False)
     watch_output_dir = getattr(args, "watch_output_dir", None)
 
@@ -724,14 +767,31 @@ def cmd_results(args: argparse.Namespace) -> int:
     try:
         summary = summarize_run_results(config_path, output_dir)
         rendered = None
-        if getattr(args, "screenshot", None):
+        has_render_target = any(
+            getattr(args, attr, None) is not None
+            for attr in ("screenshot", "save_bundle", "save_blend")
+        )
+        if getattr(args, "renderer", "vtk") == "cycles" and not has_render_target:
+            raise ValueError(
+                "--renderer cycles requires --screenshot FILE, --save-bundle DIR, or --save-blend FILE"
+            )
+        if has_render_target:
             rendered = render_run_results(
                 config_path,
                 output_dir,
-                Path(args.screenshot),
+                Path(args.screenshot) if getattr(args, "screenshot", None) else None,
                 color_by=getattr(args, "color_by", None),
                 frame=getattr(args, "frame", None) or "latest",
                 project_root=PROJECT_ROOT,
+                renderer=getattr(args, "renderer", "vtk") or "vtk",
+                samples=int(getattr(args, "samples", 64)),
+                resolution=getattr(args, "resolution", None),
+                fluid_surface=bool(getattr(args, "fluid_surface", False)),
+                transparent_bg=bool(getattr(args, "transparent_bg", False)),
+                apply_overlay=not bool(getattr(args, "no_overlay", False)),
+                save_bundle=getattr(args, "save_bundle", None),
+                save_blend=getattr(args, "save_blend", None),
+                blender_executable=getattr(args, "blender", None),
             )
     except (AnalysisError, ImportError, OSError, ValueError, RuntimeError) as exc:
         print(f"Error inspecting results: {exc}", file=sys.stderr)
@@ -769,7 +829,15 @@ def cmd_results(args: argparse.Namespace) -> int:
     for finding in summary["quality"].get("findings", []):
         print(f"   ⚠️ [{finding.get('code')}] {finding.get('body', '')}: {finding.get('message')}")
     if rendered is not None:
-        print(f"📸 Result screenshot saved to: {rendered['file']}")
+        if rendered.get("bundle_dir"):
+            print(f"📦 Cycles scene bundle saved to: {rendered['bundle_dir']}")
+            if rendered.get("render_command"):
+                print(f"   Render command: {rendered['render_command']}")
+        if rendered.get("saved_blend"):
+            print(f"🧱 Blender project saved to: {rendered['saved_blend']}")
+        if rendered.get("file"):
+            label = "Cycles render" if rendered.get("renderer") == "cycles" else "Result screenshot"
+            print(f"📸 {label} saved to: {rendered['file']}")
     return 0
 
 
@@ -994,7 +1062,10 @@ def _shell_completion_matches(prefix: str, text: str) -> list[str]:
     if not (
         (command == "load" and len(words) == 1)
         or command == "generate"
-        or (command == "preview" and "--screenshot" in words)
+        or (
+            command in {"preview", "results"}
+            and any(flag in words for flag in ("--screenshot", "-s", "--save-bundle", "--save-blend", "--output-dir"))
+        )
     ):
         return []
 
@@ -1166,7 +1237,8 @@ def cmd_shell(args: argparse.Namespace) -> int:
             print("  validate                        - Reload and validate config from disk")
             print("  preview [--watch]               - Render geometry/BC preview (optional live disk watch)")
             print("  preview --with-particles        - Run particle generation and overlay particles")
-            print("  preview --screenshot FILE        - Save a screenshot to FILE instead of interactive window")
+            print("  preview --screenshot FILE [--renderer vtk|cycles] [--fluid-surface] [--save-bundle DIR]")
+            print("                                 - Save screenshot or export/render Cycles scene")
             print("  initialize-simulation           - Build and initialize the retained particle preview")
             print("  continue-to-run")
             print("                                 - Run the initialized particle preview simulation")
@@ -1175,7 +1247,7 @@ def cmd_shell(args: argparse.Namespace) -> int:
             print("                                 - Run config synchronously, with animation, or detached")
             print("  job <status|logs|wait|continue|cancel|results> [REF_JSON]")
             print("                                 - Inspect, wait on, or control a detached job (defaults to latest)")
-            print("  results [--output-dir DIR] [--screenshot FILE] [--color-by FIELD] [--frame FRAME] [--json]")
+            print("  results [--output-dir DIR] [--screenshot FILE] [--renderer vtk|cycles] [--save-bundle DIR] [--color-by FIELD] [--frame FRAME] [--json]")
             print("                                 - Summarize VTP frames, .dat series, and quality checks")
             print("  capabilities / compile / geometry / project / agent ...")
             print("                                 - Direct access to native SPHinXsim CLI subcommands")
@@ -1423,28 +1495,80 @@ def cmd_shell(args: argparse.Namespace) -> int:
                 continue
             with_particles = "--with-particles" in parts
             watch_mode = "--watch" in parts
-            watch_out: str | None = None
-            if "--watch-output-dir" in parts:
-                idx = parts.index("--watch-output-dir")
-                if idx + 1 < len(parts):
-                    watch_out = parts[idx + 1]
-            # Extract --screenshot / -s value from shell input
-            screenshot_path = None
-            if "--screenshot" in parts:
-                idx = parts.index("--screenshot")
-                if idx + 1 < len(parts):
-                    screenshot_path = parts[idx + 1]
-            elif "-s" in parts:
-                idx = parts.index("-s")
-                if idx + 1 < len(parts):
-                    screenshot_path = parts[idx + 1]
-            if screenshot_path is not None:
+
+            def _opt_val(flag: str, short: str | None = None) -> str | None:
+                for key in (flag, short) if short else (flag,):
+                    if key in parts:
+                        idx = parts.index(key)
+                        if idx + 1 < len(parts):
+                            return parts[idx + 1]
+                return None
+
+            watch_out = _opt_val("--watch-output-dir")
+            screenshot_path = _opt_val("--screenshot", "-s")
+            renderer_opt = (_opt_val("--renderer") or "vtk").strip().lower()
+            save_bundle_opt = _opt_val("--save-bundle")
+            save_blend_opt = _opt_val("--save-blend")
+            samples_opt = int(_opt_val("--samples") or "64")
+            resolution_opt = _opt_val("--resolution")
+            blender_opt = _opt_val("--blender")
+            color_by_opt = _opt_val("--color-by")
+            fluid_surface_opt = "--fluid-surface" in parts
+            transparent_bg_opt = "--transparent-bg" in parts
+            no_overlay_opt = "--no-overlay" in parts
+
+            is_cycles_req = (
+                renderer_opt == "cycles"
+                or save_bundle_opt is not None
+                or save_blend_opt is not None
+            )
+            if is_cycles_req and preview_runtime.plotter is not None and preview_runtime._last_config is not None:
+                if screenshot_path is None and save_bundle_opt is None and save_blend_opt is None:
+                    print(
+                        "❌ Cycles preview requires --screenshot FILE, --save-bundle DIR, or --save-blend FILE.",
+                        file=sys.stderr,
+                    )
+                    continue
+                try:
+                    rendered = preview_runtime.export_or_render_cycles(
+                        screenshot_path=screenshot_path,
+                        save_bundle=save_bundle_opt,
+                        save_blend=save_blend_opt,
+                        color_by=color_by_opt,
+                        samples=samples_opt,
+                        resolution=resolution_opt,
+                        fluid_surface=fluid_surface_opt,
+                        transparent_bg=transparent_bg_opt,
+                        apply_overlay=not no_overlay_opt,
+                        blender_executable=blender_opt,
+                    )
+                    if rendered.get("bundle_dir"):
+                        print(f"📦 Cycles scene bundle saved to: {rendered['bundle_dir']}")
+                        print(f"   Render command: {rendered['render_command']}")
+                    if rendered.get("saved_blend"):
+                        print(f"🧱 Blender project saved to: {rendered['saved_blend']}")
+                    if rendered.get("file"):
+                        print(f"📸 Cycles render saved to: {rendered['file']}")
+                except Exception as exc:
+                    print(f"❌ Cycles preview failed: {exc}", file=sys.stderr)
+                continue
+
+            if screenshot_path is not None or is_cycles_req:
                 _ = cmd_preview(
                     argparse.Namespace(
                         config_file=str(config_path),
                         with_particles=with_particles,
                         off_screen=False,
                         screenshot=screenshot_path,
+                        renderer=renderer_opt,
+                        samples=samples_opt,
+                        resolution=resolution_opt,
+                        fluid_surface=fluid_surface_opt,
+                        transparent_bg=transparent_bg_opt,
+                        no_overlay=no_overlay_opt,
+                        save_bundle=save_bundle_opt,
+                        save_blend=save_blend_opt,
+                        blender=blender_opt,
                     )
                 )
                 continue
@@ -1910,6 +2034,59 @@ def _build_parser() -> argparse.ArgumentParser:
     rest_p.add_argument("--dry-run", action="store_true", help="Preview restoration diff without writing.")
     rest_p.set_defaults(func=cmd_restore)
 
+    def _add_cycles_render_options(target_parser: argparse.ArgumentParser) -> None:
+        target_parser.add_argument(
+            "--renderer",
+            choices=["vtk", "cycles"],
+            default="vtk",
+            help="Off-screen rendering backend: 'vtk' (PyVista, default) or 'cycles' (Blender Cycles ray tracer).",
+        )
+        target_parser.add_argument(
+            "--samples",
+            type=int,
+            default=64,
+            help="Ray-tracing sample count per pixel for --renderer cycles (default: 64).",
+        )
+        target_parser.add_argument(
+            "--resolution",
+            default=None,
+            metavar="WxH",
+            help="Output image resolution for Cycles renders, e.g. 1920x1080 (default: 1600x900).",
+        )
+        target_parser.add_argument(
+            "--fluid-surface",
+            action="store_true",
+            help="Reconstruct smooth refractive fluid meshes via Blender Geometry Nodes for fluid_bodies.",
+        )
+        target_parser.add_argument(
+            "--transparent-bg",
+            action="store_true",
+            help="Render Cycles output with a transparent alpha background and ground shadow catcher.",
+        )
+        target_parser.add_argument(
+            "--no-overlay",
+            action="store_true",
+            help="Omit the 2D scientific HUD (colorbar, timestamp, and legend) on Cycles PNG outputs.",
+        )
+        target_parser.add_argument(
+            "--save-bundle",
+            default=None,
+            metavar="DIR",
+            help="Export a portable Cycles Scene Bundle (scene.json + .bin buffers) to DIR without requiring Blender.",
+        )
+        target_parser.add_argument(
+            "--save-blend",
+            default=None,
+            metavar="FILE",
+            help="Save the constructed Blender project to FILE (.blend) via the Cycles worker.",
+        )
+        target_parser.add_argument(
+            "--blender",
+            default=None,
+            metavar="PATH",
+            help="Explicit Blender executable path (overrides SPHINXSIM_BLENDER_EXECUTABLE and PATH).",
+        )
+
     # results
     res_p = subparsers.add_parser(
         "results",
@@ -1926,7 +2103,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--screenshot",
         "-s",
         default=None,
-        help="Render an off-screen PNG screenshot of the latest solver frames.",
+        help="Render an off-screen PNG screenshot of the selected solver frames.",
     )
     res_p.add_argument(
         "--color-by",
@@ -1936,8 +2113,9 @@ def _build_parser() -> argparse.ArgumentParser:
     res_p.add_argument(
         "--frame",
         default="latest",
-        help="Select 'latest' (default), 'first', or a 0-based/negative frame index for --screenshot.",
+        help="Select 'latest' (default), 'first', 'all' (Cycles sequence), or a 0-based/negative frame index.",
     )
+    _add_cycles_render_options(res_p)
     res_p.set_defaults(func=cmd_results)
 
     # ask
@@ -2052,6 +2230,7 @@ def _build_parser() -> argparse.ArgumentParser:
         metavar="DIR",
         help="Optional VTP output directory to stream into a --watch preview window.",
     )
+    _add_cycles_render_options(prev)
     prev.set_defaults(func=cmd_preview)
 
     # explore

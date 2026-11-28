@@ -142,6 +142,22 @@ def _execute(args):
             payload["color_by"] = args.color_by
         if getattr(args, "frame", None):
             payload["frame"] = args.frame
+        if getattr(args, "renderer", None) and args.renderer != "vtk":
+            payload["renderer"] = args.renderer
+        if getattr(args, "samples", 64) != 64:
+            payload["samples"] = int(args.samples)
+        if getattr(args, "resolution", None):
+            payload["resolution"] = str(args.resolution)
+        if getattr(args, "fluid_surface", False):
+            payload["fluid_surface"] = True
+        if getattr(args, "transparent_bg", False):
+            payload["transparent_bg"] = True
+        if getattr(args, "no_overlay", False):
+            payload["no_overlay"] = True
+        if getattr(args, "save_bundle", None):
+            payload["save_bundle"] = Path(args.save_bundle).resolve().relative_to(root).as_posix()
+        if getattr(args, "save_blend", None):
+            payload["save_blend"] = Path(args.save_blend).resolve().relative_to(root).as_posix()
         result = operations.call("results_summary", payload)
     elif command == "project":
         result = operations.call("project_inspect", {"config_file": args.config_file})
